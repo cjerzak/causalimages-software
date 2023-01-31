@@ -1,4 +1,4 @@
-# `causalimages`: The `R` Package for Causal Inference with Satellite, Medical, and Media Images 
+# `causalimages`: The `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images 
 
 Initial release date: *February 28th, 2023*
 
