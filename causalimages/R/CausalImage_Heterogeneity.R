@@ -882,7 +882,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if((round(atP,2)*100) %% 10 == 0){ print(atP) }
         keys_ <-  transportabilityMat$key[zer]
         # !! NOTE USE OF getImages NOT acquireImageRepFxn
-        im_keys <- acquireImageFxn_transportability(keys = keys_, training = F)
+        im_keys <- acquireImageFxn_transportability( keys = keys_ )
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
