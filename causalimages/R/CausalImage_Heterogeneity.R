@@ -1067,7 +1067,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             used_coordinates <- rbind(coordinate_i,used_coordinates)
             print(c(k_, i, im_i,long[im_i]))
             rbgTry <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,])) ) ,
-                             margins = margins_vec <- (ep_<-1e-6)*c(1,3,1,1),
+                             margins = T,
+                             mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
                              main = main_,
                              cex.lab = 2.5,col.lab=k_,
                              xlab = sprintf("Long: %s, Lat: %s",
