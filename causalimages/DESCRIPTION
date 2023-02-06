@@ -1,0 +1,12 @@
+Package: causalimages
+Title: causalimages: R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+Version: 2.0
+Authors: 'Connor Jerzak <cjerzak@g.harvard.edu> [aut, cre], Fredrik Johansson <fredrik.johansson@chalmers.se> [aut], Adel Daoud <adel.daoud@liu.se> [aut]'
+Description: R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images. 
+Depends: R (>= 3.3.3)
+License: Creative Commons Attribution-Noncommercial-No Derivative Works 4.0, for academic use only.
+Encoding: UTF-8
+LazyData: true
+Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
+Imports: tensorflow
+RoxygenNote: 7.2.1
