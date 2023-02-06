@@ -31,8 +31,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       lat = NULL,
                                       long = NULL,
                                       externalFigureKey = "",
-                                      acquireImageRepFxn,
-                                      acquireImageFxn_full = acquireImageRepFxn,
+                                      acquireImageRepFxn = acquireImageFxn_full ,
+                                      acquireImageFxn_full = NULL ,
+                                      acquireImageFxn_transportability = acquireImageFxn_full ,
 
                                       TYPE = "variational_minimal",
                                       SimMode = F,
@@ -80,10 +81,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # drop observations with NAs in their orthogonalized outcomes
     dropNAs <- which( is.na(  rowSums( X ) ) )
     if(length(dropNAs) > 0){
+      # note: transportabilityMat doesn't need to drop dropNAs
       obsW <- obsW[-dropNAs]
       obsY <- obsY[-dropNAs]
       X <- X[-dropNAs,]
-      transportabilityMat <- transportabilityMat[-dropNAs,]
       imageKeys <- imageKeys[-dropNAs]
       lat <- lat[ -dropNAs ]
       long <- long[ -dropNAs ]
@@ -881,7 +882,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if((round(atP,2)*100) %% 10 == 0){ print(atP) }
         keys_ <-  transportabilityMat$key[zer]
         # !! NOTE USE OF getImages NOT acquireImageRepFxn
-        im_keys <- getImages(keys = keys_, training = F)
+        im_keys <- acquireImageFxn_transportability(keys = keys_, training = F)
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
