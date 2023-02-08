@@ -43,11 +43,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       kClust_est = 2,
                                       maxPoolSize = 2L,
                                       strides = 1L,
-                                      nMonte_predictive = 10L,
                                       y_density = "normal",
                                       orthogonalize = F,
                                       compile = F,
+                                      nMonte_predictive = 10L,
                                       nMonte_variational = 5L,
+                                      nMonte_salience = 100L,
                                       kernelWidth,
                                       nSGD  = 400,
                                       nDenseWidth = 64L,
@@ -171,8 +172,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   Y1_sd_init_prior <- tfp$math$softplus_inverse(Y1_sd_init_prior)
 
   for(BAYES_STEP in c(1,2)){
-    if(BAYES_STEP == 1){ print("Initial Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...") }
-    if(BAYES_STEP == 2){ print("Final Empirical Bayes Estimation Step...") }
+    if(BAYES_STEP == 1){ print("Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...") }
+    if(BAYES_STEP == 2){ print("Empirical Bayes Estimation Step...") }
 
     if(BAYES_STEP == 1){
       nSGD_ORIG <- nSGD
@@ -811,8 +812,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       gc(); py_gc$collect()
       im_indi <- acquireImageRepFxn(indi_,training = F)
       ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_indi,training = F)))
-      ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,sd)
-      ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,mean)
+      ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
+      ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
       ClusterProbs_lower_conf_ <- ClusterProbs_est_ - 0. * ClusterProbs_std_
       return(list("ClusterProbs_est_"=ClusterProbs_est_,
                   "ClusterProbs_lower_conf_"=ClusterProbs_lower_conf_,
@@ -1006,154 +1007,172 @@ AnalyzeImageHeterogeneity <- function(obsW,
     for(type_plot in c("uncertainty","mean")){
       rows_ <- kClust_est; nExamples <- 5
       if(type_plot == "uncertainty"){rows_ <- 1L}
-      pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, TYPE,type_plot,orthogonalize,externalFigureKey),
-          height = ifelse(type_plot == "mean", yes = 4*rows_*3, no = 4),
-          width = 4*nExamples)
-      {
-        #
-        layout_mat <- matrix(c(1:nExamples*3-3+1,
-                               1:nExamples*3-1,
-                               1:nExamples*3),nrow = 3, byrow = T)
-        if(type_plot %in% c("mean")){
-          par(mar=c(2,5.8,3,0.5))
-          layout_mat <- rbind(layout_mat,
-                              layout_mat+max(layout_mat))
-        }
-        if(type_plot %in% c("uncertainty")){
-          par(mar=c(2,2,4,2)); layout_mat <- t(1:nExamples)
-        }
-        layout(mat = layout_mat,
-               widths = rep(2,ncol(layout_mat)),
-               heights = rep(2,nrow(layout_mat)))
-        reNorm <- function(ar){for(ib in 1:NBANDS){ar[,,ib] <- (ar[,,ib])*NORM_SD[ib] + NORM_MEAN[ib]  };return(ar) }
-        plotting_coordinates_mat <- c()
-        total_counter <- 0
-        for(k_ in 1:rows_){
-          used_coordinates <- c()
-          for(i in 1:5){
-            print(sprintf("Type Plot: %s; k_: %s, i: %s", type_plot, k_, i))
-            total_counter <- total_counter + 1
-            rfxn <- function(xer){xer}
-            bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
-              if(type_plot == "uncertainty"){
-                main_ <- letters[  total_counter  ]
-
-                # plot images with largest std's
-                sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_std[,k_])),decreasing=T)
-                im_i <- which(ClusterProbs_std[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
-              }
-              if(type_plot == "mean"){
-                main_ <- total_counter
-                # plot images with largest lower confidence
-                sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
-                im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
-
-                # plot images with largest cluster probs
-                #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
-                #im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
-              }
-
-              coordinate_i <- c(long[im_i],lat[im_i])
-              if(bad_counter>50){browser()}
-              if(i > 1){
-                dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
-                bad_counter <- bad_counter + 1
-                if(all(dist_m >= 2000)){isUnique_ <- T}
-              }
-              if(i == 1){isUnique_<-T}
-              print(sd_im <- sd(as.array(acquireImageFxn_full( im_i,training = F )[1,,,])))
-              if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
-            }
-            used_coordinates <- rbind(coordinate_i,used_coordinates)
-            print(c(k_, i, im_i,long[im_i]))
-            rbgTry <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,])) ) ,
-                             margins = T,
-                             mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                             main = main_,
-                             cex.lab = 2.5,col.lab=k_,
-                             xlab = sprintf("Long: %s, Lat: %s",
-                                            fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                            fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                             col.main = k_, cex.main=4),T)
-            if(class(rbgTry) == "try-error"){browser()}
-            if(type_plot == "mean"){
-              # axis for plot
-              ylab_ <- ""; if(i==1){
-                tauk <- eval(parse(text = sprintf("tau%s",k_)))
-                ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
-                if(orthogonalize == T){
-                  library(latex2exp)
-                  ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_,tauk)))
-                }
-                axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,
-                     col.axis=k_)
-              }
-
-              #obtain image gradients
-              {
-                take_k <- k_
-                if(i == 1){
-                  ImageGrad_fxn <- (function(m){
-                    m <- tf$Variable(m,trainable = T)
-                    with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
-                      tape$watch( m )
-                      PROBS_ <- tf$reduce_mean(tf$concat(
-                        replicate(10L,getClusterProb(m,training = F)),0L),0L)
-                      LOGIT_ <- tf$math$log(tf$divide(PROBS_,1-PROBS_+0.0000001))
-                    })
-                    ImageGrad <- tape$jacobian( LOGIT_, m , experimental_use_pfor = F)
-                    ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
-                    for(jf in 1:2){
-                      if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,3L,keepdims = T)}
-                      if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o,3L, keepdims = T)}
-                      ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
-                      if(jf == 1){ImageGrad_L2 <- ImageGrad}
-                      if(jf == 2){ImageGrad_E <- ImageGrad}
-                    }
-                    return(tf$concat(list(ImageGrad_L2,ImageGrad_E),2L))
-                  })
-                  AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
-                                                          kernel_size = gradAnalysisFilterDim <- 10L,
-                                                          padding = "valid")
-                  AveragingConv( tf$expand_dims(tf$gather(acquireImageRepFxn(im_i,training = F),1L, axis = 3L),3L)  )
-                  AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
-                }
-                IG <- as.array( ImageGrad_fxn( acquireImageRepFxn(im_i,training = F) ) )
-                nColors <- 1000
-                #if(i == 1){
-                {
-                  # pos/neg breaks should be on the same scale across observation
-                  pos_breaks <- sort( quantile(c(IG[,,2][IG[,,2]>0]),probs = seq(0,1,length.out=nColors/2)))
-                  neg_breaks <- sort(quantile(c(IG[,,2][IG[,,2]<0]),probs = seq(0,1,length.out=nColors/2)))
-                  grad_breaks <- sort(quantile(c(IG[,,1]),probs = seq(0,1,length.out = nColors)))
-                }
-
-                # magnitude
-                try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
-                          col = viridis::magma(nColors - 1),
-                          breaks = grad_breaks, axes = F),T)
-                ylab_ <- ""; if(i==1){
-                  axis(side = 2,at=0.5,labels = "Salience Magnitude",
-                       pos=-0.,tick=F, cex.axis=3, col.axis=k_)
-                }
-
-                # direction
-                try(image(t(IG[,,2])[,nrow(IG[,,2]):1],
-                          col = c(hcl.colors(nColors/2 - 1,"reds"),
-                                  hcl.colors(nColors/2 ,"blues")),
-                          breaks = c(neg_breaks,pos_breaks), axes = F),T)
-                ylab_ <- ""; if(i==1){
-                  axis(side = 2,at=0.5,labels = "Salience Direction",
-                       pos=-0.,tick=F, cex.axis=3, col.axis=k_)
-                }
-              }
-            }
+      #type_plot <- "mean"
+      plot_fxn <- function(){
+        pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, TYPE,type_plot,orthogonalize,externalFigureKey),
+            height = ifelse(type_plot == "mean", yes = 4*rows_*3, no = 4),
+            width = 4*nExamples)
+        {
+          #
+          if(type_plot %in% c("mean")){
+            par(mar=c(2, 5.9, 3, 0.5))
+            layout_mat <- matrix(c(1:nExamples*3-3+1,
+                                   1:nExamples*3-1,
+                                   1:nExamples*3),nrow = 3, byrow = T)
+            layout_mat <- rbind(layout_mat,
+                                layout_mat+max(layout_mat))
           }
-          plotting_coordinates_mat <- rbind(plotting_coordinates_mat,used_coordinates)
-          print(used_coordinates)
+          if(type_plot %in% c("uncertainty")){
+            par(mar=c(2,2,4,2)); layout_mat <- t(1:nExamples)
+          }
+          layout(mat = layout_mat,
+                 widths = rep(2,ncol(layout_mat)),
+                 heights = rep(2,nrow(layout_mat)))
+          reNorm <- function(ar){for(ib in 1:NBANDS){ar[,,ib] <- (ar[,,ib])*NORM_SD[ib] + NORM_MEAN[ib]  };return(ar) }
+          gc(); py_gc$collect()
+          plotting_coordinates_mat <- c()
+          total_counter <- 0
+          for(k_ in 1:rows_){
+            used_coordinates <- c()
+            for(i in 1:5){
+              #if(k_ == 2 & type_plot == "mean"){ browser() }
+              #if(k_ == 2 & i == 1){ browser() }
+              print(sprintf("Type Plot: %s; k_: %s, i: %s", type_plot, k_, i))
+              total_counter <- total_counter + 1
+              rfxn <- function(xer){xer}
+              bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
+                if(type_plot == "uncertainty"){
+                  main_ <- letters[  total_counter  ]
+
+                  # plot images with largest std's
+                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_std[,k_])),decreasing=T)
+                  im_i <- which(ClusterProbs_std[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                }
+                if(type_plot == "mean"){
+                  main_ <- total_counter
+                  # plot images with largest lower confidence
+                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
+                  im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+
+                  # plot images with largest cluster probs
+                  #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
+                  #im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                }
+
+                coordinate_i <- c(long[im_i],lat[im_i])
+                if(bad_counter>50){browser()}
+                if(i > 1){
+                  dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
+                  bad_counter <- bad_counter + 1
+                  if(all(dist_m >= 2000)){isUnique_ <- T}
+                }
+                if(i == 1){isUnique_<-T}
+                print(sd_im <- sd(as.array(acquireImageFxn_full( im_i,training = F )[1,,,]),na.rm=T))
+                if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
+              }
+              used_coordinates <- rbind(coordinate_i,used_coordinates)
+              print(c(k_, i, im_i, long[im_i]))
+              if(is.na(sum(reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,]))))){ browser() }
+              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,])) ) ,
+                               margins = T,
+                               mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
+                               main = main_,
+                               cex.lab = 2.5,col.lab=k_,
+                               xlab = sprintf("Long: %s, Lat: %s",
+                                              fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                              fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                               col.main = k_, cex.main=4),T)
+              #if(class(rbgPlot) == "try-error"){browser()}
+              if(class(rbgPlot) == "try-error"){print("rbgPlot broken")}
+              if(type_plot == "mean"){
+                # axis for plot
+                ylab_ <- ""; if(i==1){
+                  tauk <- eval(parse(text = sprintf("tau%s",k_)))
+                  ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
+                  if(orthogonalize == T){
+                    library(latex2exp)
+                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_,tauk)))
+                  }
+                  axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,
+                       col.axis=k_)
+                }
+
+                #obtain image gradients
+                {
+                  take_k <- k_
+                  if(i == 1){
+                    ImageGrad_fxn <- (function(m){
+                      m <- tf$Variable(m,trainable = T)
+                      with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
+                        tape$watch( m )
+                        PROBS_ <- tf$reduce_mean(tf$concat(
+                          replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
+                        PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
+                                                tf$divide(ep_LabelSmooth,tf$constant(2)))
+                        LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed),
+                                              tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+                      })
+                      ImageGrad <- tape$jacobian( LOGIT_, m , experimental_use_pfor = F)
+                      ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
+                      for(jf in 1:2){
+                        if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,3L,keepdims = T)}
+                        if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o,3L, keepdims = T)}
+                        ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
+                        if(jf == 1){ImageGrad_L2 <- ImageGrad}
+                        if(jf == 2){ImageGrad_E <- ImageGrad}
+                      }
+                      return(tf$concat(list(ImageGrad_L2,ImageGrad_E),2L))
+                    })
+                    AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
+                                                            kernel_size = gradAnalysisFilterDim <- 10L,
+                                                            padding = "valid")
+                    AveragingConv( tf$expand_dims(tf$gather(acquireImageRepFxn(im_i,training = F),1L, axis = 3L),3L)  )
+                    AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
+                  }
+                  IG <- as.array( ImageGrad_fxn( acquireImageRepFxn(im_i,training = F) ) )
+                  summary( c(IG[,,1] ))
+                  summary( c(IG[,,2] ))
+                  nColors <- 1000
+                  { #if(i == 1){
+                    # pos/neg breaks should be on the same scale across observation
+                    pos_breaks <- sort( quantile(c(IG[,,2][IG[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
+                    neg_breaks <- sort(quantile(c(IG[,,2][IG[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
+                    gradMag_breaks <- sort(quantile((c(IG[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T))
+                  }
+
+                  # magnitude
+                  print(summary(c( IG[,,1] )))
+                  magPlot <- try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
+                            col = viridis::magma(nColors - 1),
+                            breaks = gradMag_breaks, axes = F),T)
+                  if(class(magPlot) == "try-error"){print("magPlot broken")}
+                  ylab_ <- ""; if(i==1){
+                    axis(side = 2,at=0.5,labels = "Salience Magnitude",
+                         pos=-0.,tick=F, cex.axis=3, col.axis=k_)
+                  }
+
+                  # direction
+                  dirPlot <- try(image(t(IG[,,2])[,nrow(IG[,,2]):1],
+                            col = c(hcl.colors(nColors/2 - 1,"reds"),
+                                    hcl.colors(nColors/2 ,"blues")),
+                            breaks = c(neg_breaks,pos_breaks), axes = F),T)
+                  if(class(dirPlot) == "try-error"){print("dirPlot broken")}
+                  ylab_ <- ""; if(i==1){
+                    axis(side = 2,at=0.5,labels = "Salience Direction",
+                         pos=-0.,tick=F, cex.axis=3, col.axis=k_)
+                  }
+                }
+              }
+            }
+            plotting_coordinates_mat <- rbind(plotting_coordinates_mat,used_coordinates)
+            print(used_coordinates)
+          }
         }
+        dev.off()
+        return( plotting_coordinates_mat )
       }
-      dev.off()
+      plotting_coordinates_mat <- try(plot_fxn(),T)
+      if(class(plotting_coordinates_mat) == "try-error"){ browser() }
     }
     par(mfrow=c(1,1))
 
