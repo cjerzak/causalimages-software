@@ -75,20 +75,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
 
   # orthogonalize if specified
+  whichNA_dropped <- c()
   if(orthogonalize){
     print("Orthogonalizing Potential Outcomes...")
     if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
 
     # drop observations with NAs in their orthogonalized outcomes
-    dropNAs <- which( is.na(  rowSums( X ) ) )
-    if(length(dropNAs) > 0){
+    whichNA_dropped <- which( is.na(  rowSums( X ) ) )
+    if(length(whichNA_dropped) > 0){
       # note: transportabilityMat doesn't need to drop dropNAs
-      obsW <- obsW[-dropNAs]
-      obsY <- obsY[-dropNAs]
-      X <- X[-dropNAs,]
-      imageKeys <- imageKeys[-dropNAs]
-      lat <- lat[ -dropNAs ]
-      long <- long[ -dropNAs ]
+      obsW <- obsW[-whichNA_dropped]
+      obsY <- obsY[-whichNA_dropped]
+      X <- X[-whichNA_dropped,]
+      imageKeys <- imageKeys[-whichNA_dropped]
+      lat <- lat[ -whichNA_dropped ]
+      long <- long[ -whichNA_dropped ]
     }
     Yobs_ortho <- resid(temp_lm <- lm(obsY ~ X))
     if(length(Yobs_ortho) != length(obsY)){
@@ -1195,7 +1196,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "ClusterProbs_est_full" = ClusterProbs_est_full,
                  "ClusterProbs_std"=ClusterProbs_std,
                  "plotting_coordinates_mat"=plotting_coordinates_mat,
-                 "negELL"=as.numeric(negELL)) )
+                 "negELL"=as.numeric(negELL),
+                 "whichNA_dropped" = whichNA_dropped) )
   }
   if(SimMode == T){
     return(list("ClusterProbs_est" = ClusterProbs_est,
@@ -1212,6 +1214,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 "y1_true_out" = y1_true,
                 "y0_est_out" = y0_est,
                 "y1_est_out" = y1_est,
-                "negELL"=as.numeric(negELL)) )
+                "negELL"=as.numeric(negELL),
+                "whichNA_dropped" = whichNA_dropped ))
   }
 }
