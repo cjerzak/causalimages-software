@@ -857,7 +857,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     negELL <- NA; if(T == F){
       # obtaining the negative LL
       KL_wt_orig <- KL_wt
-      if(class(getLoss) != "function"){print("getLoss must be R function for this part to work!")}
+      if(! "function" %in% class(getLoss)){print("getLoss must be R function for this part to work!")}
       KL_wt <- 0
       negELL <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
         ret_ <- as.numeric(getLoss( dat = acquireImageRepFxn(  indi_  , training = F),
@@ -897,7 +897,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       transportabilityMat <- try(cbind(transportabilityMat,
                                    cluster_prob_transport_means,
                                    cluster_prob_transport_var),T)
-      if(class(transportabilityMat) == "try-error"){ browser() }
+      if("try-error" %in% class(transportabilityMat)){ browser() }
     }
   }
 
@@ -1083,8 +1083,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                               fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                               fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                col.main = k_, cex.main=4),T)
-              #if(class(rbgPlot) == "try-error"){browser()}
-              if(class(rbgPlot) == "try-error"){print("rbgPlot broken")}
+              if("try-error" %in% class(rbgPlot)){print("rbgPlot broken")}
               if(type_plot == "mean"){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
@@ -1146,7 +1145,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   magPlot <- try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
                             col = viridis::magma(nColors - 1),
                             breaks = gradMag_breaks, axes = F),T)
-                  if(class(magPlot) == "try-error"){print("magPlot broken")}
+                  if("try-error" %in% class(magPlot)){print("magPlot broken")}
                   ylab_ <- ""; if(i==1){
                     axis(side = 2,at=0.5,labels = "Salience Magnitude",
                          pos=-0.,tick=F, cex.axis=3, col.axis=k_)
@@ -1157,7 +1156,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                             col = c(hcl.colors(nColors/2 - 1,"reds"),
                                     hcl.colors(nColors/2 ,"blues")),
                             breaks = c(neg_breaks,pos_breaks), axes = F),T)
-                  if(class(dirPlot) == "try-error"){print("dirPlot broken")}
+                  if("try-error" %in% class(dirPlot)){print("dirPlot broken")}
                   ylab_ <- ""; if(i==1){
                     axis(side = 2,at=0.5,labels = "Salience Direction",
                          pos=-0.,tick=F, cex.axis=3, col.axis=k_)
@@ -1173,7 +1172,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( plotting_coordinates_mat )
       }
       plotting_coordinates_mat <- try(plot_fxn(),T)
-      if(class(plotting_coordinates_mat) == "try-error"){ browser() }
+      if("try-error" %in% class(plotting_coordinates_mat) ){ browser() }
     }
     par(mfrow=c(1,1))
 
