@@ -5,7 +5,7 @@ Under construction. Beta release date: *February 20th, 2023*
 Email `connor.jerzak@gmail.com` for feature requests!
 
 # Acknowledgements
-We thank Mohammad Kakooei and Markus Pettersson for valuable feedback on this project. We also thank Xiaolong Yang for excellent research assistance.
+We thank James Bailie,  Devdatt Dubhashi, Mohammad Kakooei, Xiao-Li Meng, Markus Pettersson for valuable feedback on this project. We also thank Xiaolong Yang for excellent research assistance.
 
 # References
 Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. *Forthcoming in Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023. [`arxiv.org/pdf/2206.06417.pdf`](https://arxiv.org/pdf/2206.06417.pdf)
