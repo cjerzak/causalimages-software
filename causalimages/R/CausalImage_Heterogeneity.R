@@ -141,7 +141,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
   #ConvNormText <- function(dim_){"tf$keras$layers$LayerNormalization(center = T, scale = T, epsilon = BN_EP)"}
   #IdentityFxn <- function(x,training){tf$identity(x)}; ConvNormText <- function(dim_){"IdentityFxn"}
   #tmp <- eval(parse(text = ConvNormText))
-  #tmp_ <- tmp( acquireImageRepFxn(1:10,training = F) )
   # c(mean(c(as.array((tmp_[,,,1])))), sd(c(as.array((tmp_[,,,1])))))
   #DenseNormText <- function(){"tf$keras$layers$LayerNormalization(center = T, scale = T, epsilon = BN_EP)"}
   DenseNormText <- function(){"tf$keras$layers$BatchNormalization(center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP)"}
@@ -206,8 +205,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if( !ZERO_LEN_IN){
           eval.parent(parse(text = sprintf("%s <- tf$constant(%s$variables[[1]],tf$float32)",prior_loc_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(2*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
-          #eval.parent(parse(text = sprintf("%s <- tf$constant(0.5*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
-          eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
+          eval.parent(parse(text = sprintf("%s <- tf$constant(1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
+          # eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))# previous use
         }
         eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
               d_prior <- tfd$Normal(loc = (%s),
@@ -632,7 +631,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       print(bool_)
       with(tf$GradientTape() %as% tape, {
         samp_ <- sample(1:length(obsW),batchSize)
-        myLoss_forGrad <- getLoss( dat = acquireImageRepFxn(samp_,training = bool_),
+        myLoss_forGrad <- getLoss( dat = acquireImageRepFxn(keys = imageKeys[samp_],training = bool_),
                                    treat = tf$constant(obsW[samp_],tf$float32),
                                    y = tf$constant(obsY[samp_],tf$float32),
                                    training = bool_ )
@@ -643,12 +642,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
       len_<-try(length((zer)),T);return( len_ ) })))))
 
     # define optimizer and training step
-    optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE)
+    #optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE)
+    optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE)
     if(adaptiveMomentum == T){
       BETA_1_INIT <- 0.1
       optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = 0,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
+      #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate=LEARNING_RATE_BASE,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
     }
-    #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate=LEARNING_RATE_BASE,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
     InvLR <- tf$Variable(0.,trainable  =  F)
 
     trainStep <-  (function(dat,y,treat, training){
@@ -713,7 +713,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     UniqueImageKeysByIndices <- list(tapply(which(obsW==0),imageKeys[obsW==0],function(zer){sort(unique(zer))}),
                                      tapply(which(obsW==1),imageKeys[obsW==1],function(zer){sort(unique(zer))}))
     tauMeans <- c();i_<-1;for(i in i_:(n_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
-      if(i %% 10 == 0){gc(); py_gc$collect()}
+      if(i %% 25 == 0){gc(); py_gc$collect()}
       #batch_indices <- unlist(apply(batch_indices_list == unique_batch_indices[i],2,which))
       #batch_indices_reffed <- trainIndices[batch_indices]
       #keys_SELECTED <- sample(unique(imageKeys),batchSize)
@@ -727,7 +727,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }) ) }))
       #table(  obsW[batch_indices_reffed] )
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
-      trainStep(dat = acquireImageRepFxn( batch_indices_reffed,training = T ),
+      trainStep(dat = acquireImageRepFxn( keys = imageKeys[batch_indices_reffed],training = T ),
                 y = tf$constant(obsY[batch_indices_reffed],tf$float32),
                 treat = tf$constant(obsW[batch_indices_reffed],tf$float32),
                 training = T)
@@ -748,10 +748,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
   for(y_t_ in c(0,1)){
     test_tab <- sort( 1:length(testIndices)%%round(length(testIndices)/max(1,round(batchFracOut*batchSize))));
     Y_test_est <-  tapply(testIndices,test_tab,function(zer){
-      gc(); py_gc$collect()
+      if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(zer)/length(test_tab)
       if((round(atP,2)*100) %% 10 == 0){ print(atP) }
-      im_zer <- acquireImageRepFxn(zer,training = F)
+      im_zer <- acquireImageRepFxn(keys = imageKeys[zer], training = F)
       l_ <- replicate(nMonte_predictive,
                       eval(parse(text = sprintf("list(tf$expand_dims(getY%s(m=im_zer, training = F),0L))",y_t_))))
       names(l_) <- NULL;
@@ -784,17 +784,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
   batch_indices_tab <- sort( 1:length(obsY)%%round(length(obsY)/max(1,ceiling(batchFracOut*batchSize))))
   if(TYPE == "tarnet" | TYPE=="variational_CNN"){
     Y0_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-      gc(); py_gc$collect()
+      if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if((round(atP,2)*100) %% 10 == 0){ print(atP) }
-      im_indi <- acquireImageRepFxn(indi_,training = F)
+      im_indi <- acquireImageRepFxn(keys = imageKeys[indi_],training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY0(im_indi,training = F)),1L),1L))
     }))
     Y1_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-      gc(); py_gc$collect()
+      if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if((round(atP,2)*100) %% 10 == 0){ print(atP) }
-      im_indi <- acquireImageRepFxn(indi_,training = F)
+      im_indi <- acquireImageRepFxn(keys = imageKeys[indi_],training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY1(im_indi,training = F)),1L),1L))
     }))
     tau_i_est <- (Y1_est - Y0_est) * Y_sd
@@ -810,8 +810,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     ClusterProbs_est <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       atP <- max(indi_/length(obsY))
       if((round(atP,2)*100) %% 10 == 0){ print(atP) }
-      gc(); py_gc$collect()
-      im_indi <- acquireImageRepFxn(indi_,training = F)
+      if(runif(1)<0.1){ gc(); py_gc$collect() }
+      im_indi <- acquireImageRepFxn(keys = imageKeys[indi_],training = F)
       ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_indi,training = F)))
       ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
       ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
@@ -860,7 +860,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(! "function" %in% class(getLoss)){print("getLoss must be R function for this part to work!")}
       KL_wt <- 0
       negELL <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-        ret_ <- as.numeric(getLoss( dat = acquireImageRepFxn(  indi_  , training = F),
+        ret_ <- as.numeric(getLoss( dat = acquireImageRepFxn(  keys = imageKeys[indi_]  , training = F),
                                     treat = tf$constant(obsW[indi_],tf$float32),
                                     y = tf$constant(obsY[indi_],tf$float32),
                                     training = F ))
@@ -879,11 +879,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       GetProbAndExpand <- tf_function_fxn(function(m){tf$expand_dims(getClusterProb(m,training = F),0L) })
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
-        gc(); py_gc$collect()
+        if(runif(1)<0.1){ gc(); py_gc$collect() }
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print(atP) }
         keys_ <-  transportabilityMat$key[zer]
-        # !! NOTE USE OF getImages NOT acquireImageRepFxn
         im_keys <- acquireImageFxn_transportability( keys = keys_ )
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
@@ -1068,13 +1067,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   if(all(dist_m >= 2000)){isUnique_ <- T}
                 }
                 if(i == 1){isUnique_<-T}
-                print(sd_im <- sd(as.array(acquireImageFxn_full( im_i,training = F )[1,,,]),na.rm=T))
+                print(sd_im <- sd(as.array(acquireImageFxn_full( keys = imageKeys[im_i],training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
               used_coordinates <- rbind(coordinate_i,used_coordinates)
-              print(c(k_, i, im_i, long[im_i]))
-              if(is.na(sum(reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,]))))){ browser() }
-              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( im_i,training = F )[1,,,])) ) ,
+              print(c(k_, i, im_i, long[im_i], lat[im_i]))
+              if(is.na(sum(reNorm(as.array(acquireImageFxn_full( keys = imageKeys[im_i], training = F )[1,,,]))))){ browser() }
+              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( keys = imageKeys[im_i],training = F )[1,,,])) ) ,
                                margins = T,
                                mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
                                main = main_,
@@ -1126,10 +1125,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
                                                             kernel_size = gradAnalysisFilterDim <- 10L,
                                                             padding = "valid")
-                    AveragingConv( tf$expand_dims(tf$gather(acquireImageRepFxn(im_i,training = F),1L, axis = 3L),3L)  )
+                    AveragingConv( tf$expand_dims(tf$gather(acquireImageRepFxn(keys = imageKeys[im_i],training = F),1L, axis = 3L),3L)  )
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
-                  IG <- as.array( ImageGrad_fxn( acquireImageRepFxn(im_i,training = F) ) )
+                  IG <- as.array( ImageGrad_fxn( acquireImageRepFxn(keys = imageKeys[im_i],training = F) ) )
                   summary( c(IG[,,1] ))
                   summary( c(IG[,,2] ))
                   nColors <- 1000
