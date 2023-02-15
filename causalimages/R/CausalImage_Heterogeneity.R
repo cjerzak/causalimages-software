@@ -118,9 +118,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   BNPreOutput <- F;
   ConvActivation <- "swish"
   doConvLowerDimProj <- T; LowerDimActivation <- "swish"; LowerDimInputDense <- F
+  nDimLowerDimConv <- 3L
   doBN_conv1 <- T
   doBN_conv2 <- T
-  nDimLowerDimConv <- 3L
   kernelWidth_est <- as.integer(  kernelWidth )
   #batchSize <- 10*2L
   batchSize <- 10*2L
@@ -205,8 +205,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if( !ZERO_LEN_IN){
           eval.parent(parse(text = sprintf("%s <- tf$constant(%s$variables[[1]],tf$float32)",prior_loc_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(2*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
-          eval.parent(parse(text = sprintf("%s <- tf$constant(1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
-          # eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))# previous use
+          #eval.parent(parse(text = sprintf("%s <- tf$constant(1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
+          #eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))# previous use
+          eval.parent(parse(text = sprintf("%s <- tf$constant(0.5*tf$math$reciprocal(tf$pow(tf$maximum(0.001,tf$abs( %s$variables[[1]])), 0.5)),tf$float32)",prior_SD_name,name_)))
+
         }
         eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
               d_prior <- tfd$Normal(loc = (%s),
@@ -245,12 +247,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           name = 'TauProj%s',
                           activation='linear')",k___, k___,k___)))
       }}
-      ProbLayerExecutionDevice <- '/CPU:0'
-      ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
-      ProbDenseType <-  tfp$layers$DenseFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
-      #ProbLayerExecutionDevice <- '/GPU:0'
-      #ProbConvType <- tfp$layers$Convolution2DReparameterization # less efficient
-      #ProbDenseType <-  tfp$layers$DenseReparameterization # less efficient
+      ProbType <- "Flipout"
+      if(ProbType == "Flipout"){
+        ProbLayerExecutionDevice <- '/CPU:0'
+        ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
+        ProbDenseType <-  tfp$layers$DenseFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
+      }
+      if(ProbType == "Reparameterization"){
+        ProbLayerExecutionDevice <- '/GPU:0'
+        ProbConvType <- tfp$layers$Convolution2DReparameterization # less efficient
+        ProbDenseType <-  tfp$layers$DenseReparameterization # less efficient
+      }
       for(conv_ in 1:nDepth_conv){
         eval(parse(text = sprintf("BNLayer_Axis3_Clust_%s <- %s",conv_,ConvNormText(nFilters) )))
         eval(parse(text = sprintf("BNLayer_Axis3_Y0_%s <- %s",conv_,ConvNormText(nFilters) )))
@@ -642,8 +649,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       len_<-try(length((zer)),T);return( len_ ) })))))
 
     # define optimizer and training step
-    #optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE)
-    optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE)
+    optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE)
+    #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE)
     if(adaptiveMomentum == T){
       BETA_1_INIT <- 0.1
       optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = 0,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
@@ -1003,6 +1010,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
   if(SimMode == F){
     par(mfrow=c(1,1))
+    gc(); py_gc$collect()
     try(plot(ClusterProbs_est),T)
     for(type_plot in c("uncertainty","mean")){
       rows_ <- kClust_est; nExamples <- 5
@@ -1029,7 +1037,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  widths = rep(2,ncol(layout_mat)),
                  heights = rep(2,nrow(layout_mat)))
           reNorm <- function(ar){for(ib in 1:NBANDS){ar[,,ib] <- (ar[,,ib])*NORM_SD[ib] + NORM_MEAN[ib]  };return(ar) }
-          gc(); py_gc$collect()
           plotting_coordinates_mat <- c()
           total_counter <- 0
           for(k_ in 1:rows_){
@@ -1050,13 +1057,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
                 if(type_plot == "mean"){
                   main_ <- total_counter
+
                   # plot images with largest lower confidence
-                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
-                  im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                  #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
+                  #im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
 
                   # plot images with largest cluster probs
-                  #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
-                  #im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
+                  im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
                 }
 
                 coordinate_i <- c(long[im_i],lat[im_i])
