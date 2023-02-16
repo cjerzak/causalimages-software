@@ -207,7 +207,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           #eval.parent(parse(text = sprintf("%s <- tf$constant(2*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))# previous use
-          eval.parent(parse(text = sprintf("%s <- tf$constant(0.5*tf$math$reciprocal(tf$pow(tf$maximum(0.001,tf$abs( %s$variables[[1]])), 0.5)),tf$float32)",prior_SD_name,name_)))
+          #eval.parent(parse(text = sprintf("%s <- tf$constant(0.5*tf$math$reciprocal(tf$pow(tf$maximum(0.001,tf$abs( %s$variables[[1]])), 0.5)),tf$float32)",prior_SD_name,name_)))
+          eval.parent(parse(text = sprintf("%s <- 0.1*tf$ones( tf$shape(%s$variables[[1]]),tf$float32)",prior_SD_name,name_)))
 
         }
         eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
