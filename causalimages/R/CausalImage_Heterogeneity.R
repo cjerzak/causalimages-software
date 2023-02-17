@@ -49,10 +49,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nMonte_predictive = 10L,
                                       nMonte_variational = 5L,
                                       nMonte_salience = 100L,
+                                      batchSize = 25L,
                                       kernelWidth,
                                       nSGD  = 400,
                                       nDenseWidth = 64L,
-                                      nFilters=7L){
+                                      nDimLowerDimConv = 3L,
+                                      nFilters = 7L){
   if(T == F){
     library(tensorflow); library(keras)
     try(tensorflow::use_python(python = "/Users/cjerzak/miniforge3/bin/python", required = T),T)
@@ -73,6 +75,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   environment(acquireImageRepFxn) <- environment()
   environment(acquireImageFxn_full) <- environment()
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
+  nDimLowerDimConv <- as.integer( nDimLowerDimConv )
+  windowCounter <- 0
 
   # orthogonalize if specified
   whichNA_dropped <- c()
@@ -118,12 +122,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   BNPreOutput <- F;
   ConvActivation <- "swish"
   doConvLowerDimProj <- T; LowerDimActivation <- "swish"; LowerDimInputDense <- F
-  nDimLowerDimConv <- 3L
   doBN_conv1 <- T
   doBN_conv2 <- T
   kernelWidth_est <- as.integer(  kernelWidth )
-  #batchSize <- 10*2L
-  batchSize <- 10*2L
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
   LEARNING_RATE_BASE <- .001; widthCycle <- 50
@@ -195,21 +196,41 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #L2_grad_scale <- 2
       KL_wt <- batchSize / length(obsY)
       PRIOR_MODEL_FXN <- function(name_){
-        prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_)
-        prior_SD_name <- sprintf("%s_PRIOR_SD_HASH818",name_)
+        prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_ )
+        prior_SD_name <- sprintf("%s_PRIOR_SD_HASH818",name_ )
         ZERO_LEN_IN <- length( eval(parse(text = sprintf("%s$variables",name_)))) == 0
         if( ZERO_LEN_IN){
           prior_loc_name <- "tf$zeros(shape)"
           prior_SD_name <- "1"
         }
+        #if( ZERO_LEN_IN & BAYES_STEP == 2){ browser()  }
         if( !ZERO_LEN_IN){
+          z_name_ref <- eval(parse(text = sprintf("%s$variables[[1]]$name",name_)))
+          z_name_ref <- gsub(z_name_ref, pattern = ":",replace = "XCOLX")
+          z_name_ref <- gsub(z_name_ref, pattern = "/",replace = "XDASHX")
+
+          # set mean
           eval.parent(parse(text = sprintf("%s <- tf$constant(%s$variables[[1]],tf$float32)",prior_loc_name,name_)))
+          #eval.parent(parse(text = sprintf("%s <- tf$constant(RollMean_%s)",prior_loc_name,z_name_ref)))
+          # tmp1 <- as.array( ClusterConv1$variables[[1]] )
+          # tmp2 <- as.array( tf$constant(RollMean_ClusterConv1XDASHXkernel_posterior_locXCOLX0) )
+          # plot(c(tmp1)-c(tmp2))
+          # plot(c(tmp1), c(tmp2))
+
+          # assign variable to its mean to speed up training in second round
+          eval.parent(parse(text = sprintf("%s$variables[[1]]$assign( %s )",name_, prior_loc_name)))
+
+          # set sd
+          # different variance scaling elections
           #eval.parent(parse(text = sprintf("%s <- tf$constant(2*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32)",prior_SD_name,name_)))# previous use
-          #eval.parent(parse(text = sprintf("%s <- tf$constant(0.5*tf$math$reciprocal(tf$pow(tf$maximum(0.001,tf$abs( %s$variables[[1]])), 0.5)),tf$float32)",prior_SD_name,name_)))
-          eval.parent(parse(text = sprintf("%s <- 0.1*tf$ones( tf$shape(%s$variables[[1]]),tf$float32)",prior_SD_name,name_)))
-
+          eval.parent(parse(text = sprintf("%s <- tf$maximum(0.001,tf$constant(0.05*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32))",prior_SD_name,name_)))
+          #eval.parent(parse(text = sprintf("%s <- 0.1*tf$ones( tf$shape(%s$variables[[1]]),tf$float32)",prior_SD_name,name_)))
+          #eval.parent(parse(text = sprintf("%s <- tf$constant(tf$sqrt(tf$maximum(1e-4,RollVar_%s)))",prior_SD_name,z_name_ref)))
+          if(z_name_ref == "ClusterConv1XDASHXkernel_posterior_locXCOLX0"){
+            #hist(c(as.array(RollVar_ClusterConv1XDASHXkernel_posterior_locXCOLX0)^0.5))
+          }
         }
         eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
               d_prior <- tfd$Normal(loc = (%s),
@@ -534,6 +555,71 @@ AnalyzeImageHeterogeneity <- function(obsW,
       } )
     }
 
+    getTrainingLikelihoodDraw <- tf_function_fxn(function(dat,treat,y){
+      training <- T
+      nMonte_internal <- 1L
+
+      # cluster probabilities
+      Clust_logits <- replicate(nMonte_internal,tf$expand_dims(getClusterLogits(dat, training = training),0L))
+      Clust_logits <- tf$concat(Clust_logits,0L)
+      clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
+      Clust_probs <- tf$nn$softmax(Clust_logits, 2L)
+      #CategoricalPost <- tfd$Categorical(probs = Clust_probs)
+
+      EY0_i <- replicate(nMonte_internal,tf$expand_dims(getY0(dat,training = training),0L))
+      EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
+
+      # enforce ATE
+      if(TYPE == "variational_CNN"){
+        ETau_draw <- tf$concat(replicate(nMonte_internal,
+                                         tf$expand_dims(getTau(dat,training = training),0L)),0L)
+      }
+      if(grepl(TYPE, pattern = "variational_minimal")){
+        Tau_mean_vec <- getTau_means()
+        MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
+        ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(nMonte_internal),1L)
+      }
+      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
+      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
+
+      EY1SD_draw <- tf$nn$softplus(SDDist_Y1_post$sample(nMonte_internal))
+      EY0SD_draw <- tf$nn$softplus(SDDist_Y0_post$sample(nMonte_internal))
+
+      tau_i <- tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L )
+      EY1_i <- EY0_i + tau_i
+      impliedATE <- tf$reduce_mean(tau_i,1L)
+      Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY0SD_draw^2,1L), clustT),2L)
+      Sigma2_Y1_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY1SD_draw^2,1L), clustT),2L)
+      treat <- tf$expand_dims( treat , 0L)
+      Y_Sigma <- (tf$multiply( 1 - treat , Sigma2_Y0_i ) +
+                    tf$multiply( treat, Sigma2_Y1_i ))^0.5
+      Y_Mean <- tf$multiply( 1 - treat, EY0_i ) +
+        tf$multiply( treat, EY1_i)
+
+      # some commented analyses to triple-check code correctness re: initialization
+      #plot(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y),col=as.numeric(treat)+1);abline(a=0,b=1)
+      #lim_<-summary(c(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y)))[c(1,6)]
+      #try({plot(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y),ylim=lim_,xlim=lim_,col=as.numeric(treat)+1);abline(a=0,b=1)},T)
+      #print( 1-sum( (as.numeric(tf$reduce_mean(Y_Mean,0L))-as.numeric(y))^2)/sum((as.numeric(y)-mean(as.numeric(y)))^2))
+      if(y_density == "normal"){
+        likelihood_distribution_draws <- tfd$Normal(loc = Y_Mean, scale = Y_Sigma)
+      }
+      if(y_density == "lognormal"){
+        likelihood_distribution_draws <- tfd$LogNormal(loc = Y_Mean, scale = Y_Sigma)
+      }
+      likelihood_distribution_draw <- tf$reduce_mean(likelihood_distribution_draws$log_prob( tf$expand_dims(y,0L) ),0L)
+      return( likelihood_distribution_draw )
+    } )
+
+    getExpectedLikelihood <- tf_function_fxn(function(dat,treat,y){
+      likelihood_distribution_expectation <- tf$zeros(list(batchSize),tf$float32)
+      for(d_ in 1:nMonte_variational){
+        likelihood_distribution_expectation <- likelihood_distribution_expectation +
+          getTrainingLikelihoodDraw(dat=dat,treat=treat,y=y) / tf$constant(f2n(nMonte_variational),tf$float32)
+      }
+      return( likelihood_distribution_expectation )
+    })
+
     getLoss <- tf_function_fxn( function(dat,treat,y,training){
       if(TYPE == "tarnet"){
         m <- getImageRep(dat,training = training)
@@ -544,45 +630,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
 
       if(grepl(TYPE,pattern= "variational")){
-        # cluster probabilities
-        Clust_logits <- replicate(nMonte_variational,tf$expand_dims(getClusterLogits(dat, training = training),0L))
-        Clust_logits <- tf$concat(Clust_logits,0L)
-        clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
-        Clust_probs <- tf$nn$softmax(Clust_logits, 2L)
-        #CategoricalPost <- tfd$Categorical(probs = Clust_probs)
+        likelihood_distribution_expectation <- getExpectedLikelihood(dat=dat,treat=treat,y=y)
 
-        EY0_i <- replicate(nMonte_variational,tf$expand_dims(getY0(dat,training = training),0L))
-        EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
-
-        # enforce ATE
-        if(TYPE == "variational_CNN"){
-          ETau_draw <- tf$concat(replicate(nMonte_variational,
-                                           tf$expand_dims(getTau(dat,training = training),0L)),0L)
-        }
+        # specify some distributions
         if(grepl(TYPE, pattern = "variational_minimal")){
-          Tau_mean_vec <- getTau_means()
-          MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
-          ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(nMonte_variational),1L)
+            Tau_mean_vec <- getTau_means()
+            MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
         }
-
         SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
         SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
 
-        EY1SD_draw <- tf$nn$softplus(SDDist_Y1_post$sample(nMonte_variational))
-        EY0SD_draw <- tf$nn$softplus(SDDist_Y0_post$sample(nMonte_variational))
-
-        tau_i <- tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L )
-        EY1_i <- EY0_i + tau_i
-        impliedATE <- tf$reduce_mean(tau_i,1L)
-        Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY0SD_draw^2,1L), clustT),2L)
-        Sigma2_Y1_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY1SD_draw^2,1L), clustT),2L)
-        treat <- tf$expand_dims( treat , 0L)
-        Y_Sigma <- (tf$multiply( 1 - treat , Sigma2_Y0_i ) +
-                      tf$multiply( treat, Sigma2_Y1_i ))^0.5
-        Y_Mean <- tf$multiply( 1 - treat, EY0_i ) +
-          tf$multiply( treat, EY1_i)
-
         # KL terms
+        {
+
+        # generate KL components
         KLterm <- tf$zeros(list())
         if(! TYPE  %in% c("variational_minimal_visualizer")){
           for(conv_ in 1:nDepth_conv){
@@ -613,28 +674,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         KLterm <- KLterm + tf$reduce_sum(tfd$kl_divergence(SDDist_Y0_post, (SDDist_Y0[,"Prior"][[1]])))
         KLterm <- KLterm + tf$reduce_sum(tfd$kl_divergence(SDDist_Y1_post, (SDDist_Y1[,"Prior"][[1]])))
+        }
 
-        # some commented analyses to triple-check code correctness re: initialization
-        #plot(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y),col=as.numeric(treat)+1);abline(a=0,b=1)
-        #lim_<-summary(c(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y)))[c(1,6)]
-        #try({plot(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y),ylim=lim_,xlim=lim_,col=as.numeric(treat)+1);abline(a=0,b=1)},T)
-        #print( 1-sum( (as.numeric(tf$reduce_mean(Y_Mean,0L))-as.numeric(y))^2)/sum((as.numeric(y)-mean(as.numeric(y)))^2))
-        if(y_density == "normal"){
-          likelihood_distribution_draws <- tfd$Normal(loc = Y_Mean, scale = Y_Sigma)
-        }
-        if(y_density == "lognormal"){
-          likelihood_distribution_draws <- tfd$LogNormal(loc = Y_Mean, scale = Y_Sigma)
-        }
-        likelihood_distribution_expectation <- tf$reduce_mean(likelihood_distribution_draws$log_prob( tf$expand_dims(y,0L) ),0L)
         #plot(as.numeric(tf$reduce_mean(likelihood_distribution_draws$log_prob( tf$expand_dims(y,0L) ),0L)),as.numeric( y  ),col = as.numeric( treat)+1)
         minThis <- tf$negative(tf$reduce_sum( likelihood_distribution_expectation )) +
-          KL_wt * KLterm + tf$reduce_mean(tf$multiply(marginal_lambda, tf$square(marginal_tau - impliedATE)))
+          KL_wt * KLterm    #optional ATE penalty: + tf$reduce_mean(tf$multiply(marginal_lambda, tf$square(marginal_tau - impliedATE)))
         minThis <- minThis / batchSize
       }
       return( minThis )
     })
 
     print("Initial forward pass...")
+    #getTrainingLikelihoodDraw(dat = acquireImageRepFxn(keys = imageKeys[samp_],training = T),
+                      #treat = tf$constant(obsW[samp_],tf$float32), y = tf$constant(obsY[samp_],tf$float32))
     for(bool_ in c(T,F)){
       print(bool_)
       with(tf$GradientTape() %as% tape, {
@@ -650,8 +702,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       len_<-try(length((zer)),T);return( len_ ) })))))
 
     # define optimizer and training step
-    optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE)
-    #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE)
+    optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE,clipvalue = 2.)
+    #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE,clipvalue = 2.)
     if(adaptiveMomentum == T){
       BETA_1_INIT <- 0.1
       optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = 0,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
@@ -660,7 +712,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     InvLR <- tf$Variable(0.,trainable  =  F)
 
     trainStep <-  (function(dat,y,treat, training){
-      if(is.na(as.numeric(myLoss_forGrad))){browser()}
 
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <<- getLoss( dat = dat,
@@ -729,11 +780,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #f2n(sample(as.character(which(imageKeys %in% zer)),1L)) })
       batch_indices_reffed <-  c(  sapply(1:2, function(ze){
         w_keys <- UniqueImageKeysByW[[ze]]
-        samp_w_keys <- sample(unique(w_keys),max(1,round(batchSize/4)))
+        samp_w_keys <- sample(unique(w_keys),max(1,round(batchSize/2)))
         unlist(  lapply(UniqueImageKeysByIndices[[ze]][as.character(samp_w_keys)],function(fa){
           f2n(sample(as.character(fa),1))
         }) ) }))
       #table(  obsW[batch_indices_reffed] )
+
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       trainStep(dat = acquireImageRepFxn( keys = imageKeys[batch_indices_reffed],training = T ),
                 y = tf$constant(obsY[batch_indices_reffed],tf$float32),
@@ -746,6 +798,33 @@ AnalyzeImageHeterogeneity <- function(obsW,
         print(sprintf("Optim iter %i of %i",i,n_iters));par(mfrow = c(1,1));
         try({plot(loss_vec);points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
         if(TYPE == "variational_minimal"){  print(as.numeric(getTau_means())) }
+      }
+      if(BAYES_STEP == 1){
+      if(abs(i - nSGD) < (nWindow <- 20)){
+        windowCounter <- windowCounter + 1
+        z_counter <- 0
+        for(z in tape$watched_variables()){
+          z_counter <- z_counter + 1
+          z_name_orig <- z_name_ <- z$name
+          z_name_ <- gsub(z_name_, pattern = ":",replace = "XCOLX")
+          z_name_ <- gsub(z_name_, pattern = "/",replace = "XDASHX")
+          #https://monolix.lixoft.com/tasks/standard-error-using-the-fisher-information-matrix/
+          if(windowCounter == 1){
+            eval(parse(text = sprintf("SZ_%s <- tf$zeros(tf$shape(z))", z_name_)))
+            eval(parse(text = sprintf("SZ2_%s <- tf$zeros(tf$shape(z))", z_name_)))
+          }
+          #eval(parse(text = sprintf("SZ_%s <- z + SZ_%s", z_name_, z_name_)))
+          #eval(parse(text = sprintf("SZ2_%s <- tf$square(z) + SZ2_%s", z_name_, z_name_)))
+          eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_)))
+          eval(parse(text = sprintf("SZ2_%s <- tf$square( my_grads[[z_counter]]^2) + SZ2_%s", z_name_, z_name_)))
+          if(windowCounter == nWindow){
+            eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
+            #eval(parse(text = sprintf("RollVar_%s <- tf$maximum(0.0001,SZ2_%s/nWindow - RollMean_%s^2)", z_name_,z_name_,z_name_,z_name_)))
+            #ScaleFactor <- length(obsY)
+            #eval(parse(text = sprintf("RollVar_%s <- 1/tf$maximum(0.01,ScaleFactor*SZ2_%s/nWindow)", z_name_,z_name_)))
+          }
+      }
+      }
       }
     }
   }
@@ -1060,12 +1139,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   main_ <- total_counter
 
                   # plot images with largest lower confidence
-                  #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
-                  #im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
+                  im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
 
                   # plot images with largest cluster probs
-                  sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
-                  im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
+                  #sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
+                  #im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
                 }
 
                 coordinate_i <- c(long[im_i],lat[im_i])
