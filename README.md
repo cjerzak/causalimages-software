@@ -8,8 +8,8 @@ This repository contains two main components. The first component is code of the
 The second component is replication data. The replication data for the Youth Opportunities Experiment is found in `data/Replication Data/YOP Experiment`. This includes both outcome data and geo-referenced satellite images. We will keep adding to this replication repository with new research being performed over time. 
 
 
-# Downloading 
-You may download via the `devtools` package. In particular, use 
+# Package Download Instructions 
+From within `R`, you may download via the `devtools` package. In particular, use 
 
 ```
 devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
