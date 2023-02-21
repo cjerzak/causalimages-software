@@ -1,6 +1,6 @@
 #' AnalyzeImageHeterogeneity
 #'
-#' Implements ...
+#' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023).
 #'
 #' @param DAG 'DAG'.
 

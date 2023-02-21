@@ -21,7 +21,7 @@ library(   causalimages  )
 ```
 
 # Tutorial
-
+Under construction...
 
 # Acknowledgements
 We thank James Bailie, Cindy Conlin, Devdatt Dubhashi, Felipe Jordan, Mohammad Kakooei, Eagon Meng, Xiao-Li Meng, and Markus Pettersson for valuable feedback on this project and software. We also thank Xiaolong Yang for excellent research assistance.
