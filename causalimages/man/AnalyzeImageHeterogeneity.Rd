@@ -7,14 +7,48 @@
 AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, ...)
 }
 \arguments{
-\item{obsW}{'DAG'.}
+\item{obsW}{A numeric vector where \code{0}'s correspond to control units and \code{1}'s to treated units.}
 
-\item{nMonte_predictive}{(default = `10L`) An integer specifying how many Monte Carlo iterations to use in the calculation
-approximate posterior means (e.g., mean cluster probabilities).}
+\item{obsY}{A numeric vector containing observed outcomes.}
+
+\item{X}{(Optional) A numeric matrix containing tabular information. If specified,we}
+
+\item{orthogonalize}{(default = \code{F}) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
+
+\item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for identifying highest and lowest probability neighorhood units.}
+
+\item{figuresKey}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
+
+\item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
+
+\item{nMonte_variational}{(default = \code{5L}) An integer specifying how many Monte Carlo iterations to use in the
+calculation of the expected likelihood in each training step.}
+
+\item{nMonte_predictive}{(default = \code{10L}) An integer specifying how many Monte Carlo iterations to use in the calculation
+of posterior means (e.g., mean cluster probabilities).}
+
+\item{nMonte_salience}{(default = \code{100L}) An integer specifying how many Monte Carlo iterations to use in the calculation
+of the salience maps (e.g., image gradients of expected cluster probabilities).}
+
+\item{batchSize}{(default = \code{25L}) Batch size used in SGD optimization.}
+
+\item{kernelSize}{(default = \code{5L}) Dimensions used in convolution kernels.}
+
+\item{nSGD}{(default = \code{400L}) Number of stochastic gradient descent (SGD) iterations.}
+
+\item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
+
+\item{reparameterizationType}{(default = \code{"Flipout"}) Either \code{"Flipout"}, or \code{"Reparameterization"}. Specifies the estimator used in the Bayesian neural components. With \code{"Flipout"}, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.}
+
+\item{doConvLowerDimProj}{(default = \code{T}) Should}
+
+\item{nDimLowerDimConv}{(default = \code{3L}) If \code{doConvLowerDimProj = T}, then, in each convolutional layer, we project the \code{nFilters} feature dimensions down to \code{nDimLowerDimConv} to reduce the number of parameters needed.}
+
+\item{nFilters}{(default = \code{32L}) Integer specifying the number of convolutional filters used.}
 }
 \value{
 A list consiting of \itemize{
-  \item Items.
+\item Items.
 }
 }
 \description{

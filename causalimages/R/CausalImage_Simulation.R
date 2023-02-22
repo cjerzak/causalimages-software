@@ -58,6 +58,7 @@
 #' #print( estimatedResults )
 #'
 #' @export
+#' @md
 
 SimulateImageSystem <- function(dag = NULL,...){
 

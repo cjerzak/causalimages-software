@@ -37,7 +37,7 @@ A list:
 \item In \emph{simulation mode}, the function returns a list with as many elements as
 unique nodes in \verb{DAG}. Each element represents the simulated data.
 
-\item In \emph{estimation mode},the function returns an estimated treatment effect with 95\% confidence intervals.
+\item In \emph{estimation mode},the function returns an estimated treatment effect with 95\\% confidence intervals.
 }
 }
 \description{
@@ -46,7 +46,7 @@ This function generates simulated causal structures using images. It is currentl
 \section{References}{
 
 \itemize{
-\item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023.
+\item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in \emph{Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)}, 2023.
 }
 }
 

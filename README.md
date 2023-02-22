@@ -15,7 +15,7 @@ From within `R`, you may download via the `devtools` package. In particular, use
 devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 ```
 
-Then, to load the software in, use 
+Then, to load the software, use 
 ```
 library(   causalimages  ) 
 ```
@@ -24,7 +24,7 @@ library(   causalimages  )
 Under construction.
 
 # Development Plan
-We currently have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
+We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
 
 We are committed to the long-term development of this repository and welcome community involvement. 
 
