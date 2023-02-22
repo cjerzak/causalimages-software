@@ -2,41 +2,15 @@
 % Please edit documentation in R/CausalImage_Heterogeneity.R
 \name{AnalyzeImageHeterogeneity}
 \alias{AnalyzeImageHeterogeneity}
-\title{AnalyzeImageHeterogeneity}
+\title{Decompose treatment effect heterogeneity by image}
 \usage{
-AnalyzeImageHeterogeneity(
-  obsW,
-  obsY,
-  X = NULL,
-  imageKeys = NULL,
-  transportabilityMat = NULL,
-  lat = NULL,
-  long = NULL,
-  externalFigureKey = "",
-  acquireImageRepFxn,
-  acquireImageFxn_full = acquireImageRepFxn,
-  TYPE = "variational_minimal",
-  SimMode = F,
-  nDepth_conv = 1,
-  nDepth_dense = 1,
-  plotResults = F,
-  figuresPath = "./",
-  kClust_est = 2,
-  maxPoolSize = 2L,
-  strides = 1L,
-  nMonte_predictive = 10L,
-  y_density = "normal",
-  orthogonalize = F,
-  compile = F,
-  nMonte_variational = 5L,
-  kernelWidth,
-  nSGD = 400,
-  nDenseWidth = 64L,
-  nFilters = 7L
-)
+AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, ...)
 }
 \arguments{
-\item{DAG}{'DAG'.}
+\item{obsW}{'DAG'.}
+
+\item{nMonte_predictive}{(default = `10L`) An integer specifying how many Monte Carlo iterations to use in the calculation
+approximate posterior means (e.g., mean cluster probabilities).}
 }
 \value{
 A list consiting of \itemize{
@@ -44,12 +18,12 @@ A list consiting of \itemize{
 }
 }
 \description{
-Implements ...
+Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023).
 }
 \section{References}{
 
 \itemize{
-\item References here
+\item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in \emph{Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)}, 2023.
 }
 }
 

@@ -1,16 +1,24 @@
-#' AnalyzeImageHeterogeneity
+#!/usr/bin/env Rscript
+#' Decompose treatment effect heterogeneity by image
 #'
 #' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023).
 #'
-#' @param DAG 'DAG'.
-
+#' @usage
+#'
+#' AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, ...)
+#'
+#' @param obsW 'DAG'.
+#'
+#' @param nMonte_predictive (default = `10L`) An integer specifying how many Monte Carlo iterations to use in the calculation
+#' approximate posterior means (e.g., mean cluster probabilities).
+#'
 #' @return A list consiting of \itemize{
 #'   \item Items.
 #' }
 #'
 #' @section References:
 #' \itemize{
-#' \item References here
+#' \item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in \emph{Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)}, 2023.
 #' }
 #'
 #' @examples
@@ -26,20 +34,21 @@
 AnalyzeImageHeterogeneity <- function(obsW,
                                       obsY,
                                       X = NULL,
-                                      imageKeys = NULL,
+                                      imageKeys = 1:length(obsY),
+                                      acquireImageRepFxn = acquireImageFxn ,
+                                      acquireImageFxn = NULL ,
+                                      acquireImageFxn_transportability = acquireImageFxn ,
                                       transportabilityMat = NULL,
                                       lat = NULL,
                                       long = NULL,
-                                      externalFigureKey = "",
-                                      acquireImageRepFxn = acquireImageFxn_full ,
-                                      acquireImageFxn_full = NULL ,
-                                      acquireImageFxn_transportability = acquireImageFxn_full ,
 
-                                      TYPE = "variational_minimal",
-                                      SimMode = F,
+                                      figureKey = "",
+                                      figuresPath = "./",
+                                      modelType = "variational_minimal",
+                                      simMode = F,
                                       nDepthHidden_conv = 1,
                                       nDepthHidden_dense = 1,
-                                      plotResults = F,figuresPath = "./",
+                                      plotResults = F,
                                       kClust_est = 2,
                                       maxPoolSize = 2L,
                                       strides = 1L,
@@ -53,7 +62,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       kernelWidth,
                                       nSGD  = 400,
                                       nDenseWidth = 64L,
-                                      ReparameterizationType = "Reparameterization",
+                                      reparameterizationType = "Reparameterization",
                                       nDimLowerDimConv = 3L,
                                       nFilters = 7L){
   if(T == F){
@@ -74,7 +83,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # set environment of image sampling functions
   environment(acquireImageRepFxn) <- environment()
-  environment(acquireImageFxn_full) <- environment()
+  environment(acquireImageFxn) <- environment()
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
   nDimLowerDimConv <- as.integer( nDimLowerDimConv )
   windowCounter <- 0
@@ -137,16 +146,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
   BN_MOM <- 0.9
   BN_EP <- 0.01
-  if(grepl(TYPE,pattern = "variational")){ BN_MOM <- 0.90^(1/nMonte_variational) }
+  if(grepl(modelType,pattern = "variational")){ BN_MOM <- 0.90^(1/nMonte_variational) }
   ConvNormText <- function(dim_){"tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP)"}
   #ConvNormText <- function(dim_){dim_ <- paste(as.character(dim_),"L",sep=""); sprintf("tfa$layers$GroupNormalization(groups = c(%s), center = T, scale = T, epsilon = BN_EP)", dim_) }
   #ConvNormText <- function(dim_){"tf$keras$layers$LayerNormalization(center = T, scale = T, epsilon = BN_EP)"}
-  #IdentityFxn <- function(x,training){tf$identity(x)}; ConvNormText <- function(dim_){"IdentityFxn"}
   #tmp <- eval(parse(text = ConvNormText))
   # c(mean(c(as.array((tmp_[,,,1])))), sd(c(as.array((tmp_[,,,1])))))
   #DenseNormText <- function(){"tf$keras$layers$LayerNormalization(center = T, scale = T, epsilon = BN_EP)"}
   DenseNormText <- function(){"tf$keras$layers$BatchNormalization(center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP)"}
-  #IdentityFxn <- function(x,training){tf$identity(x)}; DenseNormText <- function(){"IdentityFxn"}
 
   # set up some placeholders
   y0_true <- r2_y1_out <- r2_y0_out <- ClusterProbs_est <- NULL
@@ -180,7 +187,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(BAYES_STEP == 1){
       nSGD_ORIG <- nSGD
       nSGD <- nSGD
-      #L2_grad_scale <- 2;
       L2_grad_scale <- 0.5
       SD_PRIOR_MODEL <- .01; KL_wt <- 0
       PRIOR_MODEL_FXN <- function(name_){
@@ -191,10 +197,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       PRIOR_MODEL_FXN("hap")
     }
     if(BAYES_STEP == 2){
-      nSGD <- nSGD_ORIG #/ 2
-      #L2_grad_scale <- 0.04
+      nSGD <- nSGD_ORIG
       L2_grad_scale <- 0.5
-      #L2_grad_scale <- 2
       KL_wt <- batchSize / length(obsY)
       PRIOR_MODEL_FXN <- function(name_){
         prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_ )
@@ -213,10 +217,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
           # set mean
           eval.parent(parse(text = sprintf("%s <- tf$constant(%s$variables[[1]],tf$float32)",prior_loc_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(RollMean_%s)",prior_loc_name,z_name_ref)))
-          # tmp1 <- as.array( ClusterConv1$variables[[1]] )
-          # tmp2 <- as.array( tf$constant(RollMean_ClusterConv1XDASHXkernel_posterior_locXCOLX0) )
-          # plot(c(tmp1)-c(tmp2))
-          # plot(c(tmp1), c(tmp2))
 
           # assign variable to its mean - can speed up training, but generates instabilities in optimization
           #eval.parent(parse(text = sprintf("%s$variables[[1]]$assign( %s )",name_, prior_loc_name)))
@@ -258,7 +258,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                                   beta_initializer = tf$constant_initializer(Tau_mean_init),
                                                                   gamma_initializer = tf$constant_initializer(Tau_sd_init))
       tmp_ <- 1*1/length(obsW[obsW==1])*var(obsY[obsW==1])+1/length(obsW[obsW==0])*var(obsY[obsW==0])
-      if(TYPE == "variational_CNN"){ for(k___ in 1:kClust_est){
+      if(modelType == "variational_CNN"){ for(k___ in 1:kClust_est){
         eval(parse(text = sprintf("BNLayer_Axis1_Tau%s <- %s", k___, DenseNormText())))
         eval(parse(text =
                      sprintf("BNLayer_Axis1_ProjTau%s <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
@@ -270,13 +270,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           name = 'TauProj%s',
                           activation='linear')",k___, k___,k___)))
       }}
-      if(ReparameterizationType == "Flipout"){
+      if(reparameterizationType == "Flipout"){
+        #ProbLayerExecutionDevice <- '/GPU:0' # currently unavailable with tensorflow 2.11
         ProbLayerExecutionDevice <- '/CPU:0'
-        #ProbLayerExecutionDevice <- '/GPU:0'
         ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
         ProbDenseType <-  tfp$layers$DenseFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
       }
-      if(ReparameterizationType == "Reparameterization"){
+      if(reparameterizationType == "Reparameterization"){
         ProbLayerExecutionDevice <- '/GPU:0'
         ProbConvType <- tfp$layers$Convolution2DReparameterization # less efficient
         ProbDenseType <-  tfp$layers$DenseReparameterization # less efficient
@@ -299,7 +299,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 kernel_prior_fn = PRIOR_MODEL_FXN('ClusterConvProj%s'),
                                 activation=LowerDimActivation,
                                 name = 'ClusterConvProj%s')",conv_,conv_,conv_)))
-        if(grepl(TYPE,pattern="variational")){
+        if(grepl(modelType,pattern="variational")){
           eval(parse(text = sprintf("Y0Conv%s <- ProbConvType(filters = nFilters,
                                                      kernel_size=c(kernelWidth_est,kernelWidth_est),
                                                      activation = ConvActivation,
@@ -309,7 +309,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                      padding = 'valid')",conv_,conv_,conv_)))
           eval(parse(text = sprintf("Y0ConvProj%s <- ProbDenseType(nDimLowerDimConv,
                                   kernel_prior_fn = PRIOR_MODEL_FXN('Y0ConvProj%s'), activation=LowerDimActivation)",conv_,conv_)))
-          if(TYPE == "variational_CNN"){ for(k____ in 1:kClust_est){
+          if(modelType == "variational_CNN"){ for(k____ in 1:kClust_est){
             eval(parse(text = sprintf("TauConv%s_%s <- ProbConvType(filters = nFilters,
                                                      kernel_size=c(kernelWidth_est,kernelWidth_est),
                                                      activation=ConvActivation,
@@ -324,7 +324,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             eval(parse(text = sprintf("BNLayer_Axis3_Tau_Proj_%s_%s <- %s",conv_,k____,ConvNormText(nDimLowerDimConv))))
           }}
         }
-        if(TYPE == "tarnet"){
+        if(modelType == "tarnet"){
           eval(parse(text = sprintf("Y0Conv%s <- tf$keras$layers$Conv2D(filters = nFilters,
                                                        kernel_size=c(kernelWidth_est,kernelWidth_est),
                                                        activation=ConvActivation,
@@ -353,12 +353,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       ClusterProj = ProbDenseType( as.integer(kClust_est-1L),
                                    kernel_prior_fn = PRIOR_MODEL_FXN('ClusterProj'), activation='linear' )
-      if(grepl(TYPE, pattern = "variational")){Y0Proj = ProbDenseType(as.integer(1L),
+      if(grepl(modelType, pattern = "variational")){Y0Proj = ProbDenseType(as.integer(1L),
                                                                       kernel_prior_fn = PRIOR_MODEL_FXN('Y0Proj'),activation='linear')}
       BNLayer_Axis1_ProjY1 <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
                                                                  beta_initializer = tf$constant_initializer( Y1_mean_init ),
                                                                  gamma_initializer = tf$constant_initializer( Y1_sd_init ) )
-      if(TYPE == "tarnet"){
+      if(modelType == "tarnet"){
         Y0Proj = tf$keras$layers$Dense(as.integer(1L), activation='linear')
         Y1Proj = tf$keras$layers$Dense(as.integer(1L), activation='linear')
       }
@@ -389,7 +389,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         SDDist_Y1[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name=sprintf("SDY1%s_sd",k_)) )
         SDDist_Y1[k_,"Prior"][[1]] <- list( tfd$Normal(Y1_sd_init_prior,2*sd(Y1_sd_vec)))
 
-        # check SD posterior
+        # SD posterior checks
         #hist(as.numeric(tf$nn$softplus(rnorm(1000,as.numeric((SDDist_Y0[k_,"Mean"][[1]])), sd=as.numeric(tf$nn$softplus(SDDist_Y0[k_,"SD"][[1]]))))))
         #abline(v=as.numeric(tf$nn$softplus(as.numeric((SDDist_Y0[k_,"Mean"][[1]])))),col="red")
         #abline(v=sd(obsY[obsW==0]),lwd= 2)
@@ -404,7 +404,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(compile == T){ tf_function_fxn <- function(x){tf_function(x,experimental_relax_shapes = F)}}
     if(compile == F){ tf_function_fxn <- function(x){x} }
     getClusterLogits <- tf_function_fxn( function(  m , training){
-      if( !TYPE %in% "variational_minimal_visualizer" ){
+      if( !modelType %in% "variational_minimal_visualizer" ){
         # convolution part
         for(conv__ in 1L:nDepthHidden_conv){
           eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { ClusterConv%s( m ) }) ",conv__)))
@@ -438,7 +438,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( m  )
     })
 
-    if(TYPE == "tarnet"){
+    if(modelType == "tarnet"){
       getImageRep <- tf_function_fxn( function(m,training){
         for(conv__ in 1:nDepthHidden_conv){
           eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m  ) })",conv__)))
@@ -470,9 +470,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( m  )
       } )
     }
-    if(grepl(TYPE, pattern = "variational")){
+    if(grepl(modelType, pattern = "variational")){
       getY0 <- tf_function_fxn(function(  m , training  ){
-        if(! TYPE %in% "variational_minimal_visualizer"){
+        if(! modelType %in% "variational_minimal_visualizer"){
           # convolution part
           for(conv__ in 1:nDepthHidden_conv){
             eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m )} )",conv__)))
@@ -509,7 +509,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         clustT_samp = tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, logits = logits_)$sample(1L)
       })
 
-      if(TYPE == "variational_CNN"){
+      if(modelType == "variational_CNN"){
         getTau <- tf_function_fxn(function(  m, training  ){
           m_orig <- m
           m_ret<-list();for(k____ in 1:kClust_est){
@@ -543,7 +543,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           return(  Y1   )
         } )
       }
-      if(grepl(TYPE, pattern = "variational_minimal")){
+      if(grepl(modelType, pattern = "variational_minimal")){
         getY1 <- tf_function_fxn( function(  m , training){
           Y0 <- getY0(m=m,training = training)
           Clust_logits <- getClusterLogits(m,training = training)
@@ -581,26 +581,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
       EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
 
       # enforce ATE
-      if(TYPE == "variational_CNN"){
+      if(modelType == "variational_CNN"){
         ETau_draw <- tf$concat(replicate(nMonte_internal,
-                                         tf$expand_dims(getTau(dat,training = training),0L)),0L)
+                       tf$expand_dims(getTau(dat,training = training),0L)),0L)
       }
-      if(grepl(TYPE, pattern = "variational_minimal")){
+      if(grepl(modelType, pattern = "variational_minimal")){
         Tau_mean_vec <- getTau_means()
         MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
-        ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(nMonte_internal),1L)
+        ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(batchSize),0L)
       }
-      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
-      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
 
-      EY1SD_draw <- tf$nn$softplus(SDDist_Y1_post$sample(nMonte_internal))
-      EY0SD_draw <- tf$nn$softplus(SDDist_Y0_post$sample(nMonte_internal))
+      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
+      EY1SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y1_post$sample(batchSize)),0L)
+
+      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
+      EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(batchSize)),0L)
 
       tau_i <- tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L )
       EY1_i <- EY0_i + tau_i
       impliedATE <- tf$reduce_mean(tau_i,1L)
-      Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY0SD_draw^2,1L), clustT),2L)
-      Sigma2_Y1_i <- tf$reduce_sum(tf$multiply( tf$expand_dims(EY1SD_draw^2,1L), clustT),2L)
+      Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( EY0SD_draw^2, clustT),2L)
+      Sigma2_Y1_i <- tf$reduce_sum(tf$multiply( EY1SD_draw^2, clustT),2L)
       treat <- tf$expand_dims( treat , 0L)
       Y_Sigma <- (tf$multiply( 1 - treat , Sigma2_Y0_i ) +
                     tf$multiply( treat, Sigma2_Y1_i ))^0.5
@@ -632,7 +633,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     getLoss <- tf_function_fxn( function(dat,treat,y,training){
-      if(TYPE == "tarnet"){
+      if(modelType == "tarnet"){
         m <- getImageRep(dat,training = training)
         Y0_hat <- getY0_finalStep(m,training=training)
         Y1_hat <- getY1_finalStep(m,training=training)
@@ -640,13 +641,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
         minThis <- tf$reduce_sum(tf$square(tf$expand_dims(y,1L) - Yobs_hat))
       }
 
-      if(grepl(TYPE,pattern= "variational")){
+      if(grepl(modelType,pattern= "variational")){
         likelihood_distribution_expectation <- getExpectedLikelihood(dat=dat,
                                                                      treat=treat,
                                                                      y=y)
 
         # specify some distributions
-        if(grepl(TYPE, pattern = "variational_minimal")){
+        if(grepl(modelType, pattern = "variational_minimal")){
             Tau_mean_vec <- getTau_means()
             MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
         }
@@ -657,7 +658,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         {
         # generate KL components
         KLterm <- tf$zeros(list())
-        if(! TYPE  %in% c("variational_minimal_visualizer")){
+        if(! modelType  %in% c("variational_minimal_visualizer")){
           for(conv_ in 1:nDepthHidden_conv){
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(ClusterConv%s$kernel_posterior,ClusterConv%s$kernel_prior)",conv_,conv_)))
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(Y0Conv%s$kernel_posterior,Y0Conv%s$kernel_prior)",conv_,conv_)))
@@ -665,7 +666,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(Y0ConvProj%s$kernel_posterior,Y0ConvProj%s$kernel_prior)",conv_,conv_)))
               KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(ClusterConvProj%s$kernel_posterior,ClusterConvProj%s$kernel_prior)",conv_,conv_)))
             }
-            if(TYPE == "variational_CNN"){
+            if(modelType == "variational_CNN"){
               for(k_ in 1:kClust_est){
                 KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(TauConv%s_%s$kernel_posterior,TauConv%s_%s$kernel_prior)",conv_,k_,conv_,k_)))
                 if((ifelse(LowerDimInputDense,yes = T, no = conv_ < nDepthHidden_conv)) & doConvLowerDimProj){
@@ -681,7 +682,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         KLterm <- KLterm + tfd$kl_divergence(ClusterProj$kernel_posterior,ClusterProj$kernel_prior)
         KLterm <- KLterm + tfd$kl_divergence(Y0Proj$kernel_posterior,Y0Proj$kernel_prior)
-        if(TYPE == "variational_minimal"){
+        if(modelType == "variational_minimal"){
           KLterm <- KLterm + tf$reduce_sum(tfd$kl_divergence(MeanDist_Tau_post, (MeanDist_tau[,"Prior"][[1]])))
         }
         KLterm <- KLterm + tf$reduce_sum(tfd$kl_divergence(SDDist_Y0_post, (SDDist_Y0[,"Prior"][[1]])))
@@ -809,7 +810,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       i_ <- i ; if(i %% 20==0 | i == 1){
         print(sprintf("Optim iter %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         try({plot(loss_vec,log="y");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
-        if(TYPE == "variational_minimal"){  print(as.numeric(getTau_means())) }
+        if(modelType == "variational_minimal"){  print(as.numeric(getTau_means())) }
       }
       if(BAYES_STEP == 1){
       if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
@@ -881,7 +882,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # get cluster probs
   print("Getting final cluster probabilities....")
   batch_indices_tab <- sort( 1:length(obsY)%%round(length(obsY)/max(1,ceiling(batchFracOut*batchSize))))
-  if(TYPE == "tarnet" | TYPE=="variational_CNN"){
+  if(modelType == "tarnet" | modelType=="variational_CNN"){
     Y0_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
@@ -904,7 +905,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tau1 <- c(tau_vec[1]); tau2 <- c(tau_vec[2])
   }
 
-  if(grepl(TYPE, pattern = "variational")){
+  if(grepl(modelType, pattern = "variational")){
     print("Starting estimates for cluster probabilities")
     ClusterProbs_est <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       atP <- max(indi_/length(obsY))
@@ -925,7 +926,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     ClusterProbs_est <- (ClusterProbs_est_full <- do.call(rbind, ClusterProbs_est))[,2]
     Clust_probs_marginal_final <- colMeans( ClusterProbs_est_full )
 
-    if(grepl(TYPE,pattern="variational_minimal")){
+    if(grepl(modelType,pattern="variational_minimal")){
       impliedATE <- mean(replicate(100,sum(Y_sd*as.numeric(getTau_means())*Clust_probs_marginal_final)))
       #getTau_means(); tf$nn$softplus(MeanDist_tau[["SD"]])
     }
@@ -939,7 +940,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     Sigma0_sd_vec <- as.numeric(tf$reduce_mean(tf$nn$softplus(SDDist_Y0_post$sample(100L)),0L))
 
     # get uncertainties
-    if(grepl(TYPE,pattern="variational_minimal")){
+    if(grepl(modelType,pattern="variational_minimal")){
       tau_vec <- as.numeric( getTau_means() )
       tau_vec <- tau_vec * Y_sd
       for(k_ in 1:kClust_est){eval(parse(text = sprintf("tau%s <- tau_vec[k_]",k_))) }
@@ -999,11 +1000,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
 
-  if(!c("monti") %in% ls(envir = globalenv()) & SimMode == F){
+  if(!c("monti") %in% ls(envir = globalenv()) & simMode == F){
     pdf_name_key <- "RealDataFig"; monti <- NA
   }
   if( plotResults == T){
-    if(TYPE == "variational_minimal"){
+    if(modelType == "variational_minimal"){
       synth_seq <- seq(min(tau1 - 2 * as.numeric(sd_tau1),tau2 - 2 * as.numeric(sd_tau2)),
                        max(tau1 + 2 * as.numeric(sd_tau1),tau2 + 2 * as.numeric(sd_tau2)),
                        length.out=1000)
@@ -1016,7 +1017,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       d1 <- dnorm(synth_seq, mean = as.numeric(tau1), sd = ( as.numeric(sd_tau1)) )
       d2 <- dnorm(synth_seq, mean = as.numeric(tau2), sd = ( as.numeric(sd_tau2)) )
-      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, TYPE, externalFigureKey))
+      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, modelType, figureKey))
       {
         par(mar=c(5,5,1,1))
         numbering_seq <- c("1","1")
@@ -1075,7 +1076,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(cor(ClusterProbs, ClusterProbs_est) < 0){
           col_dim <- rank(-ClusterProbs_est)#gtools::quantcut(ClusterProbs_est, q = 100)
         }
-        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, externalFigureKey))
+        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, figureKey))
         {
           par(mar=c(5,5,1,1))
           plot( ClusterProbs[order_],
@@ -1099,20 +1100,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
     }
   }
-  if(SimMode == F){
+  if(simMode == F){
     par(mfrow=c(1,1))
     gc(); py_gc$collect()
     try(plot(ClusterProbs_est),T)
-    for(type_plot in c("uncertainty","mean","mean_upperConf")){
+    for(typePlot in c("uncertainty","mean","mean_upperConf")){
       rows_ <- kClust_est; nExamples <- 5
-      if(type_plot == "uncertainty"){rows_ <- 1L}
+      if(typePlot == "uncertainty"){rows_ <- 1L}
       plot_fxn <- function(){
-        pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, TYPE,type_plot,orthogonalize,externalFigureKey),
-            height = ifelse(grepl(type_plot,pattern = "mean"), yes = 4*rows_*3, no = 4),
+        pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, modelType,typePlot,orthogonalize,figureKey),
+            height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
             width = 4*nExamples)
         {
           #
-          if(grepl(type_plot,pattern = "mean")){
+          if(grepl(typePlot,pattern = "mean")){
             par(mar=c(2, 5.9, 3, 0.5))
             layout_mat <- matrix(c(1:nExamples*3-3+1,
                                    1:nExamples*3-1,
@@ -1120,7 +1121,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             layout_mat <- rbind(layout_mat,
                                 layout_mat+max(layout_mat))
           }
-          if(type_plot %in% c("uncertainty")){
+          if(typePlot %in% c("uncertainty")){
             par(mar=c(2,2,4,2)); layout_mat <- t(1:nExamples)
           }
           layout(mat = layout_mat,
@@ -1132,30 +1133,30 @@ AnalyzeImageHeterogeneity <- function(obsW,
           for(k_ in 1:rows_){
             used_coordinates <- c()
             for(i in 1:5){
-              #if(k_ == 2 & type_plot == "mean"){ browser() }
+              #if(k_ == 2 & typePlot == "mean"){ browser() }
               #if(k_ == 2 & i == 1){ browser() }
-              print(sprintf("Type Plot: %s; k_: %s, i: %s", type_plot, k_, i))
+              print(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
               total_counter <- total_counter + 1
               rfxn <- function(xer){xer}
               bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
-                if(type_plot == "uncertainty"){
+                if(typePlot == "uncertainty"){
                   main_ <- letters[  total_counter  ]
 
                   # plot images with largest std's
                   sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_std[,k_])),decreasing=T)
                   im_i <- which(ClusterProbs_std[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
                 }
-                if(grepl(type_plot,pattern = "mean")){
+                if(grepl(typePlot,pattern = "mean")){
                   main_ <- total_counter
 
                   # plot images with largest lower confidence
-                  if(type_plot ==  "mean"){
+                  if(typePlot ==  "mean"){
                      sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_lower_conf[,k_])),decreasing=T)
                      im_i <- which(ClusterProbs_lower_conf[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
                   }
 
                   # plot images with largest cluster probs
-                  if(type_plot ==  "mean_upperConf"){
+                  if(typePlot ==  "mean_upperConf"){
                     sorted_unique_prob_k <- sort(rfxn(unique(ClusterProbs_est_full[,k_])),decreasing=T)
                     im_i <- which(ClusterProbs_est_full[,k_] == sorted_unique_prob_k[i+bad_counter])[1]
                   }
@@ -1169,13 +1170,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   if(all(dist_m >= 1000)){isUnique_ <- T}
                 }
                 if(i == 1){isUnique_<-T}
-                print(sd_im <- sd(as.array(acquireImageFxn_full( keys = imageKeys[im_i],training = F )[1,,,]),na.rm=T))
+                print(sd_im <- sd(as.array(acquireImageFxn( keys = imageKeys[im_i],training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
               used_coordinates <- rbind(coordinate_i,used_coordinates)
               print(c(k_, i, im_i, long[im_i], lat[im_i]))
-              if(is.na(sum(reNorm(as.array(acquireImageFxn_full( keys = imageKeys[im_i], training = F )[1,,,]))))){ browser() }
-              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn_full( keys = imageKeys[im_i],training = F )[1,,,])) ) ,
+              if(is.na(sum(reNorm(as.array(acquireImageFxn( keys = imageKeys[im_i], training = F )[1,,,]))))){ browser() }
+              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + reNorm(as.array(acquireImageFxn( keys = imageKeys[im_i],training = F )[1,,,])) ) ,
                                margins = T,
                                r = 1, g = 2, b = 3,
                                mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
@@ -1186,7 +1187,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                               fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                col.main = k_, cex.main=4),T)
               if("try-error" %in% class(rbgPlot)){print("rbgPlot broken")}
-              if(grepl(type_plot,pattern = "mean")){
+              if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
                   tauk <- eval(parse(text = sprintf("tau%s",k_)))
@@ -1275,7 +1276,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       plotting_coordinates_mat <- try(plot_fxn(),T)
       #browser()
-      #if(type_plot == "mean"){ browser() }
+      #if(typePlot == "mean"){ browser() }
       if("try-error" %in% class(plotting_coordinates_mat) ){ browser() }
     }
     par(mfrow=c(1,1))
@@ -1302,7 +1303,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "negELL"=as.numeric(negELL),
                  "whichNA_dropped" = whichNA_dropped) )
   }
-  if(SimMode == T){
+  if(simMode == T){
     return(list("ClusterProbs_est" = ClusterProbs_est,
                 "ClusterProbs" = ClusterProbs,
                 "tau1" = as.numeric(tau1),

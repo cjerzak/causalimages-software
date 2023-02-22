@@ -1,6 +1,11 @@
-#' SimulateImageSystem
+#!/usr/bin/env Rscript
+#' Simulate causal systems involving images
 #'
-#' This function (1) generates simulated causal structures using images.
+#' This function generates simulated causal structures using images. It is currently under construction.
+#'
+#' @usage
+#'
+#' SimulateImageSystem(...)
 #'
 #' @param dag \emph{(character string)} An input DAG specifying causal structure.
 #' This input should be of the form \url{`i->t,i->y,t->y,....'}
@@ -37,7 +42,7 @@
 #'
 #' @section References:
 #' \itemize{
-#' \item CITES
+#' \item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023.
 #' }
 #'
 #' @examples

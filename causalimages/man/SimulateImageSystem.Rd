@@ -2,9 +2,9 @@
 % Please edit documentation in R/CausalImage_Simulation.R
 \name{SimulateImageSystem}
 \alias{SimulateImageSystem}
-\title{SimulateImageSystem}
+\title{Simulate causal systems involving images}
 \usage{
-SimulateImageSystem(dag = NULL, ...)
+SimulateImageSystem(...)
 }
 \arguments{
 \item{dag}{\emph{(character string)} An input DAG specifying causal structure.
@@ -41,12 +41,12 @@ unique nodes in \verb{DAG}. Each element represents the simulated data.
 }
 }
 \description{
-This function (1) generates simulated causal structures using images.
+This function generates simulated causal structures using images. It is currently under construction.
 }
 \section{References}{
 
 \itemize{
-\item CITES
+\item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023.
 }
 }
 
