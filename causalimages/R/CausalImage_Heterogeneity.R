@@ -1,49 +1,65 @@
 #!/usr/bin/env Rscript
 #' Decompose treatment effect heterogeneity by image
 #'
-#' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023).
+#' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023). Users
+#' input in treatment and outcome data, along with a function specifying how to load in images
+#' using keys referenced to each unit (since loading in all image data will usually not be possible due to memory limitations).
+#' This function by default performs estimation, constructs salience maps, and can optionally perform
+#' estimation for new areas outside the original study sites in a transportability analysis.
 #'
 #' @usage
 #'
-#' AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, ...)
+#' AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
-#'
 #' @param obsY A numeric vector containing observed outcomes.
-#'
-#' @param X (Optional) A numeric matrix containing tabular information. If specified,we
-#'
+#' @param kClust_est (default = `2L`) Integer specifying the number of clusters used in estimation.
+#' @param acquireImageRepFxn A function specifying how to load images representations associated with `imageKeys` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeys`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
+#' First argument should be image key values and second argument have be `training` (in case behavior in training/)
+#' @param acquireImageFxn (default = `acquireImageRepFxn`) Similar to `acquireImageRepFxn`; this is a function specifying how to load images associated with `imageKeys` into memory.
+#' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageRepFxn` for generating treatment effect predictions for out-of-sample points.
+#' @param imageKeys (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. `imageKeys` are fed into `acquireImageFxn` to call images into memory.
+#' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
+#' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
+#' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
-#'
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
-#'
 #' @param nMonte_predictive (default = `10L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of posterior means (e.g., mean cluster probabilities).
-#'
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of the salience maps (e.g., image gradients of expected cluster probabilities).
-#'
 #' @param reparameterizationType (default = `"Flipout"`) Either `"Flipout"`, or `"Reparameterization"`. Specifies the estimator used in the Bayesian neural components. With `"Flipout"`, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.
 #' @param figuresKey (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
-#' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
 #' @param batchSize (default = `25L`) Batch size used in SGD optimization.
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
 #' @param nFilters (default = `32L`) Integer specifying the number of convolutional filters used.
-#' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for identifying highest and lowest probability neighorhood units.
+#' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
+#' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
+#' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
 #' @param yDensity (default = `normal`) Specifies the density for the outcome. Current options include `normal` and `lognormal`.
-#' @param doConvLowerDimProj (default = `T`) Should
-#' @param doConvLowerDimProj (default = `T`) Should
-#' @param doConvLowerDimProj (default = `T`) Should
-#' @param doConvLowerDimProj (default = `T`) Should
+#' @param maxPoolSize (default = `2L`) Integer specifying the max pooling size used in the convolutional layers.
+#' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
+#' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
+#' @param plotResults (default = `T`) Should analysis results be plotted?
+#' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #'
 #' @return A list consiting of \itemize{
-#'   \item Items.
+#'   \item `clusterTaus_mean` default
+#'   \item `clusterTaus_sd` Estimated image effect cluster standard deviations.
+#'   \item `clusterProbs_mean`. Estimated mean image effect cluster probabilities.
+#'   \item `clusterTaus_sd`. Estimated image effect cluster probability standard deviations.
+#'   \item `clusterProbs_lowerConf`. Estimated lower confidence for effect cluster probabilities.
+#'   \item `impliedATE`. Implied ATE.
+#'   \item `individualTau_est`. Estimated individual-level image-based treatment effects.
+#'   \item `transportabilityMat`. Transportability matrix withestimated cluster information.
+#'   \item `plottedCoordinates`. List containing coordinates plotted in salience maps.
+#'   \item `whichNA_dropped`. A vector containing observations dropped due to missingness.
 #' }
 #'
 #' @section References:
@@ -67,12 +83,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       X = NULL,
                                       orthogonalize = F,
                                       imageKeys = 1:length(obsY),
-                                      acquireImageRepFxn = acquireImageFxn ,
+                                      kClust_est = 2,
                                       acquireImageFxn = NULL ,
-                                      acquireImageFxn_transportability = acquireImageFxn ,
-                                      transportabilityMat = NULL,
+                                      acquireImageRepFxn = NULL ,
+                                      transportabilityMat = NULL ,
                                       lat = NULL,
                                       long = NULL,
+                                      conda_env = NULL,
 
                                       figuresKey = "",
                                       figuresPath = "./",
@@ -80,10 +97,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       simMode = F,
                                       plotResults = F,
 
-
                                       nDepthHidden_conv = 1L,
                                       nDepthHidden_dense = 0L,
-                                      kClust_est = 2,
                                       maxPoolSize = 2L,
                                       strides = 1L,
                                       yDensity = "normal",
@@ -99,28 +114,48 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       doConvLowerDimProj = T,
                                       nDimLowerDimConv = 3L,
                                       nFilters = 32L,
+                                      channelNormalize = T,
+                                      printDiagnostics = F,
                                       quiet = F){
-  if(T == F){
+  if(T == T){
     library(tensorflow); library(keras)
-    try(tensorflow::use_python(python = "/Users/cjerzak/miniforge3/bin/python", required = T),T)
-    try(tensorflow::use_condaenv("tensorflow_m1",
-                                 required = T, conda = "~/miniforge3/bin/conda"), T)
-    try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]], T),T)
-    try(tfp <- tf_probability(),T)
-    try(tfd <- tfp$distributions,T)
-    print2(tf$version$VERSION)
+    try(tensorflow::use_condaenv(conda_env, required = T),T)
+    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
+    try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
+    tf$config$set_soft_device_placement( T )
+    tfp <- tf_probability()
+    tfd <- tfp$distributions
+    tfa <- reticulate::import("tensorflow_addons")
 
-    #tfa <- tensorflow::import("tensorflow_addons",as="tfa")
-    try(jax <- tensorflow::import("jax",as="jax"), T)
-    #try(jnp <- tensorflow::import("jax.numpy"), T)
-    # try(tf2jax <- tensorflow::import("tf2jax",as="tf2jax"), T)
+    tf$random$set_seed(  c(1000L ) )
+    tf$keras$utils$set_random_seed( 4L )
+
+    py_gc <- reticulate::import("gc")
+    gc(); py_gc$collect()
   }
 
-  print2 <- function(x){if(!quiet){print2(x)}}
+  environment(acquireImageRepFxn) <- environment()
+  if(channelNormalize == T){
+    acquireImageRepFxn_orig <- acquireImageRepFxn
+    tmp <- replicate(10, {
+        tmp <- acquireImageRepFxn(keys = sample(unique(imageKeys), batchSize),
+                         training = F)
+        list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
+             "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
+    })
+    NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",]))),0L),0L), 0L)
+    NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(colMeans(do.call(rbind,tmp["NORM_SD",])),0L),0L), 0L)
+    acquireImageRepFxn <- function(keys, training){
+        (acquireImageRepFxn_orig(keys, training = training) - NORM_MEAN) / NORM_SD
+    }
+    rm(  tmp  )
+  }
+
+  print2 <- function(x){if(!quiet){print(x)}}
 
   # set environment of image sampling functions
-  environment(acquireImageRepFxn) <- environment()
-  environment(acquireImageFxn) <- environment()
+  if(is.null(acquireImageFxn)){ acquireImageFxn <- acquireImageRepFxn }
+  acquireImageFxn_transportability <- acquireImageRepFxn
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
   nDimLowerDimConv <- as.integer( nDimLowerDimConv )
   windowCounter <- 0
@@ -903,7 +938,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     yt_true <- Y_test_truth[W_test==y_t_]
     yt_est <- as.numeric(Y_test_est)[W_test==y_t_]
     yt_lims <- summary(c(yt_true,yt_est))[c(1,6)]
-    print2((summary(lm(yt_true~yt_est))))
+    if(printDiagnostics == T){
+      print((summary(lm(yt_true~yt_est))))
+    }
     r2_yt_out <- 1 - sum( (yt_est - yt_true)^2 ) / sum( (yt_true - mean(yt_true))^2 )
     if(y_t_ == 0){ r2_y0_out <- r2_yt_out }
     if(y_t_ == 1){ r2_y1_out <- r2_yt_out }
@@ -964,7 +1001,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     if(grepl(modelType,pattern="variational_minimal")){
       impliedATE <- mean(replicate(100,sum(Y_sd*as.numeric(getTau_means())*Clust_probs_marginal_final)))
-      #getTau_means(); tf$nn$softplus(MeanDist_tau[["SD"]])
     }
     gc(); py_gc$collect()
 
@@ -1008,7 +1044,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # transportability analysis
-  cluster_prob_transport_means <- cluster_prob_transport_distribution <- NULL
+  cluster_prob_transport_means <- NULL
   if(!is.null(transportabilityMat)){
     print2("Getting posterior predictive for transportability analysis...")
     {
@@ -1311,38 +1347,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( plotting_coordinates_mat )
       }
       plotting_coordinates_mat <- try(plot_fxn(),T)
-      #browser()
-      #if(typePlot == "mean"){ browser() }
       if("try-error" %in% class(plotting_coordinates_mat) ){ browser() }
     }
     par(mfrow=c(1,1))
 
-    return( list("ClusterProbs_est" = ClusterProbs_est,
-                 "tau1"=as.numeric(tau1),
-                 "tau2"=as.numeric(tau2),
+    return( list(
+                 "clusterTaus_mean" = as.numeric(tau_vec),
+                 "clusterTaus_sd" = Tau_sd_vec,
+                 "clusterProbs_mean" = ClusterProbs_est_full,
+                 "clusterProbs_sd" = ClusterProbs_std,
+                 "clusterProbs_lowerConf" = ClusterProbs_lower_conf,
                  "impliedATE" = impliedATE,
-                 "sd_tau1" = sd_tau1,
-                 "sd_tau2" = sd_tau2,
-                 "R2_Y0"=r2_y0_out,
-                 "R2_Y1"=r2_y1_out,
-                 "tau_i_est"=tau_i_est,
-                 "y0_true_out" = y0_true,
-                 "y1_true_out" = y1_true,
-                 "y0_est_out" = y0_est,
-                 "y1_est_out" = y1_est,
-                 "cluster_prob_transport_distribution" = cluster_prob_transport_distribution,
+                 "individualTau_est" = tau_i_est,
                  "transportabilityMat" = transportabilityMat,
-                 "ClusterProbs_lower_conf" = ClusterProbs_lower_conf,
-                 "ClusterProbs_est_full" = ClusterProbs_est_full,
-                 "ClusterProbs_std"=ClusterProbs_std,
-                 "plotting_coordinates_mat"=plotting_coordinates_mat,
-                 "negELL"=as.numeric(negELL),
+                 "plottedCoordinates" = plotting_coordinates_mat,
+                 #"negELL"=as.numeric(negELL),
                  "whichNA_dropped" = whichNA_dropped) )
   }
   if(simMode == T){
     return(list("ClusterProbs_est" = ClusterProbs_est,
                 "ClusterProbs" = ClusterProbs,
-                "tau1" = as.numeric(tau1),
+                "Cluster" = as.numeric(tau1),
                 "tau2" = as.numeric(tau2),
                 "sd_tau1" = sd_tau1,
                 "sd_tau2" = sd_tau2,

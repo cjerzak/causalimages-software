@@ -4,22 +4,53 @@
 \alias{AnalyzeImageHeterogeneity}
 \title{Decompose treatment effect heterogeneity by image}
 \usage{
-AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, ...)
+AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 }
 \arguments{
 \item{obsW}{A numeric vector where \code{0}'s correspond to control units and \code{1}'s to treated units.}
 
 \item{obsY}{A numeric vector containing observed outcomes.}
 
-\item{X}{(Optional) A numeric matrix containing tabular information. If specified,we}
+\item{X}{(optional) A numeric matrix containing tabular information used if \code{orthogonalize = T}.}
 
 \item{orthogonalize}{(default = \code{F}) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
 
-\item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for identifying highest and lowest probability neighorhood units.}
+\item{imageKeys}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. \code{imageKeys} are fed into \code{acquireImageFxn} to call images into memory.}
+
+\item{kClust_est}{(default = \code{2L}) Integer specifying the number of clusters used in estimation.}
+
+\item{acquireImageFxn}{A function specifying how to load images associated with \code{imageKeys} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeys}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
+First argument should be image key values and second argument have be \code{training} (in case behavior in training/)}
+
+\item{acquireImageRepFxn}{(default = \code{acquireImageFxn}) Similar to \code{acquireImageFxn}; this is a function specifying how to load images representations associated with \code{imageKeys} into memory.
+This will only be specified if there is a different}
+
+\item{acquireImageFxn_transportability}{(default = \code{acquireImageFxn}) Similar to \code{acquireImageFxn}; this is a function specifying how to load images for an optional transportability analysis,
+with transportability keys specified as a matrix in \code{transportabilityMat}.}
+
+\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by}
+
+\item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
+
+\item{conda_env}{(default = \code{NULL}) A string specifying a conda environment wherein \code{tensorflow}, \code{tensorflow_probability}, and \code{gc} are installed.}
 
 \item{figuresKey}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
 
 \item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
+
+\item{simMode}{(default = \code{F}) Should the analysis be performed in comparison with ground truth from simulation?}
+
+\item{plotResults}{(default = \code{T}) Should analysis results be plotted?}
+
+\item{nDepthHidden_conv}{(default = \code{3L}) Hidden depth of convolutional layer.}
+
+\item{nDepthHidden_dense}{(default = \code{0L}) Hidden depth of dense layers. Default of \code{0L} means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).}
+
+\item{maxPoolSize}{(default = \code{2L}) Integer specifying the max pooling size used in the convolutional layers.}
+
+\item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.=}
+
+\item{yDensity}{(default = \code{normal}) Specifies the density for the outcome. Current options include \code{normal} and \code{lognormal}.}
 
 \item{nMonte_variational}{(default = \code{5L}) An integer specifying how many Monte Carlo iterations to use in the
 calculation of the expected likelihood in each training step.}
@@ -40,19 +71,34 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 
 \item{reparameterizationType}{(default = \code{"Flipout"}) Either \code{"Flipout"}, or \code{"Reparameterization"}. Specifies the estimator used in the Bayesian neural components. With \code{"Flipout"}, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.}
 
-\item{doConvLowerDimProj}{(default = \code{T}) Should}
+\item{doConvLowerDimProj}{(default = \code{T}) Should we project the \code{nFilters} convolutional feature dimensions down to \code{nDimLowerDimConv} to reduce the number of required parameters.}
 
 \item{nDimLowerDimConv}{(default = \code{3L}) If \code{doConvLowerDimProj = T}, then, in each convolutional layer, we project the \code{nFilters} feature dimensions down to \code{nDimLowerDimConv} to reduce the number of parameters needed.}
 
 \item{nFilters}{(default = \code{32L}) Integer specifying the number of convolutional filters used.}
+
+\item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
 \value{
 A list consiting of \itemize{
-\item Items.
+\item \code{clusterTaus_mean} default
+\item \code{clusterTaus_sd} Estimated image effect cluster standard deviations.
+\item \code{clusterProbs_mean}. Estimated mean image effect cluster probabilities.
+\item \code{clusterTaus_sd}. Estimated image effect cluster probability standard deviations.
+\item \code{clusterProbs_lowerConf}. Estimated lower confidence for effect cluster probabilities.
+\item \code{impliedATE}. Implied ATE.
+\item \code{individualTau_est}. Estimated individual-level image-based treatment effects.
+\item \code{transportabilityMat}. Transportability matrix withestimated cluster information.
+\item \code{plottedCoordinates}. List containing coordinates plotted in salience maps.
+\item \code{whichNA_dropped}. A vector containing observations dropped due to missingness.
 }
 }
 \description{
-Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023).
+Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023). Users
+input in treatment and outcome data, along with a function specifying how to load in images
+using keys referenced to each unit (since loading in all image data will usually not be possible due to memory limitations).
+This function by default performs estimation, constructs salience maps, and can optionally perform
+estimation for new areas outside the original study sites in a transportability analysis.
 }
 \section{References}{
 
