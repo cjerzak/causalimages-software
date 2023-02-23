@@ -125,7 +125,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tf$config$set_soft_device_placement( T )
     tfp <- tf_probability()
     tfd <- tfp$distributions
-    tfa <- reticulate::import("tensorflow_addons")
+    #tfa <- reticulate::import("tensorflow_addons")
 
     tf$random$set_seed(  c(1000L ) )
     tf$keras$utils$set_random_seed( 4L )
@@ -300,9 +300,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
           eval.parent(parse(text = sprintf("%s <- tf$maximum(0.001,tf$constant(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),tf$float32))",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- 0.1*tf$ones( tf$shape(%s$variables[[1]]),tf$float32)",prior_SD_name,name_)))
           #eval.parent(parse(text = sprintf("%s <- tf$constant(tf$sqrt(tf$maximum(1e-4,RollVar_%s)))",prior_SD_name,z_name_ref)))
-          if(z_name_ref == "ClusterConv1XDASHXkernel_posterior_locXCOLX0"){
-            try(hist(c(as.array(RollVar_ClusterConv1XDASHXkernel_posterior_locXCOLX0)^0.5)),T)
-          }
         }
         eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
               d_prior <- tfd$Normal(loc = (%s),
@@ -876,12 +873,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
       if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function!")}
-      i_ <- i ; if(i %% 20==0 | i == 1){
-        print2(sprintf("Optim iter %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
+      i_ <- i ; if(i %% 20 == 0 | i == 1){
+        print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
-          try({plot(loss_vec,log="y");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
+          try({plot(loss_vec,log="y",main="Expected Likelihood",xlab="SGD Iteration");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
         }
-        if(modelType == "variational_minimal"){  print2(as.numeric(getTau_means())) }
+        if(modelType == "variational_minimal"){ print2( paste("Current tau clusters: ", paste(round(as.numeric(getTau_means()),3L),collapse=","), collapse =  "")) }
       }
       if(BAYES_STEP == 1){
       if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
@@ -902,7 +899,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
           eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_)))
           eval(parse(text = sprintf("SZ2_%s <- tf$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_)))
           if(i == n_sgd_iters){
-            print2( windowCounter )
             #eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
             #eval(parse(text = sprintf("RollVar_%s <- tf$maximum(0.0001,SZ2_%s/nWindow - RollMean_%s^2)", z_name_,z_name_,z_name_,z_name_)))
             eval(parse(text = sprintf("RollVar_%s <- 1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow)", z_name_,z_name_)))
