@@ -35,7 +35,6 @@ summary( obsW ) # treatment vector
 summary( obsY ) # outcome vector 
 summary( LongLat ) # long-lat coordinates for each unit
 summary( X ) # other covariates 
-summary( X ) # other covariates 
 
 # image information: 
 dim( FullImageArray ) # dimensions of the full image array in memory 
@@ -53,13 +52,13 @@ causalimages::image2(FullImageArray[1,,,1])
 We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageRepFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
 
 ## Writing the `acquireImageRepFxn`
-One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageRepFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your harddrive and read them in when needed. The second option will be more common for large images. 
+One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageRepFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
 
 You will write your `acquireImageRepFxn` to take in two arguments: `keys` and `training` 
 - `keys` is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `keys = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
 - `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you wanted to randomly flip images around their left-right axis during training mode to prevent overfitting.
 
-### When Storing All Images in Memory 
+### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageRepFxn` function like so: 
 ```
 acquireImageRepFromMemory <- function(keys, training = F){
@@ -79,7 +78,7 @@ image2( ImageSample[3,,,1] )
 ```
 
 ### When Reading in Images from Disk 
-For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeys` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
+For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
 ```
 acquireImageRepFromDisk <- function(keys,training = F){
   # IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
@@ -123,7 +122,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           obsW =  obsW,
           X = X, # used only if orthogonalize=T
           obsY = obsY,
-          imageKeys =  KeysOfObservations,
+          imageKeysOfUnits =  KeysOfObservations,
           acquireImageRepFxn = acquireImageRepFromMemory,
           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
           
