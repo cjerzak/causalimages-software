@@ -118,6 +118,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       printDiagnostics = F,
                                       quiet = F){
   if(T == T){
+    #conda_env <- "tensorflow_m1"
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = T),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
