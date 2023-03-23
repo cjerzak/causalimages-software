@@ -37,6 +37,14 @@ head( X ) # other covariates
 We can also analyze the images that we'll use in this analysis. Note that we're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageRepFxn` function that you'll specify). We have an example of that approach next. 
 
 ## Writing the `acquireImageRepFxn`
+One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageRepFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your harddrive and read them in when needed. The second option will be more common for large images. 
+
+You will write your `acquireImageRepFxn` to take in two arguments: `keys` and `training` 
+- `training` simplify specifies whether to treat the images as in training mode or inference mode (e.g., you may want to randomly flip images around their left-right axis during training, but not in inference mode). 
+- `keys` is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `keys = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
+
+function(keys,training = F)
+
 ### When Storing All Images in Memory 
 
 
