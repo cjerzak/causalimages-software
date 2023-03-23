@@ -21,9 +21,14 @@ library(   causalimages  )
 ```
 
 # Tutorial
-Under construction.
+*Under construction.*
 
-# Development Plan
+After we've loaded in the package, we can get started running an analysis. We'll start by loading in data: 
+```
+
+```
+
+# Future Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
 
 We are committed to the long-term development of this repository and welcome community involvement. 
