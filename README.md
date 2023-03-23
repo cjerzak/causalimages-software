@@ -36,7 +36,11 @@ head( X ) # other covariates
 ```
 We can also analyze the images that we'll use in this analysis. Note that we're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageRepFxn` function that you'll specify). We have an example of that approach next. 
 
-## Reading in images from disk 
+## Writing the `acquireImageRepFxn`
+### When Storing All Images in Memory 
+
+
+### When Reading in Images from Disk 
 For most applications of causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeys` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
 ```
 acquireImageRepFromDisk <- function(keys,training = F){
