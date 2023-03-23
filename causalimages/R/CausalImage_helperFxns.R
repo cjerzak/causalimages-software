@@ -37,6 +37,8 @@ image2 = function(x,xaxt=NULL,yaxt = NULL,main=NULL,cex.main = NULL,box=F){
   if(!is.null(yaxt)){ axis(2, at = 0:(nrow(x)-1)/nrow(x)*1.04, tick=F,labels = rev(yaxt),cex.axis = 1,las = 2)  }
 }
 
+f2n <- function(.){as.numeric(as.character(.))}
+
 # zips two lists
 rzip<-function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
 

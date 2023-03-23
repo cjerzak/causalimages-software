@@ -31,11 +31,11 @@ load("~/Downloads/TutorialData.RData")
 Once we've read in the data, we can explore the structure of it a bit: 
 ```
 # outcome, treatment, and covariate information: 
-tail( obsW ) # treatment vector 
-tail( obsY ) # outcome vector 
-tail( LongLat ) # long-lat coordinates for each unit
-tail( X ) # other covariates 
-tail( X ) # other covariates 
+summary( obsW ) # treatment vector 
+summary( obsY ) # outcome vector 
+summary( LongLat ) # long-lat coordinates for each unit
+summary( X ) # other covariates 
+summary( X ) # other covariates 
 
 # image information: 
 dim( FullImageArray ) # dimensions of the full image array in memory 
@@ -104,6 +104,9 @@ acquireImageRepFromDisk <- function(keys,training = F){
   simplify="array")  #using simplify = "array" combines images slices together
 
   # convert images to tensorflow array for further processing
+  # note: your acquireImageRepFxn need not return tensorflow arrays. 
+  # R arrays are fine (with dimensions c(nBatch, imageWidth, imageHeight,nChannels)
+  # (R arrays will be detected converted and converted internally)
   array_ <- tf$squeeze(tf$constant(array_,dtype=tf$float32),0L)
   array_ <- tf$transpose(array_,c(3L,0L,1L,2L))
   return( array_ )
