@@ -25,7 +25,7 @@
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
-#' @param nMonte_predictive (default = `10L`) An integer specifying how many Monte Carlo iterations to use in the calculation
+#' @param nMonte_predictive (default = `20L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of posterior means (e.g., mean cluster probabilities).
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of the salience maps (e.g., image gradients of expected cluster probabilities).
@@ -104,7 +104,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       yDensity = "normal",
                                       compile = T,
                                       nMonte_variational = 5L,
-                                      nMonte_predictive = 10L,
+                                      nMonte_predictive = 20L,
                                       nMonte_salience = 100L,
                                       batchSize = 25L,
                                       kernelSize = 5L,

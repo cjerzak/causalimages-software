@@ -119,28 +119,24 @@ Now that we've established some understanding of the data and written the `acqui
 
 ```
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
-           # data inputs
-           obsW =  obsW,
-           X = X, # used only if orthogonalize=T
-           obsY = obsY,
-           imageKeys =  KeysOfObservations,
-           transportabilityMat = NULL, # 
-           lat =  NULL, # required only if transportabilityMat specified 
-           long =  NULL, # # required only if transportabilityMat specified 
-           acquireImageRepFxn = acquireImageRepFromMemory,
-           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
+          # data inputs
+          obsW =  obsW,
+          X = X, # used only if orthogonalize=T
+          obsY = obsY,
+          imageKeys =  KeysOfObservations,
+          transportabilityMat = NULL, # 
+          lat =  NULL, # required only if transportabilityMat specified 
+          long =  NULL, # # required only if transportabilityMat specified 
+          acquireImageRepFxn = acquireImageRepFromMemory,
+          conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
 
           # other options
           orthogonalize = F,
           modelType = "variational_minimal",
           kClust_est = 2,
-
-          nMonte_salience = 100L,
-          nMonte_predictive = 20L,
           nMonte_variational = 10L,
           nSGD = 400L, # make this larger for real application 
           batchSize = 22L,
-
           channelNormalize = T,
           compile = T,
           yDensity = "normal",
@@ -151,7 +147,6 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           nDimLowerDimConv = 3L,
           reparameterizationType = "Flipout",
           plotResults = T,
-          simMode = F,
           figuresPath = "./Downloads",
           printDiagnostics = T,
           figuresKey = "CausalImagesTutorial")

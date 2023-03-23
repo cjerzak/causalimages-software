@@ -51,7 +51,7 @@ First argument should be image key values and second argument have be \code{trai
 \item{nMonte_variational}{(default = \code{5L}) An integer specifying how many Monte Carlo iterations to use in the
 calculation of the expected likelihood in each training step.}
 
-\item{nMonte_predictive}{(default = \code{10L}) An integer specifying how many Monte Carlo iterations to use in the calculation
+\item{nMonte_predictive}{(default = \code{20L}) An integer specifying how many Monte Carlo iterations to use in the calculation
 of posterior means (e.g., mean cluster probabilities).}
 
 \item{nMonte_salience}{(default = \code{100L}) An integer specifying how many Monte Carlo iterations to use in the calculation
