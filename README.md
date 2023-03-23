@@ -115,7 +115,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
 ## Analyzing Tutorial Data
 Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
-*Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training fast. The function output here should therefore not be interpreted too seriously.* 
+*Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training rapid too. The function output here should therefore not be interpreted too seriously.* 
 
 ```
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
@@ -127,12 +127,12 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           acquireImageRepFxn = acquireImageRepFromMemory,
           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
           
-          # inputs to control where results are plotted as PDF or PNGs 
+          # inputs to control where visual results are saved as PDF or PNGs 
           # (these image grids are large and difficult to display in RStudio's interactive mode)
           plotResults = T,
-          figuresPath = "./Downloads",
+          figuresPath = "~/Downloads",
           printDiagnostics = T,
-          figuresKey = "CausalImagesTutorial"
+          figuresKey = "CausalImagesTutorial",
           
           # optional arguments for generating transportability maps 
           # here, we leave those NULL 
@@ -145,7 +145,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           modelType = "variational_minimal",
           kClust_est = 2,
           nMonte_variational = 10L,
-          nSGD = 400L, # make this larger for real application 
+          nSGD = 40L, # make this larger for real applications
           batchSize = 22L,
           channelNormalize = T,
           compile = T,
