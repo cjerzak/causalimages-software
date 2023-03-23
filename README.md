@@ -112,7 +112,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
 ## Analyzing Tutorial Data
 Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
-*Note: The images used here are heavily clipped to keep this tutorial fast and that the model parameters chosen here are selected to make training fast. The function output here should not be interpreted too seriously.* 
+*Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training fast. The function output here should therefore not be interpreted too seriously.* 
 
 ```
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
