@@ -138,11 +138,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
   environment(acquireImageRepFxn) <- environment()
   test_ <- acquireImageRepFxn(imageKeys[1:5],training = F)
   if(!"tensorflow.tensor" %in% class(tf$constant(test_))){
-    acquireImageRepFxn_orig <- acquireImageRepFxn
+    acquireImageRepFxn_as_input <- acquireImageRepFxn
     acquireImageRepFxn <- function(keys, training){
-      tf$constant(acquireImageRepFxn_orig(keys, training),tf$float32)
+      tf$constant(acquireImageRepFxn_as_input(keys, training),tf$float32)
     }
   }
+  rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
     acquireImageRepFxn_orig <- acquireImageRepFxn
