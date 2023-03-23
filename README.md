@@ -73,7 +73,9 @@ dim( ImageSample )
 
 # plot image: it's always a good idea 
 # to check the images through extensive sanity checks
-image2(ImageSample[3,,,1])
+# such as your comparing satellite image representation
+# against those from OpenStreetMaps or Google Earth. 
+image2( ImageSample[3,,,1] )
 ```
 
 ### When Reading in Images from Disk 
@@ -111,6 +113,46 @@ acquireImageRepFromDisk <- function(keys,training = F){
 Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
 *Note: The images used here are heavily clipped to keep this tutorial fast and that the model parameters chosen here are selected to make training fast. The function output here should not be interpreted too seriously.* 
+
+```
+ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+           # data inputs
+           obsW =  obsW,
+           X = X, # used only if orthogonalize=T
+           obsY = obsY,
+           imageKeys =  KeysOfObservations,
+           transportabilityMat = NULL, # 
+           lat =  NULL, # required only if transportabilityMat specified 
+           long =  NULL, # # required only if transportabilityMat specified 
+           acquireImageRepFxn = acquireImageRepFromMemory,
+           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
+
+          # other options
+          orthogonalize = F,
+          modelType = "variational_minimal",
+          kClust_est = 2,
+
+          nMonte_salience = 100L,
+          nMonte_predictive = 20L,
+          nMonte_variational = 10L,
+          nSGD = 400L, # make this larger for real application 
+          batchSize = 22L,
+
+          channelNormalize = T,
+          compile = T,
+          yDensity = "normal",
+          kernelSize = 5L, maxPoolSize = 2L, strides = 2L,
+          nDepthHidden_conv = 1L, # in practice, nDepthHidden_conv would be more like 4L 
+          nFilters = 32L,
+          nDepthHidden_dense = 0L, nDenseWidth = 32L,
+          nDimLowerDimConv = 3L,
+          reparameterizationType = "Flipout",
+          plotResults = T,
+          simMode = F,
+          figuresPath = "./Downloads",
+          printDiagnostics = T,
+          figuresKey = "CausalImagesTutorial")
+```
 
 # Future Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
