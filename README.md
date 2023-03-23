@@ -22,7 +22,7 @@ library(   causalimages  )
 
 # Tutorial
 *Under construction.*
-
+## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
 data(UgandaYOP)
@@ -39,8 +39,35 @@ We can also analyze the images that we'll use in this analysis. Note that we're 
 ## Reading in images from disk 
 For most applications of causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeys` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
 ```
-xyz 
+acquireImageRepFromDisk <- function(keys,training = F){
+  # IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
+  # initialize an array shell to hold image slices
+  array_shell <- array(NA,dim = c(1L,imageHeight,imageWidth,NBANDS))
+
+  # iterate over keys:
+  # -- images are referenced to keys
+  # -- keys are referenced to units (to allow for duplicate images uses)
+  array_ <- sapply(keys,function(key_){
+    # iterate over all image bands (NBANDS = 3 for RBG images)
+    for(band_ in 1:NBANDS){
+      # place the image in the correct place in the array
+      array_shell[,,,band_] <-
+        (as.matrix(data.table::fread( # note the use of data.table::fread to speed up reading in image to memory
+          input = sprintf("./Data/Uganda2000_processed/GeoKey%s_BAND%s.csv",
+                          key_,
+                          band_),header = F)[-1,] ))
+    }
+    return( array_shell )
+  },
+  simplify="array")  #using simplify = "array" combines images slices together
+
+  # convert images to tensorflow array for further processing
+  array_ <- tf$squeeze(tf$constant(array_,dtype=tf$float32),0L)
+  array_ <- tf$transpose(array_,c(3L,0L,1L,2L))
+  return( array_ )
+}
 ```
+## Analyzing Tutorial Data
 
 
 # Future Development Plan

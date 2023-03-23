@@ -11,7 +11,7 @@
 #' @param xaxt (default = `""`) The x-axis label.
 #' @param yaxt (default = `""`) The y-axis label.
 #' @param main (default = `""`) The main figure label.
-#' @param main.cex (default = `1.`) The main figure label sizing factor.
+#' @param cex.main (default = `1.`) The main figure label sizing factor.
 #' @param box (default = `F`) Should a box be plotted around the image?
 #'
 #' @return Returns a heatmap representation of the matrix, `x`, with correct north/south/east/west orientation.
