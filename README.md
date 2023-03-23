@@ -124,13 +124,23 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           X = X, # used only if orthogonalize=T
           obsY = obsY,
           imageKeys =  KeysOfObservations,
+          acquireImageRepFxn = acquireImageRepFromMemory,
+          conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
+          
+          # inputs to control where results are plotted as PDF or PNGs 
+          # (these image grids are large and difficult to display in RStudio's interactive mode)
+          plotResults = T,
+          figuresPath = "./Downloads",
+          printDiagnostics = T,
+          figuresKey = "CausalImagesTutorial"
+          
+          # optional arguments for generating transportability maps 
+          # here, we leave those NULL 
           transportabilityMat = NULL, # 
           lat =  NULL, # required only if transportabilityMat specified 
           long =  NULL, # # required only if transportabilityMat specified 
-          acquireImageRepFxn = acquireImageRepFromMemory,
-          conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
 
-          # other options
+          # other modeling options
           orthogonalize = F,
           modelType = "variational_minimal",
           kClust_est = 2,
@@ -145,11 +155,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           nFilters = 32L,
           nDepthHidden_dense = 0L, nDenseWidth = 32L,
           nDimLowerDimConv = 3L,
-          reparameterizationType = "Flipout",
-          plotResults = T,
-          figuresPath = "./Downloads",
-          printDiagnostics = T,
-          figuresKey = "CausalImagesTutorial")
+          reparameterizationType = "Flipout")
 ```
 
 # Future Development Plan
