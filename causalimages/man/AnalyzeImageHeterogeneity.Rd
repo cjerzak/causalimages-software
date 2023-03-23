@@ -19,16 +19,12 @@ AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 
 \item{kClust_est}{(default = \code{2L}) Integer specifying the number of clusters used in estimation.}
 
-\item{acquireImageFxn}{A function specifying how to load images associated with \code{imageKeys} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeys}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
+\item{acquireImageRepFxn}{A function specifying how to load images representations associated with \code{imageKeys} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeys}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case behavior in training/)}
 
-\item{acquireImageRepFxn}{(default = \code{acquireImageFxn}) Similar to \code{acquireImageFxn}; this is a function specifying how to load images representations associated with \code{imageKeys} into memory.
-This will only be specified if there is a different}
+\item{acquireImageFxn}{(default = \code{acquireImageRepFxn}) Similar to \code{acquireImageRepFxn}; this is a function specifying how to load images associated with \code{imageKeys} into memory.}
 
-\item{acquireImageFxn_transportability}{(default = \code{acquireImageFxn}) Similar to \code{acquireImageFxn}; this is a function specifying how to load images for an optional transportability analysis,
-with transportability keys specified as a matrix in \code{transportabilityMat}.}
-
-\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by}
+\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageRepFxn} for generating treatment effect predictions for out-of-sample points.}
 
 \item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
 
@@ -76,6 +72,8 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 \item{nDimLowerDimConv}{(default = \code{3L}) If \code{doConvLowerDimProj = T}, then, in each convolutional layer, we project the \code{nFilters} feature dimensions down to \code{nDimLowerDimConv} to reduce the number of parameters needed.}
 
 \item{nFilters}{(default = \code{32L}) Integer specifying the number of convolutional filters used.}
+
+\item{channelNormalize}{(default = \code{T}) Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
 
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
