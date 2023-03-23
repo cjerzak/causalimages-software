@@ -1,4 +1,18 @@
-# 3d plotting
+
+#!/usr/bin/env Rscript
+#' Matrix visualization as heatmap with correct north-south-east-east orientation
+#'
+#' A function for generating a heatmap representation of a matrix with correct spatial orientation.
+#'
+#' @usage
+#'
+#' image2( x, ... )
+#'
+#' @param x A numeric matrix.
+#' @param obsY A numeric
+#'
+#' @return A heatmap representation of the matrix, `x`, with correct north/south/east/west orientation.
+#'
 image2 = function(mat,xaxt=NULL,yaxt = NULL,main=NULL,cex.main = NULL,box=F){
   image((t(mat)[,nrow(mat):1]), axes = F, main = main,xaxs = "i",cex.main = cex.main)
   if(box == T){box()}
