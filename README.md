@@ -38,7 +38,7 @@ tail( X ) # other covariates
 tail( X ) # other covariates 
 
 # image information: 
-dim( FullImageArray ) # the full image array in memory 
+dim( FullImageArray ) # dimensions of the full image array in memory 
 head( KeysOfImages ) # image keys associated with the images in FullImageArray
 head( KeysOfObservations ) # image keys of observations to be associated to images via KeysOfImages
 ```
@@ -63,13 +63,18 @@ You will write your `acquireImageRepFxn` to take in two arguments: `keys` and `t
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageRepFxn` function like so: 
 ```
 acquireImageRepFromMemory <- function(keys, training = F){
-
-
-
-
+  # here, the function input keys 
+  # refers to the unit-associated keys 
+  return( FullImageArray[match(keys, KeysOfImages),,,] )  
 }
-```
 
+ImageSample <- acquireImageRepFromMemory(sample(KeysOfObservations,10))
+dim( ImageSample )
+
+# plot image: it's always a good idea 
+# to check the images through extensive sanity checks
+image2(ImageSample[3,,,1])
+```
 
 ### When Reading in Images from Disk 
 For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeys` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
@@ -103,7 +108,9 @@ acquireImageRepFromDisk <- function(keys,training = F){
 }
 ```
 ## Analyzing Tutorial Data
+Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
+*Note: The images used here are heavily clipped to keep this tutorial fast and that the model parameters chosen here are selected to make training fast. The function output here should not be interpreted too seriously.* 
 
 # Future Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
