@@ -155,6 +155,26 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           nDimLowerDimConv = 3L,
           reparameterizationType = "Flipout")
 ```
+## Visual Results 
+Upon completion, `AnalyzeImageHeterogeneity` will save several images from the analysis to the location `figuresPath`. The `figuresKey` will be appended to these images to keep track of results from different analyses. Currently, these images include one with name starting `VisualizeHeteroReal_variational_minimal_uncertainty`, which plots the images having great uncertainty in the cluster probabilities. One has name starting `VisualizeHeteroReal_variational_minimal_mean_upperConf`: these plots display the images having the highest and lowest lower confidence bound for the different cluster probabilities. Some images may be present multiple times if many observations map to the same image (the computation of the confidence bounds is itself stochastic, so things may not be ordered precisely from run to run). One output `.pdf` has name starting `VisualizeHeteroReal_variational_minimal_mean`; these plots display the images having the highest probabilities for each associated cluster. Finally, one output `.pdf` has name starting  `HeteroSimTauDensityRealDataFig`, and plots the estimated distributions over image-level treatment effects for the various clusters. Overlap of these distributions is to be expected, since the quantity is computed at the image [not some aggregate] level.
+
+*Note that, for satellite data, images that show up as pure dark blue are centered around a body of water.*
+
+## Numerical Results
+We can also examine some of the numerical results contained in the `ImageHeterogeneityResults` output. 
+```
+# image type treatment effect cluster means 
+ImageHeterogeneityResults$clusterTaus_mean
+
+# image type treatment effect cluster standard deviations
+ImageHeterogeneityResults$clusterTaus_sd
+
+# per image treatment effect cluster probability means 
+ImageHeterogeneityResults$clusterProbs_mean
+
+# per image treatment effect cluster probability standard deviations
+ImageHeterogeneityResults$clusterProbs_sd
+```
 
 # Future Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
