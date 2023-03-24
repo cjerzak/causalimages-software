@@ -156,9 +156,10 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
 ```
 ## Visual Results 
 Upon completion, `AnalyzeImageHeterogeneity` will save several images from the analysis to the location `figuresPath`. The `figuresKey` will be appended to these images to keep track of results from different analyses. Currently, these images include the following: 
--- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_uncertainty`, which plots the images having great uncertainty in the cluster probabilities. -- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean_upperConf`: these plots display the images having the highest and lowest lower confidence bound for the different cluster probabilities. Some images may be present multiple times if many observations map to the same image (the computation of the confidence bounds is itself stochastic, so things may not be ordered precisely from run to run). 
--- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean`; these plots display the images having the highest probabilities for each associated cluster. 
--- Finally, one output `.pdf` has name starting  `HeteroSimTauDensityRealDataFig`, and plots the estimated distributions over image-level treatment effects for the various clusters. Overlap of these distributions is to be expected, since the quantity is computed at the image [not some aggregate] level.
+- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_uncertainty`, which plots the images having great uncertainty in the cluster probabilities. 
+- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean_upperConf`: these plots display the images having the highest and lowest lower confidence bound for the different cluster probabilities. Some images may be present multiple times if many observations map to the same image (the computation of the confidence bounds is itself stochastic, so things may not be ordered precisely from run to run). 
+- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean`; these plots display the images having the highest probabilities for each associated cluster. 
+- Finally, one output `.pdf` has name starting  `HeteroSimTauDensityRealDataFig`, and plots the estimated distributions over image-level treatment effects for the various clusters. Overlap of these distributions is to be expected, since the quantity is computed at the image [not some aggregate] level.
 
 *Note that, for satellite data, images that show up as pure dark blue are centered around a body of water.*
 
