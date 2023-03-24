@@ -25,8 +25,7 @@ library(   causalimages  )
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
-data(UgandaYOP)
-load("~/Downloads/TutorialData.RData")
+data(  TutorialData )
 ```
 Once we've read in the data, we can explore its structure: 
 ```
@@ -149,9 +148,9 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           channelNormalize = T,
           compile = T,
           yDensity = "normal",
-          kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+          kernelSize = 3L, maxPoolSize = 2L, strides = 1L,
           nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L 
-          nFilters = 32L,
+          nFilters = 64L,
           nDepthHidden_dense = 0L, nDenseWidth = 32L,
           nDimLowerDimConv = 3L,
           reparameterizationType = "Flipout")

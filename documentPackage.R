@@ -9,3 +9,5 @@ try(file.remove(sprintf("./%s.pdf",package_name)),T)
 system(sprintf("R CMD Rd2pdf %s",package_path))
 
 #install.packages( sprintf("~/Documents/%s-software/%s",package_name,package_name),repos = NULL, type = "source")
+library( causalimages )
+data(  TutorialData )
