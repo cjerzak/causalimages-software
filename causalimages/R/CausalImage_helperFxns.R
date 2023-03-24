@@ -49,3 +49,11 @@ reshape_fxn_DEPRECIATED <- function(input_){
                             tf$reduce_prod(tf$shape(input_)[2:5])))
 }
 
+fixZeroEndings <- function(zr,roundAt=2){
+  unlist( lapply(strsplit(as.character(zr),split="\\."),function(l_){
+    if(length(l_) == 1){ retl <- paste(l_, paste(rep("0",times=roundAt),collapse=""),sep=".") }
+    if(length(l_) == 2){
+      retl <- paste(l_[1], paste(l_[2], paste(rep("0",times=roundAt-nchar(l_[2])),collapse=""),sep=""),
+                    sep = ".") }
+    return( retl  )
+  }) ) }

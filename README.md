@@ -144,13 +144,13 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           modelType = "variational_minimal",
           kClust_est = 2,
           nMonte_variational = 10L,
-          nSGD = 40L, # make this larger for real applications
+          nSGD = 400L, # make this larger for real applications
           batchSize = 22L,
           channelNormalize = T,
           compile = T,
           yDensity = "normal",
-          kernelSize = 5L, maxPoolSize = 2L, strides = 2L,
-          nDepthHidden_conv = 1L, # in practice, nDepthHidden_conv would be more like 4L 
+          kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+          nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L 
           nFilters = 32L,
           nDepthHidden_dense = 0L, nDenseWidth = 32L,
           nDimLowerDimConv = 3L,

@@ -146,6 +146,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # expand across batch dimension if receiving no batch dimension
         m_ <- tf$expand_dims(m_,0L)
       }
+      return( m_ )
     }
   }
   rm( test_ )
@@ -1259,10 +1260,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 coordinate_i <- c(long[im_i],lat[im_i])
                 if(bad_counter>50){browser()}
                 if(i > 1){
-                  dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
-                  bad_counter <- bad_counter + 1
-                  #if(is.na(dist_m)){browser()}
-                  if(all(dist_m >= 1000)){isUnique_ <- T}
+                  isUnique_ <- T; if(!is.null(long)){
+                    dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
+                    bad_counter <- bad_counter + 1
+                    #if(is.na(dist_m)){browser()}
+                    if(all(dist_m >= 1000)){isUnique_ <- T}
+                  }
                 }
                 if(i == 1){isUnique_<-T}
                 print2(sd_im <- sd(as.array(acquireImageFxn( keys = imageKeysOfUnits[im_i] )[1,,,]),na.rm=T))
@@ -1277,9 +1280,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
                                main = main_,
                                cex.lab = 2.5,col.lab = k_,
-                               xlab = sprintf("Long: %s, Lat: %s",
+                               xlab = ifelse(!is.null(long),
+                                         yes = sprintf("Long: %s, Lat: %s",
                                               fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                               fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                         no = ""),
                                col.main = k_, cex.main=4),T)
               if("try-error" %in% class(rbgPlot)){print2("rbgPlot broken")}
               if(grepl(typePlot,pattern = "mean")){
@@ -1360,19 +1365,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
               }
             }
-            plotting_coordinates_mat <- rbind(plotting_coordinates_mat,used_coordinates)
+            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,used_coordinates),T)
+            if("try-error" %in% class(plotting_coordinates_mat)){browser()}
             print2(used_coordinates)
           }
         }
         dev.off()
         return( plotting_coordinates_mat )
       }
-      #if(typePlot == "mean"){ browser() }
       plotting_coordinates_mat <- try(plot_fxn(),T)
       if("try-error" %in% class(plotting_coordinates_mat)){ browser() }
       plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat
     }
-    names(plotting_coordinates_list) <- typePlot_vec
+    try({ names(plotting_coordinates_list) <- typePlot_vec},T)
     par(mfrow=c(1,1))
 
     return( list(
