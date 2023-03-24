@@ -15,7 +15,7 @@ AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 
 \item{orthogonalize}{(default = \code{F}) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
 
-\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
+\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
 
 \item{kClust_est}{(default = \code{2L}) Integer specifying the number of clusters used in estimation.}
 

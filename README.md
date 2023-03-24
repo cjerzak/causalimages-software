@@ -28,7 +28,7 @@ After we've loaded in the package, we can get started running an analysis. We'll
 data(UgandaYOP)
 load("~/Downloads/TutorialData.RData")
 ```
-Once we've read in the data, we can explore the structure of it a bit: 
+Once we've read in the data, we can explore its structure: 
 ```
 # outcome, treatment, and covariate information: 
 summary( obsW ) # treatment vector 

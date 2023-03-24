@@ -136,14 +136,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # coerce output to tf$constant
+  environment(acquireImageRepFxn) <- environment()
   test_ <- acquireImageRepFxn(imageKeysOfUnits[1:5],training = F)
-  if(!"tensorflow.tensor" %in% class(tf$constant(test_))){
+  if(!"tensorflow.tensor" %in% class(test_)){
     acquireImageRepFxn_as_input <- acquireImageRepFxn
     acquireImageRepFxn <- function(keys, training){
-      tf$constant(acquireImageRepFxn_as_input(keys, training),tf$float32)
+      m_ <- tf$constant(acquireImageRepFxn_as_input(keys, training),tf$float32)
+      if(length(m_$shape) == 3){
+        # expand across batch dimension if receiving no batch dimension
+        m_ <- tf$expand_dims(m_,0L)
+      }
     }
   }
-  environment(acquireImageRepFxn) <- environment()
   rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
@@ -946,7 +950,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     yt_est <- as.numeric(Y_test_est)[W_test==y_t_]
     yt_lims <- summary(c(yt_true,yt_est))[c(1,6)]
     if(printDiagnostics == T){
-      print((summary(lm(yt_true~yt_est))))
+      #print((summary(lm(yt_true~yt_est))))
     }
     r2_yt_out <- 1 - sum( (yt_est - yt_true)^2 ) / sum( (yt_true - mean(yt_true))^2 )
     if(y_t_ == 0){ r2_y0_out <- r2_yt_out }
