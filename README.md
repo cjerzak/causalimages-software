@@ -25,7 +25,7 @@ library(   causalimages  )
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
-data(  TutorialData )
+data(  CausalImagesTutorialData )
 ```
 Once we've read in the data, we can explore its structure: 
 ```

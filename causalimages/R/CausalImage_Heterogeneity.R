@@ -224,9 +224,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   kernelSize_est <- as.integer(  kernelSize )
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
-  LEARNING_RATE_BASE <- .001; widthCycle <- 50
-  #INV_TEMP_GLOBAL <- 1/0.5
-  INV_TEMP_GLOBAL <- 1/0.1
+  LEARNING_RATE_BASE <- .005; widthCycle <- 50
+  INV_TEMP_GLOBAL <- 1/0.5
   WhenPool <- c(1,2)
   #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
@@ -806,6 +805,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = 0,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
       #optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate=LEARNING_RATE_BASE,beta_1 = BETA_1_INIT)#$,clipnorm=1e1)
     }
+    #LR_method <- "WNGrad"
+    LR_method <- "constant"
     InvLR <- tf$Variable(0.,trainable  =  F)
 
     trainStep <-  (function(dat,y,treat, training){
@@ -821,15 +822,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #optimizer_tf$learning_rate$assign(   LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   )
       L2_grad_i <<- sqrt(sum((grad_i <- as.numeric(tf$concat(lapply(my_grads,function(x) tf$reshape(x,list(-1L,1L))),0L) ))^2) )
       x_i <- as.numeric( tf$concat((lapply(trainable_variables, function(zer){tf$reshape(zer,-1L)})),0L))
-      if(i == 1){
+      if(LR_method == "WNGrad"){ if(i == 1){
         L2_grad_init <<- L2_grad_scale*L2_grad_i
         InvLR$assign(  L2_grad_init )
         print2(sprintf("Initial LR: %.3f",1/L2_grad_init))
-      }
+      } }
       if(i > 1) { InvLR$assign_add( tf$divide( L2_grad_i,InvLR ) ) }
       {
         optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables))
-        optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )
+        if(LR_method == "WNGrad"){
+          optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )
+        }
       }
 
       # update momentum
@@ -889,11 +892,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 training = T)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
-      if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function!")}
+      if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function! Perhaps batchSize is too small?")}
       i_ <- i ; if(i %% 20 == 0 | i == 1){
         print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
-          try({plot(loss_vec,log="y",main="Loss Function Value",xlab="SGD Iteration");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
+          try({plot(loss_vec,log="y",main="If Still Decreasing at End of Training, \n Try Increasing nSGD",cex.main = 0.95,ylab = "Loss Function Value",xlab="SGD Iteration Number");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
         }
         if(modelType == "variational_minimal"){ print2( paste("Current estimate, tau cluster means: ", paste(round(as.numeric(getTau_means()),3L),collapse=", "), collapse =  "")) }
       }
