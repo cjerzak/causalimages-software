@@ -111,7 +111,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
   return( array_ )
 }
 ```
-## Analyzing Tutorial Data
+## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
 *Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training rapid too. The function output here should therefore not be interpreted too seriously.* 

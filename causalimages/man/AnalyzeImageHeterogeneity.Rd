@@ -15,14 +15,14 @@ AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 
 \item{orthogonalize}{(default = \code{F}) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
 
-\item{imageKeys}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. \code{imageKeys} are fed into \code{acquireImageFxn} to call images into memory.}
+\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
 
 \item{kClust_est}{(default = \code{2L}) Integer specifying the number of clusters used in estimation.}
 
-\item{acquireImageRepFxn}{A function specifying how to load images representations associated with \code{imageKeys} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeys}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
+\item{acquireImageRepFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case behavior in training/)}
 
-\item{acquireImageFxn}{(default = \code{acquireImageRepFxn}) Similar to \code{acquireImageRepFxn}; this is a function specifying how to load images associated with \code{imageKeys} into memory.}
+\item{acquireImageFxn}{(default = \code{acquireImageRepFxn}) Similar to \code{acquireImageRepFxn}; this is a function specifying how to load images associated with \code{imageKeysOfUnits} into memory.}
 
 \item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageRepFxn} for generating treatment effect predictions for out-of-sample points.}
 

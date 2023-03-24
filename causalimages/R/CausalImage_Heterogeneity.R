@@ -18,7 +18,7 @@
 #' First argument should be image key values and second argument have be `training` (in case behavior in training/)
 #' @param acquireImageFxn (default = `acquireImageRepFxn`) Similar to `acquireImageRepFxn`; this is a function specifying how to load images associated with `imageKeysOfUnits` into memory.
 #' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageRepFxn` for generating treatment effect predictions for out-of-sample points.
-#' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
+#' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
@@ -135,7 +135,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     gc(); py_gc$collect()
   }
 
-  environment(acquireImageRepFxn) <- environment()
+  # coerce output to tf$constant
   test_ <- acquireImageRepFxn(imageKeysOfUnits[1:5],training = F)
   if(!"tensorflow.tensor" %in% class(tf$constant(test_))){
     acquireImageRepFxn_as_input <- acquireImageRepFxn
@@ -143,6 +143,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       tf$constant(acquireImageRepFxn_as_input(keys, training),tf$float32)
     }
   }
+  environment(acquireImageRepFxn) <- environment()
   rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
