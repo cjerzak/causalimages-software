@@ -109,7 +109,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
   return( array_ )
 }
 ```
-## Alternatives to `acquireImageRepFxn` Specifying Disk Location of Image/Video Data 
+## Alternatives to `acquireImageRepFxn` by Specifying Disk Location of Image/Video Data 
 *Under construction.*
 
 ## Analyzing the Sample Data 
