@@ -109,6 +109,9 @@ acquireImageRepFromDisk <- function(keys,training = F){
   return( array_ )
 }
 ```
+## Alternatives to `acquireImageRepFxn` Specifying Disk Location of Image/Video Data 
+*Under construction.*
+
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
