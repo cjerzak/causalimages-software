@@ -3,4 +3,5 @@
 export(AnalyzeImageConfounding)
 export(AnalyzeImageHeterogeneity)
 export(SimulateImageSystem)
+export(WriteTfRecord)
 export(image2)

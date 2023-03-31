@@ -68,6 +68,7 @@
 AnalyzeImageConfounding <- function(obsW,
                                    obsY,
                                    X = NULL,
+                                   tf_record_name,
                                    orthogonalize = F,
                                    imageKeysOfUnits = 1:length(obsY),
                                    kClust_est = 2,
@@ -123,6 +124,29 @@ AnalyzeImageConfounding <- function(obsW,
   }
 
   RunConvNet <- function(){
+
+    # define base tf record + train/test fxns
+    {
+      tf_dataset = tf$data$TFRecordDataset( tf_record_name )
+
+      getParsed_tf_dataset_inference <- function(tf_dataset){
+        dataset <- tf_dataset$map( parse_tfr_element ) # return
+        return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
+      }
+
+      getParsed_tf_dataset_train <- function(tf_dataset){
+        dataset <- tf_dataset$map( parse_tfr_element )
+        dataset <- dataset$shuffle(tf$constant(as.integer(10*batchSize),dtype=tf$int64),
+                                   reshuffle_each_iteration = T)
+        dataset <- dataset$batch(as.integer(batchSize))
+      }
+
+      # setup iterators
+      tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+      tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
+    }
+
+
 
     # reset iterators
     ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
