@@ -64,7 +64,18 @@
 AnalyzeImageConfounding <- function(obsW,
                                    obsY,
                                    X = NULL,
-                                   tf_record_name,
+                                   file,
+                                   nDepth = 3L,
+                                   doConvLowerDimProj = T,
+                                   nDimLowerDimConv = 3L,
+                                   nFilters = 32L,
+                                   figuresPath = "./",
+
+                                   normalizationType <- "none"
+                                   doHiddenDim <- T;
+                                   HiddenDim  <- 32L;
+                                   DenseActivation <- "linear"
+
                                    orthogonalize = F,
                                    imageKeysOfUnits = 1:length(obsY),
                                    acquireImageRepFxn = NULL ,
@@ -100,7 +111,8 @@ AnalyzeImageConfounding <- function(obsW,
                                    channelNormalize = T,
                                    printDiagnostics = F,
                                    quiet = F){
-  if(T == T){
+  if(try(as.numeric(tf$sqrt(1.)),T)==1){
+    print("Initializing tensorflow environment...")
     #conda_env <- "tensorflow_m1"
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = T),T)
@@ -118,7 +130,9 @@ AnalyzeImageConfounding <- function(obsW,
     gc(); py_gc$collect()
   }
 
-  RunConvNet <- function(){
+  tf_record_name <- file
+  #RunConvNet <- function()
+  {
 
     # define base tf record + train/test fxns
     {
@@ -141,8 +155,6 @@ AnalyzeImageConfounding <- function(obsW,
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
     }
 
-
-
     # reset iterators
     ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
     ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
@@ -155,6 +167,12 @@ AnalyzeImageConfounding <- function(obsW,
       if(ave_pooling > 1){ im <- AvePoolingDownshift(im) }
       return( im  )
     }
+
+    # some hard-coded parameters
+    figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
+    KernalActivation <- "swish"
+    KernalProjActivation <- "swish"
+    HiddenActivation <- "swish"
 
     # initialize layers
     AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(ave_pooling_size,ave_pooling_size)))
@@ -180,7 +198,7 @@ AnalyzeImageConfounding <- function(obsW,
                                   activation=KernalActivation,
                                   strides = c(strides_dim,strides_dim),
                                   padding = "valid")',d_)))
-        eval(parse(text = sprintf('ConvProj%s = tf$keras$layers$Dense(nNewFeat,
+        eval(parse(text = sprintf('ConvProj%s = tf$keras$layers$Dense(nDimLowerDimConv,
                                       activation=KernalProjActivation)',d_)))
         eval(parse(text = sprintf('BNLayer_Axis3_%s <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)',d_)))
         eval(parse(text = sprintf('BNLayer_Axis3_%s_inner <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)',d_)))
@@ -201,12 +219,12 @@ AnalyzeImageConfounding <- function(obsW,
 
       # convolution + pooling
       for(d_ in 1:nDepth){
-        if(doConvProj){
+        if(doConvLowerDimProj){
           #eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s_inner(Pool( Conv%s( imm )),training=training)",d_,d_)))
           eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s_inner(Pool( Conv%s( imm )),training=training)",d_,d_)))
           if(d_ < nDepth){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s(  ConvProj%s( imm ), training = training)",d_,d_))) }
         }
-        if(doConvProj == F){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s( Pool( Conv%s( imm )), training = training)",d_,d_,d_)))}
+        if(doConvLowerDimProj == F){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s( Pool( Conv%s( imm )), training = training)",d_,d_,d_)))}
       }
       return(imm)
     })
@@ -427,7 +445,8 @@ AnalyzeImageConfounding <- function(obsW,
 
       makePlots <- function(){
 
-        pdf(sprintf("./Figures/IllustrateInternalKW%s_AvePool%s_IT%s.pdf",
+        pdf(sprintf("%s/IllustrateInternalKW%s_AvePool%s_IT%s.pdf",
+                    figuresPath,
                     kernelWidth_est,
                     ave_pooling_size,
                     monte_i_convnet),
@@ -531,7 +550,8 @@ AnalyzeImageConfounding <- function(obsW,
         }
         dev.off()
 
-        pdf(sprintf("./Figures/PropHistKW%s_AvePool%s_IT%s.pdf",
+        pdf(sprintf("%s/PropHistKW%s_AvePool%s_IT%s.pdf",
+                    figuresPath,
                     kernelWidth_est,
                     ave_pooling_size,
                     monte_i_convnet))
@@ -574,9 +594,5 @@ AnalyzeImageConfounding <- function(obsW,
   #sort(unique(CONTROL_MAT$ave_pooling_size))
   #try(gc(full=T), T); py_gc$collect()
   #ave_pooling_size <- 10L
-
-  # run convnet
-  ConvNetResults <- RunConvNet()
-
 
 }
