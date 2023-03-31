@@ -68,11 +68,8 @@
 #' }
 #'
 #' @examples
-#' #set seed
-#' set.seed(1)
-#'
-#' #Geneate data
-#' x <- rnorm(100)
+#' # For a tutorial, see
+#' # github.com/cjerzak/causalimages-software/
 #'
 #' @export
 #' @md

@@ -9,7 +9,6 @@
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
 #' @param obsY A numeric vector containing observed outcomes.
-#' @param kClust_est (default = `2L`) Integer specifying the number of clusters used in estimation.
 #' @param acquireImageRepFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
 #' First argument should be image key values and second argument have be `training` (in case behavior in training/)
 #' @param acquireImageFxn (default = `acquireImageRepFxn`) Similar to `acquireImageRepFxn`; this is a function specifying how to load images associated with `imageKeysOfUnits` into memory.
@@ -56,11 +55,8 @@
 #' }
 #'
 #' @examples
-#' #set seed
-#' set.seed(1)
-#'
-#' #Geneate data
-#' x <- rnorm(100)
+#' # For a tutorial, see
+#' # github.com/cjerzak/causalimages-software/
 #'
 #' @export
 #' @md
@@ -71,7 +67,6 @@ AnalyzeImageConfounding <- function(obsW,
                                    tf_record_name,
                                    orthogonalize = F,
                                    imageKeysOfUnits = 1:length(obsY),
-                                   kClust_est = 2,
                                    acquireImageRepFxn = NULL ,
                                    acquireImageFxn = NULL ,
                                    transportabilityMat = NULL ,
