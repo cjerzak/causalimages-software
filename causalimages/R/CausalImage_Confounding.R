@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' *Under construction.*
+#' *Under beta release. Full release in Spring of 2023.*
 #'
 #' @usage
 #'
@@ -69,12 +69,11 @@ AnalyzeImageConfounding <- function(obsW,
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
                                    nFilters = 32L,
-                                   figuresPath = "./",
 
-                                   normalizationType <- "none"
-                                   doHiddenDim <- T;
-                                   HiddenDim  <- 32L;
-                                   DenseActivation <- "linear"
+                                   normalizationType = "none",
+                                   doHiddenDim = T,
+                                   HiddenDim  = 32L,
+                                   DenseActivation = "linear",
 
                                    orthogonalize = F,
                                    imageKeysOfUnits = 1:length(obsY),
@@ -105,9 +104,6 @@ AnalyzeImageConfounding <- function(obsW,
                                    nSGD  = 400L,
                                    nDenseWidth = 32L,
                                    reparameterizationType = "Reparameterization",
-                                   doConvLowerDimProj = T,
-                                   nDimLowerDimConv = 3L,
-                                   nFilters = 32L,
                                    channelNormalize = T,
                                    printDiagnostics = F,
                                    quiet = F){

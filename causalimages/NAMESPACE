@@ -2,6 +2,8 @@
 
 export(AnalyzeImageConfounding)
 export(AnalyzeImageHeterogeneity)
+export(LongLat2CRS)
+export(SaveGeoLocatedImages)
 export(SimulateImageSystem)
 export(WriteTfRecord)
 export(image2)
