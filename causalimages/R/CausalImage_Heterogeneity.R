@@ -73,8 +73,6 @@
 #'
 #' @export
 #' @md
-
-
 AnalyzeImageHeterogeneity <- function(obsW,
                                       obsY,
                                       X = NULL,
