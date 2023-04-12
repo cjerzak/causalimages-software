@@ -169,8 +169,8 @@ GetAndSaveGeolocatedImages <- function(long, lat,
           point_longlat = SpatialTarget_longlat,
           CRS_ref = raster::crs(MASTER_IMAGE_))
         # check inverse of LongLat2CRS
-        #SpatialTarget_longlat
-        #SpatialPoints(spTransform(SpatialTarget_utm, CRS_longlat),CRS_longlat)
+        # SpatialTarget_longlat
+        # SpatialPoints(spTransform(SpatialTarget_utm, CRS_longlat),CRS_longlat)
 
         # exact spatial target - alternative extraction method for pseudo rgb plotting
         if(T == F){
@@ -217,8 +217,6 @@ GetAndSaveGeolocatedImages <- function(long, lat,
       if(end_row > rows_available){ start_row <- rows_available - DIAMETER_CELLS }
       if(end_col > cols_available){ start_col <- cols_available - DIAMETER_CELLS }
 
-      # get data
-      # get back to the kids
       for(iof in 0:0){
         for(band_ in 1:dim(MASTER_IMAGE_)[3]){
           if(iof > 0){
@@ -233,6 +231,7 @@ GetAndSaveGeolocatedImages <- function(long, lat,
           if(length(unique(c(SpatialTargetImage_)))<5){ bad_indices <- c(bad_indices,i) }
           check_ <- dim(SpatialTargetImage_) - c(DIAMETER_CELLS,DIAMETER_CELLS)
           if(any(check_ < 0)){print("WARNING: CHECKS FAILED"); browser()}
+          # Tests:
           #pdf("~/Downloads/test.pdf");image2(SpatialTargetImage_, main = paste(round(SpatialTarget_longlat,4L),collapse = ",") );dev.off()
           # SpatialTarget_longlat
           if(grepl(x = save_as, pattern ="tif")){
@@ -243,7 +242,6 @@ GetAndSaveGeolocatedImages <- function(long, lat,
               data.table::fwrite(file = sprintf("%s/GeoKey%s_BAND%s.csv",
                                                 save_folder, keys[i], band_),
                                  data.table::as.data.table(SpatialTargetImage_))
-              #tmp <- data.table::fread(sprintf("./Data/Uganda2000_processed/GeoKey%s_BAND%s.csv", row.names(GeoKeyMat)[i],band_))
             }
             #if(iof > 0){
             #data.table::fwrite(file = sprintf("./Data/Uganda2000_processed_comparisons/GeoKey%s_%s_BAND%s.csv",
