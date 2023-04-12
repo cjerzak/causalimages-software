@@ -134,7 +134,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #'
 #' # Example use (not run)
 #' MASTER_IMAGE_POOL_FULL_DIR <- c("./LargeTifs/tif1.tif","./LargeTifs/tif1.tif")
-#' GetAndSaveGeoLocatedImages(long = GeoKeyMat$geo_long,
+#' GetAndSaveGeolocatedImages(long = GeoKeyMat$geo_long,
 #'                        lat = GeoKeyMat$geo_lat,
 #'                        keys = row.names(GeoKeyMat),
 #'                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
@@ -144,7 +144,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #' @export
 #' @md
 #'
-SaveGeoLocatedImages <- function(long, lat,
+GetAndSaveGeolocatedImages <- function(long, lat,
                                  keys,
                                  tif_pool,
                                  save_folder = ".",
