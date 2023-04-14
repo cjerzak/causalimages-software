@@ -1,6 +1,6 @@
 # `causalimages`: An `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images Using Probabilistic Neural Models 
 
-*This software is under beta release. The first stable release will be sometime in spring of 2023. Email `connor.jerzak@gmail.com` for feature requests.*
+*This software is under beta release. The first stable release will be sometime in spring of 2023. Email `connor.jerzak@gmail.com` for feature requests. Let us know how you find the package!*
 
 # Repository Structure
 This repository contains several main components. The first component is code of the `causalimages` software package. At the moment, the package includes code for performing the image-based heterogeneity decomposition described in Jerzak, Johansson, and Daoud (2023). In future releases, we will add functionality for using images in observational causal inference (i.e., as a proxy for confounding variables). 
