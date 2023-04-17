@@ -22,6 +22,7 @@
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
+#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
@@ -88,6 +89,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       lat = NULL,
                                       long = NULL,
                                       conda_env = NULL,
+                                      conda_env_required = F,
 
                                       figuresKey = "",
                                       figuresPath = "./",
@@ -118,7 +120,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if(T == T){
     #conda_env <- "tensorflow_m1"
     library(tensorflow); library(keras)
-    try(tensorflow::use_condaenv(conda_env, required = T),T)
+    try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
