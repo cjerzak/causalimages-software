@@ -79,7 +79,8 @@ image2( ImageSample[3,,,1] )
 For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
 ```
 acquireImageRepFromDisk <- function(keys,training = F){
-  # IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
+  ## IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
+  
   # initialize an array shell to hold image slices
   array_shell <- array(NA,dim = c(1L,imageHeight,imageWidth,NBANDS))
 

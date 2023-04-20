@@ -4,7 +4,7 @@
 \alias{AnalyzeImageConfounding}
 \title{Perform causal estimation under image confounding}
 \usage{
-AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, kClust_est, ...)
+AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
 }
 \arguments{
 \item{obsW}{A numeric vector where \code{0}'s correspond to control units and \code{1}'s to treated units.}

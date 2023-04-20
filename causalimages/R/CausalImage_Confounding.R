@@ -5,7 +5,7 @@
 #'
 #' @usage
 #'
-#' AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, kClust_est, ...)
+#' AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
 #' @param obsY A numeric vector containing observed outcomes.
