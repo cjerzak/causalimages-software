@@ -17,7 +17,7 @@ image2( x )
 
 \item{image_pixel_width}{An even integer specifying the pixel width (and height) of the saved images.}
 
-\item{save_folder}{(default = \code{"."}) What folder should be used to save the output? Example: \verb{"~/Downloads}}
+\item{save_folder}{(default = \code{"."}) What folder should be used to save the output? Example: \code{"~/Downloads"}}
 
 \item{save_as}{(default = \code{".csv"}) What format should the output be saved as? Only one option currently (\code{.csv})}
 }

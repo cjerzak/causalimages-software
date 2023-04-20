@@ -126,7 +126,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #' @param keys The image keys associated with the long/lat coordinates.
 #' @param tif_pool The character vector containing the path to the pool of .tif files to search through.
 #' @param image_pixel_width An even integer specifying the pixel width (and height) of the saved images.
-#' @param save_folder (default = `"."`) What folder should be used to save the output? Example: `"~/Downloads`
+#' @param save_folder (default = `"."`) What folder should be used to save the output? Example: `"~/Downloads"`
 #' @param save_as (default = `".csv"`) What format should the output be saved as? Only one option currently (`.csv`)
 #'
 #' @return Finds the image slice associated with the `long` and `lat` values, saves images by band (if `save_as = "csv"`) in save_folder.
