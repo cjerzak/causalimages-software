@@ -15,12 +15,15 @@ image2( x )
 
 \item{tif_pool}{The character vector containing the path to the pool of .tif files to search through.}
 
-\item{save_folder}{(default = \code{.}) What folder should be used to save the output? Example: \verb{"~/Downloads}}
+\item{image_pixel_width}{An even integer specifying the pixel width (and height) of the saved images.}
 
-\item{save_as}{(default = \code{.csv}) What format should the output be saved as? Only one option currently (\code{.csv})}
+\item{save_folder}{(default = \code{"."}) What folder should be used to save the output? Example: \verb{"~/Downloads}}
+
+\item{save_as}{(default = \code{".csv"}) What format should the output be saved as? Only one option currently (\code{.csv})}
 }
 \value{
 Finds the image slice associated with the \code{long} and \code{lat} values, saves images by band (if \code{save_as = "csv"}) in save_folder.
+The save format is: \code{sprintf("\%s/GeoKey\%s_BAND\%s.csv", save_folder, keys[i], band_)}
 }
 \description{
 A function that finds the image slice associated with the \code{long} and \code{lat} values, saves images by band (if \code{save_as = "csv"}) in save_folder.
@@ -28,8 +31,9 @@ A function that finds the image slice associated with the \code{long} and \code{
 \examples{
 
 # Example use (not run)
-MASTER_IMAGE_POOL_FULL_DIR <- c("./LargeTifs/tif1.tif","./LargeTifs/tif1.tif")
-GetAndSaveGeolocatedImages(long = GeoKeyMat$geo_long,
+MASTER_IMAGE_POOL_FULL_DIR <- c("./LargeTifs/tif1.tif","./LargeTifs/tif2.tif")
+GetAndSaveGeolocatedImages(
+                       long = GeoKeyMat$geo_long,
                        lat = GeoKeyMat$geo_lat,
                        keys = row.names(GeoKeyMat),
                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
