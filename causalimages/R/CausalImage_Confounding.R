@@ -17,6 +17,7 @@
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
+#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
@@ -24,7 +25,7 @@
 #' of posterior means (e.g., mean cluster probabilities).
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of the salience maps (e.g., image gradients of expected cluster probabilities).
-#' @param reparameterizationType (default = `"Flipout"`) Either `"Flipout"`, or `"Reparameterization"`. Specifies the estimator used in the Bayesian neural components. With `"Flipout"`, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.
+#' @param reparameterizationType (default = `"Deterministic"`) Currently, only deterministic layers are used. Future releases will add the option to make the CNN model arms probabilistic.
 #' @param figuresKey (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
@@ -37,16 +38,17 @@
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
-#' @param yDensity (default = `normal`) Specifies the density for the outcome. Current options include `normal` and `lognormal`.
 #' @param maxPoolSize (default = `2L`) Integer specifying the max pooling size used in the convolutional layers.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
+#' @param tf_seed (default = `NULL`) Specification for the tensorflow seed.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #'
 #' @return A list consiting of \itemize{
 #'   \item `ATE_est` ATE estimate.
 #'   \item `ATE_se` Standard error estimate for the ATE.
+#'   \item `(images saved to disk if plotResults = T)` If `plotResults = T`, causal salience plots are saved to disk characterizing the image confounding structure. See references for details.
 #' }
 #'
 #' @section References:
@@ -61,7 +63,8 @@
 #' @export
 #' @md
 
-AnalyzeImageConfounding <- function(obsW,
+AnalyzeImageConfounding <- function(
+                                   obsW,
                                    obsY,
                                    X = NULL,
                                    file,
@@ -69,7 +72,6 @@ AnalyzeImageConfounding <- function(obsW,
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
                                    nFilters = 32L,
-
                                    normalizationType = "none",
                                    doHiddenDim = T,
                                    HiddenDim  = 32L,
@@ -83,45 +85,47 @@ AnalyzeImageConfounding <- function(obsW,
                                    lat = NULL,
                                    long = NULL,
                                    conda_env = NULL,
+                                   conda_env_required = F,
 
                                    figuresKey = "",
                                    figuresPath = "./",
-                                   modelType = "variational_minimal",
                                    simMode = F,
-                                   plotResults = F,
+                                   plotResults = T,
 
                                    nDepthHidden_conv = 1L,
                                    nDepthHidden_dense = 0L,
                                    maxPoolSize = 2L,
                                    strides = 1L,
-                                   yDensity = "normal",
                                    compile = T,
                                    nMonte_variational = 5L,
                                    nMonte_predictive = 20L,
                                    nMonte_salience = 100L,
                                    batchSize = 25L,
-                                   kernelSize = 5L,
+                                   kernelSize = 3L,
                                    nSGD  = 400L,
                                    nDenseWidth = 32L,
-                                   reparameterizationType = "Reparameterization",
+                                   reparameterizationType = "Deterministic",
                                    channelNormalize = T,
                                    printDiagnostics = F,
+                                   tf_seed = NULL,
                                    quiet = F){
   if(try(as.numeric(tf$sqrt(1.)),T)==1){
-    print("Initializing tensorflow environment...")
-    #conda_env <- "tensorflow_m1"
+    print("Initializing the tensorflow environment...")
     library(tensorflow); library(keras)
-    try(tensorflow::use_condaenv(conda_env, required = T),T)
+    try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
-    tf$config$set_soft_device_placement( T )
+    try( tf$config$set_soft_device_placement( T ) , T)
     tfp <- tf_probability()
     tfd <- tfp$distributions
     #tfa <- reticulate::import("tensorflow_addons")
 
-    tf$random$set_seed(  c(1000L ) )
-    tf$keras$utils$set_random_seed( 4L )
+    try(tf$random$set_seed(  c( ifelse(is.null(tf_seed),
+                                yes = 12341L, no = as.integer(tf_seed)  ) )), T)
+    try(tf$keras$utils$set_random_seed( c( ifelse(is.null(tf_seed),
+                                yes = 123419L, no = as.integer(tf_seed)  ) )), T)
 
+    # import python garbage collectors
     py_gc <- reticulate::import("gc")
     gc(); py_gc$collect()
   }
@@ -200,7 +204,6 @@ AnalyzeImageConfounding <- function(obsW,
         eval(parse(text = sprintf('BNLayer_Axis3_%s_inner <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)',d_)))
 
         # every third, do pooling
-        #if(d_ %% poolingAt == 0){ eval(parse(text = sprintf('Pool%s = tf$keras$layers$AveragePooling2D(pool_size = c(poolingBy,poolingBy))',d_))) }
         if(d_ %% poolingAt == 0){
           Pool = tf$keras$layers$MaxPool2D(pool_size = c(poolingBy,poolingBy))
           if(poolingType=="ave"){ Pool = tf$keras$layers$AveragePooling2D(pool_size = c(poolingBy,poolingBy)) }
@@ -228,13 +231,8 @@ AnalyzeImageConfounding <- function(obsW,
     getTreatProb <- tf_function( function(im_getProb,x_getProb, training_getProb){
 
       # flatten
-      #im_getProb <- FlattenLayer( getProcessedImage(im_getProb,training = training_getProb) )
       im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb,training = training_getProb) )
       im_getProb <- BNLayer_Axis1_dense(im_getProb, training = training_getProb)
-
-      # previously, no pre-hidden normalization, final normalization on output directly
-      # optimal pixel-level normalization (dangerous)
-      #im_getProb <- BNLayer_Axis1_hidden(im_getProb,training = training_getProb)
 
       # concatinate with scene-level data
       im_getProb <- tf$concat(list(im_getProb,x_getProb),1L)
@@ -243,8 +241,9 @@ AnalyzeImageConfounding <- function(obsW,
       if(doHiddenDim == T){
         im_getProb <- HiddenLayer(  im_getProb   )
       }
+
+      # final projection layer + sigmoid
       im_getProb <- DenseLayer( im_getProb   )
-      #im_getProb <- BNLayer_Axis1_final( im_getProb ,training = training_getProb)
       im_getProb <- tf$keras$activations$sigmoid( im_getProb )
 
       # return
@@ -255,8 +254,9 @@ AnalyzeImageConfounding <- function(obsW,
                                  x_getProb = x_getLoss,
                                  training_getProb = training_getLoss)
       treatt_r <- tf$cast(tf$reshape(treatt_getLoss,list(-1L,1L)),dtype=tf$float32)
-      treatProb_r <- tf$reshape(treatProb,list(-1L,1L))
-      minThis <-   -  tf$reduce_mean( tf$multiply(tf$math$log(treatProb_r),(treatt_r)) + tf$multiply(tf$math$log(1-treatProb_r),(1-treatt_r)) )
+      treatProb_r <- tf$reshape(treatProb,list(-1L,1L)) # check
+      minThis <-   -tf$reduce_mean( tf$multiply(tf$math$log(treatProb_r),(treatt_r)) +
+                                      tf$multiply(tf$math$log(1-treatProb_r),(1-treatt_r)) )
       return( minThis )
     })
 
@@ -272,7 +272,6 @@ AnalyzeImageConfounding <- function(obsW,
                                    x_getLoss = tf$constant(XtoConcat[batch_indices,],tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(YandW_mat$Wobs[batch_indices]),tf$float32 ),
                                    training_getLoss = ARM )  })
-      #training_getLoss = tf$constant(ARM))  })
     }
     trainable_variables <- tape$watched_variables()
 
@@ -306,7 +305,7 @@ AnalyzeImageConfounding <- function(obsW,
       return(list(myLoss_forGrad,my_grads))
     })
 
-    # get final dims
+    # checks
     #test_index <- testIndices[ which(obsW[testIndices]==1) ][1:2]
     #testImage <- getImages(YandW_mat$UNIQUE_ID[test_index], ave_pooling = ave_pooling_size)
     #testImage_processed <- getProcessedImage(testImage, training = F)
@@ -364,11 +363,10 @@ AnalyzeImageConfounding <- function(obsW,
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
     }
 
-    # remove big objects
+    # remove big objects to free memory for inference
     rm(ds_next_train);rm(myLoss_forGrad)
 
-
-    # indicesBatched <- cumsum(1:length(obsW) %% batchSize == 1)
+    # get probabilities for inference
     gc();py_gc$collect()
     prWEst_convnet <- rep(NA,times = nrow(YandW_mat))
     ok_counter <- 0; ok<-F;while(!ok){
@@ -394,14 +392,14 @@ AnalyzeImageConfounding <- function(obsW,
       gc();py_gc$collect()
     }
     rm( batch_inference )
-    #prWEst_convnet <- do.call(c,prWEst_convnet)
+
+    # clip extreme estimated probabilities
     prWEst_convnet[prWEst_convnet<0.01] <- 0.01
     prWEst_convnet[prWEst_convnet>0.99] <- 0.99
-    # plot( c(obsW),c(prWEst_convnet) )
     if(any(is.na(prWEst_convnet)) ) {browser()}
     print(   cor( c(obsW),c(prWEst_convnet) ) )
 
-    # base loss
+    # compute base loss
     prWEst_base <- prWEst_convnet
     prWEst_base[] <- mean(obsW[-testIndices])
     baseLoss_ce_ <- binaryCrossLoss(obsW[testIndices], prWEst_base[testIndices])
@@ -411,16 +409,14 @@ AnalyzeImageConfounding <- function(obsW,
 
     outLoss_class_ <- 1/length(testIndices) * (sum( prWEst_convnet[testIndices][ obsW[testIndices] == 1] < 0.5) +
                                                  sum( prWEst_convnet[testIndices][ obsW[testIndices] == 0] > 0.5))
-    outLoss_ce_ <-  binaryCrossLoss(obsW[testIndices], prWEst_convnet[testIndices])
-    inLoss_ce_ <-  binaryCrossLoss(obsW[trainIndices], prWEst_convnet[trainIndices])
+    outLoss_ce_ <-  binaryCrossLoss(  obsW[testIndices], prWEst_convnet[testIndices]  )
+    inLoss_ce_ <-  binaryCrossLoss(  obsW[trainIndices], prWEst_convnet[trainIndices]  )
 
     print(c(baseLoss_ce_,outLoss_ce_))
 
     # do some analysis with examples
-    imagePlot <- T
     processedDims <- NULL
-    #if(doParallel == F & imagePlot == T){
-    if(    imagePlot == T  ){
+    if(    plotResults == T  ){
       # get treatment image
       testIndices_t <- testIndices[which(obsW[testIndices]==1)]
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
@@ -441,7 +437,8 @@ AnalyzeImageConfounding <- function(obsW,
 
       makePlots <- function(){
 
-        pdf(sprintf("%s/IllustrateInternalKW%s_AvePool%s_IT%s.pdf",
+        #pdf(sprintf("%s/IllustrateInternalKW%s_AvePool%s_IT%s.pdf",
+        pdf(sprintf("%s/CausalSalienceMap_KW%s_AvePool%s_IT%s.pdf",
                     figuresPath,
                     kernelWidth_est,
                     ave_pooling_size,
@@ -546,7 +543,7 @@ AnalyzeImageConfounding <- function(obsW,
         }
         dev.off()
 
-        pdf(sprintf("%s/PropHistKW%s_AvePool%s_IT%s.pdf",
+        pdf(sprintf("%s/PropHist_KW%s_AvePool%s_IT%s.pdf",
                     figuresPath,
                     kernelWidth_est,
                     ave_pooling_size,
@@ -585,10 +582,4 @@ AnalyzeImageConfounding <- function(obsW,
       "ave_pooling_size" = ave_pooling_size
     ) )
   }
-
-  # options for checks
-  #sort(unique(CONTROL_MAT$ave_pooling_size))
-  #try(gc(full=T), T); py_gc$collect()
-  #ave_pooling_size <- 10L
-
 }

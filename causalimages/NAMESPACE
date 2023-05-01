@@ -2,6 +2,7 @@
 
 export(AnalyzeImageConfounding)
 export(AnalyzeImageHeterogeneity)
+export(AnalyzeImageMediation)
 export(GetAndSaveGeolocatedImages)
 export(LongLat2CRS)
 export(SimulateImageSystem)

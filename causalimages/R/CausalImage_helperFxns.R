@@ -139,6 +139,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #' GetAndSaveGeolocatedImages(
 #'                        long = GeoKeyMat$geo_long,
 #'                        lat = GeoKeyMat$geo_lat,
+#'                        image_pixel_width = 500L,
 #'                        keys = row.names(GeoKeyMat),
 #'                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
 #'                        save_folder = "./Data/Uganda2000_processed",

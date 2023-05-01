@@ -34,6 +34,8 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{conda_env}{(default = \code{NULL}) A string specifying a conda environment wherein \code{tensorflow}, \code{tensorflow_probability}, and \code{gc} are installed.}
 
+\item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
+
 \item{figuresKey}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
 
 \item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
@@ -49,8 +51,6 @@ First argument should be image key values and second argument have be \code{trai
 \item{maxPoolSize}{(default = \code{2L}) Integer specifying the max pooling size used in the convolutional layers.}
 
 \item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.=}
-
-\item{yDensity}{(default = \code{normal}) Specifies the density for the outcome. Current options include \code{normal} and \code{lognormal}.}
 
 \item{nMonte_variational}{(default = \code{5L}) An integer specifying how many Monte Carlo iterations to use in the
 calculation of the expected likelihood in each training step.}
@@ -69,9 +69,11 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 
 \item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
 
-\item{reparameterizationType}{(default = \code{"Flipout"}) Either \code{"Flipout"}, or \code{"Reparameterization"}. Specifies the estimator used in the Bayesian neural components. With \code{"Flipout"}, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.}
+\item{reparameterizationType}{(default = \code{"Deterministic"}) Currently, only deterministic layers are used. Future releases will add the option to make the CNN model arms probabilistic.}
 
 \item{channelNormalize}{(default = \code{T}) Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
+
+\item{tf_seed}{(default = \code{NULL}) Specification for the tensorflow seed.}
 
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
@@ -79,6 +81,7 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 A list consiting of \itemize{
 \item \code{ATE_est} ATE estimate.
 \item \code{ATE_se} Standard error estimate for the ATE.
+\item \verb{(images saved to disk if plotResults = T)} If \code{plotResults = T}, causal salience plots are saved to disk characterizing the image confounding structure. See references for details.
 }
 }
 \description{
