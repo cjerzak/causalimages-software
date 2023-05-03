@@ -63,7 +63,7 @@ fixZeroEndings <- function(zr,roundAt=2){
 
 #' Get the spatial point of long/lat coordinates
 #'
-#' A function converts long/lat coordinates into a spatial point defined by a coordinate reference system (CRS).
+#' A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
 #'
 #' @usage
 #'
@@ -175,7 +175,8 @@ GetAndSaveGeolocatedImages <- function(
       if(!is.na(tif_pool[counter_])){
         MASTER_IMAGE_ <- try(brick(tif_pool[counter_] ), T)
         SpatialTarget_utm <- LongLat2CRS(
-          point_longlat = SpatialTarget_longlat,
+          long = SpatialTarget_longlat[1],
+          lat = SpatialTarget_longlat[2],
           CRS_ref = raster::crs(MASTER_IMAGE_))
         # check inverse of LongLat2CRS
         # SpatialTarget_longlat
