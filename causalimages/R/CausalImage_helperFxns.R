@@ -157,7 +157,8 @@ GetAndSaveGeolocatedImages <- function(
                                  tif_pool,
                                  image_pixel_width = 5000L,
                                  save_folder = ".",
-                                 save_as = "csv"){
+                                 save_as = "csv",
+                                 lyrs = NULL){
 
   library(raster)
   RADIUS_CELLS <- (DIAMETER_CELLS <- image_pixel_width) / 2
