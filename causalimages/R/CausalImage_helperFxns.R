@@ -127,6 +127,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #' @param image_pixel_width An even integer specifying the pixel width (and height) of the saved images.
 #' @param save_folder (default = `"."`) What folder should be used to save the output? Example: `"~/Downloads"`
 #' @param save_as (default = `".csv"`) What format should the output be saved as? Only one option currently (`.csv`)
+#' @param lyrs (default = NULL) Integer (vector) specifying the layers to be extracted. Default is for all layers to be extracted.
 #'
 #' @return Finds the image slice associated with the `long` and `lat` values, saves images by band (if `save_as = "csv"`) in save_folder.
 #' The save format is: `sprintf("%s/GeoKey%s_BAND%s.csv", save_folder, keys[i], band_)`
@@ -142,7 +143,8 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #'                        keys = row.names(GeoKeyMat),
 #'                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
 #'                        save_folder = "./Data/Uganda2000_processed",
-#'                        save_as = "csv")
+#'                        save_as = "csv",
+#'                        lyrs = NULL)
 #'
 #' @import raster
 #' @export
@@ -230,7 +232,10 @@ GetAndSaveGeolocatedImages <- function(
       if(end_col > cols_available){ start_col <- cols_available - DIAMETER_CELLS }
 
       for(iof in 0:0){
-        for(band_ in 1:dim(MASTER_IMAGE_)[3]){
+        if(is.null(lyrs)){lyrs <- 1:dim(MASTER_IMAGE_)[3] }
+        band_iters <- ifelse(grepl(x = save_as, pattern ="csv"),
+                             yes = list(lyrs), no = list(1L) )[[1]]
+        for(band_ in band_iters){
           if(iof > 0){
             start_row <- sample(1:(nrow(MASTER_IMAGE_)-DIAMETER_CELLS-1),1)
             start_col <- sample(1:(ncol(MASTER_IMAGE_)-DIAMETER_CELLS-1),1)
