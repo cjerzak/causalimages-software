@@ -20,6 +20,8 @@ image2( x )
 \item{save_folder}{(default = \code{"."}) What folder should be used to save the output? Example: \code{"~/Downloads"}}
 
 \item{save_as}{(default = \code{".csv"}) What format should the output be saved as? Only one option currently (\code{.csv})}
+
+\item{lyrs}{(default = NULL) Integer (vector) specifying the layers to be extracted. Default is for all layers to be extracted.}
 }
 \value{
 Finds the image slice associated with the \code{long} and \code{lat} values, saves images by band (if \code{save_as = "csv"}) in save_folder.
@@ -39,6 +41,7 @@ GetAndSaveGeolocatedImages(
                        keys = row.names(GeoKeyMat),
                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
                        save_folder = "./Data/Uganda2000_processed",
-                       save_as = "csv")
+                       save_as = "csv",
+                       lyrs = NULL)
 
 }

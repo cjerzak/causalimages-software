@@ -17,7 +17,7 @@ LongLat2CRS(long, lat, CRS_ref)
 Returns the long/lat location as a spatial point in the new CRS defined by \code{CRS_ref}
 }
 \description{
-A function converts long/lat coordinates into a spatial point defined by a coordinate reference system (CRS).
+A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
 }
 \examples{
 spatialPt <- LongLat2CRS(
