@@ -112,7 +112,6 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
   return( raster::extent(point_longlat_mat_ref) )
 }
 
-
 #' Getting and saving geo-located images from a pool of .tif's
 #'
 #' A function that finds the image slice associated with the `long` and `lat` values, saves images by band (if `save_as = "csv"`) in save_folder.
@@ -145,6 +144,7 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #'                        save_folder = "./Data/Uganda2000_processed",
 #'                        save_as = "csv")
 #'
+#' @import raster
 #' @export
 #' @md
 #'
@@ -157,6 +157,7 @@ GetAndSaveGeolocatedImages <- function(
                                  save_folder = ".",
                                  save_as = "csv"){
 
+  library(raster)
   RADIUS_CELLS <- (DIAMETER_CELLS <- image_pixel_width) / 2
   bad_indices <- c();observation_indices <- 1:length(long)
   counter_b <- 0 ; for(i in observation_indices){
