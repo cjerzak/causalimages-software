@@ -97,7 +97,10 @@ LongLat2CRS <- function(long, lat, CRS_ref){
   return( SpatialTarget_utm )
 }
 
-LongLat2CRS_extent <- function(point_longlat, CRS_ref){
+LongLat2CRS_extent <- function(point_longlat,
+                               CRS_ref,
+                               target_km_diameter = 10){
+  CRS_longlat <- CRS("+proj=longlat +datum=WGS84")
   target_km <- 10
   point_longlat1 <- data.frame(ID = 1,
                                X = as.numeric(point_longlat[1])-1/111*(target_km/2),
@@ -118,12 +121,12 @@ LongLat2CRS_extent <- function(point_longlat, CRS_ref){
 #'
 #' @usage
 #'
-#' image2( x )
+#' GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder)
 #'
 #' @param long Vector of numeric longitudes.
 #' @param lat Vector of numeric latitudes.
 #' @param keys The image keys associated with the long/lat coordinates.
-#' @param tif_pool The character vector containing the path to the pool of .tif files to search through.
+#' @param tif_pool A character vector specifying the fully qualified path to a corpus of .tif files.
 #' @param image_pixel_width An even integer specifying the pixel width (and height) of the saved images.
 #' @param save_folder (default = `"."`) What folder should be used to save the output? Example: `"~/Downloads"`
 #' @param save_as (default = `".csv"`) What format should the output be saved as? Only one option currently (`.csv`)
@@ -155,7 +158,7 @@ GetAndSaveGeolocatedImages <- function(
                                  lat,
                                  keys,
                                  tif_pool,
-                                 image_pixel_width = 5000L,
+                                 image_pixel_width = 250L,
                                  save_folder = ".",
                                  save_as = "csv",
                                  lyrs = NULL){
@@ -166,7 +169,6 @@ GetAndSaveGeolocatedImages <- function(
   counter_b <- 0 ; for(i in observation_indices){
     counter_b <- counter_b + 1
     if(counter_b %% 10 == 0){print(sprintf("Iter %s of %s",counter_b,length(observation_indices)))}
-    #SpatialTarget_longlat <- unlist(GeoKeyMat[i,c("geo_long","geo_lat")])
     SpatialTarget_longlat <- c(long[i],lat[i])
     # SpatialTarget_longlat <- c(32.821752, 1.827300)
     # rev(SpatialTarget_longlat)
@@ -205,11 +207,11 @@ GetAndSaveGeolocatedImages <- function(
           object = MASTER_IMAGE_,
           cell = SpatialTargetCellLoc )
         if(!is.na(sum(SpatialTargetRowCol))){found_<-T;bad_ <- F}
-        if(counter_ > 50000){stop("ERROR! Target not found anywhere in pool!")}
+        if(counter_ > 1000000){stop("ERROR! Target not found anywhere in pool!")}
       }
     }
     if(bad_){
-      print(sprintf("Bad at %s, Apparently, no .tif contains reference point",i))
+      print(sprintf("Bad at %s. Apparently, no .tif contains the reference point",i))
       bad_indices <- c(bad_indices,i)
     }
     if(!bad_){
