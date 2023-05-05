@@ -4,7 +4,7 @@
 \alias{GetAndSaveGeolocatedImages}
 \title{Getting and saving geo-located images from a pool of .tif's}
 \usage{
-image2( x )
+GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder)
 }
 \arguments{
 \item{long}{Vector of numeric longitudes.}
@@ -13,7 +13,7 @@ image2( x )
 
 \item{keys}{The image keys associated with the long/lat coordinates.}
 
-\item{tif_pool}{The character vector containing the path to the pool of .tif files to search through.}
+\item{tif_pool}{A character vector specifying the fully qualified path to a corpus of .tif files.}
 
 \item{image_pixel_width}{An even integer specifying the pixel width (and height) of the saved images.}
 
