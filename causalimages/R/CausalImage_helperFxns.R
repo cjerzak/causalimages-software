@@ -133,7 +133,7 @@ LongLat2CRS_extent <- function(point_longlat,
 #' @param lyrs (default = NULL) Integer (vector) specifying the layers to be extracted. Default is for all layers to be extracted.
 #'
 #' @return Finds the image slice associated with the `long` and `lat` values, saves images by band (if `save_as = "csv"`) in save_folder.
-#' The save format is: `sprintf("%s/GeoKey%s_BAND%s.csv", save_folder, keys[i], band_)`
+#' The save format is: `sprintf("%s/Key%s_BAND%s.csv", save_folder, keys[i], band_)`
 #'
 #' @examples
 #'
@@ -215,6 +215,7 @@ GetAndSaveGeolocatedImages <- function(
       bad_indices <- c(bad_indices,i)
     }
     if(!bad_){
+      print(sprintf("Good at %s. Extracting and saving image", i))
       # available rows/cols
       rows_available <- nrow( MASTER_IMAGE_ )
       cols_available <- ncol( MASTER_IMAGE_ )
@@ -259,12 +260,12 @@ GetAndSaveGeolocatedImages <- function(
           }
           if(grepl(x = save_as, pattern ="csv")){
             if(iof == 0){
-              data.table::fwrite(file = sprintf("%s/GeoKey%s_BAND%s.csv",
+              data.table::fwrite(file = sprintf("%s/Key%s_BAND%s.csv",
                                                 save_folder, keys[i], band_),
                                  data.table::as.data.table(SpatialTargetImage_))
             }
             #if(iof > 0){
-            #data.table::fwrite(file = sprintf("./Data/Uganda2000_processed_comparisons/GeoKey%s_%s_BAND%s.csv",
+            #data.table::fwrite(file = sprintf("./Data/Uganda2000_processed_comparisons/Key%s_%s_BAND%s.csv",
             #row.names(GeoKeyMat)[i],iof,band_),
             #data.table::as.data.table(SpatialTargetImage_)) }
           }
