@@ -93,7 +93,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
       # place the image in the correct place in the array
       array_shell[,,,band_] <-
         (as.matrix(data.table::fread( # note the use of data.table::fread to speed up reading in image to memory
-          input = sprintf("./Data/Uganda2000_processed/GeoKey%s_BAND%s.csv",
+          input = sprintf("./Data/Uganda2000_processed/Key%s_BAND%s.csv",
                           key_,
                           band_),header = F)[-1,] ))
     }
