@@ -274,3 +274,9 @@ GetAndSaveGeolocatedImages <- function(
     }
   }
 }
+
+r2const <- function(x, dtype){
+  if("tensorflow.tensor" %in% class( x )){ }
+  if(!"tensorflow.tensor" %in% class( x )){ x <- tf$constant(  x, dtype = dtype  ) }
+  return( x )
+}

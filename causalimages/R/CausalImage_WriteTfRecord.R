@@ -27,8 +27,9 @@ WriteTfRecord <- function(file,
                           imageKeys,
                           acquireImageRepFxn,
                           conda_env = NULL){
-  if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
-    #conda_env <- "tensorflow_m1"
+  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1))
+  {
+    print("Loading Python environment (requires tensorflow, gc, tensorflow_probability)")
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = T),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
@@ -36,7 +37,6 @@ WriteTfRecord <- function(file,
     tf$config$set_soft_device_placement( T )
     tfp <- tf_probability()
     tfd <- tfp$distributions
-    #tfa <- reticulate::import("tensorflow_addons")
 
     tf$random$set_seed(  c(1000L ) )
     tf$keras$utils$set_random_seed( 4L )
@@ -62,6 +62,7 @@ WriteTfRecord <- function(file,
     my_simple_bytes_feature <- function(value){
       return( tf$train$Feature(bytes_list = tf$train$BytesList(value = list(value$numpy()))) )
     }
+
     my_float_feature <- function(value){
       #"""Returns a floast_list from a float / double."""
       return( tf$train$Feature(float_list=tf$train$FloatList(value=list(value)) ))
@@ -73,24 +74,100 @@ WriteTfRecord <- function(file,
     }
 
     my_serialize_array <- function(array){return( tf$io$serialize_tensor(array) )}
+
+    parse_single_image <- function(image, index, key){
+        data = dict("height" = my_int_feature(image$shape[[1]]),
+                    "width" = my_int_feature(image$shape[[2]]),
+                    "depth" = my_int_feature(image$shape[[3]]),
+                    "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
+                    "index" = my_int_feature(index),
+                    "key" = my_int_feature(key))
+        out = tf$train$Example(  features = tf$train$Features(feature = data)  )
+        return( out )
   }
-  parse_single_image <- function(image, index){
-    data = dict("height" = my_int_feature(image$shape[[1]]),
-                "width" = my_int_feature(image$shape[[2]]),
-                "depth" = my_int_feature(image$shape[[3]]),
-                "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
-                "index" = my_int_feature(index))
-    out = tf$train$Example(features=tf$train$Features(feature = data))
   }
 
-  #image <- ImageCorpus[1,,,]
-  tf_record_writer = tf$io$TFRecordWriter( tf_record_name ) #create a writer that'll store our data to disk
-  for(irz in imageKeys){
-    #for(irz in 1:20){
-    if(irz %% 10 == 0 | irz == 1){print( irz )}
-    tf_record_write_output <- parse_single_image(image = acquireImageRepFxn(irz),
-                                                 index = as.integer(irz))
-    tf_record_writer$write(tf_record_write_output$SerializeToString())
+  orig_wd <- getwd()
+  tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+  new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+  setwd( new_wd )
+  tf_record_writer = tf$io$TFRecordWriter( tf_record_name[length(tf_record_name)] ) #create a writer that'll store our data to disk
+  setwd(  orig_wd )
+  for(irz in 1:length(imageKeys)){
+    if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
+    tf_record_write_output <- parse_single_image(image = r2const(acquireImageRepFxn( imageKeys[irz]  ), tf$float32),
+                                                 index = as.integer( irz ),
+                                                 key = as.integer( imageKeys[irz]  ) )
+    tf_record_writer$write( tf_record_write_output$SerializeToString()  )
   }
+  print("Done! Finalizing tfrecords....")
   tf_record_writer$close()
+
+  # reset wd
+  setwd( orig_wd )
+}
+
+
+GetElementFromTfRecordAtIndex <- function(index, filename){
+  orig_wd <- getwd()
+  tf_record_name <- filename
+  tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+  new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+  setwd( new_wd )
+
+  # index is 0 indexed
+  index <- as.integer( index - 1L )
+
+  # Load the TFRecord file
+  dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
+
+  # Parse the tf.Example messages
+  dataset = dataset$map(   parse_tfr_element   )
+
+  # Skip the first `index` elements
+  dataset = dataset$skip(  index  )
+
+  # Take the next element
+  dataset = dataset$take( 1L )
+
+  # Get the only element in the dataset (as a tuple of features)
+  element = reticulate::iter_next( reticulate::as_iterator( dataset ) )
+  setwd(  orig_wd  )
+
+  return(  element  )
+}
+
+
+
+# parse tf elements
+parse_tfr_element <- function(element){
+  #use the same structure as above; it's kinda an outline of the structure we now want to create
+  dict_init_val <- list()
+  im_feature_description <- dict(
+    'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+    'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+    'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+    'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
+    'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+    'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
+  )
+
+  # parse tf record
+  content = tf$io$parse_single_example(element, im_feature_description)
+
+  height = content[['height']]
+  width = content[['width']]
+  depth = content[['depth']]
+  key = content[['key']]
+  index = content[['index']]
+  raw_image = content[['raw_image']]
+
+  #get our 'feature' (our image)...
+  feature = tf$io$parse_tensor( raw_image, out_type = tf$float32)
+
+  #  and reshape it appropriately
+  feature = tf$reshape(feature, shape = c(height, width, depth))
+  #feature = tf$reshape(feature, shape = tf$stack(c(height, width, depth),0L))
+  #feature = tf$reshape(feature, shape = as.integer( image_dims )) # works
+  return(    list(feature, index, key)    )
 }

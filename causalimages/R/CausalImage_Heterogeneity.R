@@ -31,7 +31,7 @@
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of the salience maps (e.g., image gradients of expected cluster probabilities).
 #' @param reparameterizationType (default = `"Flipout"`) Either `"Flipout"`, or `"Reparameterization"`. Specifies the estimator used in the Bayesian neural components. With `"Flipout"`, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.
-#' @param figuresKey (default = `""`) A string specifying an identifier that is appended to all figure names.
+#' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
@@ -91,7 +91,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       conda_env = NULL,
                                       conda_env_required = F,
 
-                                      figuresKey = "",
+                                      figuresTag = "",
                                       figuresPath = "./",
                                       modelType = "variational_minimal",
                                       simMode = F,
@@ -1107,7 +1107,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       for(kr_ in 1:kClust_est){
         eval(parse(text = sprintf("d%s <- dnorm(synth_seq, mean = Tau_mean_vec_n[kr_], sd = Tau_sd_vec[kr_] )",  kr_)))
       }
-      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, modelType, figuresKey))
+      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, modelType, figuresTag))
       {
         par(mar=c(5,5,1,1))
         numbering_seq <- 1:kClust_est #c("1","1")
@@ -1165,7 +1165,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(cor(ClusterProbs, ClusterProbs_est) < 0){
           col_dim <- rank(-ClusterProbs_est)#gtools::quantcut(ClusterProbs_est, q = 100)
         }
-        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, figuresKey))
+        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, figuresTag))
         {
           par(mar=c(5,5,1,1))
           plot( ClusterProbs[order_],
@@ -1199,7 +1199,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       rows_ <- kClust_est; nExamples <- 5
       if(typePlot == "uncertainty"){rows_ <- 1L}
       plot_fxn <- function(){
-        pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, modelType,typePlot,orthogonalize,figuresKey),
+        pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, modelType,typePlot,orthogonalize,figuresTag),
             height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
             width = 4*nExamples)
         {
