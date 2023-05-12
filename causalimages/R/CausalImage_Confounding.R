@@ -73,7 +73,7 @@ AnalyzeImageConfounding <- function(
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
                                    nFilters = 32L,
-                                   normalizationType = "none",
+                                   samplingType = "none",
                                    doHiddenDim = T,
                                    HiddenDim  = 32L,
                                    DenseActivation = "linear",
@@ -348,7 +348,7 @@ AnalyzeImageConfounding <- function(
     # initialize beta
     init_beta_ref <- c(sapply(init_beta <- seq(-4,4,length.out = 1000),function(zer){ mean( 1/(1+exp(- (rnorm(1000) + zer))) )} ))
     init_beta <- init_beta [ which.min(abs(init_beta_ref - mean(obsW) ) ) ]
-    if(normalizationType == "initializeBeta"){
+    if(samplingType == "initializeBeta"){
       print("INITIALIZING beta");BNLayer_Axis1_final$trainable_variables[[2]]$assign( tf$expand_dims(tf$constant(init_beta,dtype=tf$float32),0L) ) # beta is offset factor
     }
 
@@ -394,10 +394,10 @@ AnalyzeImageConfounding <- function(
       }
 
       if(acquireImageMethod == "functional"){
-        if(normalizationType != "balancedTrain"){
+        if(samplingType != "balancedTrain"){
           batch_indices <- sample(trainIndices,batchSize,replace=F)
         }
-        if(normalizationType == "balancedTrain"){
+        if(samplingType == "balancedTrain"){
           batch_indices <- c(sample(trainIndices[which(obsW[trainIndices]==1)], batchSize/2),
                              sample(trainIndices[which(obsW[trainIndices]==0)], batchSize/2) )
         }
