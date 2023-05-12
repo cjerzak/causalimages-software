@@ -36,7 +36,7 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
 
-\item{figuresKey}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
+\item{figuresTag}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
 
 \item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
 

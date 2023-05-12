@@ -25,7 +25,7 @@ GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder)
 }
 \value{
 Finds the image slice associated with the \code{long} and \code{lat} values, saves images by band (if \code{save_as = "csv"}) in save_folder.
-The save format is: \code{sprintf("\%s/GeoKey\%s_BAND\%s.csv", save_folder, keys[i], band_)}
+The save format is: \code{sprintf("\%s/Key\%s_BAND\%s.csv", save_folder, keys[i], band_)}
 }
 \description{
 A function that finds the image slice associated with the \code{long} and \code{lat} values, saves images by band (if \code{save_as = "csv"}) in save_folder.
