@@ -521,7 +521,7 @@ AnalyzeImageConfounding <- function(
       testIndices_t <- testIndices[which(obsW[testIndices]==1)]
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
 
-      showPerGroup <- 3
+      showPerGroup <- min(3,unlist(table(obsW)))
       top_treated <- testIndices_t[indices_top_t <- order( prWEst_convnet[testIndices_t] ,decreasing=T)[1:(showPerGroup*3)]]
       top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c] ,decreasing=F)[1:(showPerGroup*3)]]
 
