@@ -559,12 +559,13 @@ AnalyzeImageConfounding <- function(
             if(acquireImageMethod == "tf_record"){
               ds_next_in <- GetElementFromTfRecordAtIndex( index = in_,
                                                            filename = file )
-              ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L)
+              if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
 
             }
             if(acquireImageMethod == "functional"){
-              ds_next_in <- list(
-                    tf$expand_dims(r2const( acquireImageRepFxn(keys[in_],) , dtype = tf$float32 ),0L)
+              ds_next_in <- r2const( acquireImageRepFxn(keys[in_],), dtype = tf$float32 )
+              if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
+              ds_next_in <- list( ds_next_in )
               )
             }
 
