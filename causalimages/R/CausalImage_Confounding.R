@@ -380,17 +380,16 @@ AnalyzeImageConfounding <- function(
     print(sprintf("%s Trainable Parameters",nTrainable))
 
     # perform training
+    print("Starting training sequence...")
     loss_vec <- rep(NA,times=nSGD)
     in_ <- ip_ <- 0; for(i in 1:nSGD){
-      if(i < 50){ print(sprintf("Iteration: %i",i) )}
-      if((i %% 100 == 0 | (i == 10) | i == nSGD) & doParallel == F){
+      if((i %% 100 == 0 | (i == 10) | i == nSGD) & doParallel == F | i < 50){
         print(sprintf("Iteration: %i",i) );
         try(par(mfrow = c(1,1)),T);try(plot(loss_vec),T); try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
       }
       if(i %% 10 == 0){ py_gc$collect() }
       if((i %% 10 == 0 | i == 1 ) & doParallel == T){
-        write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i),
-                  data.frame("CommandArg_i"=CommandArg_i, "i"=i))
+        write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
       }
 
       if(acquireImageMethod == "functional"){
@@ -435,15 +434,18 @@ AnalyzeImageConfounding <- function(
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32))
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
     }
+    print("Done with training sequence...")
 
     # remove big objects to free memory for inference
     rm(ds_next_train);rm(myLoss_forGrad)
 
     # get probabilities for inference
+    print("Starting to get probabilities for inference...")
     gc();py_gc$collect()
     prWEst_convnet <- rep(NA,times = length(obsW))
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
       ok_counter <- ok_counter + 1
+      print(sprintf("%.2f%% done with getting inference probabilities", 100*last_i / length(obsW)))
 
       # in functional mode
       if(acquireImageMethod == "functional"){
@@ -517,6 +519,7 @@ AnalyzeImageConfounding <- function(
     # do some analysis with examples
     processedDims <- NULL
     if(    plotResults == T  ){
+      print("Starting to plot the image confounding results...")
       # get treatment image
       testIndices_t <- testIndices[which(obsW[testIndices]==1)]
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
