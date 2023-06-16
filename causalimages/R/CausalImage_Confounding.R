@@ -28,6 +28,7 @@
 #' @param reparameterizationType (default = `"Deterministic"`) Currently, only deterministic layers are used. Future releases will add the option to make the CNN model arms probabilistic.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
+#' @param plotBand (default = `1L`) An integer specifying which band position (from the acquired image representation) should be plotted in the visual results.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
 #' @param batchSize (default = `25L`) Batch size used in SGD optimization.
@@ -445,7 +446,7 @@ AnalyzeImageConfounding <- function(
     prWEst_convnet <- rep(NA,times = length(obsW))
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
       ok_counter <- ok_counter + 1
-      print(sprintf("%.2f%% done with getting inference probabilities", 100*last_i / length(obsW)))
+      print(sprintf("[%s] %.2f%% done with getting inference probabilities", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
 
       # in functional mode
       if(acquireImageMethod == "functional"){
@@ -610,14 +611,14 @@ AnalyzeImageConfounding <- function(
             orig_scale_im_raster <- raster::brick(orig_scale_im_)
 
             # plot raw image
-            plot(0, main = long_lat_in_,col.main = col_,
-                 ylab = "",
-                 xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
-                 cex = 0, xaxt = "n",yaxt = "n",bty = "n")
-            raster::plotRGB(orig_scale_im_raster,
-                            r=1,g=2,b=3,
-                            add = T,
-                            main = long_lat_in_)
+            #plot(0, main = long_lat_in_,col.main = col_,
+                 #ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
+                 #cex = 0, xaxt = "n",yaxt = "n",bty = "n")
+            #raster::plotRGB(orig_scale_im_raster, r=1,g=2,b=3, add = T, main = long_lat_in_)
+            causalimages::image2(
+              as.matrix( orig_scale_im_[,,plotBand] ) ,
+              main = long_lat_in_, cex.main = 4,col.main = col_,
+            )
 
             # plot salience map
             par(mar = mar_vec)
