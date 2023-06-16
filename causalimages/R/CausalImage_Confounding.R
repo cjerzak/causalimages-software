@@ -93,6 +93,7 @@ AnalyzeImageConfounding <- function(
 
                                    figuresTag = "",
                                    figuresPath = "./",
+                                   plotBand = 1L,
 
                                    simMode = F,
                                    plotResults = T,
@@ -525,7 +526,7 @@ AnalyzeImageConfounding <- function(
       testIndices_t <- testIndices[which(obsW[testIndices]==1)]
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
 
-      showPerGroup <- min(3,unlist(table(obsW)))
+      showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
       top_treated <- testIndices_t[indices_top_t <- order( prWEst_convnet[testIndices_t] ,decreasing=T)[1:(showPerGroup*3)]]
       top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c] ,decreasing=F)[1:(showPerGroup*3)]]
 
@@ -616,8 +617,8 @@ AnalyzeImageConfounding <- function(
                  #cex = 0, xaxt = "n",yaxt = "n",bty = "n")
             #raster::plotRGB(orig_scale_im_raster, r=1,g=2,b=3, add = T, main = long_lat_in_)
             causalimages::image2(
-              as.matrix( orig_scale_im_[,,plotBand] ) ,
-              main = long_lat_in_, cex.main = 4,col.main = col_,
+              as.matrix( orig_scale_im_[,,plotBand] ),
+              main = long_lat_in_, cex.main = 4, col.main =  col_
             )
 
             # plot salience map
@@ -644,11 +645,14 @@ AnalyzeImageConfounding <- function(
           par(mfrow=c(1,1))
           d0 <- density(prWEst_convnet[obsW==0])
           d1 <- density(prWEst_convnet[obsW==1])
-          plot(d1,lwd=2,xlim = c(0,1),ylim =c(0,max(c(d1$y,d0$y))*1.2),cex.axis = 1.2,ylab = "",xlab = "",
+          plot(d1,lwd=2,xlim = c(0,1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
+               cex.axis = 1.2,ylab = "",xlab = "",
                main = "Density Plots for \n Estimated Pr(T=1 | Image)",cex.main = 2)
           points(d0,lwd=2,type = "l",col="gray",lty=2)
-          text(d0$x[which.max(d0$y)], max(d0$y)*1.1,label = "W = 0",col="gray",cex=2)
-          text(d1$x[which.max(d1$y)], max(d1$y)*1.1,label = "W = 1",col="black",cex=2)
+          text(d0$x[which.max(d0$y)],
+               max(d0$y,na.rm=T)*1.1,label = "W = 0",col="gray",cex=2)
+          text(d1$x[which.max(d1$y)],
+               max(d1$y,na.rm=T)*1.1,label = "W = 1",col="black",cex=2)
         }
         dev.off()
       }

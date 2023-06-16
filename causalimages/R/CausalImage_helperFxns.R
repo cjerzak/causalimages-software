@@ -30,8 +30,13 @@
 #' @export
 #' @md
 #'
-image2 = function(x,xaxt=NULL,yaxt = NULL,main=NULL,cex.main = NULL,box=F){
-  image((t(x)[,nrow(x):1]), axes = F, main = main,xaxs = "i",cex.main = cex.main)
+image2 = function(x,xaxt=NULL,yaxt = NULL,main=NULL,cex.main = NULL,col.main = "black", box=F){
+  image((t(x)[,nrow(x):1]),
+        axes = F,
+        main = main,
+        xaxs = "i",
+        col.main = col.main,
+        cex.main = cex.main)
   if(box == T){box()}
   if(!is.null(xaxt)){ axis(1, at = 0:(nrow(x)-1)/nrow(x)*1.04, tick=F,labels = (xaxt),cex.axis = 1,las = 1)  }
   if(!is.null(yaxt)){ axis(2, at = 0:(nrow(x)-1)/nrow(x)*1.04, tick=F,labels = rev(yaxt),cex.axis = 1,las = 2)  }
