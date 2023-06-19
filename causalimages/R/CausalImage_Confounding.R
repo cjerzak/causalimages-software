@@ -649,9 +649,9 @@ AnalyzeImageConfounding <- function(
                cex.axis = 1.2,ylab = "",xlab = "",
                main = "Density Plots for \n Estimated Pr(T=1 | Image)",cex.main = 2)
           points(d0,lwd=2,type = "l",col="gray",lty=2)
-          text(d0$x[which.max(d0$y)],
+          text(d0$x[which.max(d0$y)[1]],
                max(d0$y,na.rm=T)*1.1,label = "W = 0",col="gray",cex=2)
-          text(d1$x[which.max(d1$y)],
+          text(d1$x[which.max(d1$y)[1]],
                max(d1$y,na.rm=T)*1.1,label = "W = 1",col="black",cex=2)
         }
         dev.off()
