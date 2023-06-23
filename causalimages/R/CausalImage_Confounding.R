@@ -542,6 +542,7 @@ AnalyzeImageConfounding <- function(
 
       makePlots <- function(){
 
+        try({
         pdf(sprintf("%s/CausalSalienceMap_KW%s_AvePool%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
@@ -635,7 +636,9 @@ AnalyzeImageConfounding <- function(
           }
         }
         dev.off()
+        }, T)
 
+        try({
         pdf(sprintf("%s/PropHist_KW%s_AvePool%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
@@ -655,9 +658,10 @@ AnalyzeImageConfounding <- function(
                max(d1$y,na.rm=T)*1.1,label = "W = 1",col="black",cex=2)
         }
         dev.off()
+        }, T)
       }
 
-      if(plotResults){  makePlots() }
+      if(plotResults){  try(makePlots(),T) }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
                       colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
