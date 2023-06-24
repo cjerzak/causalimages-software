@@ -18,14 +18,6 @@
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
-#' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
-#' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
-#' calculation of the expected likelihood in each training step.
-#' @param nMonte_predictive (default = `20L`) An integer specifying how many Monte Carlo iterations to use in the calculation
-#' of posterior means (e.g., mean cluster probabilities).
-#' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
-#' of the salience maps (e.g., image gradients of expected cluster probabilities).
-#' @param reparameterizationType (default = `"Deterministic"`) Currently, only deterministic layers are used. Future releases will add the option to make the CNN model arms probabilistic.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param plotBand (default = `1L`) An integer specifying which band position (from the acquired image representation) should be plotted in the visual results.
@@ -103,14 +95,10 @@ AnalyzeImageConfounding <- function(
                                    maxPoolSize = 2L,
                                    strides = 1L,
                                    compile = T,
-                                   nMonte_variational = 5L,
-                                   nMonte_predictive = 20L,
-                                   nMonte_salience = 100L,
                                    batchSize = 25L,
                                    kernelSize = 3L,
                                    nSGD  = 400L,
                                    nDenseWidth = 32L,
-                                   reparameterizationType = "Deterministic",
                                    channelNormalize = T,
                                    printDiagnostics = F,
                                    tf_seed = NULL,
@@ -663,6 +651,40 @@ AnalyzeImageConfounding <- function(
 
       if(plotResults){  try(makePlots(),T) }
 
+      # compute salience for tabular covariates
+      SalienceX <- NULL; if(!is.null(X)){
+        getSalienceVec <- function(im_, x_){
+          x_ <- tf$Variable(x_,trainable = T)
+          with(tf$GradientTape() %as% tape, {
+            tape$watch(x_)
+            treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_,
+                                                                 x_getProb = x_,
+                                                                 training_getProb = F),0L),0L)
+          })
+          return(  salience_vec <- tape$gradient( treat_prob_im, x_ )   ) }
+        SalienceX <- c()
+        for(samp_ in sample(1:nrow(X),100,replace = T)){
+          print(sprintf("Tabular Salience Iteration %s of %s", samp_, 100))
+          if(acquireImageMethod == "tf_record"){
+            ds_next_in <- GetElementFromTfRecordAtIndex( index = samp_,
+                                                         filename = file )
+            if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          }
+          if(acquireImageMethod == "functional"){
+            ds_next_in <- r2const( acquireImageRepFxn(keys[ samp_ ],), dtype = tf$float32 )
+            if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
+            ds_next_in <- list( ds_next_in )
+          }
+
+        im_ <- InitImageProcess(
+                          ds_next_in[[1]],
+                          input_ave_pooling_size = input_ave_pooling_size)
+        x_ <- tf$constant(t(X[samp_,]),tf$float32)
+        SalienceX <- rbind(SalienceX,as.matrix( getSalienceVec(im_=im_, x_=x_)))
+        }
+        SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
+      }
+
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
                       colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
       wt1 <- prop.table(1/prWEst_convnet[obsW == 1])
@@ -680,6 +702,7 @@ AnalyzeImageConfounding <- function(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensity"  = tauHat_propensity,
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
+      "SalienceX" = SalienceX,
       "outLoss_ce" = outLoss_ce_,
       "out_loss_ce_base" = baseLoss_ce_,
       "inLoss_ce" = inLoss_ce_,
