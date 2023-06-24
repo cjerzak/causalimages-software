@@ -679,6 +679,7 @@ AnalyzeImageConfounding <- function(
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensity"  = tauHat_propensity,
+      "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "outLoss_ce" = outLoss_ce_,
       "out_loss_ce_base" = baseLoss_ce_,
       "inLoss_ce" = inLoss_ce_,
