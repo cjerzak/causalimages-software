@@ -650,7 +650,7 @@ AnalyzeImageConfounding <- function(
           d1 <- density(prWEst_convnet[obsW==1])
           plot(d1,lwd=2,xlim = c(0,1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
                cex.axis = 1.2,ylab = "",xlab = "",
-               main = "Density Plots for \n Estimated Pr(T=1 | Image)",cex.main = 2)
+               main = "Density Plots for \n Estimated Pr(T=1 | Confounders)",cex.main = 2)
           points(d0,lwd=2,type = "l",col="gray",lty=2)
           text(d0$x[which.max(d0$y)[1]],
                max(d0$y,na.rm=T)*1.1,label = "W = 0",col="gray",cex=2)
