@@ -662,9 +662,9 @@ AnalyzeImageConfounding <- function(
                                                                  training_getProb = F),0L),0L)
           })
           return(  salience_vec <- tape$gradient( treat_prob_im, x_ )   ) }
-        SalienceX <- c()
+        SalienceX <- c(); samp_counter <- 0
         for(samp_ in sample(1:nrow(X),100,replace = T)){
-          print(sprintf("Tabular Salience Iteration %s of %s", samp_, 100))
+          print(sprintf("Tabular Salience Iteration %s of %s", samp_counter <- samp_counter + 1, 100))
           if(acquireImageMethod == "tf_record"){
             ds_next_in <- GetElementFromTfRecordAtIndex( index = samp_,
                                                          filename = file )
