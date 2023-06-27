@@ -607,7 +607,7 @@ AnalyzeImageConfounding <- function(
             #raster::plotRGB(orig_scale_im_raster, r=1,g=2,b=3, add = T, main = long_lat_in_)
             causalimages::image2(
               as.matrix( orig_scale_im_[,,plotBand] ),
-              main = long_lat_in_, cex.main = 4, col.main =  col_
+              main = long_lat_in_, cex.main = 2.5, col.main =  col_
             )
 
             # plot salience map
