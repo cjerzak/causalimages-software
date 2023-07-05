@@ -896,7 +896,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       i_ <- i ; if(i %% 20 == 0 | i == 1){
         print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
-          try({plot(loss_vec,log="y",main="If Still Decreasing at End of Training, \n Try Increasing nSGD",cex.main = 0.95,ylab = "Loss Function Value",xlab="SGD Iteration Number");points(smooth.spline( na.omit(loss_vec) ),log="y",col="red",type = "l",lwd=5)},T)
+          try({plot(loss_vec,log="y",main="If Still Decreasing at End of Training, \n Try Increasing nSGD",cex.main = 0.95,ylab = "Loss Function Value",xlab="SGD Iteration Number");points(smooth.spline( na.omit(loss_vec) ),col="red",type = "l",lwd=5)},T)
         }
         if(modelType == "variational_minimal"){ print2( paste("Current estimate, tau cluster means: ", paste(round(as.numeric(getTau_means()),3L),collapse=", "), collapse =  "")) }
       }
