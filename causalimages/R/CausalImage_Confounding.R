@@ -127,6 +127,10 @@ AnalyzeImageConfounding <- function(
     gc(); py_gc$collect()
   }
 
+  if(is.na(sum(X))){
+    stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.")
+  }
+
   {
     acquireImageMethod <- "functional";
     # define base tf record + train/test fxns
