@@ -127,9 +127,13 @@ AnalyzeImageConfounding <- function(
     gc(); py_gc$collect()
   }
 
-  if(is.na(sum(X))){
+  if(!is.null(X)){ if(is.na(sum(X))){
     stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.")
-  }
+  }}
+
+  if(!is.null(X)){ if(any(apply(X,2,sd) == 0)){
+    stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!")
+  }}
 
   {
     acquireImageMethod <- "functional";
