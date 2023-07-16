@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' *Under beta release. Full release in Spring of 2023.*
+#' *Under beta release. Full release in Summer of 2023.*
 #'
 #' @usage
 #'
@@ -110,16 +110,14 @@ AnalyzeImageConfounding <- function(
 
 
   print("Initializing the tensorflow environment...")
-  print("Looking for Python modules tensorflow, tensorflow_probability, gc...")
+  print("Looking for Python modules tensorflow, gc...")
   {
-    # conda_env = "tensorflow_m1"
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     try( tf$config$set_soft_device_placement( T ) , T)
-    tfp <- tf_probability()
-    tfd <- tfp$distributions
+    #tfd <- (tfp <- tf_probability())$distributions
     #tfa <- reticulate::import("tensorflow_addons")
 
     try(tf$random$set_seed(  c( ifelse(is.null(tf_seed),
@@ -185,10 +183,12 @@ AnalyzeImageConfounding <- function(
     trainingPertubations <- tf$identity
     if(useTrainingPertubations){
       trainingPertubations <- (function(im__){
-        im__ <- tf$image$random_flip_left_right(im__)
-        im__ <- tf$image$random_flip_up_down(im__)
-        return( im__ )
-      })
+        #with( tf$device('/CPU:0'), {
+          im__ <- tf$image$random_flip_left_right(im__)
+          im__ <- tf$image$random_flip_up_down(im__)
+          return( im__ )
+        #})
+    })
     }
 
     binaryCrossLoss <- function(W,prW){return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
@@ -239,7 +239,11 @@ AnalyzeImageConfounding <- function(
       DenseLayer <- tf$keras$layers$Dense(1L, activation = DenseActivation)
       FlattenLayer <- tf$keras$layers$Flatten(data_format = "channels_last")
 
-      #getMeanConv <- tf_function( function(dar){ 1./kernelSize^2*tf$squeeze(Conv_Mean( tf$expand_dims(dar,3L) ),3L)} )
+      # define tf function
+      tf_function_use  <- tf_function
+      #tf_function_use  <- function(.){.}
+
+      #getMeanConv <- tf_function_use( function(dar){ 1./kernelSize^2*tf$squeeze(Conv_Mean( tf$expand_dims(dar,3L) ),3L)} )
       BNLayer_Axis3_init <- tf$keras$layers$BatchNormalization(axis = 3L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001,name="InitNorm")
       for(d_ in 1:nDepth){
         eval(parse(text = sprintf('Conv%s <- tf$keras$layers$Conv2D(filters=nFilters,
@@ -261,10 +265,7 @@ AnalyzeImageConfounding <- function(
       }
     }
     trainable_layers <- ls()[!ls() %in% c(trainable_layers)]
-    getProcessedImage <- tf_function( function(imm,training){
-      # initial normalization - DEPRECIATIED, imm is now normalized elsewhere
-      #imm <- BNLayer_Axis3_init( imm , training = training )
-
+    getProcessedImage <- tf_function_use( function(imm,training){
       # convolution + pooling
       for(d_ in 1:nDepth){
         if(doConvLowerDimProj){
@@ -276,7 +277,7 @@ AnalyzeImageConfounding <- function(
       return(imm)
     })
 
-    getTreatProb <- tf_function( function(im_getProb,x_getProb, training_getProb){
+    getTreatProb <- tf_function_use( function(im_getProb,x_getProb, training_getProb){
 
       # flatten
       im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb,training = training_getProb) )
@@ -297,10 +298,10 @@ AnalyzeImageConfounding <- function(
       # return
       return( im_getProb )
     })
-    getLoss <- tf_function( function(im_getLoss, x_getLoss, treatt_getLoss, training_getLoss){
+    getLoss <- tf_function_use( function(im_getLoss, x_getLoss, treatt_getLoss, training_getLoss){
       treatProb <- getTreatProb( im_getProb = im_getLoss,
                                  x_getProb = x_getLoss,
-                                 training_getProb = training_getLoss)
+                                 training_getProb = training_getLoss )
       treatt_r <- tf$cast(tf$reshape(treatt_getLoss,list(-1L,1L)),dtype=tf$float32)
       treatProb_r <- tf$reshape(treatProb,list(-1L,1L)) # check
       minThis <-   -tf$reduce_mean( tf$multiply(tf$math$log(treatProb_r),(treatt_r)) +
@@ -309,6 +310,7 @@ AnalyzeImageConfounding <- function(
     })
 
     # get first iter batch for initializations
+    print("Calibrating first moments for input data normalization...")
     NORM_SD <- NORM_MEAN <- c()
     for(momentCalIter in 1:(momentCalIters<-10)){
       if(acquireImageMethod == "tf_record"){
@@ -336,9 +338,11 @@ AnalyzeImageConfounding <- function(
     NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
 
     # arms
+    print("Initializing traiing arms...")
+    # new TF version kills compiled fxn here (use 2.12)
     for(ARM in c(T,F)){
       with(tf$GradientTape() %as% tape, {
-        myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(ds_next_train[[1]],
+        myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(im = ds_next_train[[1]],
                                                                  training = T,
                                                                  input_ave_pooling_size = input_ave_pooling_size),
                                    x_getLoss = tf$constant(X[batch_indices,],tf$float32),
@@ -358,7 +362,7 @@ AnalyzeImageConfounding <- function(
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
     optimizer_tf = tf$optimizers$legacy$Nadam()
-    getGrad <- tf_function(function(im_train, x_train, truth_train){
+    getGrad <- tf_function_use(function(im_train, x_train, truth_train){
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = im_train,
                                    x_getLoss = x_train,
@@ -383,8 +387,8 @@ AnalyzeImageConfounding <- function(
     print(sprintf("%s Trainable Parameters",nTrainable))
 
 
-    if(bootType == "EstimationAndSampling"){
-        stop("Option `bootType='EstimationAndSampling'` under construction")
+    if(typeBoot == "EstimationAndSampling"){
+        stop("Option `typeBoot='EstimationAndSampling'` under construction")
     }
 
     # perform training
@@ -715,7 +719,7 @@ AnalyzeImageConfounding <- function(
         sum(obsY*prop.table((1-obsW)/(1-prWEst_convnet) ))
 
       # sampling uncertainty only
-      if(bootType == "SamplingOnly"){
+      if(typeBoot == "SamplingOnly"){
         tauHat_propensity_vec = sapply(1:nBoot,function(b_){
           ib_ <- sample(1:length(obsY), length(obsY), replace = T)
           tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prWEst_convnet[ib_]) -
@@ -733,8 +737,8 @@ AnalyzeImageConfounding <- function(
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensity"  = tauHat_propensity,
-      "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec),
-      "tauHat_propensity_se"  = sd(tauHat_propensity_vec),
+      "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
+      "tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
       #"outLoss_ce" = outLoss_ce_,
