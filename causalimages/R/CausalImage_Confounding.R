@@ -23,6 +23,8 @@
 #' @param plotBand (default = `1L`) An integer specifying which band position (from the acquired image representation) should be plotted in the visual results.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
+#' @param nBoot (default = `100L`) Number of bootstrap iterations for uncertainty estimation.
+#' @param typeBoot (default = `SamplingOnly`) Bootstrap type. `typeBoot = 'SamplingOnly'` captures sampling uncertainty only. `typeBoot = 'EstimationAndSampling'` captures both estimation and sampling uncertainty.
 #' @param batchSize (default = `25L`) Batch size used in SGD optimization.
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
@@ -68,6 +70,8 @@ AnalyzeImageConfounding <- function(
                                    nFilters = 32L,
                                    samplingType = "none",
                                    doHiddenDim = T,
+                                   nBoot = 100L,
+                                   typeBoot = "SamplingOnly",
                                    HiddenDim  = 32L,
                                    DenseActivation = "linear",
                                    input_ave_pooling_size = 1L, # if seeking to downshift the resolution
@@ -108,6 +112,7 @@ AnalyzeImageConfounding <- function(
   print("Initializing the tensorflow environment...")
   print("Looking for Python modules tensorflow, tensorflow_probability, gc...")
   {
+    # conda_env = "tensorflow_m1"
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
@@ -376,6 +381,11 @@ AnalyzeImageConfounding <- function(
     # number of trainable variables
     nTrainable <- sum( unlist(  lapply(trainable_variables,function(zer){ prod(dim(zer)) }) ) )
     print(sprintf("%s Trainable Parameters",nTrainable))
+
+
+    if(bootType == "EstimationAndSampling"){
+        stop("Option `bootType='EstimationAndSampling'` under construction")
+    }
 
     # perform training
     print("Starting training sequence...")
@@ -703,23 +713,39 @@ AnalyzeImageConfounding <- function(
       tauHat_propensity = mean(  obsW*obsY/(prWEst_convnet) - (1-obsW)*obsY/(1-prWEst_convnet) )
       tauHat_propensityHajek = sum(  obsY*prop.table(obsW/(prWEst_convnet))) -
         sum(obsY*prop.table((1-obsW)/(1-prWEst_convnet) ))
+
+      # sampling uncertainty only
+      if(bootType == "SamplingOnly"){
+        tauHat_propensity_vec = sapply(1:nBoot,function(b_){
+          ib_ <- sample(1:length(obsY), length(obsY), replace = T)
+          tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prWEst_convnet[ib_]) -
+                               (1-obsW[ib_])*obsY[ib_]/(1-prWEst_convnet[ib_]) )
+        })
+        tauHat_propensityHajek_vec <- sapply(1:nBoot,function(b_){
+          ib_ <- sample(1:length(obsY), length(obsY), replace = T)
+          tauHat_ <-  sum(  obsY[ib_]*prop.table(obsW[ib_]/(prWEst_convnet[ib_]))) -
+          sum(obsY[ib_]*prop.table((1-obsW[ib_])/(1-prWEst_convnet[ib_]) ))
+        })
+      }
     }
 
     print(  "Done with image confounding analysis!"  )
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensity"  = tauHat_propensity,
+      "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec),
+      "tauHat_propensity_se"  = sd(tauHat_propensity_vec),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
-      "outLoss_ce" = outLoss_ce_,
-      "out_loss_ce_base" = baseLoss_ce_,
-      "inLoss_ce" = inLoss_ce_,
-      "outLoss_class" = outLoss_class_,
-      "out_loss_class_base" = baseLoss_class_,
-      "processedDims" = processedDims,
-      "nTrainableParameters" = nTrainable,
+      #"outLoss_ce" = outLoss_ce_,
+      #"out_loss_ce_base" = baseLoss_ce_,
+      #"inLoss_ce" = inLoss_ce_,
+      #"outLoss_class" = outLoss_class_,
+      #"out_loss_class_base" = baseLoss_class_,
+      #"processedDims" = processedDims,
+      #"input_ave_pooling_size" = input_ave_pooling_size,
       "prWEst_convnet" = prWEst_convnet,
-      "input_ave_pooling_size" = input_ave_pooling_size
+      "nTrainableParameters" = nTrainable
     ) )
   }
 }
