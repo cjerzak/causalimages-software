@@ -28,7 +28,7 @@
 #' @param batchSize (default = `25L`) Batch size used in SGD optimization.
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
-#' @param nFilters (default = `32L`) Integer specifying the number of convolutional filters used.
+#' @param nFilters (default = `50L`) Integer specifying the number of convolutional filters used.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
@@ -67,7 +67,7 @@ AnalyzeImageConfounding <- function(
                                    nDepth = 3L,
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
-                                   nFilters = 32L,
+                                   nFilters = 50L,
                                    samplingType = "none",
                                    doHiddenDim = T,
                                    nBoot = 100L,
@@ -634,7 +634,7 @@ AnalyzeImageConfounding <- function(
 
             # plot salience map
             par(mar = mar_vec)
-            salience_map[salience_map>0] <- salience_map[salience_map>0] / sd(salience_map[salience_map>0])
+            salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
             print(summary(c(salience_map)))
             salience_map <- sign(salience_map)*log(abs(salience_map)+1)
             print(summary(c(salience_map)))
