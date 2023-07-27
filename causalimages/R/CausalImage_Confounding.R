@@ -525,8 +525,19 @@ AnalyzeImageConfounding <- function(
     # clip extreme estimated probabilities
     prWEst_convnet[prWEst_convnet<0.01] <- 0.01
     prWEst_convnet[prWEst_convnet>0.99] <- 0.99
-    if(any(is.na(prWEst_convnet)) ) {browser()}
     print(   cor( c(obsW),c(prWEst_convnet) ) )
+    if(any(is.na(prWEst_convnet)) ){
+      print("Error: NAs in estimated probabilities! Reporting debugging information now...")
+      print("Printing summary of probabilities...")
+      print(summary( prWEst_convnet )
+      print("Printing first probabilities...")
+      print(head( prWEst_convnet ))
+      print("Printing last probabilities...")
+      print(tail( prWEst_convnet ))
+      print("Printing NA indices...")
+      print(which(is.na( prWEst_convnet  )))
+      stop("Shutting down now due to NAs (see prior debugging messages)...")
+    }
 
     # compute base loss
     prWEst_base <- prWEst_convnet
@@ -757,13 +768,6 @@ AnalyzeImageConfounding <- function(
       "tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
-      #"outLoss_ce" = outLoss_ce_,
-      #"out_loss_ce_base" = baseLoss_ce_,
-      #"inLoss_ce" = inLoss_ce_,
-      #"outLoss_class" = outLoss_class_,
-      #"out_loss_class_base" = baseLoss_class_,
-      #"processedDims" = processedDims,
-      #"input_ave_pooling_size" = input_ave_pooling_size,
       "prWEst_convnet" = prWEst_convnet,
       "nTrainableParameters" = nTrainable
     ) )
