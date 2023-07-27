@@ -15,7 +15,7 @@
 #' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageRepFxn` for generating treatment effect predictions for out-of-sample points.
 #' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
-#' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
+#' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`. `X` is normalized internally and salience maps with respect to `X` are transformed back to the original scale.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
@@ -143,9 +143,12 @@ AnalyzeImageConfounding <- function(
     stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!")
   }}
 
-  if(!is.null(X)){ if( abs(mean(apply(X,2,sd))-1)>0.01 | abs(mean(apply(X,2,mean))-0)>0.01){
-    print("Note: We noticed that X is not normalized. Normalizing X (to mean 0, sd = 1) is recommended!...")
-  }}
+  #if(!is.null(X)){ if( abs(mean(apply(X,2,sd))-1)>0.01 | abs(mean(apply(X,2,mean))-0)>0.01){print("Note: We noticed that X is not normalized. Normalizing X (to mean 0, sd = 1) is recommended!...") }}
+  if(!is.null(X)){
+    X_mean <- colMeans(X)
+    X_sd <- apply(X,2,sd)
+    X <- as.matrix(  scale(X) )
+  }
 
   {
     acquireImageMethod <- "functional";
@@ -715,6 +718,9 @@ AnalyzeImageConfounding <- function(
         SalienceX <- rbind(SalienceX,as.matrix( getSalienceVec(im_=im_, x_=x_)))
         }
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
+
+        # rescale the salience map into original scale
+        SalienceX <- SalienceX*X_sd  +   X_mean
       }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
