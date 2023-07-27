@@ -147,7 +147,7 @@ AnalyzeImageConfounding <- function(
   if(!is.null(X)){
     X_mean <- colMeans(X)
     X_sd <- apply(X,2,sd)
-    X <- as.matrix(  scale(X) )
+    X <- t( (t(X) - X_mean ) / (0.00001+X_sd) )
   }
 
   {
