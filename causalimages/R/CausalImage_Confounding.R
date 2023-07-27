@@ -25,7 +25,7 @@
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
 #' @param nBoot (default = `100L`) Number of bootstrap iterations for uncertainty estimation.
 #' @param typeBoot (default = `SamplingOnly`) Bootstrap type. `typeBoot = 'SamplingOnly'` captures sampling uncertainty only. `typeBoot = 'EstimationAndSampling'` captures both estimation and sampling uncertainty.
-#' @param batchSize (default = `25L`) Batch size used in SGD optimization.
+#' @param batchSize (default = `50L`) Batch size used in SGD optimization.
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
 #' @param nFilters (default = `50L`) Integer specifying the number of convolutional filters used.
@@ -99,7 +99,7 @@ AnalyzeImageConfounding <- function(
                                    maxPoolSize = 2L,
                                    strides = 1L,
                                    compile = T,
-                                   batchSize = 25L,
+                                   batchSize = 50L,
                                    kernelSize = 3L,
                                    nSGD  = 400L,
                                    nDenseWidth = 32L,
@@ -143,6 +143,9 @@ AnalyzeImageConfounding <- function(
     stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!")
   }}
 
+  if(!is.null(X)){ if( abs(mean(apply(X,2,sd))-1)>0.01 | abs(mean(apply(X,2,mean))-0)>0.01){
+    print("Note: We noticed that X is not normalized. Normalizing X (to mean 0, sd = 1) is recommended!...")
+  }}
 
   {
     acquireImageMethod <- "functional";
@@ -238,10 +241,10 @@ AnalyzeImageConfounding <- function(
       GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
       GlobalPoolLayer <- function(z){
         return(tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)) }
-      BNLayer_Axis1_dense <- tf$keras$layers$BatchNormalization(axis = 1L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001)
-      BNLayer_Axis1_hidden <- tf$keras$layers$BatchNormalization(axis = 1L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001)
-      BNLayer_Axis1_final <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
-      HiddenLayer <- tf$keras$layers$Dense(HiddenDim, activation = HiddenActivation)
+      BNLayer_Axis1_inputDense <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
+      BNLayer_Axis1_hidden <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
+      #BNLayer_Axis1_final <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
+      HiddenProjection <- tf$keras$layers$Dense(HiddenDim, activation = "linear")
       DenseLayer <- tf$keras$layers$Dense(1L, activation = DenseActivation)
       FlattenLayer <- tf$keras$layers$Flatten(data_format = "channels_last")
 
@@ -287,14 +290,15 @@ AnalyzeImageConfounding <- function(
 
       # flatten
       im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb,training = training_getProb) )
-      im_getProb <- BNLayer_Axis1_dense(im_getProb, training = training_getProb)
+      im_getProb <- BNLayer_Axis1_inputDense(im_getProb, training = training_getProb)
 
       # concatinate with scene-level data
       im_getProb <- tf$concat(list(im_getProb,x_getProb),1L)
 
       # optimal hidden layer
       if(doHiddenDim == T){
-        im_getProb <- HiddenLayer(  im_getProb   )
+        im_getProb <-  tf$keras$activations$swish( HiddenProjection(  im_getProb   ) )
+        im_getProb <- BNLayer_Axis1_hidden( im_getProb )
       }
 
       # final projection layer + sigmoid
