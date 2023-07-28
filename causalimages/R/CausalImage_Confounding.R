@@ -498,7 +498,7 @@ AnalyzeImageConfounding <- function(
           print( insert_probs )
           print("batch_inference[[1]]:")
           print(batch_inference[[1]])
-          browser()
+          stop("Stopping due to try-error in insert_probs generation...")
         }
         if(batchSizeOneCorrection){ insert_probs <- insert_probs[-1]; batch_indices_inference <- batch_indices_inference[-1] }
         prWEst_convnet[batch_indices_inference] <- insert_probs
