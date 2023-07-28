@@ -536,7 +536,7 @@ AnalyzeImageConfounding <- function(
     if(any(is.na(prWEst_convnet)) ){
       print("Error: NAs in estimated probabilities! Reporting debugging information now...")
       print("Printing summary of probabilities...")
-      print(summary( prWEst_convnet )
+      print(summary( prWEst_convnet ) )
       print("Printing first probabilities...")
       print(head( prWEst_convnet ))
       print("Printing last probabilities...")
