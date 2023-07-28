@@ -492,7 +492,14 @@ AnalyzeImageConfounding <- function(
                                                                input_ave_pooling_size = input_ave_pooling_size),
                                                     x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
                                                     training_getProb = F ))),T)
-        if(class(insert_probs) == "try-error"){browser()}
+        if( "try-error" %in% class(insert_probs)){
+          print("Error in generating insert_probs in line 491! Investigating...")
+          print("Output:")
+          print( insert_probs )
+          print("batch_inference[[1]]:")
+          print(batch_inference[[1]])
+          browser()
+        }
         if(batchSizeOneCorrection){ insert_probs <- insert_probs[-1]; batch_indices_inference <- batch_indices_inference[-1] }
         prWEst_convnet[batch_indices_inference] <- insert_probs
       }
@@ -513,7 +520,7 @@ AnalyzeImageConfounding <- function(
                                                       x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
                                                       training_getProb = F ))),T)
           if(drop_ == T){  insert_probs <- insert_probs[-1]  }
-          if(class(insert_probs) == "try-error"){browser()}
+          if("try-error"  %in% class(insert_probs)){browser()}
           prWEst_convnet[batch_indices_inference] <- insert_probs
         }
       }
