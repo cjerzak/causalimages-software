@@ -459,6 +459,8 @@ AnalyzeImageConfounding <- function(
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32))
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
       if(is.na(loss_vec[i] )){
+        print("NA in loss -- opening browser")
+        browser()
         stop("NA introduced in training! Check images + input data for NAs. Try increasing batch size.")
       }
     }
