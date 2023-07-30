@@ -464,7 +464,7 @@ AnalyzeImageConfounding <- function(
       if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
         print("NA in loss -- opening browser")
         print("Image sum:")
-        print(as.numeric(tf$sum( InitImageProcess(ds_next_train[[1]],
+        print(as.numeric(tf$math$reduce_sum( InitImageProcess(ds_next_train[[1]],
               training = T, input_ave_pooling_size = input_ave_pooling_size) )))
         print("Prior recent losses:")
         try( print(loss_vec[(i-10):i]), T)
