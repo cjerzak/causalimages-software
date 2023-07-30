@@ -392,7 +392,7 @@ AnalyzeImageConfounding <- function(
       optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+
                                                          NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
       optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ])
-      return(list(myLoss_forGrad,my_grads))
+      return(  list(myLoss_forGrad, my_grads)  )
     })
 
     # number of trainable variables
@@ -457,9 +457,26 @@ AnalyzeImageConfounding <- function(
                                     input_ave_pooling_size = input_ave_pooling_size),
         x_train = tf$constant(X[batch_indices,],dtype=tf$float32),
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32))
+
+      # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
+      grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
+      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
       if(is.na(loss_vec[i] )){
         print("NA in loss -- opening browser")
+        print("Image sum:")
+        print(as.numeric(tf$sum( InitImageProcess(ds_next_train[[1]],
+              training = T, input_ave_pooling_size = input_ave_pooling_size) )))
+        print("Prior recent losses:")
+        try( print(loss_vec[(i-10):i]), T)
+        print("Keys:")
+        print( ds_next_train[[1]] )
+        print("Batch indices:")
+        print( batch_indices )
+        print("Table of batch sampled W's:" )
+        print(table(  obsW[batch_indices] ))
+        print("Sum of batch sampled X's:" )
+        print(sum(  X[batch_indices,] ))
         browser()
         stop("NA introduced in training! Check images + input data for NAs. Try increasing batch size.")
       }
