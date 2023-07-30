@@ -462,7 +462,6 @@ AnalyzeImageConfounding <- function(
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
       grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
       if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
-      if(is.na(loss_vec[i] )){
         print("NA in loss -- opening browser")
         print("Image sum:")
         print(as.numeric(tf$sum( InitImageProcess(ds_next_train[[1]],
