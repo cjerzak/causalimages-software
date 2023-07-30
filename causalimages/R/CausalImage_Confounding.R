@@ -203,7 +203,7 @@ AnalyzeImageConfounding <- function(
     })
     }
 
-    binaryCrossLoss <- function(W,prW){return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
+    binaryCrossLoss <- function(W,prW){return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
 
     InitImageProcess <- function(im, training = F, input_ave_pooling_size = 1){
 
@@ -311,14 +311,17 @@ AnalyzeImageConfounding <- function(
       # return
       return( im_getProb )
     })
+    epsilonLabelSmooth <- tf$constant(0.01)
     getLoss <- tf_function_use( function(im_getLoss, x_getLoss, treatt_getLoss, training_getLoss){
       treatProb <- getTreatProb( im_getProb = im_getLoss,
                                  x_getProb = x_getLoss,
                                  training_getProb = training_getLoss )
       treatt_r <- tf$cast(tf$reshape(treatt_getLoss,list(-1L,1L)),dtype=tf$float32)
       treatProb_r <- tf$reshape(treatProb,list(-1L,1L)) # check
-      minThis <-   -tf$reduce_mean( tf$multiply(tf$math$log(treatProb_r),(treatt_r)) +
-                                      tf$multiply(tf$math$log(1-treatProb_r),(1-treatt_r)) )
+
+      # final loss
+      minThis <- tf$negative( tf$reduce_mean( tf$multiply(tf$math$log( tf$maximum(treatProb_r,0.001)),  (treatt_r)) +
+                                      tf$multiply(tf$math$log(tf$maximum(1-treatProb_r,0.001)),  (1-treatt_r)) ))
       return( minThis )
     })
 
@@ -416,6 +419,9 @@ AnalyzeImageConfounding <- function(
       if((i %% 10 == 0 | i == 1 ) & doParallel == T){
         write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
       }
+
+      if(i == 1){ batch_indices_past <- myLoss_forGrad_past <- NA }
+      if(i > 1){ myLoss_forGrad_past <- myLoss_forGrad; batch_indices_past <- batch_indices }
 
       if(acquireImageMethod == "functional"){
         if(samplingType != "balancedTrain"){
