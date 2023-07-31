@@ -611,7 +611,7 @@ AnalyzeImageConfounding <- function(
       makePlots <- function(){
 
         try({
-        pdf(sprintf("%s/CausalSalienceMap_KW%s_AvePool%s_Tag%s.pdf",
+        pdf(sprintf("%s/CSM_KW%s_AvePool%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
                     input_ave_pooling_size,
@@ -707,7 +707,7 @@ AnalyzeImageConfounding <- function(
         }, T)
 
         try({
-        pdf(sprintf("%s/PropHist_KW%s_AvePool%s_Tag%s.pdf",
+        pdf(sprintf("%s/Hist_KW%s_AvePool%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
                     input_ave_pooling_size,
