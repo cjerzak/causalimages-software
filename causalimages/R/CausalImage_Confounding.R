@@ -20,7 +20,7 @@
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
-#' @param plotBand (default = `1L`) An integer specifying which band position (from the acquired image representation) should be plotted in the visual results.
+#' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
 #' @param nBoot (default = `100L`) Number of bootstrap iterations for uncertainty estimation.
@@ -89,7 +89,8 @@ AnalyzeImageConfounding <- function(
 
                                    figuresTag = "",
                                    figuresPath = "./",
-                                   plotBand = 1L,
+                                   plotBands = 1L,
+                                   plotBand = plotBands,
 
                                    simMode = F,
                                    plotResults = T,
@@ -681,14 +682,18 @@ AnalyzeImageConfounding <- function(
             orig_scale_im_raster <- raster::brick(orig_scale_im_)
 
             # plot raw image
-            #plot(0, main = long_lat_in_,col.main = col_,
-                 #ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
-                 #cex = 0, xaxt = "n",yaxt = "n",bty = "n")
-            #raster::plotRGB(orig_scale_im_raster, r=1,g=2,b=3, add = T, main = long_lat_in_)
-            causalimages::image2(
-              as.matrix( orig_scale_im_[,,plotBand] ),
-              main = long_lat_in_, cex.main = 2.5, col.main =  col_
-            )
+            if(length(plotBands) < 3){
+               plot(0, main = long_lat_in_,col.main = col_,
+                    ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
+                    cex = 0, xaxt = "n",yaxt = "n",bty = "n")
+              raster::plotRGB(orig_scale_im_[,,plotBands[1]], r=1, g=2, b=3, add = T, main = long_lat_in_)
+            }
+            if(length(plotBands) >= 3){
+              causalimages::image2(
+                as.matrix( orig_scale_im_[,,plotBands[1:3]] ),
+                main = long_lat_in_, cex.main = 2.5, col.main =  col_
+              )
+            }
 
             # plot salience map
             par(mar = mar_vec)
