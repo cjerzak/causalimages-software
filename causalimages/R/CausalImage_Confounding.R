@@ -649,6 +649,7 @@ AnalyzeImageConfounding <- function(
             # extract
             im_orig <- im_ <- InitImageProcess(
                                 ds_next_in[[1]],
+                                training = F,
                                 input_ave_pooling_size = input_ave_pooling_size)
             XToConcat_values <- tf$constant(t(X[in_,]),tf$float32)
             im_processed <- getProcessedImage(im_, training = F)
@@ -678,6 +679,7 @@ AnalyzeImageConfounding <- function(
             par(mar = (mar_vec <- c(2,1,3,1)))
 
             # plot raw image
+            browser()
             if(length(plotBands) < 3){
               causalimages::image2(
                 as.matrix( orig_scale_im_[,,plotBands[1]] ),
