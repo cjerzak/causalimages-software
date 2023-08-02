@@ -679,20 +679,20 @@ AnalyzeImageConfounding <- function(
                                        im_[,,band_] <- 0.1+im_[,,band_]*NORM_SD[band_] + NORM_MEAN[band_]
                                        im_[,,band_] },simplify="array")
             par(mar = (mar_vec <- c(2,1,3,1)))
-            orig_scale_im_raster <- raster::brick(orig_scale_im_)
 
             # plot raw image
             if(length(plotBands) < 3){
+              causalimages::image2(
+                as.matrix( orig_scale_im_[,,plotBands[1]] ),
+                main = long_lat_in_, cex.main = 2.5, col.main =  col_
+              )
+            }
+            if(length(plotBands) >= 3){
                plot(0, main = long_lat_in_,col.main = col_,
                     ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
                     cex = 0, xaxt = "n",yaxt = "n",bty = "n")
-              raster::plotRGB(orig_scale_im_[,,plotBands[1]], r=1, g=2, b=3, add = T, main = long_lat_in_)
-            }
-            if(length(plotBands) >= 3){
-              causalimages::image2(
-                as.matrix( orig_scale_im_[,,plotBands[1:3]] ),
-                main = long_lat_in_, cex.main = 2.5, col.main =  col_
-              )
+               orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
+               raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_)
             }
 
             # plot salience map
