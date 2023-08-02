@@ -675,7 +675,7 @@ AnalyzeImageConfounding <- function(
             orig_scale_im_ <- sapply(1:length(NORM_MEAN),
                                      function(band_){
                                        im_[,,band_] <- 0.1+im_[,,band_]*NORM_SD[band_] + NORM_MEAN[band_]
-                                       im_[,,band_] },simplify="array")
+                                       im_[,,band_] }, simplify="array")
             par(mar = (mar_vec <- c(2,1,3,1)))
 
             # plot raw image
