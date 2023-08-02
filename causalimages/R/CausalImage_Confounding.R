@@ -90,7 +90,6 @@ AnalyzeImageConfounding <- function(
                                    figuresTag = "",
                                    figuresPath = "./",
                                    plotBands = 1L,
-                                   plotBand = plotBands,
 
                                    simMode = F,
                                    plotResults = T,
@@ -108,8 +107,6 @@ AnalyzeImageConfounding <- function(
                                    printDiagnostics = F,
                                    tf_seed = NULL,
                                    quiet = F){
-
-
   print("Initializing the tensorflow environment...")
   print("Looking for Python modules tensorflow, gc...")
   {
