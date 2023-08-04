@@ -1,4 +1,4 @@
-# `causalimages`: An `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images Using Probabilistic Neural Models 
+# `causalimages`: An `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 
 *This software is under beta release. The first stable release will be sometime in spring of 2023. Email `connor.jerzak@gmail.com` for feature requests. Let us know how you find the package!*
 
