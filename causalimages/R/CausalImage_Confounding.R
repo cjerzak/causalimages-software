@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' *Under beta release. Full release in Summer of 2023.*
+#' *Under beta release. Full release in late 2023.*
 #'
 #' @usage
 #'
@@ -9,10 +9,9 @@
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
 #' @param obsY A numeric vector containing observed outcomes.
-#' @param acquireImageRepFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
-#' First argument should be image key values and second argument have be `training` (in case behavior in training/)
-#' @param acquireImageFxn (default = `acquireImageRepFxn`) Similar to `acquireImageRepFxn`; this is a function specifying how to load images associated with `imageKeysOfUnits` into memory.
-#' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageRepFxn` for generating treatment effect predictions for out-of-sample points.
+#' @param acquireImageFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
+#' First argument should be image key values and second argument have be `training` (in case different behavior in training/inference mode).
+#' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageFxn` for generating treatment effect predictions for out-of-sample points.
 #' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`. `X` is normalized internally and salience maps with respect to `X` are transformed back to the original scale.
@@ -79,7 +78,6 @@ AnalyzeImageConfounding <- function(
 
                                    orthogonalize = F,
                                    imageKeysOfUnits = 1:length(obsY),
-                                   acquireImageRepFxn = NULL ,
                                    acquireImageFxn = NULL ,
                                    transportabilityMat = NULL ,
                                    lat = NULL,
@@ -334,7 +332,7 @@ AnalyzeImageConfounding <- function(
       if(acquireImageMethod == "functional"){
         batch_indices <- sample(1:length(obsY),batchSize,replace = F)
         ds_next_train <- list(
-          r2const( acquireImageRepFxn(keys[batch_indices],) , dtype = tf$float32 )
+          r2const( acquireImageFxn(keys[batch_indices], training = F) , dtype = tf$float32 )
         )
       }
 
@@ -430,7 +428,7 @@ AnalyzeImageConfounding <- function(
                              sample(trainIndices[which(obsW[trainIndices]==0)], batchSize/2) )
         }
         ds_next_train <- list(
-          r2const( acquireImageRepFxn(keys[batch_indices],) , dtype = tf$float32 )
+          r2const( acquireImageFxn(keys[batch_indices], training = T) , dtype = tf$float32 )
         )
       }
 
@@ -510,10 +508,11 @@ AnalyzeImageConfounding <- function(
         }
 
         batch_inference <- list(
-          r2const( acquireImageRepFxn(keys[batch_indices_inference],) , dtype = tf$float32 )
+          r2const( acquireImageFxn(keys[batch_indices_inference], training = F) , dtype = tf$float32 )
         )
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
+                                                               training = F,
                                                                input_ave_pooling_size = input_ave_pooling_size),
                                                     x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
                                                     training_getProb = F ))),T)
@@ -540,7 +539,7 @@ AnalyzeImageConfounding <- function(
             batch_indices_inference<-c(batch_indices_inference,batch_indices_inference)
             batch_inference[[1]] <- tf$concat(list(batch_inference[[1]],batch_inference[[1]]),0L)
           }
-          insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
+          insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]], training = F,
                                                                                     input_ave_pooling_size = input_ave_pooling_size),
                                                       x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
                                                       training_getProb = F ))),T)
@@ -634,7 +633,7 @@ AnalyzeImageConfounding <- function(
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
             if(acquireImageMethod == "functional"){
-              ds_next_in <- r2const( acquireImageRepFxn(keys[in_],), dtype = tf$float32 )
+              ds_next_in <- r2const( acquireImageFxn(keys[in_], training = F), dtype = tf$float32 )
               if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
               ds_next_in <- list( ds_next_in )
             }
@@ -648,8 +647,7 @@ AnalyzeImageConfounding <- function(
 
             # extract
             im_orig <- im_ <- InitImageProcess(
-                                im = ds_next_in[[1]],
-                                training = F,
+                                im = ds_next_in[[1]], training = F,
                                 input_ave_pooling_size = input_ave_pooling_size)
             XToConcat_values <- tf$constant(t(X[in_,]),tf$float32)
             im_processed <- getProcessedImage(im_, training = F)
@@ -754,7 +752,7 @@ AnalyzeImageConfounding <- function(
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
           if(acquireImageMethod == "functional"){
-            ds_next_in <- r2const( acquireImageRepFxn(keys[ samp_ ],), dtype = tf$float32 )
+            ds_next_in <- r2const( acquireImageFxn(keys[ samp_ ], training = F), dtype = tf$float32 )
             if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
             ds_next_in <- list( ds_next_in )
           }
