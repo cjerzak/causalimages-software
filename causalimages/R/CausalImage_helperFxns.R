@@ -8,8 +8,10 @@
 #' image2( x )
 #'
 #' @param x (required) The numeric matrix to be visualized.
-#' @param xaxt (default = `""`) The x-axis label.
-#' @param yaxt (default = `""`) The y-axis label.
+#' @param xlab (default = `""`) The x-axis labels.
+#' @param ylab (default = `""`) The y-axis labels.
+#' @param xaxt (default = `""`) The x-axis tick labels.
+#' @param yaxt (default = `""`) The y-axis tick labels.
 #' @param main (default = `""`) The main figure label.
 #' @param cex.main (default = `1.`) The main figure label sizing factor.
 #' @param box (default = `F`) Should a box be plotted around the image?
@@ -30,11 +32,14 @@
 #' @export
 #' @md
 #'
-image2 = function(x,xaxt=NULL,yaxt = NULL,main=NULL,cex.main = NULL,col.main = "black", box=F){
+image2 = function(x,xaxt=NULL,yaxt = NULL,xlab = "", ylab = "", main=NULL,cex.main = NULL,cex.lab = 1.5, col.main = "black", box=F){
   image((t(x)[,nrow(x):1]),
         axes = F,
         main = main,
+        xlab = xlab,
+        ylab = ylab,
         xaxs = "i",
+        cex.lab = cex.lab,
         col.main = col.main,
         cex.main = cex.main)
   if(box == T){box()}

@@ -18,6 +18,7 @@
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
+#' @param tagInFigures (default = `F`) A Boolean specifying whether to visually include the tag in the figures.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
@@ -87,6 +88,7 @@ AnalyzeImageConfounding <- function(
 
                                    figuresTag = "",
                                    figuresPath = "./",
+                                   tagInFigures = F,
                                    plotBands = 1L,
 
                                    simMode = F,
@@ -701,7 +703,8 @@ AnalyzeImageConfounding <- function(
 
             # plot final layer
             par(mar = mar_vec)
-            causalimages::image2( as.array(im_processed)[1,,,1] )
+            image2( as.array(im_processed)[1,,,1],
+                    xlab = ifelse(tagInFigures, yes = figuresTag, no = ""))
           }
         }
         dev.off()
@@ -718,7 +721,8 @@ AnalyzeImageConfounding <- function(
           d0 <- density(prWEst_convnet[obsW==0])
           d1 <- density(prWEst_convnet[obsW==1])
           plot(d1,lwd=2,xlim = c(0,1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
-               cex.axis = 1.2,ylab = "",xlab = "",
+               cex.axis = 1.2,ylab = "",
+               xlab = ifelse(tagInFigures, yes = figuresTag, no = ""),
                main = "Density Plots for \n Estimated Pr(T=1 | Confounders)",cex.main = 2)
           points(d0,lwd=2,type = "l",col="gray",lty=2)
           text(d0$x[which.max(d0$y)[1]],
