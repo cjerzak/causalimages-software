@@ -11,24 +11,24 @@ AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
 
 \item{obsY}{A numeric vector containing observed outcomes.}
 
-\item{X}{(optional) A numeric matrix containing tabular information used if \code{orthogonalize = T}.}
+\item{X}{(optional) A numeric matrix containing tabular information used if \code{orthogonalize = T}. \code{X} is normalized internally and salience maps with respect to \code{X} are transformed back to the original scale.}
 
 \item{doConvLowerDimProj}{(default = \code{T}) Should we project the \code{nFilters} convolutional feature dimensions down to \code{nDimLowerDimConv} to reduce the number of required parameters.}
 
 \item{nDimLowerDimConv}{(default = \code{3L}) If \code{doConvLowerDimProj = T}, then, in each convolutional layer, we project the \code{nFilters} feature dimensions down to \code{nDimLowerDimConv} to reduce the number of parameters needed.}
 
-\item{nFilters}{(default = \code{32L}) Integer specifying the number of convolutional filters used.}
+\item{nFilters}{(default = \code{50L}) Integer specifying the number of convolutional filters used.}
 
-\item{orthogonalize}{(default = \code{F}) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
+\item{nBoot}{(default = \code{100L}) Number of bootstrap iterations for uncertainty estimation.}
+
+\item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
 
 \item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
 
-\item{acquireImageRepFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
-First argument should be image key values and second argument have be \code{training} (in case behavior in training/)}
+\item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
+First argument should be image key values and second argument have be \code{training} (in case different behavior in training/inference mode).}
 
-\item{acquireImageFxn}{(default = \code{acquireImageRepFxn}) Similar to \code{acquireImageRepFxn}; this is a function specifying how to load images associated with \code{imageKeysOfUnits} into memory.}
-
-\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageRepFxn} for generating treatment effect predictions for out-of-sample points.}
+\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageFxn} for generating treatment effect predictions for out-of-sample points.}
 
 \item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
 
@@ -39,6 +39,10 @@ First argument should be image key values and second argument have be \code{trai
 \item{figuresTag}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
 
 \item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
+
+\item{tagInFigures}{(default = \code{F}) A Boolean specifying whether to visually include the tag in the figures.}
+
+\item{plotBands}{(default = \code{1L}) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).}
 
 \item{simMode}{(default = \code{F}) Should the analysis be performed in comparison with ground truth from simulation?}
 
@@ -52,24 +56,13 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.=}
 
-\item{nMonte_variational}{(default = \code{5L}) An integer specifying how many Monte Carlo iterations to use in the
-calculation of the expected likelihood in each training step.}
-
-\item{nMonte_predictive}{(default = \code{20L}) An integer specifying how many Monte Carlo iterations to use in the calculation
-of posterior means (e.g., mean cluster probabilities).}
-
-\item{nMonte_salience}{(default = \code{100L}) An integer specifying how many Monte Carlo iterations to use in the calculation
-of the salience maps (e.g., image gradients of expected cluster probabilities).}
-
-\item{batchSize}{(default = \code{25L}) Batch size used in SGD optimization.}
+\item{batchSize}{(default = \code{50L}) Batch size used in SGD optimization.}
 
 \item{kernelSize}{(default = \code{5L}) Dimensions used in convolution kernels.}
 
 \item{nSGD}{(default = \code{400L}) Number of stochastic gradient descent (SGD) iterations.}
 
 \item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
-
-\item{reparameterizationType}{(default = \code{"Deterministic"}) Currently, only deterministic layers are used. Future releases will add the option to make the CNN model arms probabilistic.}
 
 \item{channelNormalize}{(default = \code{T}) Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
 
@@ -85,7 +78,7 @@ A list consiting of \itemize{
 }
 }
 \description{
-\emph{Under beta release. Full release in Spring of 2023.}
+\emph{Under beta release. Full release in late 2023.}
 }
 \section{References}{
 

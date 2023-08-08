@@ -9,9 +9,13 @@ image2( x )
 \arguments{
 \item{x}{(required) The numeric matrix to be visualized.}
 
-\item{xaxt}{(default = \code{""}) The x-axis label.}
+\item{xaxt}{(default = \code{""}) The x-axis tick labels.}
 
-\item{yaxt}{(default = \code{""}) The y-axis label.}
+\item{yaxt}{(default = \code{""}) The y-axis tick labels.}
+
+\item{xlab}{(default = \code{""}) The x-axis labels.}
+
+\item{ylab}{(default = \code{""}) The y-axis labels.}
 
 \item{main}{(default = \code{""}) The main figure label.}
 
