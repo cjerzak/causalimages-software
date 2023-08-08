@@ -204,7 +204,29 @@ We thank James Bailie, Cindy Conlin, Devdatt Dubhashi, Felipe Jordan, Mohammad K
 # References<a id="references"></a>
 Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. *Forthcoming in Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023. [\[Article PDF\]](https://arxiv.org/pdf/2206.06417.pdf) [\[Summary PDF\]](https://connorjerzak.com/wp-content/uploads/2023/04/ImageHeterogeneitySummary.pdf)  [\[Replication Data\]](https://www.dropbox.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0)
 
+```
+@article{JJD-Heterogeneity,
+  title={Image-based Treatment Effect Heterogeneity},
+  author={Jerzak, Connor T. and Fredrik Johansson and Adel Daoud},
+  journal={Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)},
+  year={2023},
+  volume={213},
+  pages={1-22}
+}
+```
+
 Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.12985.pdf)
+```
+@article{JJD-Confounding,
+  title={Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities},
+  author={Jerzak, Connor T. and Fredrik Johansson and Adel Daoud},
+  journal={ArXiv Preprint},
+  year={2023},
+  volume={},
+  pages={},
+  publisher={}
+}
+```
 
 [<img src="https://connorjerzak.com/wp-content/uploads/2023/03/pexels-photo-60132.jpeg" width="500" height="400">](https://connorjerzak.com/image-based-treatment-heterogeneity/)
 
