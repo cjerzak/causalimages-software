@@ -52,17 +52,17 @@ causalimages::image2(FullImageArray[3,,,2])
 # plot the first band of the first image
 causalimages::image2(FullImageArray[1,,,1])
 ```
-We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageRepFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
+We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
 
-## Writing the `acquireImageRepFxn`
-One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageRepFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
+## Writing the `acquireImageFxn`
+One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
 
-You will write your `acquireImageRepFxn` to take in two arguments: `keys` and `training` 
+You will write your `acquireImageFxn` to take in two arguments: `keys` and `training` 
 - `keys` is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `keys = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
 - `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you wanted to randomly flip images around their left-right axis during training mode to prevent overfitting.
 
 ### When Loading All Images in Memory 
-In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageRepFxn` function like so: 
+In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 
 ```
 acquireImageRepFromMemory <- function(keys, training = F){
   # here, the function input keys 
@@ -81,7 +81,7 @@ image2( ImageSample[3,,,1] )
 ```
 
 ### When Reading in Images from Disk 
-For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageRepFxn` that reads images from disk: 
+For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageFxn` that reads images from disk: 
 ```
 acquireImageRepFromDisk <- function(keys,training = F){
   ## IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
@@ -107,7 +107,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
   simplify="array")  #using simplify = "array" combines images slices together
 
   # convert images to tensorflow array for further processing
-  # note: your acquireImageRepFxn need not return tensorflow arrays. 
+  # note: your acquireImageFxn need not return tensorflow arrays. 
   # R arrays are fine (with dimensions c(nBatch, imageWidth, imageHeight,nChannels)
   # (R arrays will be detected converted and converted internally)
   array_ <- tf$squeeze(tf$constant(array_,dtype=tf$float32),0L)
@@ -115,11 +115,11 @@ acquireImageRepFromDisk <- function(keys,training = F){
   return( array_ )
 }
 ```
-### Alternatives to `acquireImageRepFxn` by Specifying Disk Location of Image/Video Data 
+### Alternatives to `acquireImageFxn` by Specifying Disk Location of Image/Video Data 
 *Under construction.*
 
 ## Analyzing the Sample Data 
-Now that we've established some understanding of the data and written the `acquireImageRepFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
+Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
 *Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training rapid too. The function output here should therefore not be interpreted too seriously.* 
 
@@ -130,7 +130,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           X = X, # used only if orthogonalize=T
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
-          acquireImageRepFxn = acquireImageRepFromMemory,
+          acquireImageFxn = acquireImageRepFromMemory,
           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
           
           # inputs to control where visual results are saved as PDF or PNGs 
@@ -189,7 +189,7 @@ ImageHeterogeneityResults$clusterProbs_sd
 ## Pointers 
 Here are a few tips: 
 - If the cluster probabilities are very extreme (all 0 or 1), try increasing `nSGD`, simplifying the model structure (e.g., making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller), or increasing the number of Monte Carlo interations in the Variational Inference training (increase `nMonte_variational`).
-- If the treatment effect cluster distributions look very similar, make sure the input to `acquireImageRepFxn` is correctly yielding the images associated with each observation via `imageKeysOfUnits`. You could also try increasing or decreasing model complexity (e.g., by making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller or larger). It's also always possible that the image information is not particularly informative regarding treatment effect heterogeneity. 
+- If the treatment effect cluster distributions look very similar, make sure the input to `acquireImageFxn` is correctly yielding the images associated with each observation via `imageKeysOfUnits`. You could also try increasing or decreasing model complexity (e.g., by making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller or larger). It's also always possible that the image information is not particularly informative regarding treatment effect heterogeneity. 
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
 - For information on setting up a `conda` environment in which `tensorflow`, `tensorflow_probability`, and `py_gc` live, see [`caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706`](https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706). We're also working on ways to make this step easier for users. 
 
