@@ -6,7 +6,7 @@
 | [**Tutorial**](#tutorial)
 | [**References**](#references)
 
-# What is causalimages?<a id="description"></a>
+# What is `causalimages`?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and biomedical contexts. 
 
