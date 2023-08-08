@@ -644,8 +644,8 @@ AnalyzeImageConfounding <- function(
             col_ <- ifelse(in_ %in% top_treated,
                            yes = "black", no = "gray")
             in_counter <- in_counter + 1
-            long_lat_in_ <- sprintf("Lat, Long: %.3f, %.3f",
-                                    lat[in_],long[in_])
+            long_lat_in_ <- sprintf("Lat, Lon: %.2f, %.2f",
+                                    f2n(lat[in_]),f2n(long[in_]))
 
             # extract
             im_orig <- im_ <- InitImageProcess(
@@ -690,7 +690,7 @@ AnalyzeImageConfounding <- function(
                     ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
                     cex = 0, xaxt = "n",yaxt = "n",bty = "n")
                orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
-               raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_)
+               raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_, stretch = "lin")
             }
 
             # plot salience map
