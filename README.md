@@ -1,14 +1,23 @@
 # `causalimages`: An `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 
+[**What is causalimages?**](#description)
+| [**Main Package Functions**](#functions)
+| [**Installation**](#installation)
+| [**Tutorial**](#tutorial)
+| [**References**](#references)
+
 *This software is under beta release. The first stable release will be sometime in spring of 2023. Email `connor.jerzak@gmail.com` for feature requests. Let us know how you find the package!*
 
-# Repository Structure
-This repository contains several main components. The first component is code of the `causalimages` software package. At the moment, the package includes code for performing the image-based heterogeneity decomposition described in Jerzak, Johansson, and Daoud (2023). In future releases, we will add functionality for using images in observational causal inference (i.e., as a proxy for confounding variables). 
+# What is causalimages?<a id="description"></a>
 
+Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and biomedical contexts. 
+
+This package, `causalimages`, enables causal analysis with images. For example, the function, `AnalyzeImageHeterogeneity`, performs the image-based treatment effect heterogeneity decomposition described in [Jerzak, Johansson, and Daoud (2023)](https://arxiv.org/pdf/2206.06417.pdf). This function can be used, for example, to determine which neighorhoods are most responsive to an anti-poverty intervention using earth observation data from, e.g., satellites. In the biomedical domain, this function could be used to model the kinds of patients who would be most responsive to interventions on the basis of pre-treatment diagnostic imaging. 
+
+The function, `AnalyzeImageConfounding`, performs the image-based deconfounding analysis described in [Jerzak, Johansson, and Daoud (2023+)](https://arxiv.org/pdf/2301.12985.pdf). This function can be used, for example, to control for confounding factors correlated with both neighorhood wealth and aid decisions in observational studies of development. In the biomedical context, this function could be used to control for confounding variables captured diagnostic imaging in order to improve observational inference. 
 We make available replication data from the image heterogeneity paper at the following link: [`dropbox.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0`](https://www.dropbox.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0). This `.zip` file includes both outcome data and geo-referenced satellite images. 
 
-
-# Package Download Instructions 
+# Package Installation<a id="installation"></a>
 From within `R`, you may download via the `devtools` package. In particular, use 
 
 ```
@@ -20,7 +29,7 @@ Then, to load the software, use
 library(   causalimages  ) 
 ```
 
-# Tutorial
+# Tutorial<a id="tutorial"></a>
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
@@ -188,7 +197,7 @@ Here are a few tips:
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
 - For information on setting up a `conda` environment in which `tensorflow`, `tensorflow_probability`, and `py_gc` live, see [`caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706`](https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706). We're also working on ways to make this step easier for users. 
 
-# Future Development Plan
+# Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
 
 We are committed to the long-term development of this repository and welcome community involvement. 
@@ -196,7 +205,7 @@ We are committed to the long-term development of this repository and welcome com
 # Acknowledgements
 We thank James Bailie, Cindy Conlin, Devdatt Dubhashi, Felipe Jordan, Mohammad Kakooei, Eagon Meng, Xiao-Li Meng, and Markus Pettersson for valuable feedback on this project and software. We also thank Xiaolong Yang for excellent research assistance.
 
-# References
+# References<a id="references"></a>
 Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. *Forthcoming in Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 2023. [\[Article PDF\]](https://arxiv.org/pdf/2206.06417.pdf) [\[Summary PDF\]](https://connorjerzak.com/wp-content/uploads/2023/04/ImageHeterogeneitySummary.pdf)
 
 Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.12985.pdf)
