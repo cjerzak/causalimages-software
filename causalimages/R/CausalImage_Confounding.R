@@ -536,7 +536,7 @@ AnalyzeImageConfounding <- function(
         ok<-T;if(!all(is.null(batch_inference))){
           ok<-F
           batch_indices_inference <- as.array(batch_inference[[2]])
-          drop_<-F;if(length(batch_indices_inference)==1){
+          drop_<-F;if(   length(batch_indices_inference) == 1    ){
             drop_ <- T
             batch_indices_inference<-c(batch_indices_inference,batch_indices_inference)
             batch_inference[[1]] <- tf$concat(list(batch_inference[[1]],batch_inference[[1]]),0L)
@@ -628,7 +628,8 @@ AnalyzeImageConfounding <- function(
                  xaxt = "n",yaxt = "n",bty = "n")
             text(0.5,0.5,labels = text_, srt=90,cex=3)
           }
-          for(in_ in plot_indices){
+          plot_index_counter <- 0; for(in_ in plot_indices){
+            plot_index_counter <- plot_index_counter + 1
             if(acquireImageMethod == "tf_record"){
               ds_next_in <- GetElementFromTfRecordAtIndex( index = in_,
                                                            filename = file )
@@ -645,7 +646,7 @@ AnalyzeImageConfounding <- function(
                            yes = "black", no = "gray")
             in_counter <- in_counter + 1
             long_lat_in_ <- sprintf("Lat, Lon: %.2f, %.2f",
-                                    f2n(lat[in_]),f2n(long[in_]))
+                                    f2n(lat[in_]), f2n(long[in_]))
 
             # extract
             im_orig <- im_ <- InitImageProcess(
@@ -702,9 +703,14 @@ AnalyzeImageConfounding <- function(
             causalimages::image2( salience_map )
 
             # plot final layer
-            par(mar = mar_vec)
+            mar_vec_finalIm <- mar_vec
+            mar_vec_finalIm[1] <- 4
+            par(mar = mar_vec_finalIm)
             image2( as.array(im_processed)[1,,,1],
-                    xlab = ifelse(tagInFigures, yes = figuresTag, no = ""))
+                    xlab = ifelse( plot_index_counter == 1,
+                                   yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
+                                   no = ""))
+            par(mar = mar_vec)
           }
         }
         dev.off()
