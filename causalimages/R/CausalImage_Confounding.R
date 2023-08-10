@@ -645,7 +645,7 @@ AnalyzeImageConfounding <- function(
             col_ <- ifelse(in_ %in% top_treated,
                            yes = "black", no = "gray")
             in_counter <- in_counter + 1
-            long_lat_in_ <- sprintf("Lat, Lon: %.2f, %.2f",
+            long_lat_in_ <- sprintf("Lat/Lon: %.3f, %.3f",
                                     f2n(lat[in_]), f2n(long[in_]))
 
             # extract
