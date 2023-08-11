@@ -776,7 +776,7 @@ AnalyzeImageConfounding <- function(
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
 
         # rescale the salience map into original scale
-        SalienceX <- SalienceX*X_sd  +   X_mean
+        #SalienceX <- SalienceX*X_sd  +   X_mean
       }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
