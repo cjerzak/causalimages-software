@@ -196,6 +196,8 @@ AnalyzeImageConfounding <- function(
         #with( tf$device('/CPU:0'), {
           im__ <- tf$image$random_flip_left_right(im__)
           im__ <- tf$image$random_flip_up_down(im__)
+          im__ <- tf$image$random_saturation(im__, 5, 10)
+          im__ <- tf$image$adjust_brightness(im__, 0.1)
           return( im__ )
         #})
     })
@@ -212,7 +214,7 @@ AnalyzeImageConfounding <- function(
       im <- (im - NORM_MEAN_array) / NORM_SD_array
 
       # training pertubations if desired
-      # note: trainingPertubations mus be performed on CPU
+      # note: trainingPertubations must be performed on CPU
       if(training == T){ im <- trainingPertubations(im) }
 
       # downshift resolution if desired
