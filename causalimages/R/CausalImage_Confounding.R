@@ -625,7 +625,7 @@ AnalyzeImageConfounding <- function(
                  height = c(5,5,5)); in_counter <- 0
           for(text_ in c("Raw Image","Salience Map","Final Spatial Layer")){
             par(mar=c(0,0,0,0))
-            plot(0, main = "", ylab = "",cex=0,
+            plot(0, main = "", ylab = "",cex = 0,
                  xlab = "", ylim = c(0,1), xlim = c(0,1),
                  xaxt = "n",yaxt = "n",bty = "n")
             text(0.5,0.5,labels = text_, srt=90,cex=3)
@@ -692,13 +692,13 @@ AnalyzeImageConfounding <- function(
               )
             }
             if(length(plotBands) >= 3){
-               plot(0, main = long_lat_in_,col.main = col_,
-                    ylab = "",
-                    xlab = ifelse( plot_index_counter == 1,
-                                   yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
-                                   no = ""),
+               plot(0, main = long_lat_in_, col.main = col_,
+                    ylab = "", xlab = "",
                     cex.main = 4, ylim = c(0,1), xlim = c(0,1),
                     cex = 0, xaxt = "n",yaxt = "n",bty = "n")
+               mtext(side = 1, ifelse( plot_index_counter == 1,
+                             yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
+                             no = ""), cex = 1)
                orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
                raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_, stretch = "lin")
             }
@@ -716,7 +716,7 @@ AnalyzeImageConfounding <- function(
             mar_vec_finalIm[1] <- 4
             par(mar = mar_vec_finalIm)
             image2( as.array(im_processed)[1,,,1],
-                    xlab = ifelse(tagInFigures, yes = keys[in_], no = ""),cex.lab = 0.5)
+                    xlab = ifelse(tagInFigures, yes = keys[in_], no = ""),cex.lab = 1)
             par(mar = mar_vec)
           }
         }
