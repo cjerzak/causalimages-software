@@ -600,10 +600,10 @@ AnalyzeImageConfounding <- function(
       top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c], decreasing=F)[1:(showPerGroup*3)]]
 
       # drop duplicates
-      longLat_test_t <- paste(round(long[testIndices_t],1L),
-                              round(lat[testIndices_t],1L),sep="_")
-      longLat_test_c <- paste(round(long[testIndices_c],1L),
-                              round(lat[testIndices_c],1L),sep="_")
+      longLat_test_t <- paste(round(long[testIndices_t],5L),
+                              round(lat[testIndices_t],5L),sep="_")
+      longLat_test_c <- paste(round(long[testIndices_c],5L),
+                              round(lat[testIndices_c],5L),sep="_")
       top_treated <- top_treated[!duplicated(longLat_test_t[indices_top_t])][1:showPerGroup]
       top_control <- top_control[!duplicated(longLat_test_c[indices_top_c])][1:showPerGroup]
 
