@@ -596,8 +596,8 @@ AnalyzeImageConfounding <- function(
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
 
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
-      top_treated <- testIndices_t[indices_top_t <- order( prWEst_convnet[testIndices_t] ,decreasing=T)[1:(showPerGroup*3)]]
-      top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c] ,decreasing=F)[1:(showPerGroup*3)]]
+      top_treated <- testIndices_t[indices_top_t <- order( prWEst_convnet[testIndices_t], decreasing=T)[1:(showPerGroup*3)]]
+      top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c], decreasing=F)[1:(showPerGroup*3)]]
 
       # drop duplicates
       longLat_test_t <- paste(round(long[testIndices_t],1L),
@@ -685,12 +685,19 @@ AnalyzeImageConfounding <- function(
             if(length(plotBands) < 3){
               causalimages::image2(
                 as.matrix( orig_scale_im_[,,plotBands[1]] ),
-                main = long_lat_in_, cex.main = 2.5, col.main =  col_
+                main = long_lat_in_, cex.main = 2.5, col.main =  col_,
+                xlab = ifelse( plot_index_counter == 1,
+                               yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
+                               no = "")
               )
             }
             if(length(plotBands) >= 3){
                plot(0, main = long_lat_in_,col.main = col_,
-                    ylab = "", xlab = "", cex.main = 4, ylim = c(0,1), xlim = c(0,1),
+                    ylab = "",
+                    xlab = ifelse( plot_index_counter == 1,
+                                   yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
+                                   no = ""),
+                    cex.main = 4, ylim = c(0,1), xlim = c(0,1),
                     cex = 0, xaxt = "n",yaxt = "n",bty = "n")
                orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
                raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_, stretch = "lin")
@@ -709,9 +716,7 @@ AnalyzeImageConfounding <- function(
             mar_vec_finalIm[1] <- 4
             par(mar = mar_vec_finalIm)
             image2( as.array(im_processed)[1,,,1],
-                    xlab = ifelse( plot_index_counter == 1,
-                                   yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
-                                   no = ""))
+                    xlab = ifelse(tagInFigures, yes = keys[in_], no = ""),cex.lab = 0.5)
             par(mar = mar_vec)
           }
         }
