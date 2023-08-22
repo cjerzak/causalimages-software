@@ -196,7 +196,7 @@ AnalyzeImageConfounding <- function(
         #with( tf$device('/CPU:0'), {
           im__ <- tf$image$random_flip_left_right(im__)
           im__ <- tf$image$random_flip_up_down(im__)
-          im__ <- tf$image$random_saturation(im__, 5, 10)
+          #im__ <- tf$image$random_saturation(im__, 5, 10)
           im__ <- tf$image$adjust_brightness(im__, 0.1)
           return( im__ )
         #})
