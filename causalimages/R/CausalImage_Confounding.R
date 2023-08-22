@@ -197,7 +197,7 @@ AnalyzeImageConfounding <- function(
           im__ <- tf$image$random_flip_left_right(im__)
           im__ <- tf$image$random_flip_up_down(im__)
           #im__ <- tf$image$random_saturation(im__, 5, 10)
-          im__ <- tf$image$adjust_brightness(im__, 0.1)
+          #im__ <- tf$image$adjust_brightness(im__, 0.1)
           return( im__ )
         #})
     })
@@ -255,7 +255,6 @@ AnalyzeImageConfounding <- function(
       tf_function_use  <- tf_function
       #tf_function_use  <- function(.){.}
 
-      #getMeanConv <- tf_function_use( function(dar){ 1./kernelSize^2*tf$squeeze(Conv_Mean( tf$expand_dims(dar,3L) ),3L)} )
       BNLayer_Axis3_init <- tf$keras$layers$BatchNormalization(axis = 3L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001,name="InitNorm")
       for(d_ in 1:nDepth){
         eval(parse(text = sprintf('Conv%s <- tf$keras$layers$Conv2D(filters=nFilters,
