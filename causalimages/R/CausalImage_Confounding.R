@@ -30,6 +30,7 @@
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
 #' @param nFilters (default = `50L`) Integer specifying the number of convolutional filters used.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
+#' @param dropoutRate (default = `0.1`) Droppout rate used in training used to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
@@ -72,7 +73,7 @@ AnalyzeImageConfounding <- function(
                                    doHiddenDim = T,
                                    nBoot = 100L,
                                    typeBoot = "SamplingOnly",
-                                   HiddenDim  = 32L,
+                                   HiddenDim  = 64L,
                                    DenseActivation = "linear",
                                    input_ave_pooling_size = 1L, # if seeking to downshift the resolution
                                    useTrainingPertubations = T,
@@ -99,6 +100,7 @@ AnalyzeImageConfounding <- function(
                                    maxPoolSize = 2L,
                                    strides = 1L,
                                    compile = T,
+                                   dropoutRate = 0.1,
                                    batchSize = 50L,
                                    kernelSize = 3L,
                                    nSGD  = 400L,
@@ -252,8 +254,8 @@ AnalyzeImageConfounding <- function(
       FlattenLayer <- tf$keras$layers$Flatten(data_format = "channels_last")
 
       # define tf function
-      tf_function_use  <- tf_function
-      #tf_function_use  <- function(.){.}
+      #tf_function_use  <- tf_function
+      tf_function_use  <- function(.){.}
 
       BNLayer_Axis3_init <- tf$keras$layers$BatchNormalization(axis = 3L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001,name="InitNorm")
       for(d_ in 1:nDepth){
@@ -276,11 +278,15 @@ AnalyzeImageConfounding <- function(
       }
     }
     trainable_layers <- ls()[!ls() %in% c(trainable_layers)]
+
+    HiddenDropout <- tf$keras$layers$Dropout(rate = dropoutRate )
+    HiddenDropout_conv <- tf$keras$layers$Dropout(rate = dropoutRate )
     getProcessedImage <- tf_function_use( function(imm,training){
       # convolution + pooling
       for(d_ in 1:nDepth){
         if(doConvLowerDimProj){
           eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s_inner(Pool( Conv%s( imm )),training=training)",d_,d_)))
+          imm <- HiddenDropout_conv( imm ,training = training)
           if(d_ < nDepth){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s(  ConvProj%s( imm ), training = training)",d_,d_))) }
         }
         if(doConvLowerDimProj == F){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s( Pool( Conv%s( imm )), training = training)",d_,d_,d_)))}
@@ -301,6 +307,7 @@ AnalyzeImageConfounding <- function(
       if(doHiddenDim == T){
         im_getProb <-  tf$keras$activations$swish( HiddenProjection(  im_getProb   ) )
         im_getProb <- BNLayer_Axis1_hidden( im_getProb )
+        im_getProb <- HiddenDropout( im_getProb, training = training_getProb )
       }
 
       # final projection layer + sigmoid
