@@ -117,7 +117,7 @@ acquireImageRepFromDisk <- function(keys,training = F){
 }
 ```
 ### Alternatives to `acquireImageFxn` by Specifying Disk Location of Image/Video Data 
-*Under construction.*
+In general, specifying a function to read images from disk will depend on your operating system and file system. Usually, reading in raster files and converting them to arrays is the fastest way to go, or reading in image dimensions via `data.table::fread`. 
 
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
