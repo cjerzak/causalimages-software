@@ -12,3 +12,4 @@ system(sprintf("R CMD Rd2pdf %s",package_path))
 # library( causalimages ); data(  CausalImagesTutorialData )
 log(sort( sapply(ls(),function(l_){object.size(eval(parse(text=l_)))})))
 
+

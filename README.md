@@ -58,8 +58,8 @@ We're using rather small image bricks around each long/lat coordinate so that th
 One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
 
 You will write your `acquireImageFxn` to take in two arguments: `keys` and `training` 
-- `keys` is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `keys = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
-- `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you wanted to randomly flip images around their left-right axis during training mode to prevent overfitting.
+- `keys` (a positional argument) is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `imageKeysOfUnits = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
+- `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you want to randomly flip images around their left-right axis during training mode to prevent overfitting (these pertubations are handled by the package). 
 
 ### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 

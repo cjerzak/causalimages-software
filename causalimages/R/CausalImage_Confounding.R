@@ -1,17 +1,17 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' *Under beta release. Full release in late 2023.*
+#' *Under beta release.*
 #'
 #' @usage
 #'
-#' AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
+#' AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
 #' @param obsY A numeric vector containing observed outcomes.
 #' @param acquireImageFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
 #' First argument should be image key values and second argument have be `training` (in case different behavior in training/inference mode).
-#' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageFxn` for generating treatment effect predictions for out-of-sample points.
+#' @param transportabilityMat (optional) A matrix with a column named `imageKeysOfUnits` specifying keys to be used by `acquireImageFxn` for generating treatment effect predictions for out-of-sample points.
 #' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`. `X` is normalized internally and salience maps with respect to `X` are transformed back to the original scale.
@@ -64,7 +64,7 @@ AnalyzeImageConfounding <- function(
                                    obsY,
                                    X = NULL,
                                    file = NULL,
-                                   keys = NULL,
+                                   imageKeysOfUnits = NULL,
                                    nDepth = 3L,
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
@@ -79,7 +79,6 @@ AnalyzeImageConfounding <- function(
                                    useTrainingPertubations = T,
 
                                    orthogonalize = F,
-                                   imageKeysOfUnits = 1:length(obsY),
                                    acquireImageFxn = NULL ,
                                    transportabilityMat = NULL ,
                                    lat = NULL,
@@ -129,6 +128,8 @@ AnalyzeImageConfounding <- function(
     py_gc <- reticulate::import("gc")
     gc(); py_gc$collect()
   }
+
+  if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
 
   if(!is.null(X)){ if(!"matrix" %in% class(X)){
     print("Coercing X to matrix class...")
@@ -210,7 +211,7 @@ AnalyzeImageConfounding <- function(
     InitImageProcess <- function(im, training = F, input_ave_pooling_size = 1){
 
       # expand dims if needed
-      if(length(keys) == 1){ im <- tf$expand_dims(im,0L) }
+      if(length(imageKeysOfUnits) == 1){ im <- tf$expand_dims(im,0L) }
 
       # normalize
       im <- (im - NORM_MEAN_array) / NORM_SD_array
@@ -342,7 +343,7 @@ AnalyzeImageConfounding <- function(
       if(acquireImageMethod == "functional"){
         batch_indices <- sample(1:length(obsY),batchSize,replace = F)
         ds_next_train <- list(
-          r2const( acquireImageFxn(keys[batch_indices], training = F) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = F) , dtype = tf$float32 )
         )
       }
 
@@ -438,7 +439,7 @@ AnalyzeImageConfounding <- function(
                              sample(trainIndices[which(obsW[trainIndices]==0)], batchSize/2) )
         }
         ds_next_train <- list(
-          r2const( acquireImageFxn(keys[batch_indices], training = T) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = T) , dtype = tf$float32 )
         )
       }
 
@@ -518,7 +519,7 @@ AnalyzeImageConfounding <- function(
         }
 
         batch_inference <- list(
-          r2const( acquireImageFxn(keys[batch_indices_inference], training = F) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F) , dtype = tf$float32 )
         )
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
@@ -644,7 +645,7 @@ AnalyzeImageConfounding <- function(
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
             if(acquireImageMethod == "functional"){
-              ds_next_in <- r2const( acquireImageFxn(keys[in_], training = F), dtype = tf$float32 )
+              ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[in_], training = F), dtype = tf$float32 )
               if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
               ds_next_in <- list( ds_next_in )
             }
@@ -722,7 +723,7 @@ AnalyzeImageConfounding <- function(
             mar_vec_finalIm[1] <- 4
             par(mar = mar_vec_finalIm)
             image2( as.array(im_processed)[1,,,1],
-                    xlab = ifelse(tagInFigures, yes = keys[in_], no = ""),cex.lab = 1)
+                    xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
             par(mar = mar_vec)
           }
         }
@@ -775,7 +776,7 @@ AnalyzeImageConfounding <- function(
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
           if(acquireImageMethod == "functional"){
-            ds_next_in <- r2const( acquireImageFxn(keys[ samp_ ], training = F), dtype = tf$float32 )
+            ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[ samp_ ], training = F), dtype = tf$float32 )
             if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
             ds_next_in <- list( ds_next_in )
           }

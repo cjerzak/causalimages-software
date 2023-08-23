@@ -4,7 +4,7 @@
 \alias{AnalyzeImageConfounding}
 \title{Perform causal estimation under image confounding}
 \usage{
-AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
+AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 }
 \arguments{
 \item{obsW}{A numeric vector where \code{0}'s correspond to control units and \code{1}'s to treated units.}
@@ -12,6 +12,8 @@ AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
 \item{obsY}{A numeric vector containing observed outcomes.}
 
 \item{X}{(optional) A numeric matrix containing tabular information used if \code{orthogonalize = T}. \code{X} is normalized internally and salience maps with respect to \code{X} are transformed back to the original scale.}
+
+\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
 
 \item{doConvLowerDimProj}{(default = \code{T}) Should we project the \code{nFilters} convolutional feature dimensions down to \code{nDimLowerDimConv} to reduce the number of required parameters.}
 
@@ -23,12 +25,10 @@ AnalyzeImageConfounding(obsW, obsY, acquireImageFxn, ...)
 
 \item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
 
-\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
-
 \item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case different behavior in training/inference mode).}
 
-\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageFxn} for generating treatment effect predictions for out-of-sample points.}
+\item{transportabilityMat}{(optional) A matrix with a column named \code{imageKeysOfUnits} specifying keys to be used by \code{acquireImageFxn} for generating treatment effect predictions for out-of-sample points.}
 
 \item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
 
@@ -56,6 +56,8 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.=}
 
+\item{dropoutRate}{(default = \code{0.1}) Droppout rate used in training used to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
+
 \item{batchSize}{(default = \code{50L}) Batch size used in SGD optimization.}
 
 \item{kernelSize}{(default = \code{5L}) Dimensions used in convolution kernels.}
@@ -78,7 +80,7 @@ A list consiting of \itemize{
 }
 }
 \description{
-\emph{Under beta release. Full release in late 2023.}
+\emph{Under beta release.}
 }
 \section{References}{
 

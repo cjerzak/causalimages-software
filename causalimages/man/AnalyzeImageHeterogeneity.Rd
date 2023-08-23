@@ -4,7 +4,7 @@
 \alias{AnalyzeImageHeterogeneity}
 \title{Decompose treatment effect heterogeneity by image}
 \usage{
-AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
+AnalyzeImageHeterogeneity(obsW, obsY, imageKeysOfUnits, acquireImageFxn, kClust_est, ...)
 }
 \arguments{
 \item{obsW}{A numeric vector where \code{0}'s correspond to control units and \code{1}'s to treated units.}
@@ -19,12 +19,10 @@ AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
 
 \item{kClust_est}{(default = \code{2L}) Integer specifying the number of clusters used in estimation.}
 
-\item{acquireImageRepFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
-First argument should be image key values and second argument have be \code{training} (in case behavior in training/)}
+\item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
+First argument should be image key values and second argument have be \code{training} (in case of behavior change in training/inference).}
 
-\item{acquireImageFxn}{(default = \code{acquireImageRepFxn}) Similar to \code{acquireImageRepFxn}; this is a function specifying how to load images associated with \code{imageKeysOfUnits} into memory.}
-
-\item{transportabilityMat}{(optional) A matrix with a column named \code{keys} specifying keys to be used by \code{acquireImageRepFxn} for generating treatment effect predictions for out-of-sample points.}
+\item{transportabilityMat}{(optional) A matrix with a column named \code{key} specifying keys to be used by \code{acquireImageFxn} for generating treatment effect predictions for out-of-sample points in earth observation data settings.}
 
 \item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
 

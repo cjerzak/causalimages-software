@@ -9,15 +9,14 @@
 #'
 #' @usage
 #'
-#' AnalyzeImageHeterogeneity(obsW, obsY, acquireImageFxn, kClust_est, ...)
+#' AnalyzeImageHeterogeneity(obsW, obsY, imageKeysOfUnits, acquireImageFxn, kClust_est, ...)
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
 #' @param obsY A numeric vector containing observed outcomes.
 #' @param kClust_est (default = `2L`) Integer specifying the number of clusters used in estimation.
-#' @param acquireImageRepFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
-#' First argument should be image key values and second argument have be `training` (in case behavior in training/)
-#' @param acquireImageFxn (default = `acquireImageRepFxn`) Similar to `acquireImageRepFxn`; this is a function specifying how to load images associated with `imageKeysOfUnits` into memory.
-#' @param transportabilityMat (optional) A matrix with a column named `keys` specifying keys to be used by `acquireImageRepFxn` for generating treatment effect predictions for out-of-sample points.
+#' @param acquireImageFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
+#' First argument should be image key values and second argument have be `training` (in case of behavior change in training/inference).
+#' @param transportabilityMat (optional) A matrix with a column named `key` specifying keys to be used by `acquireImageFxn` for generating treatment effect predictions for out-of-sample points in earth observation data settings.
 #' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
@@ -83,7 +82,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       orthogonalize = F,
                                       imageKeysOfUnits = 1:length(obsY),
                                       kClust_est = 2,
-                                      acquireImageRepFxn = NULL ,
                                       acquireImageFxn = NULL ,
                                       transportabilityMat = NULL ,
                                       lat = NULL,
@@ -136,12 +134,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # coerce output to tf$constant
-  environment(acquireImageRepFxn) <- environment()
-  test_ <- acquireImageRepFxn(imageKeysOfUnits[1:5],training = F)
+  environment(acquireImageFxn) <- environment()
+  test_ <- acquireImageFxn(imageKeysOfUnits[1:5],training = F)
   if(!"tensorflow.tensor" %in% class(test_)){
-    acquireImageRepFxn_as_input <- acquireImageRepFxn
-    acquireImageRepFxn <- function(keys, training){
-      m_ <- tf$constant(acquireImageRepFxn_as_input(keys, training),tf$float32)
+    acquireImageFxn_as_input <- acquireImageFxn
+    acquireImageFxn <- function(keys, training){
+      m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
       if(length(m_$shape) == 3){
         # expand across batch dimension if receiving no batch dimension
         m_ <- tf$expand_dims(m_,0L)
@@ -152,17 +150,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
   rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
-    acquireImageRepFxn_orig <- acquireImageRepFxn
+    acquireImageRepFxn_orig <- acquireImageFxn
     tmp <- replicate(30, {
-        tmp <- acquireImageRepFxn(keys = sample(unique(imageKeysOfUnits), batchSize),
+        tmp <- acquireImageFxn( sample(unique(imageKeysOfUnits), batchSize),
                          training = F)
         list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
              "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
     })
     NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",]))),0L),0L), 0L)
     NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(colMeans(do.call(rbind,tmp["NORM_SD",])),0L),0L), 0L)
-    acquireImageRepFxn <- function(keys, training){
-        (acquireImageRepFxn_orig(keys, training = training) - NORM_MEAN) / NORM_SD
+    acquireImageFxn <- function(keys, training){
+        (acquireImageRepFxn_orig(keys, training) - NORM_MEAN) / NORM_SD
     }
     rm(  tmp  )
   }
@@ -787,7 +785,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       print2(bool_)
       with(tf$GradientTape() %as% tape, {
         samp_ <- sample(1:length(obsW),batchSize)
-        myLoss_forGrad <- getLoss( dat = acquireImageRepFxn(keys = imageKeysOfUnits[samp_],training = bool_),
+        myLoss_forGrad <- getLoss( dat = acquireImageFxn( imageKeysOfUnits[samp_], bool_),
                                    treat = tf$constant(obsW[samp_],tf$float32),
                                    y = tf$constant(obsY[samp_],tf$float32),
                                    training = bool_ )
@@ -886,7 +884,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #table(  obsW[batch_indices_reffed] )
 
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
-      trainStep(dat = acquireImageRepFxn( keys = imageKeysOfUnits[batch_indices_reffed],training = T ),
+      trainStep(dat = acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = T ),
                 y = tf$constant(obsY[batch_indices_reffed],tf$float32),
                 treat = tf$constant(obsW[batch_indices_reffed],tf$float32),
                 training = T)
@@ -937,7 +935,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(zer)/length(test_tab)
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion done: %.3f",atP)) }
-      im_zer <- acquireImageRepFxn(keys = imageKeysOfUnits[zer], training = F)
+      im_zer <- acquireImageFxn(  imageKeysOfUnits[zer], training = F)
       l_ <- replicate(nMonte_predictive,
                       eval(parse(text = sprintf("list(tf$expand_dims(getY%s(m=im_zer, training = F),0L))",y_t_))))
       names(l_) <- NULL;
@@ -975,14 +973,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- acquireImageRepFxn(keys = imageKeysOfUnits[indi_],training = F)
+      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY0(im_indi,training = F)),1L),1L))
     }))
     Y1_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- acquireImageRepFxn(keys = imageKeysOfUnits[indi_],training = F)
+      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY1(im_indi,training = F)),1L),1L))
     }))
     Y0_est <- Rescale(Y0_est, doMean = T)
@@ -1001,7 +999,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       atP <- max(indi_/length(obsY))
       if( any(indi_ %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
       if(runif(1)<0.1){ gc(); py_gc$collect() }
-      im_indi <- acquireImageRepFxn(keys = imageKeysOfUnits[indi_],training = F)
+      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
       ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_indi,training = F)))
       ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
       ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
@@ -1048,7 +1046,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(! "function" %in% class(getLoss)){print2("getLoss must be R function for this part to work!")}
       KL_wt <- 0
       negELL <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-        ret_ <- as.numeric(getLoss( dat = acquireImageRepFxn(  keys = imageKeysOfUnits[indi_]  , training = F),
+        ret_ <- as.numeric(getLoss( dat = acquireImageFxn(   imageKeysOfUnits[indi_]  , training = F),
                                     treat = tf$constant(obsW[indi_],tf$float32),
                                     y = tf$constant(obsY[indi_],tf$float32),
                                     training = F ))
@@ -1070,7 +1068,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(runif(1)<0.1){ gc(); py_gc$collect() }
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
-        im_keys <- acquireImageRepFxn( keys = transportabilityMat$key[zer], training = F )
+        im_keys <- acquireImageFxn(  transportabilityMat$key[zer], training = F )
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
@@ -1271,13 +1269,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
                 }
                 if(i == 1){isUnique_<-T}
-                print2(sd_im <- sd(as.array(acquireImageFxn( keys = imageKeysOfUnits[im_i] )[1,,,]),na.rm=T))
+                print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
               used_coordinates <- rbind(coordinate_i,used_coordinates)
               print2(c(k_, i, im_i, long[im_i], lat[im_i]))
-              if(is.na(sum((as.array(acquireImageFxn( keys = imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
-              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + (as.array(acquireImageFxn( keys = imageKeysOfUnits[im_i] )[1,,,])) ) ,
+              if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
+              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + (as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,])) ) ,
                                margins = T,
                                r = 1, g = 2, b = 3,
                                mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
@@ -1332,10 +1330,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
                                                             kernel_size = gradAnalysisFilterDim <- 10L,
                                                             padding = "valid")
-                    AveragingConv( tf$expand_dims(tf$gather(acquireImageRepFxn(keys = imageKeysOfUnits[im_i],training = F),1L, axis = 3L),3L)  )
+                    AveragingConv( tf$expand_dims(tf$gather(acquireImageFxn(  imageKeysOfUnits[im_i],training = F),1L, axis = 3L),3L)  )
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
-                  IG <- as.array( ImageGrad_fxn( acquireImageRepFxn(keys = imageKeysOfUnits[im_i], training = F) ) )
+                  IG <- as.array( ImageGrad_fxn( acquireImageFxn( imageKeysOfUnits[im_i], training = F) ) )
                   nColors <- 1000
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
