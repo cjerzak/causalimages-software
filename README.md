@@ -4,6 +4,7 @@
 | [**Installation**](#installation)
 | [**Tutorial**](#tutorial)
 | [**References**](#references)
+| [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
 
 # What is `causalimages`?<a id="description"></a>
 
