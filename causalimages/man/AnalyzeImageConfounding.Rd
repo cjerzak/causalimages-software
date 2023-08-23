@@ -80,7 +80,7 @@ A list consiting of \itemize{
 }
 }
 \description{
-\emph{Under beta release.}
+Perform causal estimation under image confounding
 }
 \section{References}{
 
