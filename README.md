@@ -194,7 +194,7 @@ Here are a few tips:
 - For information on setting up a `conda` environment in which `tensorflow`, `tensorflow_probability`, and `py_gc` live, see [`caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706`](https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706). We're also working on ways to make this step easier for users. 
 
 # Other Package Functions
-The package contains other useful functions for image and video analysis:
+The package contains other useful functions for image and video analysis (see t he [documentation](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf) for details): 
 - `GetRandomizedImageEmbeddings` gnerates randomized image and video embeddings useful in earth observation tasks for casual inference, generalizing the approach in [Rolf, Esther, et al.  (2021)](https://www.nature.com/articles/s41467-021-24638-z).
 - `image2` plots a matrix as a heatmap with the correct north/south/east/west spatial orientation. 
 
