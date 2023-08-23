@@ -193,6 +193,11 @@ Here are a few tips:
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
 - For information on setting up a `conda` environment in which `tensorflow`, `tensorflow_probability`, and `py_gc` live, see [`caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706`](https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706). We're also working on ways to make this step easier for users. 
 
+# Other Package Functions
+The package contains other useful functions for image and video analysis:
+- `GetRandomizedImageEmbeddings` gnerates randomized image and video embeddings useful in earth observation tasks for casual inference, generalizing the approach in [Rolf, Esther, et al.  (2021)](https://www.nature.com/articles/s41467-021-24638-z).
+- `image2` plots a matrix as a heatmap with the correct north/south/east/west spatial orientation. 
+
 # Development Plan
 We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
 
