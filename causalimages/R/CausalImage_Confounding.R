@@ -1,8 +1,6 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' *Under beta release.*
-#'
 #' @usage
 #'
 #' AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
