@@ -36,6 +36,7 @@
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param tf_seed (default = `NULL`) Specification for the tensorflow seed.
+#' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"randomizedEmbeds"`.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #'
@@ -68,6 +69,7 @@ AnalyzeImageConfounding <- function(
                                    nDimLowerDimConv = 3L,
                                    nFilters = 50L,
                                    samplingType = "none",
+                                   modelClass = "modelClass",
                                    doHiddenDim = T,
                                    nBoot = 100L,
                                    typeBoot = "SamplingOnly",
@@ -236,7 +238,40 @@ AnalyzeImageConfounding <- function(
     doParallel <- F
     testIndices <- trainIndices <- 1:length(obsY)
 
+    # get first iter batch for initializations
+    print("Calibrating first moments for input data normalization...")
+    NORM_SD <- NORM_MEAN <- c()
+    for(momentCalIter in 1:(momentCalIters<-10)){
+      if(acquireImageMethod == "tf_record"){
+        ds_next_train <- reticulate::iter_next( ds_iterator_train )
+        batch_indices <- as.array(ds_next_train[[2]])
+      }
+      if(acquireImageMethod == "functional"){
+        batch_indices <- sample(1:length(obsY),batchSize,replace = F)
+        ds_next_train <- list(
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = F) , dtype = tf$float32 )
+        )
+      }
+
+      # setup normalizations
+      if(is.null(NORM_MEAN)){
+        NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),4,sd)
+        NORM_MEAN[] <- NORM_SD[] <- 0
+      }
+
+      # update normalizations
+      NORM_SD <- NORM_SD + apply(as.array(ds_next_train[[1]]),4,sd) / momentCalIters
+      NORM_MEAN <- NORM_MEAN + apply(as.array(ds_next_train[[1]]),4,mean) / momentCalIters
+    }
+    NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),tf$float32)
+    NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
+
+    # define tf function
+    #tf_function_use  <- tf_function
+    tf_function_use  <- function(.){.}
+
     # initialize layers
+    if(modelClass == "cnn"){
     AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(input_ave_pooling_size,input_ave_pooling_size)))
     try(eval(parse(text = paste("rm(", paste(trainable_layers,collapse=","),")"))),T)
     trainable_layers <- ls()
@@ -251,10 +286,6 @@ AnalyzeImageConfounding <- function(
       HiddenProjection <- tf$keras$layers$Dense(HiddenDim, activation = "linear")
       DenseLayer <- tf$keras$layers$Dense(1L, activation = DenseActivation)
       FlattenLayer <- tf$keras$layers$Flatten(data_format = "channels_last")
-
-      # define tf function
-      #tf_function_use  <- tf_function
-      tf_function_use  <- function(.){.}
 
       BNLayer_Axis3_init <- tf$keras$layers$BatchNormalization(axis = 3L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001,name="InitNorm")
       for(d_ in 1:nDepth){
@@ -296,7 +327,7 @@ AnalyzeImageConfounding <- function(
     getTreatProb <- tf_function_use( function(im_getProb,x_getProb, training_getProb){
 
       # flatten
-      im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb,training = training_getProb) )
+      im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb, training = training_getProb) )
       im_getProb <- BNLayer_Axis1_inputDense(im_getProb, training = training_getProb)
 
       # concatinate with scene-level data
@@ -330,33 +361,6 @@ AnalyzeImageConfounding <- function(
       return( minThis )
     })
 
-    # get first iter batch for initializations
-    print("Calibrating first moments for input data normalization...")
-    NORM_SD <- NORM_MEAN <- c()
-    for(momentCalIter in 1:(momentCalIters<-10)){
-      if(acquireImageMethod == "tf_record"){
-        ds_next_train <- reticulate::iter_next( ds_iterator_train )
-        batch_indices <- as.array(ds_next_train[[2]])
-      }
-      if(acquireImageMethod == "functional"){
-        batch_indices <- sample(1:length(obsY),batchSize,replace = F)
-        ds_next_train <- list(
-          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = F) , dtype = tf$float32 )
-        )
-      }
-
-      # setup normalizations
-      if(is.null(NORM_MEAN)){
-        NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),4,sd)
-        NORM_MEAN[] <- NORM_SD[] <- 0
-      }
-
-      # update normalizations
-      NORM_SD <- NORM_SD + apply(as.array(ds_next_train[[1]]),4,sd) / momentCalIters
-      NORM_MEAN <- NORM_MEAN + apply(as.array(ds_next_train[[1]]),4,mean) / momentCalIters
-    }
-    NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),tf$float32)
-    NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
 
     # arms
     print("Initializing traiing arms...")
@@ -407,8 +411,7 @@ AnalyzeImageConfounding <- function(
     nTrainable <- sum( unlist(  lapply(trainable_variables,function(zer){ prod(dim(zer)) }) ) )
     print(sprintf("%s Trainable Parameters",nTrainable))
 
-
-    if(typeBoot == "EstimationAndSampling"){
+    if( typeBoot == "EstimationAndSampling" ){
         stop("Option `typeBoot='EstimationAndSampling'` under construction")
     }
 
@@ -472,7 +475,7 @@ AnalyzeImageConfounding <- function(
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
       grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
-      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
+      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){br
         print("NA in loss -- opening browser")
         print("Image sum:")
         print(as.numeric(tf$math$reduce_sum( InitImageProcess(ds_next_train[[1]],
@@ -521,8 +524,8 @@ AnalyzeImageConfounding <- function(
         )
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
-                                                               training = F,
-                                                               input_ave_pooling_size = input_ave_pooling_size),
+                                                                                  training = F,
+                                                                                  input_ave_pooling_size = input_ave_pooling_size),
                                                     x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
                                                     training_getProb = F ))),T)
         if( "try-error" %in% class(insert_probs)){
@@ -591,6 +594,75 @@ AnalyzeImageConfounding <- function(
                                                  sum( prWEst_convnet[testIndices][ obsW[testIndices] == 0] > 0.5))
     outLoss_ce_ <-  binaryCrossLoss(  obsW[testIndices], prWEst_convnet[testIndices]  )
     inLoss_ce_ <-  binaryCrossLoss(  obsW[trainIndices], prWEst_convnet[trainIndices]  )
+    }
+
+    if(modelClass == "randomizedEmbeds"){
+      acquireImageFxn2 <- acquireImageFxn
+      InitImageProcess2 <- InitImageProcess
+      input_ave_pooling_size2 <- input_ave_pooling_size
+      assign("InitImageProcess2", InitImageProcess2, envir = .GlobalEnv)
+      assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
+      assign("input_ave_pooling_size2", input_ave_pooling_size2, envir = .GlobalEnv)
+      acquireImageFxnEmbeds <- function(keys,
+                                        acquireImageFxn_ = acquireImageFxn2,
+                                        InitImageProcess_ = InitImageProcess2,
+                                        input_ave_pooling_size_ = input_ave_pooling_size2,
+                                        training = F){
+            InitImageProcess_(im = acquireImageFxn_( keys ),
+                             training = F,
+                             input_ave_pooling_size = input_ave_pooling_size_)
+      }
+      sigmoid<-function(.){1/(1+exp(-.))}
+      tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
+      for(jr in 1:(nBoot+1)){
+        if(jr == 1){ indices_ <- 1:length( imageKeysOfUnits ) }
+        if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
+          MyEmbeds_ <- GetRandomizedImageEmbeddings(
+            imageKeysOfUnits = imageKeysOfUnits[  indices_  ],
+            acquireImageFxn = acquireImageFxnEmbeds,
+            nFeatures = 100,
+            conda_env = "tensorflow_m1",
+            conda_env_required = T
+          )
+          #tmp <- MyEmbeds$embeddings_fxn( acquireImageFxnEmbeds( imageKeysOfUnits ))
+          obsW_ <- obsW[indices_]
+          obsY_ <- obsY[indices_]
+          glmnetInput <- ifelse(is.null(X),
+                                yes = list(MyEmbeds_$embeddings),
+                                no = list(cbind(X[indices_,],
+                                                MyEmbeds_$embeddings)))[[1]]
+          myGlmnet_ <- glmnet::cv.glmnet(
+                              x = glmnetInput,
+                              y = obsW[  indices_ ],
+                              nfolds = 5,
+                              family = "binomial")
+
+          # compute QOIs
+          myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
+          prWEst_convnet_ <- sigmoid( cbind(1, glmnetInput) %*% myGlmnet_coefs_ )
+          tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/(prWEst_convnet_) - (1-obsW_)*obsY_/(1-prWEst_convnet_) )
+          tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/(prWEst_convnet_))) -
+            sum(obsY*prop.table((1-obsW_)/(1-prWEst_convnet_) ))
+          if(jr == 1){
+            nTrainable <- length(  myGlmnet_coefs_  )
+            tauHat_propensityHajek <- tauHat_propensityHajek_
+            tauHat_propensity <- tauHat_propensity_
+            myGlmnet_coefs <- myGlmnet_coefs_
+            prWEst_convnet <- prWEst_convnet_
+            embeddings_fxn <- MyEmbeds_$embeddings_fxn
+
+            myGlmnet_coefs_tf <- tf$constant(myGlmnet_coefs,dtype = tf$float32)
+            getTreatProb <- tf_function_use( function(im_getProb, x_getProb, training_getProb){
+              concatDat <- tf$concat(list(
+                             tf$ones(list(im_getProb$shape[[1]],1L)),
+                             x_getProb,
+                             embeddings_fxn( im_getProb )
+                             ), 1L)
+              my_probs <- tf$nn$sigmoid(  tf$matmul(concatDat, myGlmnet_coefs_tf) )
+            })
+          }
+      }
+    }
 
     # do some analysis with examples
     processedDims <- NULL
@@ -601,34 +673,47 @@ AnalyzeImageConfounding <- function(
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
 
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
-      top_treated <- testIndices_t[indices_top_t <- order( prWEst_convnet[testIndices_t], decreasing=T)[1:(showPerGroup*3)]]
-      top_control <- testIndices_c[indices_top_c <- order( prWEst_convnet[testIndices_c], decreasing=F)[1:(showPerGroup*3)]]
+      ordered_control <- testIndices_c[order_c <- order(prWEst_convnet[testIndices_c],decreasing = F)]
+      ordered_treated <- testIndices_t[order_t <- order(prWEst_convnet[testIndices_t],decreasing = T)]
+      # check
+      # prWEst_convnet[ ordered_treatment ];
+      # prWEst_convnet[ ordered_control ]
 
       # drop duplicates
-      longLat_test_t <- paste(round(long[testIndices_t],5L),
-                              round(lat[testIndices_t],5L),sep="_")
-      longLat_test_c <- paste(round(long[testIndices_c],5L),
-                              round(lat[testIndices_c],5L),sep="_")
-      top_treated <- top_treated[!duplicated(longLat_test_t[indices_top_t])][1:showPerGroup]
-      top_control <- top_control[!duplicated(longLat_test_c[indices_top_c])][1:showPerGroup]
+      if(!is.null(long)){
+        longLat_test_t <- paste(round(long[testIndices_t[order_t]],5L),
+                                round(lat[testIndices_t[order_t]],5L),sep="_")
+        longLat_test_c <- paste(round(long[testIndices_c[order_c]],5L),
+                                round(lat[testIndices_c[order_c]],5L),sep="_")
+        top_treated <- ordered_treated[!duplicated(longLat_test_t)]
+        top_control <- ordered_control[!duplicated(longLat_test_c)]
+      }
+      top_treated <- top_treated[1:showPerGroup]
+      top_control <- top_control[1:showPerGroup]
+      # checks
+      # prWEst_convnet[ top_treated ];
+      # prWEst_convnet[ top_control ];
 
+      # concatenate c and t indices
       plot_indices <- c(top_control, top_treated)
 
       makePlots <- function(){
 
         try({
-        pdf(sprintf("%s/CSM_KW%s_AvePool%s_Tag%s.pdf",
+        nrows_im <- (modelClass=="cnn")*3 + (modelClass=="randomizedEmbeds")*2
+        pdf(sprintf("%s/CSM_KW%s_AvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
                     input_ave_pooling_size,
+                    modelClass,
                     figuresTag),
-            width = length(plot_indices)*5+2,height = 3*5)
+            width = length(plot_indices)*5+2,height = nrows_im*5)
         {
           layout(matrix(1:(3*(1+length(plot_indices))),
                         ncol = 1+length(plot_indices)),
                  width = c(0.5,rep(5,length(plot_indices))),
-                 height = c(5,5,5)); in_counter <- 0
-          for(text_ in c("Raw Image","Salience Map","Final Spatial Layer")){
+                 height = rep(5,times=nrows_im)); in_counter <- 0
+          for(text_ in c("Raw Image","Salience Map","Final Spatial Layer")[1:nrows_im]){
             par(mar=c(0,0,0,0))
             plot(0, main = "", ylab = "",cex = 0,
                  xlab = "", ylim = c(0,1), xlim = c(0,1),
@@ -660,17 +745,18 @@ AnalyzeImageConfounding <- function(
                                 im = ds_next_in[[1]], training = F,
                                 input_ave_pooling_size = input_ave_pooling_size)
             XToConcat_values <- tf$constant(t(X[in_,]),tf$float32)
-            im_processed <- getProcessedImage(im_, training = F)
-            processedDims <- dim(im_)
+            if(modelClass == "cnn"){
+              im_processed <- getProcessedImage(im_, training = F)
+              processedDims <- dim(im_)
+            }
             im_ <- as.array(tf$squeeze(im_,c(0L)))
 
             # calculate salience map
-            im_orig <- tf$Variable(im_orig,trainable = T)
             with(tf$GradientTape() %as% tape, {
-              tape$watch(im_orig)
-              treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_orig,
-                                                                   x_getProb = XToConcat_values,
-                                                                   training_getProb = F),0L),0L)
+                tape$watch(im_orig)
+                treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_orig,
+                                                                     x_getProb = XToConcat_values,
+                                                                     training_getProb = F),0L),0L)
             })
 
             salience_map <- tape$gradient( treat_prob_im, im_orig )
@@ -717,31 +803,35 @@ AnalyzeImageConfounding <- function(
             causalimages::image2( salience_map )
 
             # plot final layer
-            mar_vec_finalIm <- mar_vec
-            mar_vec_finalIm[1] <- 4
-            par(mar = mar_vec_finalIm)
-            image2( as.array(im_processed)[1,,,1],
-                    xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
-            par(mar = mar_vec)
+            if(nrows_im > 2){
+              mar_vec_finalIm <- mar_vec
+              mar_vec_finalIm[1] <- 4
+              par(mar = mar_vec_finalIm)
+              image2( as.array(im_processed)[1,,,1],
+                      xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
+              par(mar = mar_vec)
+            }
           }
         }
         dev.off()
         }, T)
 
         try({
-        pdf(sprintf("%s/Hist_KW%s_AvePool%s_Tag%s.pdf",
+        pdf(sprintf("%s/Hist_KW%s_AvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
                     input_ave_pooling_size,
+                    modelClass,
                     figuresTag))
         {
           par(mfrow=c(1,1))
           d0 <- density(prWEst_convnet[obsW==0])
           d1 <- density(prWEst_convnet[obsW==1])
-          plot(d1,lwd=2,xlim = c(0,1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
-               cex.axis = 1.2,ylab = "",
+          plot(d1,lwd=2,xlim = c(-0.1,1.1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
+               cex.axis = 1.2,ylab = "",xaxt = "n",
                xlab = ifelse(tagInFigures, yes = figuresTag, no = ""),
                main = "Density Plots for \n Estimated Pr(T=1 | Confounders)",cex.main = 2)
+          axis(1, at = seq(0,1,by = 0.25))
           points(d0,lwd=2,type = "l",col="gray",lty=2)
           text(d0$x[which.max(d0$y)[1]],
                max(d0$y,na.rm=T)*1.1,label = "T = 0",col="gray",cex=2)
@@ -755,7 +845,8 @@ AnalyzeImageConfounding <- function(
       if(plotResults){  try(makePlots(),T) }
 
       # compute salience for tabular covariates
-      SalienceX <- NULL; if(!is.null(X)){
+      if(modelClass == "cnn"){
+        SalienceX <- NULL; if(!is.null(X)){
         getSalienceVec <- function(im_, x_){
           x_ <- tf$Variable(x_,trainable = T)
           with(tf$GradientTape() %as% tape, {
@@ -790,6 +881,10 @@ AnalyzeImageConfounding <- function(
         # rescale the salience map into original scale
         #SalienceX <- SalienceX*X_sd  +   X_mean
       }
+      }
+      if(modelClass != "cnn"){
+        SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
+      }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
                       colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
@@ -798,12 +893,12 @@ AnalyzeImageConfounding <- function(
       postDiff <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*wt1) -
         colSums(cbind(long[obsW == 0],lat[obsW == 0])*wt0)
 
-      tauHat_propensity = mean(  obsW*obsY/(prWEst_convnet) - (1-obsW)*obsY/(1-prWEst_convnet) )
-      tauHat_propensityHajek = sum(  obsY*prop.table(obsW/(prWEst_convnet))) -
+      tauHat_propensity <- mean(  obsW*obsY/(prWEst_convnet) - (1-obsW)*obsY/(1-prWEst_convnet) )
+      tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prWEst_convnet))) -
         sum(obsY*prop.table((1-obsW)/(1-prWEst_convnet) ))
 
       # sampling uncertainty only
-      if(typeBoot == "SamplingOnly"){
+      if(typeBoot == "SamplingOnly" & modelClass == "cnn"){
         tauHat_propensity_vec = sapply(1:nBoot,function(b_){
           ib_ <- sample(1:length(obsY), length(obsY), replace = T)
           tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prWEst_convnet[ib_]) -

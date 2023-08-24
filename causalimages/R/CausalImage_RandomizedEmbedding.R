@@ -20,7 +20,11 @@
 #' @param seed (default = `NULL`) Integer specifying the seed.
 #' @param outputType (default = `"R"`) Either `"R"` or `"tensorflow"` indicating whether to output R or tensorflow arrays.
 #'
-#' @return A matrix containingimage/video embeddings, with rows corresponding to observations.
+#' @return A list containing two items:
+#' \itemize{
+#' \item `embeddings` (matrix) A matrix containingimage/video embeddings, with rows corresponding to observations.
+#' \item `embeddings_fxn` (function) The functioning performing the embedding, returned for re-use.
+#' }
 #'
 #' @examples
 #' # For a tutorial, see
@@ -47,9 +51,10 @@ GetRandomizedImageEmbeddings <- function(
     compile = T,
     seed = NULL,
     quiet = F){
-  print("Initializing the tensorflow environment...")
-  print("Looking for Python modules tensorflow, gc...")
-  {
+
+  if(   "try-error" %in% class(try(tf$constant(1.),T))   ){
+    print("Initializing the tensorflow environment...")
+    print("Looking for Python modules tensorflow, gc...")
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
@@ -65,15 +70,14 @@ GetRandomizedImageEmbeddings <- function(
 
     # import python garbage collectors
     py_gc <- reticulate::import("gc")
-    gc(); py_gc$collect()
   }
+  gc(); try(py_gc$collect(), T)
 
   if(batchSize > length(imageKeysOfUnits)){
     batchSize <- length( imageKeysOfUnits  )
   }
 
   myType <- acquireImageFxn(imageKeysOfUnits[1:2], training = F)
-
 
   # coerce output to tf$constant
   environment(acquireImageFxn) <- environment()
@@ -111,7 +115,6 @@ GetRandomizedImageEmbeddings <- function(
     #GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
   }
 
-
   #GlobalPoolLayer <- function(z){return(tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)) }
   GlobalPoolLayer <- function(z){return(GlobalMaxPoolLayer(z)) }
 
@@ -123,7 +126,7 @@ GetRandomizedImageEmbeddings <- function(
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nFeatures)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
     ok_counter <- ok_counter + 1
-    print(sprintf("[%s] %.2f%% done with getting embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
+    print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
 
     # in functional mode
     {
@@ -146,8 +149,11 @@ GetRandomizedImageEmbeddings <- function(
       if(batchSizeOneCorrection){ batch_indices_inference <- batch_indices_inference[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices_inference,] <- embed_
     }
-    #gc();py_gc$collect()
+    gc(); try(py_gc$collect(), T)
   }
+  print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))
 
-   return( embeddings  )
+
+   return( list( "embeddings"= embeddings,
+                 "embeddings_fxn" = getEmbedding ) )
 }
