@@ -697,7 +697,6 @@ AnalyzeImageConfounding <- function(
 
       # concatenate c and t indices
       plot_indices <- c(top_control, top_treated)
-
       makePlots <- function(){
 
         try({
@@ -792,7 +791,12 @@ AnalyzeImageConfounding <- function(
                              yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
                              no = ""), cex = 1)
                orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
-               raster::plotRGB(orig_scale_im_raster, r=1, g=2, b=3, add = T, main = long_lat_in_, stretch = "lin")
+               try_ <- try(raster::plotRGB(orig_scale_im_raster, r = 1, g = 2, b = 3,
+                               add = T, main = long_lat_in_, stretch = "lin"), T)
+               if("try-error" %in% class(try_)){
+                 try_ <- try(raster::plotRGB(orig_scale_im_raster, r = 1, g = 2, b = 3,
+                                             add = T, main = long_lat_in_), T)
+               }
             }
 
             # plot salience map
