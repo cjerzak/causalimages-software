@@ -130,6 +130,7 @@ GetRandomizedImageEmbeddings <- function(
 
     # in functional mode
     {
+      print(c(last_i,batchSize))
       batch_indices_inference <- (last_i+1):(last_i+batchSize)
       batch_indices_inference <- batch_indices_inference[batch_indices_inference<=length(obsW)]
       last_i <- batch_indices_inference[length(batch_indices_inference)]
