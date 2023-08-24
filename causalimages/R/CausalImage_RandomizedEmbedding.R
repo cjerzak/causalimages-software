@@ -9,7 +9,7 @@
 #'
 #' @param acquireImageFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
 #' First argument should be image key values and second argument have be `training` (in case different behavior in training/inference mode).
-#' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
+#' @param imageKeysOfUnits A vector of length `length(imageKeysOfUnits)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param kernelSize (default = `5L`) Dimensions used in the convolution kernels.
@@ -126,13 +126,12 @@ GetRandomizedImageEmbeddings <- function(
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nFeatures)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
     ok_counter <- ok_counter + 1
-    print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
+    print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
     # in functional mode
     {
-      print(c(last_i,batchSize))
       batch_indices_inference <- (last_i+1):(last_i+batchSize)
-      batch_indices_inference <- batch_indices_inference[batch_indices_inference<=length(obsW)]
+      batch_indices_inference <- batch_indices_inference[batch_indices_inference <= length(imageKeysOfUnits)]
       last_i <- batch_indices_inference[length(batch_indices_inference)]
       if(last_i == length(imageKeysOfUnits)){ ok <- T }
 
