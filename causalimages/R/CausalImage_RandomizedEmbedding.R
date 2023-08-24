@@ -44,7 +44,7 @@ GetRandomizedImageEmbeddings <- function(
     conda_env_required = F,
 
     nFeatures = 256L,
-    batchSize = min(50L,imageKeysOfUnits),
+    batchSize = 50L,
     strides = 1L,
     temporalKernelSize = 2L,
     kernelSize = 3L,
