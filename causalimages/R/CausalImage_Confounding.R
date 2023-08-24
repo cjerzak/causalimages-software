@@ -709,7 +709,7 @@ AnalyzeImageConfounding <- function(
                     figuresTag),
             width = length(plot_indices)*5+2,height = nrows_im*5)
         {
-          layout(matrix(1:(3*(1+length(plot_indices))),
+          layout(matrix(1:(nrows_im*(1+length(plot_indices))),
                         ncol = 1+length(plot_indices)),
                  width = c(0.5,rep(5,length(plot_indices))),
                  height = rep(5,times=nrows_im)); in_counter <- 0
