@@ -619,6 +619,7 @@ AnalyzeImageConfounding <- function(
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
           MyEmbeds_ <- GetRandomizedImageEmbeddings(
             imageKeysOfUnits = imageKeysOfUnits[  indices_  ],
+            batchSize = min(  50L, length(imageKeysOfUnits[  indices_  ]) ),
             acquireImageFxn = acquireImageFxnEmbeds,
             nFeatures = 100,
             conda_env = "tensorflow_m1",
