@@ -800,7 +800,15 @@ AnalyzeImageConfounding <- function(
             print(summary(c(salience_map)))
             salience_map <- sign(salience_map)*log(abs(salience_map)+1)
             print(summary(c(salience_map)))
-            causalimages::image2( salience_map )
+            if(nrows_im == 2){
+              mar_vec_finalIm <- mar_vec
+              mar_vec_finalIm[1] <- 4
+              par(mar = mar_vec_finalIm)
+            }
+              image2( salience_map,
+                                    xlab = ifelse(tagInFigures & nrows_im == 2,
+                                                yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
+            if(nrows_im == 2){ par(mar = mar_vec) }
 
             # plot final layer
             if(nrows_im > 2){
