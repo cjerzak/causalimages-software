@@ -31,7 +31,11 @@ First argument should be image key values and second argument have be \code{trai
 \item{outputType}{(default = \code{"R"}) Either \code{"R"} or \code{"tensorflow"} indicating whether to output R or tensorflow arrays.}
 }
 \value{
-A matrix containingimage/video embeddings, with rows corresponding to observations.
+A list containing two items:
+\itemize{
+\item \code{embeddings} (matrix) A matrix containingimage/video embeddings, with rows corresponding to observations.
+\item \code{embeddings_fxn} (function) The functioning performing the embedding, returned for re-use.
+}
 }
 \description{
 Generates randomized image and video embeddings useful in earth observation tasks for casual inference, generalizing the approach in Rolf, Esther, et al.  (2021).

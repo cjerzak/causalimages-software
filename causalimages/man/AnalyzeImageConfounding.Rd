@@ -21,6 +21,8 @@ AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 
 \item{nFilters}{(default = \code{50L}) Integer specifying the number of convolutional filters used.}
 
+\item{modelClass}{(default = \code{"cnn"}) Either \code{"cnn"} or \code{"randomizedEmbeds"}.}
+
 \item{nBoot}{(default = \code{100L}) Number of bootstrap iterations for uncertainty estimation.}
 
 \item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
