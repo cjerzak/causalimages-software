@@ -88,7 +88,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
 
   acquireImageFxn = acquireImageRepFromMemory,
   #modelClass = "cnn", # uses convolutional network (richer model class)
-  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   file = NULL,
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
