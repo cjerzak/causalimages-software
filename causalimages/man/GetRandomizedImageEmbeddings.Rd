@@ -10,7 +10,7 @@ GetRandomizedImageEmbeddings(imageKeysOfUnits, acquireImageFxn, nFeatures, ...)
 \item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case different behavior in training/inference mode).}
 
-\item{imageKeysOfUnits}{(default = \code{1:length(obsY)}) A vector of length \code{length(obsY)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
+\item{imageKeysOfUnits}{A vector of length \code{length(imageKeysOfUnits)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into \code{acquireImageFxn} to call images into memory.}
 
 \item{conda_env}{(default = \code{NULL}) A string specifying a conda environment wherein \code{tensorflow}, \code{tensorflow_probability}, and \code{gc} are installed.}
 
