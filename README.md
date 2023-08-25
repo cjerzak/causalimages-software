@@ -133,11 +133,11 @@ Now that we've established some understanding of the data and written the `acqui
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           # data inputs
           obsW =  obsW,
-          X = X, # used only if orthogonalize=T
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
           acquireImageFxn = acquireImageRepFromMemory,
           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
+          X = X, 
           
           # inputs to control where visual results are saved as PDF or PNGs 
           # (these image grids are large and difficult to display in RStudio's interactive mode)
