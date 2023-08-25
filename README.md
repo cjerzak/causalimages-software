@@ -3,11 +3,13 @@
 [**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
 | [**Image Heterogeneity Tutorial**](#tutorial)
-| [**Image Confounding Tutorial**](#tutorial)
-| [**Image/Video Embedding Tutorial**](#tutorial)
 | [**Other Package Functions**](#otherfunctions)
 | [**References**](#references)
 | [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
+
+Additional tutorials: 
+[**Image Confounding Tutorial**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
+| [**Image/Video Embedding Tutorial**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
 
 # What is `causalimages`?<a id="description"></a>
 
