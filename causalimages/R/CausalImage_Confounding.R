@@ -270,6 +270,9 @@ AnalyzeImageConfounding <- function(
     #tf_function_use  <- tf_function
     tf_function_use  <- function(.){.}
 
+    # set up holders
+    prW_est <- rep(NA,times = length(obsW))
+
     # initialize layers
     if(modelClass == "cnn"){
     AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(input_ave_pooling_size,input_ave_pooling_size)))
@@ -502,7 +505,6 @@ AnalyzeImageConfounding <- function(
     # get probabilities for inference
     print("Starting to get probabilities for inference...")
     gc();py_gc$collect()
-    prWEst_convnet <- rep(NA,times = length(obsW))
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
       ok_counter <- ok_counter + 1
       print(sprintf("[%s] %.2f%% done with getting inference probabilities", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
@@ -537,7 +539,7 @@ AnalyzeImageConfounding <- function(
           stop("Stopping due to try-error in insert_probs generation...")
         }
         if(batchSizeOneCorrection){ insert_probs <- insert_probs[-1]; batch_indices_inference <- batch_indices_inference[-1] }
-        prWEst_convnet[batch_indices_inference] <- insert_probs
+        prW_est[batch_indices_inference] <- insert_probs
       }
 
       # in tf record mode
@@ -557,7 +559,7 @@ AnalyzeImageConfounding <- function(
                                                       training_getProb = F ))),T)
           if(drop_ == T){  insert_probs <- insert_probs[-1]  }
           if("try-error"  %in% class(insert_probs)){browser()}
-          prWEst_convnet[batch_indices_inference] <- insert_probs
+          prW_est[batch_indices_inference] <- insert_probs
         }
       }
 
@@ -566,34 +568,34 @@ AnalyzeImageConfounding <- function(
     rm( batch_inference )
 
     # clip extreme estimated probabilities
-    prWEst_convnet[prWEst_convnet<0.01] <- 0.01
-    prWEst_convnet[prWEst_convnet>0.99] <- 0.99
-    print(   cor( c(obsW),c(prWEst_convnet) ) )
-    if(any(is.na(prWEst_convnet)) ){
+    prW_est[prW_est<0.01] <- 0.01
+    prW_est[prW_est>0.99] <- 0.99
+    print(   cor( c(obsW),c(prW_est) ) )
+    if(any(is.na(prW_est)) ){
       print("Error: NAs in estimated probabilities! Reporting debugging information now...")
       print("Printing summary of probabilities...")
-      print(summary( prWEst_convnet ) )
+      print(summary( prW_est ) )
       print("Printing first probabilities...")
-      print(head( prWEst_convnet ))
+      print(head( prW_est ))
       print("Printing last probabilities...")
-      print(tail( prWEst_convnet ))
+      print(tail( prW_est ))
       print("Printing NA indices...")
-      print(which(is.na( prWEst_convnet  )))
+      print(which(is.na( prW_est  )))
       stop("Shutting down now due to NAs (see prior debugging messages)...")
     }
 
     # compute base loss
-    prWEst_base <- prWEst_convnet
+    prWEst_base <- prW_est
     prWEst_base[] <- mean(obsW[-testIndices])
     baseLoss_ce_ <- binaryCrossLoss(obsW[testIndices], prWEst_base[testIndices])
     baseLossIN_ce_ <- binaryCrossLoss(obsW[trainIndices], prWEst_base[trainIndices])
     baseLoss_class_ <- 1/length(testIndices) * (sum( prWEst_base[testIndices][ obsW[testIndices] == 1] < 0.5) +
                                                   sum( prWEst_base[testIndices][ obsW[testIndices] == 0] > 0.5))
 
-    outLoss_class_ <- 1/length(testIndices) * (sum( prWEst_convnet[testIndices][ obsW[testIndices] == 1] < 0.5) +
-                                                 sum( prWEst_convnet[testIndices][ obsW[testIndices] == 0] > 0.5))
-    outLoss_ce_ <-  binaryCrossLoss(  obsW[testIndices], prWEst_convnet[testIndices]  )
-    inLoss_ce_ <-  binaryCrossLoss(  obsW[trainIndices], prWEst_convnet[trainIndices]  )
+    outLoss_class_ <- 1/length(testIndices) * (sum( prW_est[testIndices][ obsW[testIndices] == 1] < 0.5) +
+                                                 sum( prW_est[testIndices][ obsW[testIndices] == 0] > 0.5))
+    outLoss_ce_ <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
+    inLoss_ce_ <-  binaryCrossLoss(  obsW[trainIndices], prW_est[trainIndices]  )
     }
 
     if(modelClass == "randomizedEmbeds"){
@@ -640,16 +642,16 @@ AnalyzeImageConfounding <- function(
 
           # compute QOIs
           myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
-          prWEst_convnet_ <- sigmoid( cbind(1, glmnetInput) %*% myGlmnet_coefs_ )
-          tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/(prWEst_convnet_) - (1-obsW_)*obsY_/(1-prWEst_convnet_) )
-          tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/(prWEst_convnet_))) -
-            sum(obsY*prop.table((1-obsW_)/(1-prWEst_convnet_) ))
+          prW_est_ <- sigmoid( cbind(1, glmnetInput) %*% myGlmnet_coefs_ )
+          tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/(prW_est_) - (1-obsW_)*obsY_/(1-prW_est_) )
+          tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/(prW_est_))) -
+            sum(obsY*prop.table((1-obsW_)/(1-prW_est_) ))
           if(jr == 1){
             nTrainable <- length(  myGlmnet_coefs_  )
             tauHat_propensityHajek <- tauHat_propensityHajek_
             tauHat_propensity <- tauHat_propensity_
             myGlmnet_coefs <- myGlmnet_coefs_
-            prWEst_convnet <- prWEst_convnet_
+            prW_est <- prW_est_
             embeddings_fxn <- MyEmbeds_$embeddings_fxn
 
             myGlmnet_coefs_tf <- tf$constant(myGlmnet_coefs,dtype = tf$float32)
@@ -674,11 +676,11 @@ AnalyzeImageConfounding <- function(
       testIndices_c <- testIndices[which(obsW[testIndices]==0)]
 
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
-      ordered_control <- testIndices_c[order_c <- order(prWEst_convnet[testIndices_c],decreasing = F)]
-      ordered_treated <- testIndices_t[order_t <- order(prWEst_convnet[testIndices_t],decreasing = T)]
+      ordered_control <- testIndices_c[order_c <- order(prW_est[testIndices_c],decreasing = F)]
+      ordered_treated <- testIndices_t[order_t <- order(prW_est[testIndices_t],decreasing = T)]
       # check
-      # prWEst_convnet[ ordered_treatment ];
-      # prWEst_convnet[ ordered_control ]
+      # prW_est[ ordered_treatment ];
+      # prW_est[ ordered_control ]
 
       # drop duplicates
       if(!is.null(long)){
@@ -692,8 +694,8 @@ AnalyzeImageConfounding <- function(
       top_treated <- top_treated[1:showPerGroup]
       top_control <- top_control[1:showPerGroup]
       # checks
-      # prWEst_convnet[ top_treated ];
-      # prWEst_convnet[ top_control ];
+      # prW_est[ top_treated ];
+      # prW_est[ top_control ];
 
       # concatenate c and t indices
       plot_indices <- c(top_control, top_treated)
@@ -838,8 +840,8 @@ AnalyzeImageConfounding <- function(
                     figuresTag))
         {
           par(mfrow=c(1,1))
-          d0 <- density(prWEst_convnet[obsW==0])
-          d1 <- density(prWEst_convnet[obsW==1])
+          d0 <- density(prW_est[obsW==0])
+          d1 <- density(prW_est[obsW==1])
           plot(d1,lwd=2,xlim = c(-0.1,1.1),ylim =c(0,max(c(d1$y,d0$y),na.rm=T)*1.2),
                cex.axis = 1.2,ylab = "",xaxt = "n",
                xlab = ifelse(tagInFigures, yes = figuresTag, no = ""),
@@ -901,26 +903,26 @@ AnalyzeImageConfounding <- function(
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
                       colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
-      wt1 <- prop.table(1/prWEst_convnet[obsW == 1])
-      wt0 <- prop.table(1/(1-prWEst_convnet[obsW == 0]))
+      wt1 <- prop.table(1/prW_est[obsW == 1])
+      wt0 <- prop.table(1/(1-prW_est[obsW == 0]))
       postDiff <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*wt1) -
         colSums(cbind(long[obsW == 0],lat[obsW == 0])*wt0)
 
-      tauHat_propensity <- mean(  obsW*obsY/(prWEst_convnet) - (1-obsW)*obsY/(1-prWEst_convnet) )
-      tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prWEst_convnet))) -
-        sum(obsY*prop.table((1-obsW)/(1-prWEst_convnet) ))
+      tauHat_propensity <- mean(  obsW*obsY/(prW_est) - (1-obsW)*obsY/(1-prW_est) )
+      tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prW_est))) -
+        sum(obsY*prop.table((1-obsW)/(1-prW_est) ))
 
       # sampling uncertainty only
       if(typeBoot == "SamplingOnly" & modelClass == "cnn"){
         tauHat_propensity_vec = sapply(1:nBoot,function(b_){
           ib_ <- sample(1:length(obsY), length(obsY), replace = T)
-          tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prWEst_convnet[ib_]) -
-                               (1-obsW[ib_])*obsY[ib_]/(1-prWEst_convnet[ib_]) )
+          tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prW_est[ib_]) -
+                               (1-obsW[ib_])*obsY[ib_]/(1-prW_est[ib_]) )
         })
         tauHat_propensityHajek_vec <- sapply(1:nBoot,function(b_){
           ib_ <- sample(1:length(obsY), length(obsY), replace = T)
-          tauHat_ <-  sum(  obsY[ib_]*prop.table(obsW[ib_]/(prWEst_convnet[ib_]))) -
-          sum(obsY[ib_]*prop.table((1-obsW[ib_])/(1-prWEst_convnet[ib_]) ))
+          tauHat_ <-  sum(  obsY[ib_]*prop.table(obsW[ib_]/(prW_est[ib_]))) -
+          sum(obsY[ib_]*prop.table((1-obsW[ib_])/(1-prW_est[ib_]) ))
         })
       }
     }
@@ -933,7 +935,7 @@ AnalyzeImageConfounding <- function(
       "tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
-      "prWEst_convnet" = prWEst_convnet,
+      "prW_est" = prW_est,
       "nTrainableParameters" = nTrainable
     ) )
   }
