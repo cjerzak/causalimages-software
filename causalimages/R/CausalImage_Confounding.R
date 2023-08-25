@@ -69,7 +69,7 @@ AnalyzeImageConfounding <- function(
                                    nDimLowerDimConv = 3L,
                                    nFilters = 50L,
                                    samplingType = "none",
-                                   modelClass = "modelClass",
+                                   modelClass = "randomizedEmbeds",
                                    doHiddenDim = T,
                                    nBoot = 100L,
                                    typeBoot = "SamplingOnly",
