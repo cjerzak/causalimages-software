@@ -8,8 +8,8 @@
 | [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
 
 Additional tutorials: 
-[**Image Confounding Tutorial**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
-| [**Image/Video Embedding Tutorial**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
+[**Image Confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
+| [**Image/Video Embedding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
 
 # What is `causalimages`?<a id="description"></a>
 
