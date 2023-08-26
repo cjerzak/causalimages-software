@@ -38,8 +38,9 @@
 #' @md
 
 GetRandomizedImageEmbeddings <- function(
-    acquireImageFxn  ,
-    imageKeysOfUnits,
+    acquireImageFxn  = NULL,
+    imageKeysOfUnits = NULL,
+    file = NULL,
     conda_env = NULL,
     conda_env_required = F,
 
@@ -77,38 +78,83 @@ GetRandomizedImageEmbeddings <- function(
     batchSize <- length( imageKeysOfUnits  )
   }
 
-  myType <- acquireImageFxn(imageKeysOfUnits[1:2], training = F)
+  acquireImageMethod <- "functional";
+  # define base tf record + train/test fxns
+  if(  !is.null(  file  )  ){
+    acquireImageMethod <- "tf_record"
+
+    # established tfrecord connection
+    orig_wd <- getwd()
+    tf_record_name <- file
+    tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+    new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+    setwd( new_wd )
+    tf_dataset = tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+
+    # helper functions
+    getParsed_tf_dataset_inference <- function(tf_dataset){
+      dataset <- tf_dataset$map( parse_tfr_element ) # return
+      return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
+    }
+
+    getParsed_tf_dataset_train <- function(tf_dataset){
+      dataset <- tf_dataset$map( parse_tfr_element )
+      dataset <- dataset$shuffle(tf$constant(as.integer(10*batchSize),dtype=tf$int64),
+                                 reshuffle_each_iteration = T)
+      dataset <- dataset$batch(as.integer(batchSize))
+    }
+
+    # setup iterators
+    tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+    tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
+
+    # reset iterators
+    ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+    ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
+
+    # checks
+    # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
+    # ds_next_train <- reticulate::iter_next( ds_iterator_train )
+    # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
+    setwd(  orig_wd  )
+  }
 
   # coerce output to tf$constant
-  environment(acquireImageFxn) <- environment()
-  test_ <- acquireImageFxn(imageKeysOfUnits[1:5],training = F)
-  if(!"tensorflow.tensor" %in% class(test_)){
-    acquireImageFxn_as_input <- acquireImageFxn
-    acquireImageFxn <- function(keys, training){
-      m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
-      if(length(m_$shape) == 3){
-        # expand across batch dimension if receiving no batch dimension
-        m_ <- tf$expand_dims(m_,0L)
+  if(acquireImageMethod == "functional"){
+    myType <- acquireImageFxn(imageKeysOfUnits[1:2], training = F)
+    environment(acquireImageFxn) <- environment()
+    test_ <- acquireImageFxn(imageKeysOfUnits[1:5],training = F)
+    if(!"tensorflow.tensor" %in% class(test_)){
+      acquireImageFxn_as_input <- acquireImageFxn
+      acquireImageFxn <- function(keys, training){
+        m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
+        if(length(m_$shape) == 3){
+          # expand across batch dimension if receiving no batch dimension
+          m_ <- tf$expand_dims(m_,0L)
+        }
+        return( m_ )
       }
-      return( m_ )
     }
+  }
+  if(acquireImageMethod == "tf_record"){
+    test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L, filename = file )[[1]],0L)
   }
 
   imageDims <- length( dim(test_) ) - 2L
 
   if(imageDims == 2){
     myConv = tf$keras$layers$Conv2D(filters=round(nFeatures),
-                          kernel_size=c(kernelSize,kernelSize),
-                          activation="linear",
+                          kernel_size = c(kernelSize,kernelSize),
+                          activation = "linear",
                           strides = c(strides,strides),
                           padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
     #GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
   }
   if(imageDims == 3){
-    myConv = tf$keras$layers$Conv3D(filters=round(nFeatures),
-                                    kernel_size=c(temporalKernelSize, kernelSize,kernelSize),
-                                    activation="linear",
+    myConv = tf$keras$layers$Conv3D(filters = round(nFeatures),
+                                    kernel_size = c(temporalKernelSize, kernelSize,kernelSize),
+                                    activation = "linear",
                                     strides = c(1L,strides,strides),
                                     padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last",name="GlobalMax")
@@ -129,26 +175,31 @@ GetRandomizedImageEmbeddings <- function(
     print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
     # in functional mode
-    {
       batch_indices_inference <- (last_i+1):(last_i+batchSize)
       batch_indices_inference <- batch_indices_inference[batch_indices_inference <= length(imageKeysOfUnits)]
       last_i <- batch_indices_inference[length(batch_indices_inference)]
       if(last_i == length(imageKeysOfUnits)){ ok <- T }
 
       batchSizeOneCorrection <- F; if(length(batch_indices_inference) == 1){
-        batch_indices_inference <- c(batch_indices_inference,batch_indices_inference)
+        batch_indices_inference <- c(batch_indices_inference, batch_indices_inference)
         batchSizeOneCorrection <- T
       }
 
-      batch_inference <- list(
-        tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F),tf$float32)
-      )
+      if(acquireImageMethod == "functional"){
+        batch_inference <- list(
+          tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F),tf$float32)
+        )
+      }
+
+      if(acquireImageMethod == "tf_record"){
+        batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices_inference, filename = file )
+      }
 
       embed_ <- try(as.matrix( getEmbedding(   batch_inference[[1]]  )  ), T)
       if("try-error" %in% class(embed_)){ browser() }
       if(batchSizeOneCorrection){ batch_indices_inference <- batch_indices_inference[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices_inference,] <- embed_
-    }
+
     gc(); try(py_gc$collect(), T)
   }
   print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))

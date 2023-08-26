@@ -27,25 +27,20 @@ WriteTfRecord <- function(file,
                           imageKeys,
                           acquireImageRepFxn,
                           conda_env = NULL){
-  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1))
+  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
   {
-    print("Loading Python environment (requires tensorflow, gc, tensorflow_probability)")
+    print("Loading Python environment (requires tensorflow)")
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = T),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
-    tfp <- tf_probability()
-    tfd <- tfp$distributions
 
     tf$random$set_seed(  c(1000L ) )
     tf$keras$utils$set_random_seed( 4L )
-
-    py_gc <- reticulate::import("gc")
-    gc(); py_gc$collect()
   }
 
-  #
+  # for clarity, set file to tf_record_name
   tf_record_name <- file
 
   # helper fxns
@@ -107,37 +102,53 @@ WriteTfRecord <- function(file,
   setwd( orig_wd )
 }
 
-
-GetElementFromTfRecordAtIndex <- function(index, filename){
+GetElementFromTfRecordAtIndices <- function(indices, filename){
   orig_wd <- getwd()
   tf_record_name <- filename
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
   new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
   setwd( new_wd )
 
-  # index is 0 indexed
-  index <- as.integer( index - 1L )
+  # indices is 0 indexed
+  indices <- as.integer( indices - 1L )
 
   # Load the TFRecord file
   dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
   # Parse the tf.Example messages
-  dataset = dataset$map(   parse_tfr_element   )
+  dataset_orig <- dataset <- dataset$map(   parse_tfr_element   )
 
-  # Skip the first `index` elements
-  dataset = dataset$skip(  index  )
+  index_counter <- 0
+  for(in_ in indices){
+    index_counter <- index_counter + 1
 
-  # Take the next element
-  dataset = dataset$take( 1L )
+    # Skip the first `indices` elements
+    dataset = dataset_orig$skip(  as.integer( in_  ) )
 
-  # Get the only element in the dataset (as a tuple of features)
-  element = reticulate::iter_next( reticulate::as_iterator( dataset ) )
+    # Take the next element
+    dataset = dataset$take( 1L  )
+
+    # Get the only element in the dataset (as a tuple of features)
+    element = reticulate::iter_next( reticulate::as_iterator( dataset ) )
+    if(length(indices) > 1){
+      for(li_ in 1:length(element)){
+        element[[li_]] <- tf$expand_dims(element[[li_]],0L)
+      }
+    }
+
+    # form final output
+    if(index_counter == 1){ return_list <- element }
+    if(index_counter > 1){
+      for(li_ in 1:length(element)){
+        return_list[[li_]] <- tf$concat( list(return_list[[li_]],
+                                               element[[li_]]), 0L)
+      }
+    }
+  }
   setwd(  orig_wd  )
 
-  return(  element  )
+  return(  return_list  )
 }
-
-
 
 # parse tf elements
 parse_tfr_element <- function(element){

@@ -27,6 +27,7 @@
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
 #' @param nFilters (default = `50L`) Integer specifying the number of convolutional filters used.
+#' @param nEmbedDim (default = `96L`) Integer specifying the image/image sequence embedding dimension. Used if `modelClass = "randomizedEmbeds"`.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param dropoutRate (default = `0.1`) Droppout rate used in training used to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
@@ -71,8 +72,9 @@ AnalyzeImageConfounding <- function(
                                    samplingType = "none",
                                    modelClass = "randomizedEmbeds",
                                    doHiddenDim = T,
-                                   nBoot = 100L,
+                                   nBoot = 50L,
                                    typeBoot = "SamplingOnly",
+                                   nEmbedDim = 96L,
                                    HiddenDim  = 64L,
                                    DenseActivation = "linear",
                                    input_ave_pooling_size = 1L, # if seeking to downshift the resolution
@@ -102,6 +104,7 @@ AnalyzeImageConfounding <- function(
                                    dropoutRate = 0.1,
                                    batchSize = 50L,
                                    kernelSize = 3L,
+                                   temporalKernelSize = 2L,
                                    nSGD  = 400L,
                                    nDenseWidth = 32L,
                                    channelNormalize = T,
@@ -130,6 +133,7 @@ AnalyzeImageConfounding <- function(
   }
 
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
+  if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
   if(!is.null(X)){ if(!"matrix" %in% class(X)){
     print("Coercing X to matrix class...")
@@ -364,9 +368,8 @@ AnalyzeImageConfounding <- function(
       return( minThis )
     })
 
-
     # arms
-    print("Initializing traiing arms...")
+    print("Initializing training arms...")
     # new TF version kills compiled fxn here (use 2.12)
     for(ARM in c(T,F)){
       with(tf$GradientTape() %as% tape, {
@@ -599,31 +602,39 @@ AnalyzeImageConfounding <- function(
     }
 
     if(modelClass == "randomizedEmbeds"){
-      acquireImageFxn2 <- acquireImageFxn
-      InitImageProcess2 <- InitImageProcess
-      input_ave_pooling_size2 <- input_ave_pooling_size
-      assign("InitImageProcess2", InitImageProcess2, envir = .GlobalEnv)
-      assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
-      assign("input_ave_pooling_size2", input_ave_pooling_size2, envir = .GlobalEnv)
-      acquireImageFxnEmbeds <- function(keys,
-                                        acquireImageFxn_ = acquireImageFxn2,
-                                        InitImageProcess_ = InitImageProcess2,
-                                        input_ave_pooling_size_ = input_ave_pooling_size2,
-                                        training = F){
-            InitImageProcess_(im = acquireImageFxn_( keys ),
-                             training = F,
-                             input_ave_pooling_size = input_ave_pooling_size_)
+      acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
+        acquireImageFxn2 <- acquireImageFxn
+        InitImageProcess2 <- InitImageProcess
+        input_ave_pooling_size2 <- input_ave_pooling_size
+        assign("InitImageProcess2", InitImageProcess2, envir = .GlobalEnv)
+        assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
+        assign("input_ave_pooling_size2", input_ave_pooling_size2, envir = .GlobalEnv)
+        acquireImageFxnEmbeds <- function(keys,
+                                          acquireImageFxn_ = acquireImageFxn2,
+                                          InitImageProcess_ = InitImageProcess2,
+                                          input_ave_pooling_size_ = input_ave_pooling_size2,
+                                          training = F){
+              InitImageProcess_(im = acquireImageFxn_( keys ),
+                               training = F,
+                               input_ave_pooling_size = input_ave_pooling_size_)
+        }
       }
       sigmoid<-function(.){1/(1+exp(-.))}
       tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
       for(jr in 1:(nBoot+1)){
+        print( sprintf("Bootstrap iteration %s of %s [randomized embedding model class]", jr-1L, nBoot) )
         if(jr == 1){ indices_ <- 1:length( imageKeysOfUnits ) }
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
+
           MyEmbeds_ <- GetRandomizedImageEmbeddings(
             imageKeysOfUnits = imageKeysOfUnits[  indices_  ],
-            batchSize = min(  50L, length(imageKeysOfUnits[  indices_  ]) ),
+            batchSize = min(  batchSize, length(imageKeysOfUnits[  indices_  ]) ),
             acquireImageFxn = acquireImageFxnEmbeds,
-            nFeatures = 100,
+            file = file,
+            strides = strides,
+            nFeatures = nEmbedDim,
+            kernelSize = kernelSize,
+            temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
             conda_env_required = T
           )
@@ -678,7 +689,7 @@ AnalyzeImageConfounding <- function(
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
       ordered_control <- testIndices_c[order_c <- order(prW_est[testIndices_c],decreasing = F)]
       ordered_treated <- testIndices_t[order_t <- order(prW_est[testIndices_t],decreasing = T)]
-      # check
+      # checks
       # prW_est[ ordered_treatment ];
       # prW_est[ ordered_control ]
 
@@ -725,7 +736,7 @@ AnalyzeImageConfounding <- function(
           plot_index_counter <- 0; for(in_ in plot_indices){
             plot_index_counter <- plot_index_counter + 1
             if(acquireImageMethod == "tf_record"){
-              ds_next_in <- GetElementFromTfRecordAtIndex( index = in_,
+              ds_next_in <- GetElementFromTfRecordAtIndices( indices = in_,
                                                            filename = file )
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
@@ -860,8 +871,8 @@ AnalyzeImageConfounding <- function(
       if(plotResults){  try(makePlots(),T) }
 
       # compute salience for tabular covariates
+      SalienceX <- NULL; if(!is.null(X)){
       if(modelClass == "cnn"){
-        SalienceX <- NULL; if(!is.null(X)){
         getSalienceVec <- function(im_, x_){
           x_ <- tf$Variable(x_,trainable = T)
           with(tf$GradientTape() %as% tape, {
@@ -875,7 +886,7 @@ AnalyzeImageConfounding <- function(
         for(samp_ in sample(1:nrow(X),100,replace = T)){
           print(sprintf("Tabular Salience Iteration %s of %s", samp_counter <- samp_counter + 1, 100))
           if(acquireImageMethod == "tf_record"){
-            ds_next_in <- GetElementFromTfRecordAtIndex( index = samp_,
+            ds_next_in <- GetElementFromTfRecordAtIndices( indices = samp_,
                                                          filename = file )
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
@@ -896,9 +907,9 @@ AnalyzeImageConfounding <- function(
         # rescale the salience map into original scale
         #SalienceX <- SalienceX*X_sd  +   X_mean
       }
-      }
       if(modelClass != "cnn"){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
+      }
       }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
