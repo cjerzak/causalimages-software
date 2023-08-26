@@ -137,7 +137,7 @@ AnalyzeImageConfounding <- function(
 
   if(!is.null(X)){ if(!"matrix" %in% class(X)){
     print("Coercing X to matrix class...")
-    X <- data.matrix( X )
+    X <- as.matrix(  X )
   } }
 
   if(!is.null(X)){ if(is.na(sum(X))){
@@ -153,6 +153,10 @@ AnalyzeImageConfounding <- function(
     X_mean <- colMeans(X)
     X_sd <- apply(X,2,sd)
     X <- t( (t(X) - X_mean ) / (0.00001+X_sd) )
+  }
+
+  XisNull <- F; if( is.null(X) ){
+    XisNull <- T; X <- as.matrix( rnorm(length(obsW), sd = 0.01 ) )
   }
 
   {
@@ -370,13 +374,13 @@ AnalyzeImageConfounding <- function(
 
     # arms
     print("Initializing training arms...")
-    # new TF version kills compiled fxn here (use 2.12)
+    # note: new TF version may kill compiled fxn here (use 2.12)
     for(ARM in c(T,F)){
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(im = ds_next_train[[1]],
                                                                  training = T,
                                                                  input_ave_pooling_size = input_ave_pooling_size),
-                                   x_getLoss = tf$constant(X[batch_indices,],tf$float32),
+                                   x_getLoss = tf$constant( as.matrix(X[batch_indices,]),tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(obsW[batch_indices]),tf$float32 ),
                                    training_getLoss = ARM )
       })
@@ -475,7 +479,7 @@ AnalyzeImageConfounding <- function(
         im_train = InitImageProcess(ds_next_train[[1]],
                                     training = T,
                                     input_ave_pooling_size = input_ave_pooling_size),
-        x_train = tf$constant(X[batch_indices,],dtype=tf$float32),
+        x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32))
 
       # post-processing checks
@@ -531,7 +535,7 @@ AnalyzeImageConfounding <- function(
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
                                                                                   training = F,
                                                                                   input_ave_pooling_size = input_ave_pooling_size),
-                                                    x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
+                                                    x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                     training_getProb = F ))),T)
         if( "try-error" %in% class(insert_probs)){
           print("Error in generating insert_probs in line 491! Investigating...")
@@ -558,7 +562,7 @@ AnalyzeImageConfounding <- function(
           }
           insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]], training = F,
                                                                                     input_ave_pooling_size = input_ave_pooling_size),
-                                                      x_getProb = tf$constant(X[batch_indices_inference,],dtype=tf$float32),
+                                                      x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                       training_getProb = F ))),T)
           if(drop_ == T){  insert_probs <- insert_probs[-1]  }
           if("try-error"  %in% class(insert_probs)){browser()}
@@ -641,9 +645,9 @@ AnalyzeImageConfounding <- function(
           #tmp <- MyEmbeds$embeddings_fxn( acquireImageFxnEmbeds( imageKeysOfUnits ))
           obsW_ <- obsW[indices_]
           obsY_ <- obsY[indices_]
-          glmnetInput <- ifelse(is.null(X),
+          glmnetInput <- ifelse(XisNull,
                                 yes = list(MyEmbeds_$embeddings),
-                                no = list(cbind(X[indices_,],
+                                no = list(cbind(as.matrix(X[indices_,]),
                                                 MyEmbeds_$embeddings)))[[1]]
           myGlmnet_ <- glmnet::cv.glmnet(
                               x = glmnetInput,
@@ -871,7 +875,7 @@ AnalyzeImageConfounding <- function(
       if(plotResults){  try(makePlots(),T) }
 
       # compute salience for tabular covariates
-      SalienceX <- NULL; if(!is.null(X)){
+      SalienceX <- NULL; if(!XisNull){
       if(modelClass == "cnn"){
         getSalienceVec <- function(im_, x_){
           x_ <- tf$Variable(x_,trainable = T)
@@ -909,8 +913,7 @@ AnalyzeImageConfounding <- function(
       }
       if(modelClass != "cnn"){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
-      }
-      }
+      } }
 
       preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
                       colMeans(cbind(long[obsW == 0],lat[obsW == 0]))

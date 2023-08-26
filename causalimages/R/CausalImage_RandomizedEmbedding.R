@@ -14,7 +14,7 @@
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param kernelSize (default = `5L`) Dimensions used in the convolution kernels.
 #' @param temporalKernelSize (default = `2L`) Dimensions used in the temporal part of the convolution kernels if using image sequences.
-#' @param nFeatures (default = `256L`) Dimensions used in the convolution kernels.
+#' @param nFeatures (default = `64L`) Dimensions used in the convolution kernels.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param batchSize (default = `50L`) Integer specifying batch size in obtaining embeddings.
 #' @param seed (default = `NULL`) Integer specifying the seed.
@@ -44,7 +44,7 @@ GetRandomizedImageEmbeddings <- function(
     conda_env = NULL,
     conda_env_required = F,
 
-    nFeatures = 256L,
+    nFeatures = 64L,
     batchSize = 50L,
     strides = 1L,
     temporalKernelSize = 2L,
