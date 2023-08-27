@@ -177,33 +177,39 @@ GetRandomizedImageEmbeddings <- function(
     print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
     # in functional mode
-      batch_indices_inference <- (last_i+1):(last_i+batchSize)
-      batch_indices_inference <- batch_indices_inference[batch_indices_inference <= length(imageKeysOfUnits)]
-      last_i <- batch_indices_inference[length(batch_indices_inference)]
+      batch_indices <- (last_i+1):(last_i+batchSize)
+      batch_indices <- batch_indices[batch_indices <= length(imageKeysOfUnits)]
+      last_i <- batch_indices[length(batch_indices)]
       if(last_i == length(imageKeysOfUnits)){ ok <- T }
 
-      batchSizeOneCorrection <- F; if(length(batch_indices_inference) == 1){
-        batch_indices_inference <- c(batch_indices_inference, batch_indices_inference)
+      batchSizeOneCorrection <- F; if(length(batch_indices) == 1){
+        batch_indices <- c(batch_indices, batch_indices)
         batchSizeOneCorrection <- T
       }
 
       if(acquireImageMethod == "functional"){
         batch_inference <- list(
-          tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F),tf$float32)
+          tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices], training = F),tf$float32)
         )
       }
 
       if(acquireImageMethod == "tf_record"){
-        batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices_inference,
+        batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices,
                                                             filename = file,
-                                                            nObs = length(imageKeysOfUnits))
-        # batch_inference[[2]]; batch_indices_inference
+                                                            nObs = length(imageKeysOfUnits),
+                                                            return_iterator = T,
+                                                            iterator = ifelse(ok_counter > 1,
+                                                                              yes = list(saved_iterator),
+                                                                              no = list(NULL))[[1]])
+        saved_iterator <- batch_inference[[2]]
+        batch_inference <- batch_inference[[1]]
+        # batch_inference[[2]]; batch_indices
       }
 
       embed_ <- try(as.matrix( getEmbedding(   batch_inference[[1]]  )  ), T)
       if("try-error" %in% class(embed_)){ browser() }
-      if(batchSizeOneCorrection){ batch_indices_inference <- batch_indices_inference[-1]; embed_ <- embed_[1,] }
-      embeddings[batch_indices_inference,] <- embed_
+      if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
+      embeddings[batch_indices,] <- embed_
 
     gc(); try(py_gc$collect(), T)
   }

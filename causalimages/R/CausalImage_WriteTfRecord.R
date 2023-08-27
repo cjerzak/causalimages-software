@@ -126,7 +126,9 @@ WriteTfRecord <- function(file,
 #' @export
 #' @md
 GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
-                                            conda_env = NULL, conda_env_required = F){
+                                            conda_env = NULL, conda_env_required = F,
+                                            iterator = NULL, return_iterator = F){
+  # consider passing iterator as input to function to speed up large-batch execution
   if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
     print("Loading Python environment (requires tensorflow)")
     library(tensorflow); library(keras)
@@ -137,25 +139,33 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
   }
 
-  orig_wd <- getwd()
-  tf_record_name <- filename
-  tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-  new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
-  setwd( new_wd )
+  if(is.null(iterator)){
+    orig_wd <- getwd()
+    tf_record_name <- filename
+    tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+    new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+    setwd( new_wd )
 
-  # indices is 0 indexed
-  indices <- as.integer( indices - 1L )
+    # indices is 0 indexed
+    indices <- as.integer( indices - 1L )
 
-  # Load the TFRecord file
-  dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
+    # Load the TFRecord file
+    dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
-  # Parse the tf.Example messages
-  dataset <- dataset$map(   parse_tfr_element   )
-  #dataset_orig <- dataset
+    # Parse the tf.Example messages
+    dataset <- dataset$map(   parse_tfr_element   )
 
-  return_list <- replicate(length( dataset$element_spec),
-                          {list(replicate(length(indices), list()))})
-  index_counter <- last_in_ <- 0L
+    return_list <- replicate(length( dataset$element_spec),
+                            {list(replicate(length(indices), list()))})
+    index_counter <- last_in_ <- 0L
+  }
+
+  if(!is.null(iterator)){
+    dataset_iterator <- iterator[[1]]
+    last_in_ <- iterator[[2]]
+    index_counter <- 1L
+  }
+
   for(in_ in (indices_sorted <- sort(indices))){
     print( in_ )
     index_counter <- index_counter + 1
@@ -176,9 +186,9 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     #element <- reticulate::iter_next( reticulate::as_iterator( dataset$take( 1L  ) ) )
     if(index_counter > 1){
       needThisManyUnsavedIters <- (in_ - last_in_ - 1L)
-      if(needThisManyUnsavedIters > 0){
-        for(fari in 1:needThisManyUnsavedIters){ reticulate::iter_next( dataset_iterator ) }
-      }
+      if(length(needThisManyUnsavedIters) > 0){ if(needThisManyUnsavedIters > 0){
+          for(fari in 1:needThisManyUnsavedIters){ reticulate::iter_next( dataset_iterator ) }
+      } }
       element <- reticulate::iter_next( dataset_iterator )
     }
     last_in_ <- in_
@@ -207,6 +217,10 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
 
   #for(li_ in 1:length(element)){ return_list[[li_]] <- tf$concat( list(return_list[[li_]], element[[li_]]), 0L) }
   setwd(  orig_wd  )
+
+  if(return_iterator == T){
+    return_list <- list(return_list,list(dataset_iterator, last_in_))
+  }
 
   return(  return_list  )
 }
