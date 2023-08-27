@@ -174,7 +174,7 @@ GetRandomizedImageEmbeddings <- function(
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nFeatures)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
     ok_counter <- ok_counter + 1
-    print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
+    print(sprintf("[%s] %.2f%% done getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
     # in functional mode
       batch_indices <- (last_i+1):(last_i+batchSize)

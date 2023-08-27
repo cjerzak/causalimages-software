@@ -655,6 +655,7 @@ AnalyzeImageConfounding <- function(
           myGlmnet_ <- glmnet::cv.glmnet(
                               x = glmnetInput[indices_forTraining,],
                               y = obsW[indices_forTraining],
+                              alpha = 0, # alpha = 0 is the ridge penalty
                               nfolds = 5,
                               family = "binomial")
           obsW_ <- obsW[indices_]
@@ -816,6 +817,7 @@ AnalyzeImageConfounding <- function(
             salience_map <- tape$gradient( treat_prob_im, im_orig )
             salience_map <- tf$math$reduce_euclidean_norm(salience_map,3L,keepdims=T)
             salience_map <- tf$keras$layers$AveragePooling2D(c(3L,3L))(salience_map)
+            browser()
             salience_map <- as.array(salience_map)[1,,,]
             salience_map <- apply(salience_map^2,1:2,sum)^0.5
 
