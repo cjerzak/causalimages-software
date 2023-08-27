@@ -146,33 +146,34 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
     setwd( new_wd )
 
-    # indices is 0 indexed
-    indices <- as.integer( indices - 1L )
-
     # Load the TFRecord file
     dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
     # Parse the tf.Example messages
     dataset <- dataset$map(   parse_tfr_element   )
 
-    return_list <- replicate(length( dataset$element_spec),
-                            {list(replicate(length(indices), list()))})
     index_counter <- last_in_ <- 0L
+    return_list <- replicate(length( dataset$element_spec),
+                             {list(replicate(length(indices), list()))})
   }
 
   if(!is.null(iterator)){
     dataset_iterator <- iterator[[1]]
-    last_in_ <- iterator[[2]]
-    index_counter <- 1L
+    last_in_ <- iterator[[2]] # note: last_in_ is 0 indexed
+    index_counter <- 0L
+    return_list <- replicate(length( dataset_iterator$element_spec),
+                             {list(replicate(length(indices), list()))})
   }
 
+  # indices is 0 indexed
+  indices <- as.integer( indices - 1L )
+
   for(in_ in (indices_sorted <- sort(indices))){
-    print( in_ )
     index_counter <- index_counter + 1
 
     # Skip the first `indices` elements, shifted by current loc thru data set
     #dataset <- dataset$skip(  as.integer( in_   - last_in_)  )#$prefetch(buffer_size = 5L)
-    if(index_counter == 1){
+    if(index_counter == 1 & is.null(iterator)){
       dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
       dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
       element <- reticulate::iter_next( dataset_iterator )
@@ -184,7 +185,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     # Take the next element, then
     # Get the only element in the dataset (as a tuple of features)
     #element <- reticulate::iter_next( reticulate::as_iterator( dataset$take( 1L  ) ) )
-    if(index_counter > 1){
+    if(index_counter > 1 | !is.null(iterator)){
       needThisManyUnsavedIters <- (in_ - last_in_ - 1L)
       if(length(needThisManyUnsavedIters) > 0){ if(needThisManyUnsavedIters > 0){
           for(fari in 1:needThisManyUnsavedIters){ reticulate::iter_next( dataset_iterator ) }
@@ -216,7 +217,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
   }}
 
   #for(li_ in 1:length(element)){ return_list[[li_]] <- tf$concat( list(return_list[[li_]], element[[li_]]), 0L) }
-  setwd(  orig_wd  )
+  if(is.null(iterator)){ setwd(  orig_wd  ) }
 
   if(return_iterator == T){
     return_list <- list(return_list,list(dataset_iterator, last_in_))
