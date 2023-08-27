@@ -519,7 +519,7 @@ AnalyzeImageConfounding <- function(
     # remove big objects to free memory for inference
     rm(ds_next_train);rm(myLoss_forGrad)
 
-    # get probabilities for inference
+    # get probabilities for inference (all observations)
     print("Starting to get probabilities for inference...")
     gc();py_gc$collect()
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
