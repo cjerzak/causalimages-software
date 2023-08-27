@@ -341,7 +341,7 @@ AnalyzeImageConfounding <- function(
       return(imm)
     })
 
-    getTreatProb <- tf_function_use( function(im_getProb,x_getProb, training_getProb){
+    getTreatProb <- tf_function_use( function(im_getProb, x_getProb, training_getProb){
 
       # flatten
       im_getProb <- GlobalPoolLayer( getProcessedImage(im_getProb, training = training_getProb) )
@@ -676,11 +676,15 @@ AnalyzeImageConfounding <- function(
 
             myGlmnet_coefs_tf <- tf$constant(myGlmnet_coefs,dtype = tf$float32)
             getTreatProb <- tf_function_use( function(im_getProb, x_getProb, training_getProb){
-              concatDat <- tf$concat(list(
-                             tf$ones(list(im_getProb$shape[[1]],1L)),
-                             x_getProb,
-                             embeddings_fxn( im_getProb )
-                            ), 1L)
+              if(!XisNull){
+                concatDat <- tf$concat(list(
+                               tf$ones(list(im_getProb$shape[[1]],1L)), x_getProb, embeddings_fxn( im_getProb )
+                              ), 1L)
+              }
+              if(XisNull){
+                concatDat <- tf$concat(list(
+                  tf$ones(list(im_getProb$shape[[1]],1L)), embeddings_fxn( im_getProb )
+                ), 1L) }
               my_probs <- tf$nn$sigmoid(  tf$matmul(concatDat, myGlmnet_coefs_tf)  )
             })
           }
@@ -905,6 +909,7 @@ AnalyzeImageConfounding <- function(
         }, T)
       }
 
+      browser()
       if(plotResults){  try(makePlots(),T) }
 
       # compute salience for tabular covariates
