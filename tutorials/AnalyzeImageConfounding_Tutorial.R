@@ -5,7 +5,7 @@
 ################################
 
 # install latest version of the package if needed
-devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
+#devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 
 # load in package
 library( causalimages  )
@@ -87,8 +87,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   batchSize = 4, samplingType = "balancedTrain",
 
   acquireImageFxn = acquireImageRepFromMemory,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   file = NULL,
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
@@ -99,6 +99,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T
 )
+
+ImageConfoundingAnalysis$ModelEvaluationMetrics
 
 # ATE estimate (image  confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek

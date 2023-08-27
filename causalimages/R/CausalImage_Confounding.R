@@ -30,6 +30,7 @@
 #' @param nEmbedDim (default = `96L`) Integer specifying the image/image sequence embedding dimension. Used if `modelClass = "randomizedEmbeds"`.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param dropoutRate (default = `0.1`) Droppout rate used in training used to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
+#' @param testFrac (default = `0.01`) Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
@@ -106,6 +107,7 @@ AnalyzeImageConfounding <- function(
                                    kernelSize = 3L,
                                    temporalKernelSize = 2L,
                                    nSGD  = 400L,
+                                   testFrac = 0.01,
                                    nDenseWidth = 32L,
                                    channelNormalize = T,
                                    printDiagnostics = F,
@@ -244,7 +246,6 @@ AnalyzeImageConfounding <- function(
     poolingType <- "max"
     LEARNING_RATE_BASE <- 0.005; widthCycle <- 50
     doParallel <- F
-    testIndices <- trainIndices <- 1:length(obsY)
 
     # get first iter batch for initializations
     print("Calibrating first moments for input data normalization...")
@@ -273,6 +274,10 @@ AnalyzeImageConfounding <- function(
     }
     NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),tf$float32)
     NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
+
+    # define train/test indices
+    testIndices <- sample(1:length(obsY), max(2,length(obsY)*testFrac))
+    trainIndices <- (1:length(obsY))[! 1:length(obsY) %in% testIndices]
 
     # define tf function
     #tf_function_use  <- tf_function
@@ -359,7 +364,7 @@ AnalyzeImageConfounding <- function(
       return( im_getProb )
     })
     epsilonLabelSmooth <- tf$constant(0.01)
-    getLoss <- tf_function_use( function(im_getLoss, x_getLoss, treatt_getLoss, training_getLoss){
+    getLoss <- tf_function_use( function(im_getLoss, x_getLoss, treatt_getLoss, mask, training_getLoss){
       treatProb <- getTreatProb( im_getProb = im_getLoss,
                                  x_getProb = x_getLoss,
                                  training_getProb = training_getLoss )
@@ -367,8 +372,10 @@ AnalyzeImageConfounding <- function(
       treatProb_r <- tf$reshape(treatProb,list(-1L,1L)) # check
 
       # final loss
-      minThis <- tf$negative( tf$reduce_mean( tf$multiply(tf$math$log( tf$maximum(treatProb_r,0.001)),  (treatt_r)) +
-                                      tf$multiply(tf$math$log(tf$maximum(1-treatProb_r,0.001)),  (1-treatt_r)) ))
+      minThis <- tf$multiply(tf$math$log( tf$maximum(treatProb_r,0.001)),  (treatt_r)) +
+                        tf$multiply(tf$math$log(tf$maximum(1-treatProb_r,0.001)),  (1-treatt_r))
+      minThis <- tf$divide( tf$reduce_sum( tf$multiply(minThis, mask) ), tf$add(0.01, tf$reduce_sum(mask)))
+      minThis <- tf$negative( minThis )
       return( minThis )
     })
 
@@ -382,6 +389,7 @@ AnalyzeImageConfounding <- function(
                                                                  input_ave_pooling_size = input_ave_pooling_size),
                                    x_getLoss = tf$constant( as.matrix(X[batch_indices,]),tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(obsW[batch_indices]),tf$float32 ),
+                                   mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32),
                                    training_getLoss = ARM )
       })
     }
@@ -397,18 +405,19 @@ AnalyzeImageConfounding <- function(
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
     optimizer_tf = tf$optimizers$legacy$Nadam()
-    getGrad <- tf_function_use(function(im_train, x_train, truth_train){
+    getGrad <- tf_function_use(function(im_train, x_train, truth_train, mask){
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = im_train,
                                    x_getLoss = x_train,
                                    treatt_getLoss = truth_train,
+                                   mask = mask,
                                    training_getLoss = T)
       })
       my_grads <- tape$gradient( myLoss_forGrad, trainable_variables )
       return(list(myLoss_forGrad,my_grads))
     })
-    trainStep <- (function(im_train, x_train, truth_train){
-      my_grads <- getGrad(im_train, x_train, truth_train)
+    trainStep <- (function(im_train, x_train, truth_train, mask){
+      my_grads <- getGrad(im_train, x_train, truth_train, mask)
       myLoss_forGrad <- my_grads[[1]]
       my_grads <- my_grads[[2]]
       optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+
@@ -480,7 +489,8 @@ AnalyzeImageConfounding <- function(
                                     training = T,
                                     input_ave_pooling_size = input_ave_pooling_size),
         x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
-        truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32))
+        truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32),
+        mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32))
 
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
@@ -590,19 +600,6 @@ AnalyzeImageConfounding <- function(
       print(which(is.na( prW_est  )))
       stop("Shutting down now due to NAs (see prior debugging messages)...")
     }
-
-    # compute base loss
-    prWEst_base <- prW_est
-    prWEst_base[] <- mean(obsW[-testIndices])
-    baseLoss_ce_ <- binaryCrossLoss(obsW[testIndices], prWEst_base[testIndices])
-    baseLossIN_ce_ <- binaryCrossLoss(obsW[trainIndices], prWEst_base[trainIndices])
-    baseLoss_class_ <- 1/length(testIndices) * (sum( prWEst_base[testIndices][ obsW[testIndices] == 1] < 0.5) +
-                                                  sum( prWEst_base[testIndices][ obsW[testIndices] == 0] > 0.5))
-
-    outLoss_class_ <- 1/length(testIndices) * (sum( prW_est[testIndices][ obsW[testIndices] == 1] < 0.5) +
-                                                 sum( prW_est[testIndices][ obsW[testIndices] == 0] > 0.5))
-    outLoss_ce_ <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
-    inLoss_ce_ <-  binaryCrossLoss(  obsW[trainIndices], prW_est[trainIndices]  )
     }
 
     if(modelClass == "randomizedEmbeds"){
@@ -630,9 +627,10 @@ AnalyzeImageConfounding <- function(
         if(jr == 1){ indices_ <- 1:length( imageKeysOfUnits ) }
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
 
+         # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
           MyEmbeds_ <- GetRandomizedImageEmbeddings(
-            imageKeysOfUnits = imageKeysOfUnits[  indices_  ],
-            batchSize = min(  batchSize, length(imageKeysOfUnits[  indices_  ]) ),
+            imageKeysOfUnits = imageKeysOfUnits,
+            batchSize = min(  batchSize, length(imageKeysOfUnits) ),
             acquireImageFxn = acquireImageFxnEmbeds,
             file = file,
             strides = strides,
@@ -642,18 +640,21 @@ AnalyzeImageConfounding <- function(
             conda_env = "tensorflow_m1",
             conda_env_required = T
           )
+          # checks
           #tmp <- MyEmbeds$embeddings_fxn( acquireImageFxnEmbeds( imageKeysOfUnits ))
-          obsW_ <- obsW[indices_]
-          obsY_ <- obsY[indices_]
+
+          # subset indices for training
+          indices_forTraining <- indices_[indices_ %in% trainIndices]
           glmnetInput <- ifelse(XisNull,
                                 yes = list(MyEmbeds_$embeddings),
-                                no = list(cbind(as.matrix(X[indices_,]),
-                                                MyEmbeds_$embeddings)))[[1]]
+                                no = list(cbind(as.matrix(X), MyEmbeds_$embeddings)))[[1]]
           myGlmnet_ <- glmnet::cv.glmnet(
-                              x = glmnetInput,
-                              y = obsW[  indices_ ],
+                              x = glmnetInput[indices_forTraining,],
+                              y = obsW[indices_forTraining],
                               nfolds = 5,
                               family = "binomial")
+          obsW_ <- obsW[indices_]
+          obsY_ <- obsY[indices_]
 
           # compute QOIs
           myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
@@ -675,42 +676,69 @@ AnalyzeImageConfounding <- function(
                              tf$ones(list(im_getProb$shape[[1]],1L)),
                              x_getProb,
                              embeddings_fxn( im_getProb )
-                             ), 1L)
-              my_probs <- tf$nn$sigmoid(  tf$matmul(concatDat, myGlmnet_coefs_tf) )
+                            ), 1L)
+              my_probs <- tf$nn$sigmoid(  tf$matmul(concatDat, myGlmnet_coefs_tf)  )
             })
           }
       }
     }
+
+    # process in and out of sample losses
+    prWEst_baseline <- prW_est
+    prWEst_baseline[] <- mean(obsW)
+    lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
+    lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
+    lossCE_OUT <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
+    lossCE_IN <-  binaryCrossLoss(  obsW[trainIndices], prW_est[trainIndices]  )
+    lossClassError_OUT_baseline <- 1/length(testIndices) * (sum( prWEst_baseline[testIndices][ obsW[testIndices] == 1] < 0.5) +
+                           sum( prWEst_baseline[testIndices][ obsW[testIndices] == 0] > 0.5))
+    lossClassError_IN_baseline <- 1/length(trainIndices) * (sum( prWEst_baseline[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
+                                                              sum( prWEst_baseline[trainIndices][ obsW[trainIndices] == 0] > 0.5))
+    lossClassError_OUT <- 1/length(testIndices) * (sum( prW_est[testIndices][ obsW[testIndices] == 1] < 0.5) +
+                           sum( prW_est[testIndices][ obsW[testIndices] == 0] > 0.5))
+    lossClassError_IN <- 1/length(trainIndices) * (sum( prW_est[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
+                                                     sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
+    ModelEvaluationMetrics <- list(
+      "CELoss_out" = lossCE_OUT,
+      "CELoss_out_baseline" = lossCE_OUT_baseline,
+      "CELoss_in" = lossCE_IN,
+      "CELoss_in_baseline" = lossCE_IN_baseline,
+      "ClassError_out" = lossClassError_OUT,
+      "ClassError_out_baseline" = lossClassError_OUT_baseline,
+      "ClassError_in" = lossClassError_IN,
+      "ClassError_in_baseline" = lossClassError_IN_baseline
+    )
 
     # do some analysis with examples
     processedDims <- NULL
     if(    plotResults == T  ){
       print("Starting to plot the image confounding results...")
       # get treatment image
-      testIndices_t <- testIndices[which(obsW[testIndices]==1)]
-      testIndices_c <- testIndices[which(obsW[testIndices]==0)]
+      indices_t <- (1:length(obsW))[which(obsW==1)]
+      indices_c <- (1:length(obsW))[which(obsW==0)]
 
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
-      ordered_control <- testIndices_c[order_c <- order(prW_est[testIndices_c],decreasing = F)]
-      ordered_treated <- testIndices_t[order_t <- order(prW_est[testIndices_t],decreasing = T)]
+      ordered_control <- indices_c[order_c <- order(prW_est[indices_c],decreasing = F)]
+      ordered_treated <- indices_t[order_t <- order(prW_est[indices_t],decreasing = T)]
       # checks
-      # prW_est[ ordered_treatment ];
+      # prW_est[ ordered_treated ];
       # prW_est[ ordered_control ]
 
       # drop duplicates
       if(!is.null(long)){
-        longLat_test_t <- paste(round(long[testIndices_t[order_t]],5L),
-                                round(lat[testIndices_t[order_t]],5L),sep="_")
-        longLat_test_c <- paste(round(long[testIndices_c[order_c]],5L),
-                                round(lat[testIndices_c[order_c]],5L),sep="_")
-        top_treated <- ordered_treated[!duplicated(longLat_test_t)]
-        top_control <- ordered_control[!duplicated(longLat_test_c)]
+        longLat_t <- paste(round(long[indices_t[order_t]],5L),
+                                round(lat[indices_t[order_t]],5L),sep="_")
+        longLat_c <- paste(round(long[indices_c[order_c]],5L),
+                                round(lat[indices_c[order_c]],5L),sep="_")
+        top_treated <- ordered_treated[!duplicated(longLat_t)]
+        top_control <- ordered_control[!duplicated(longLat_c)]
       }
       top_treated <- top_treated[1:showPerGroup]
       top_control <- top_control[1:showPerGroup]
+
       # checks
-      # prW_est[ top_treated ];
-      # prW_est[ top_control ];
+      # prW_est[ top_treated ]; obsW[ top_treated ];
+      # prW_est[ top_control ]; obsW[ top_control ];
 
       # concatenate c and t indices
       plot_indices <- c(top_control, top_treated)
@@ -950,6 +978,7 @@ AnalyzeImageConfounding <- function(
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
       "prW_est" = prW_est,
+      "ModelEvaluationMetrics" = ModelEvaluationMetrics,
       "nTrainableParameters" = nTrainable
     ) )
   }
