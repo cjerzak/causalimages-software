@@ -16,7 +16,7 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
 
-\item{nFeatures}{(default = \code{256L}) Dimensions used in the convolution kernels.}
+\item{nFeatures}{(default = \code{64L}) Dimensions used in the convolution kernels.}
 
 \item{batchSize}{(default = \code{50L}) Integer specifying batch size in obtaining embeddings.}
 

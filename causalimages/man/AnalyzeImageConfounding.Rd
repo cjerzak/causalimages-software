@@ -27,6 +27,8 @@ AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 
 \item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
 
+\item{nEmbedDim}{(default = \code{96L}) Integer specifying the image/image sequence embedding dimension. Used if \code{modelClass = "randomizedEmbeds"}.}
+
 \item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case different behavior in training/inference mode).}
 
@@ -65,6 +67,8 @@ First argument should be image key values and second argument have be \code{trai
 \item{kernelSize}{(default = \code{5L}) Dimensions used in convolution kernels.}
 
 \item{nSGD}{(default = \code{400L}) Number of stochastic gradient descent (SGD) iterations.}
+
+\item{testFrac}{(default = \code{0.01}) Fraction of observations held out as a test set to evaluate out-of-sample loss values.}
 
 \item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
 
