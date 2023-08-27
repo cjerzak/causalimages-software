@@ -806,18 +806,21 @@ AnalyzeImageConfounding <- function(
             }
             im_ <- as.array(tf$squeeze(im_,c(0L)))
 
-            # calculate salience map
-            with(tf$GradientTape() %as% tape, {
+            # calculate salience map using log probabilities
+            salience_map_calc <- function(){
+              with(tf$GradientTape() %as% tape, {
                 tape$watch(im_orig)
                 treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_orig,
                                                                      x_getProb = XToConcat_values,
                                                                      training_getProb = F),0L),0L)
-            })
+                treat_prob_im <- tf$math$log(tf$add(0.001,treat_prob_im))
+              })
 
-            salience_map <- tape$gradient( treat_prob_im, im_orig )
+              salience_map <- tape$gradient( treat_prob_im, im_orig )
+            }
+            salience_map <- salience_map_calc()
             salience_map <- tf$math$reduce_euclidean_norm(salience_map,3L,keepdims=T)
-            salience_map <- tf$keras$layers$AveragePooling2D(c(3L,3L))(salience_map)
-            browser()
+            salience_map <- tf$keras$layers$AveragePooling2D(c(7L,7L))(salience_map)
             salience_map <- as.array(salience_map)[1,,,]
             salience_map <- apply(salience_map^2,1:2,sum)^0.5
 
