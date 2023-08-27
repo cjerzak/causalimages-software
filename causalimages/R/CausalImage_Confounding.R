@@ -524,7 +524,9 @@ AnalyzeImageConfounding <- function(
     gc();py_gc$collect()
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
       ok_counter <- ok_counter + 1
-      print(sprintf("[%s] %.2f%% done with getting inference probabilities", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(obsW)))
+      print(sprintf("[%s] %.3f done with getting inference probabilities",
+                    format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                    100*last_i / length(obsW)))
 
       # in functional mode
       if(acquireImageMethod == "functional"){
@@ -567,7 +569,8 @@ AnalyzeImageConfounding <- function(
           batch_indices_inference <- as.array(batch_inference[[2]])
           drop_<-F;if(   length(batch_indices_inference) == 1    ){
             drop_ <- T
-            batch_indices_inference<-c(batch_indices_inference,batch_indices_inference)
+            batch_indices_inference <- c(batch_indices_inference, batch_indices_inference)
+            last_i <- max( batch_indices_inference )
             batch_inference[[1]] <- tf$concat(list(batch_inference[[1]],batch_inference[[1]]),0L)
           }
           insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]], training = F,
