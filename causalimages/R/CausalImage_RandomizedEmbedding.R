@@ -137,7 +137,9 @@ GetRandomizedImageEmbeddings <- function(
     }
   }
   if(acquireImageMethod == "tf_record"){
-    test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L, filename = file )[[1]],0L)
+    test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L,
+                                                             filename = file,
+                                                             nObs = length(imageKeysOfUnits))[[1]],0L)
   }
 
   imageDims <- length( dim(test_) ) - 2L
@@ -192,7 +194,10 @@ GetRandomizedImageEmbeddings <- function(
       }
 
       if(acquireImageMethod == "tf_record"){
-        batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices_inference, filename = file )
+        batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices_inference,
+                                                            filename = file,
+                                                            nObs = length(imageKeysOfUnits))
+        # batch_inference[[2]]; batch_indices_inference
       }
 
       embed_ <- try(as.matrix( getEmbedding(   batch_inference[[1]]  )  ), T)

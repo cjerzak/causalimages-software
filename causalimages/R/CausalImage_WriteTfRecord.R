@@ -10,7 +10,8 @@
 #' @param file A character string naming a file for writing.
 #' @param acquireImageRepFxn A function whose input is an observation index and whose output is an image.
 #' @param imageKeys A vector specifying the image keys of the corpus. A key grabs an image via acquireImageRepFxn(key)
-#' @param conda_env A `conda` environment where tensorflow v2 lives.
+#' @param conda_env A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
+#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #'
 #' @return Writes an index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
 #'
@@ -26,18 +27,17 @@
 WriteTfRecord <- function(file,
                           imageKeys,
                           acquireImageRepFxn,
-                          conda_env = NULL){
-  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
-  {
+                          conda_env = NULL,
+                          conda_env_required = F){
+  if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
+  #{
     print("Loading Python environment (requires tensorflow)")
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = T),T)
-    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
 
-    tf$random$set_seed(  c(1000L ) )
-    tf$keras$utils$set_random_seed( 4L )
+    tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
   }
 
   # for clarity, set file to tf_record_name
@@ -102,7 +102,41 @@ WriteTfRecord <- function(file,
   setwd( orig_wd )
 }
 
-GetElementFromTfRecordAtIndices <- function(indices, filename){
+#!/usr/bin/env Rscript
+#' Reads indices from a `.tfrecord` file.
+#'
+#' Reads indices from a `.tfrecord` file saved via a call to `causalimages::WriteTfRecord`. Assumes a tensorflow environment has been activated in R.
+#'
+#' @usage
+#'
+#' GetElementFromTfRecordAtIndices(indices, file)
+#' @param indices (integer vector) Observation indices to be retrieved from a `.tfrecord`
+#' @param file (character string) A character string stating the path to a `.tfrecord`
+#' @param conda_env (Default = `NULL`) A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
+#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
+#'
+#' @return Returns content from a `.tfrecord` associated with `indices`
+#'
+#' @examples
+#' # Example usage:
+#' GetElementFromTfRecordAtIndices(
+#'   indices = 1:10,
+#'   file = "./NigeriaConfoundApp.tfrecord")
+#'
+#' @export
+#' @md
+GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
+                                            conda_env = NULL, conda_env_required = F){
+  if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
+    print("Loading Python environment (requires tensorflow)")
+    library(tensorflow); library(keras)
+    try(tensorflow::use_condaenv(conda_env, required = T),T)
+    try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
+    tf$config$set_soft_device_placement( T )
+
+    tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
+  }
+
   orig_wd <- getwd()
   tf_record_name <- filename
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
@@ -116,35 +150,62 @@ GetElementFromTfRecordAtIndices <- function(indices, filename){
   dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
   # Parse the tf.Example messages
-  dataset_orig <- dataset <- dataset$map(   parse_tfr_element   )
+  dataset <- dataset$map(   parse_tfr_element   )
+  #dataset_orig <- dataset
 
-  index_counter <- 0
-  for(in_ in indices){
+  return_list <- replicate(length( dataset$element_spec),
+                          {list(replicate(length(indices), list()))})
+  index_counter <- last_in_ <- 0L
+  for(in_ in (indices_sorted <- sort(indices))){
+    print( in_ )
     index_counter <- index_counter + 1
 
-    # Skip the first `indices` elements
-    dataset = dataset_orig$skip(  as.integer( in_  ) )
-
-    # Take the next element
-    dataset = dataset$take( 1L  )
-
-    # Get the only element in the dataset (as a tuple of features)
-    element = reticulate::iter_next( reticulate::as_iterator( dataset ) )
-    if(length(indices) > 1){
-      for(li_ in 1:length(element)){
-        element[[li_]] <- tf$expand_dims(element[[li_]],0L)
-      }
+    # Skip the first `indices` elements, shifted by current loc thru data set
+    #dataset <- dataset$skip(  as.integer( in_   - last_in_)  )#$prefetch(buffer_size = 5L)
+    if(index_counter == 1){
+      dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
+      dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
+      element <- reticulate::iter_next( dataset_iterator )
     }
+    #tmp <- tmp$skip(2L)
+    #tmp2 <- reticulate::as_iterator( tmp )
+    #system.time( reticulate::iter_next( dataset_iterator  ) )
+
+    # Take the next element, then
+    # Get the only element in the dataset (as a tuple of features)
+    #element <- reticulate::iter_next( reticulate::as_iterator( dataset$take( 1L  ) ) )
+    if(index_counter > 1){
+      needThisManyUnsavedIters <- (in_ - last_in_ - 1L)
+      if(needThisManyUnsavedIters > 0){
+        for(fari in 1:needThisManyUnsavedIters){ reticulate::iter_next( dataset_iterator ) }
+      }
+      element <- reticulate::iter_next( dataset_iterator )
+    }
+    last_in_ <- in_
 
     # form final output
-    if(index_counter == 1){ return_list <- element }
-    if(index_counter > 1){
+    if(length(indices) == 1){ return_list <- element }
+    if(length(indices) > 1){
       for(li_ in 1:length(element)){
-        return_list[[li_]] <- tf$concat( list(return_list[[li_]],
-                                               element[[li_]]), 0L)
+        return_list[[li_]][[index_counter]] <- tf$expand_dims(element[[li_]],0L)
       }
     }
+    if(index_counter %% 5==0){ py_gc$collect() }
   }
+
+  if(index_counter > 1){ for(li_ in 1:length(element)){
+    return_list[[li_]] <- eval(parse(text =
+                      paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(indices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
+    if(  any(diff(indices)<0)  ){ # re-order if needed
+      #indices_sorted; indices
+      #indices_sorted[ match(indices,indices_sorted) ]
+      return_list[[li_]] <- tf$gather(return_list[[li_]],
+                                      indices = as.integer(match(indices,indices_sorted)-1L),
+                                      axis = 0L)
+    }
+  }}
+
+  #for(li_ in 1:length(element)){ return_list[[li_]] <- tf$concat( list(return_list[[li_]], element[[li_]]), 0L) }
   setwd(  orig_wd  )
 
   return(  return_list  )

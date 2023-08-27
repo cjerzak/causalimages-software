@@ -274,6 +274,7 @@ AnalyzeImageConfounding <- function(
     }
     NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),tf$float32)
     NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
+    py_gc$collect()
 
     # define train/test indices
     testIndices <- sample(1:length(obsY), max(2,length(obsY)*testFrac))
@@ -772,7 +773,8 @@ AnalyzeImageConfounding <- function(
             plot_index_counter <- plot_index_counter + 1
             if(acquireImageMethod == "tf_record"){
               ds_next_in <- GetElementFromTfRecordAtIndices( indices = in_,
-                                                           filename = file )
+                                                             filename = file,
+                                                             nObs = length(imageKeysOfUnits) )
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
             if(acquireImageMethod == "functional"){
