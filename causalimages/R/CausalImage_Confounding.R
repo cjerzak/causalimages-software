@@ -734,6 +734,8 @@ AnalyzeImageConfounding <- function(
       # prW_est[ ordered_control ]
 
       # drop duplicates
+      top_treated <- ordered_treated
+      top_control <- ordered_control
       if(!is.null(long)){
         longLat_t <- paste(round(long[indices_t[order_t]],5L),
                                 round(lat[indices_t[order_t]],5L),sep="_")
