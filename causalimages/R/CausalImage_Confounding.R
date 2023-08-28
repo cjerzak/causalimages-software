@@ -496,7 +496,7 @@ AnalyzeImageConfounding <- function(
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
       grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
-      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){br
+      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
         print("NA in loss -- opening browser")
         print("Image sum:")
         print(as.numeric(tf$math$reduce_sum( InitImageProcess(ds_next_train[[1]],
@@ -604,6 +604,22 @@ AnalyzeImageConfounding <- function(
       print(which(is.na( prW_est  )))
       stop("Shutting down now due to NAs (see prior debugging messages)...")
     }
+
+    tauHat_propensity <- mean(  obsW*obsY/(prW_est) - (1-obsW)*obsY/(1-prW_est) )
+    tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prW_est))) -
+      sum(obsY*prop.table((1-obsW)/(1-prW_est) ))
+
+    # sampling uncertainty only for cnn case
+    tauHat_propensity_vec = sapply(1:nBoot,function(b_){
+        ib_ <- sample(1:length(obsY), length(obsY), replace = T)
+        tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prW_est[ib_]) -
+                             (1-obsW[ib_])*obsY[ib_]/(1-prW_est[ib_]) )
+      })
+    tauHat_propensityHajek_vec <- sapply(1:nBoot,function(b_){
+        ib_ <- sample(1:length(obsY), length(obsY), replace = T)
+        tauHat_ <-  sum(  obsY[ib_]*prop.table(obsW[ib_]/(prW_est[ib_]))) -
+          sum(obsY[ib_]*prop.table((1-obsW[ib_])/(1-prW_est[ib_]) ))
+      })
     }
 
     if(modelClass == "randomizedEmbeds"){
@@ -917,11 +933,12 @@ AnalyzeImageConfounding <- function(
         }, T)
       }
 
-      if(plotResults){  try(makePlots(),T) }
+      try(makePlots(),T)
+    }
 
-      # compute salience for tabular covariates
-      SalienceX <- NULL; if(!XisNull){
-      if(modelClass == "cnn"){
+    # compute salience for tabular covariates
+    SalienceX <- NULL; if(!XisNull){
+    if(modelClass == "cnn"){
         getSalienceVec <- function(im_, x_){
           x_ <- tf$Variable(x_,trainable = T)
           with(tf$GradientTape() %as% tape, {
@@ -958,35 +975,14 @@ AnalyzeImageConfounding <- function(
       }
       if(modelClass != "cnn"){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
-      } }
+    } }
 
-      postDiffInLat <- preDiffInLat <- NULL
-      if(!is.null(lat)){
-        preDiffInLat <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
-                        colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
-        postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*wt1) -
-          colSums(cbind(long[obsW == 0],lat[obsW == 0])*wt0)
-      }
-      wt1 <- prop.table(1/prW_est[obsW == 1])
-      wt0 <- prop.table(1/(1-prW_est[obsW == 0]))
-
-      tauHat_propensity <- mean(  obsW*obsY/(prW_est) - (1-obsW)*obsY/(1-prW_est) )
-      tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prW_est))) -
-        sum(obsY*prop.table((1-obsW)/(1-prW_est) ))
-
-      # sampling uncertainty only
-      if(typeBoot == "SamplingOnly" & modelClass == "cnn"){
-        tauHat_propensity_vec = sapply(1:nBoot,function(b_){
-          ib_ <- sample(1:length(obsY), length(obsY), replace = T)
-          tauHat_ <-  mean(  obsW[ib_]*obsY[ib_]/(prW_est[ib_]) -
-                               (1-obsW[ib_])*obsY[ib_]/(1-prW_est[ib_]) )
-        })
-        tauHat_propensityHajek_vec <- sapply(1:nBoot,function(b_){
-          ib_ <- sample(1:length(obsY), length(obsY), replace = T)
-          tauHat_ <-  sum(  obsY[ib_]*prop.table(obsW[ib_]/(prW_est[ib_]))) -
-          sum(obsY[ib_]*prop.table((1-obsW[ib_])/(1-prW_est[ib_]) ))
-        })
-      }
+    postDiffInLat <- preDiffInLat <- NULL
+    if(!is.null(lat)){
+      preDiffInLat <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
+        colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
+      postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*prop.table(1/prW_est[obsW == 1])) -
+        colSums(cbind(long[obsW == 0],lat[obsW == 0])*prop.table(1/(1-prW_est[obsW == 0])))
     }
 
     print(  "Done with image confounding analysis!"  )
