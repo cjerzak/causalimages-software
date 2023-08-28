@@ -354,10 +354,10 @@ AnalyzeImageConfounding <- function(
       # optimal hidden layer
       if(nDepthHidden_dense > 0){
         for(jrz in 1:nDepthHidden_dense){
-        if(nDepthHidden_dense > 2){ im_getProb_m1 <- im_getProb }
+        if(nDepthHidden_dense > 1 & jrz > 1){ im_getProb_m1 <- im_getProb }
         im_getProb <- eval(parse(text = sprintf("tf$keras$activations$swish( HiddenProjection%s(  im_getProb   ) )", jrz)))
         im_getProb <- eval(parse(text = sprintf("BNLayer_Axis1_hidden%s( im_getProb , training = training_getProb)",jrz)))
-        if(nDepthHidden_dense > 2){ im_getProb <- tf$add(im_getProb, im_getProb_m1) }
+        if(nDepthHidden_dense > 1 & jrz > 1){ im_getProb <- tf$add(im_getProb, im_getProb_m1) }
         im_getProb <- HiddenDropout( im_getProb, training = training_getProb )
       } }
 
@@ -471,22 +471,24 @@ AnalyzeImageConfounding <- function(
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
 
         # if we run out of observations, reset iterator...
-        Repeated <- F
+        RestartedIterator <- F
         if( is.null(ds_next_train) ){
           print("Re-setting iterator! (type 1)")
           tf$random$set_seed(as.integer(runif(1,1,1000000)))
-          tf_dataset_train <- tf_dataset_train$`repeat`()
+          #tf_dataset_train <- tf_dataset_train$`repeat`()
+          tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
           ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
-          Repeated <- T
+          RestartedIterator <- T
         }
 
-        if(!Repeated){
+        if(!RestartedIterator){
           if(as.numeric(ds_next_train[[2]]$shape) < batchSize){
             print("Re-setting iterator! (type 2)")
             tf$random$set_seed(as.integer(runif(1,1,1000000)))
-            tf_dataset_train <- tf_dataset_train$`repeat`() # #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+            #tf_dataset_train <- tf_dataset_train$`repeat`()
+            tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
             ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
-            Repeated <- T
+            RestartedIterator <- T
           }
         }
 
