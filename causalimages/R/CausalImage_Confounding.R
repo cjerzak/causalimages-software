@@ -66,13 +66,11 @@ AnalyzeImageConfounding <- function(
                                    X = NULL,
                                    file = NULL,
                                    imageKeysOfUnits = NULL,
-                                   nDepth = 3L,
                                    doConvLowerDimProj = T,
                                    nDimLowerDimConv = 3L,
                                    nFilters = 50L,
                                    samplingType = "none",
                                    modelClass = "randomizedEmbeds",
-                                   doHiddenDim = T,
                                    nBoot = 50L,
                                    typeBoot = "SamplingOnly",
                                    nEmbedDim = 96L,
@@ -299,14 +297,16 @@ AnalyzeImageConfounding <- function(
       GlobalPoolLayer <- function(z){
         return(tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)) }
       BNLayer_Axis1_inputDense <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
-      BNLayer_Axis1_hidden <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
       #BNLayer_Axis1_final <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)
-      HiddenProjection <- tf$keras$layers$Dense(HiddenDim, activation = "linear")
+      if(nDepthHidden_dense > 0){ for(jr in 1:nDepthHidden_dense){
+        eval(parse(text = sprintf('HiddenProjection%s <- tf$keras$layers$Dense(HiddenDim, activation = "linear")', jr)))
+        eval(parse(text = sprintf('BNLayer_Axis1_hidden%s <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOMENTUM, epsilon = 0.001)', jr)))
+      }}
       DenseLayer <- tf$keras$layers$Dense(1L, activation = DenseActivation)
       FlattenLayer <- tf$keras$layers$Flatten(data_format = "channels_last")
 
       BNLayer_Axis3_init <- tf$keras$layers$BatchNormalization(axis = 3L, center = F, scale = F, momentum = BN_MOMENTUM, epsilon = 0.001,name="InitNorm")
-      for(d_ in 1:nDepth){
+      for(d_ in 1:nDepthHidden_conv){
         eval(parse(text = sprintf('Conv%s <- tf$keras$layers$Conv2D(filters=nFilters,
                                   kernel_size=c(kernelSize,kernelSize),
                                   activation=KernalActivation,
@@ -331,11 +331,11 @@ AnalyzeImageConfounding <- function(
     HiddenDropout_conv <- tf$keras$layers$Dropout(rate = dropoutRate )
     getProcessedImage <- tf_function_use( function(imm,training){
       # convolution + pooling
-      for(d_ in 1:nDepth){
+      for(d_ in 1:nDepthHidden_conv){
         if(doConvLowerDimProj){
           eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s_inner(Pool( Conv%s( imm )),training=training)",d_,d_)))
           imm <- HiddenDropout_conv( imm ,training = training)
-          if(d_ < nDepth){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s(  ConvProj%s( imm ), training = training)",d_,d_))) }
+          if(d_ < nDepthHidden_conv){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s(  ConvProj%s( imm ), training = training)",d_,d_))) }
         }
         if(doConvLowerDimProj == F){ eval(parse(text = sprintf("imm <- BNLayer_Axis3_%s( Pool( Conv%s( imm )), training = training)",d_,d_,d_)))}
       }
@@ -352,18 +352,20 @@ AnalyzeImageConfounding <- function(
       im_getProb <- tf$concat(list(im_getProb,x_getProb),1L)
 
       # optimal hidden layer
-      if(doHiddenDim == T){
-        im_getProb <-  tf$keras$activations$swish( HiddenProjection(  im_getProb   ) )
-        im_getProb <- BNLayer_Axis1_hidden( im_getProb )
+      if(nDepthHidden_dense > 0){
+        for(jrz in 1:nDepthHidden_dense){
+        if(nDepthHidden_dense > 2){ im_getProb_m1 <- im_getProb }
+        im_getProb <- eval(parse(text = sprintf("tf$keras$activations$swish( HiddenProjection(  im_getProb   ) )", jrz)))
+        im_getProb <- eval(parse(text = sprintf("BNLayer_Axis1_hidden%s( im_getProb , training = training_getProb)",jrz)))
+        if(nDepthHidden_dense > 2){ im_getProb <- tf$add(im_getProb, im_getProb_m1) }
         im_getProb <- HiddenDropout( im_getProb, training = training_getProb )
-      }
+      } }
 
       # final projection layer + sigmoid
-      im_getProb <- DenseLayer( im_getProb   )
-      im_getProb <- tf$keras$activations$sigmoid( im_getProb )
+      im_getProb <- tf$keras$activations$sigmoid( DenseLayer( im_getProb   ) )
 
       # return
-      return( im_getProb )
+      return(  im_getProb  )
     })
     epsilonLabelSmooth <- tf$constant(0.01)
     getLoss <- tf_function_use( function(im_getLoss, x_getLoss, treatt_getLoss, mask, training_getLoss){
@@ -377,7 +379,7 @@ AnalyzeImageConfounding <- function(
       minThis <- tf$multiply(tf$math$log( tf$maximum(treatProb_r,0.001)),  (treatt_r)) +
                         tf$multiply(tf$math$log(tf$maximum(1-treatProb_r,0.001)),  (1-treatt_r))
       minThis <- tf$divide( tf$reduce_sum( tf$multiply(minThis, mask) ), tf$add(0.01, tf$reduce_sum(mask)))
-      minThis <- tf$negative( minThis )
+      minThis <- tf$negative(  minThis  )
       return( minThis )
     })
 
@@ -469,21 +471,26 @@ AnalyzeImageConfounding <- function(
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
 
         # if we run out of observations, reset iterator...
-        if(is.null(ds_next_train)){
-          print("Re-setting iterator!")
+        Repeated <- F
+        if( is.null(ds_next_train) ){
+          print("Re-setting iterator! (type 1)")
           tf$random$set_seed(as.integer(runif(1,1,1000000)))
           tf_dataset_train <- tf_dataset_train$`repeat`()
-          ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-          #ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
+          Repeated <- T
         }
 
-        # if we haven't run out of observations, set up data
-        if(!is.null(ds_next_train)){
-          if(length(as.array(ds_next_train[[2]])) < batchSize){
-            tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-            ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+        if(!Repeated){
+          if(as.numeric(ds_next_train[[2]]$shape) < batchSize){
+            print("Re-setting iterator! (type 2)")
+            tf$random$set_seed(as.integer(runif(1,1,1000000)))
+            tf_dataset_train <- tf_dataset_train$`repeat`() # #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+            ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
+            Repeated <- T
           }
         }
+
+        # save indices
         batch_indices <- c(as.array(ds_next_train[[2]]))
       }
 
@@ -493,7 +500,8 @@ AnalyzeImageConfounding <- function(
                                     input_ave_pooling_size = input_ave_pooling_size),
         x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32),
-        mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32))
+        mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32)
+      )
 
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
