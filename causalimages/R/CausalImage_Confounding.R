@@ -35,7 +35,7 @@
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
 #' @param maxPoolSize (default = `2L`) Integer specifying the max pooling size used in the convolutional layers.
-#' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
+#' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param tf_seed (default = `NULL`) Specification for the tensorflow seed.
 #' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"randomizedEmbeds"`.
@@ -443,7 +443,7 @@ AnalyzeImageConfounding <- function(
         print(sprintf("Iteration: %i",i) );
         try(par(mfrow = c(1,1)),T);try(plot(loss_vec),T); try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
       }
-      if(i %% 10 == 0){ py_gc$collect() }
+      if(i %% 5 == 0){ py_gc$collect() }
       if((i %% 10 == 0 | i == 1 ) & doParallel == T){
         write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
       }
