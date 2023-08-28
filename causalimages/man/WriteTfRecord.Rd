@@ -13,7 +13,9 @@ WriteTfRecord(file,acquireImageRepFxn,conda_env)
 
 \item{acquireImageRepFxn}{A function whose input is an observation index and whose output is an image.}
 
-\item{conda_env}{A \code{conda} environment where tensorflow v2 lives.}
+\item{conda_env}{A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
+
+\item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
 }
 \value{
 Writes an index-referenced \code{.tfrecord} from an image corpus for use in image-based causal inference training.

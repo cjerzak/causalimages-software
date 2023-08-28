@@ -8,5 +8,5 @@ License: Creative Commons Attribution-Noncommercial-No Derivative Works 4.0, for
 Encoding: UTF-8
 LazyData: true
 Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
-Imports: tensorflow
+Imports: tensorflow, latex2exp, keras
 RoxygenNote: 7.2.3
