@@ -58,7 +58,7 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{maxPoolSize}{(default = \code{2L}) Integer specifying the max pooling size used in the convolutional layers.}
 
-\item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.=}
+\item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.}
 
 \item{dropoutRate}{(default = \code{0.1}) Droppout rate used in training used to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
 

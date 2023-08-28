@@ -183,7 +183,8 @@ AnalyzeImageConfounding <- function(
 
       getParsed_tf_dataset_train <- function(tf_dataset){
         dataset <- tf_dataset$map( parse_tfr_element )
-        dataset <- dataset$shuffle(tf$constant(as.integer(10*batchSize),dtype=tf$int64),
+        dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(10*batchSize),dtype=tf$int64),
+        #dataset <- dataset$shuffle(buffer_size = tf$data$AUTOTUNE,
                                    reshuffle_each_iteration = T)
         dataset <- dataset$batch(as.integer(batchSize))
       }
