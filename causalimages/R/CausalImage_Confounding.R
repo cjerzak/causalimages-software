@@ -997,7 +997,7 @@ AnalyzeImageConfounding <- function(
       "SalienceX" = SalienceX,
       "prW_est" = prW_est,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat,
-                                "postDiffInLat"  = postDiffInLat)
+                                "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
       "nTrainableParameters" = nTrainable
     ) )
