@@ -440,11 +440,11 @@ AnalyzeImageConfounding <- function(
     print("Starting training sequence...")
     loss_vec <- rep(NA,times=nSGD)
     in_ <- ip_ <- 0; for(i in 1:nSGD){
-      if((i %% 100 == 0 | (i == 10) | i == nSGD) & doParallel == F | i < 50){
-        print(sprintf("Iteration: %i",i) );
+      if((i %% 10 == 0 | (i == 10) | i == nSGD) & doParallel == F | i < 50){
+        print(sprintf("[%s] SGD Iteration: %i of %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), i, nSGD) );
         try(par(mfrow = c(1,1)),T);try(plot(loss_vec),T); try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
       }
-      if(i %% 2 == 0){ py_gc$collect() }
+      if(i %% 1 == 0){ py_gc$collect() }
       if((i %% 10 == 0 | i == 1 ) & doParallel == T){
         write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
       }
@@ -470,6 +470,7 @@ AnalyzeImageConfounding <- function(
 
         # if we run out of observations, reset iterator...
         if(is.null(ds_next_train)){
+          print("Re-setting iterator!")
           tf$random$set_seed(as.integer(runif(1,1,1000000)))
           tf_dataset_train <- tf_dataset_train$`repeat`()
           ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
