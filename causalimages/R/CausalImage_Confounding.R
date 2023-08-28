@@ -355,7 +355,7 @@ AnalyzeImageConfounding <- function(
       if(nDepthHidden_dense > 0){
         for(jrz in 1:nDepthHidden_dense){
         if(nDepthHidden_dense > 2){ im_getProb_m1 <- im_getProb }
-        im_getProb <- eval(parse(text = sprintf("tf$keras$activations$swish( HiddenProjection(  im_getProb   ) )", jrz)))
+        im_getProb <- eval(parse(text = sprintf("tf$keras$activations$swish( HiddenProjection%s(  im_getProb   ) )", jrz)))
         im_getProb <- eval(parse(text = sprintf("BNLayer_Axis1_hidden%s( im_getProb , training = training_getProb)",jrz)))
         if(nDepthHidden_dense > 2){ im_getProb <- tf$add(im_getProb, im_getProb_m1) }
         im_getProb <- HiddenDropout( im_getProb, training = training_getProb )
