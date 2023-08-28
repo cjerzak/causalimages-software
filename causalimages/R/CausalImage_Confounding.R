@@ -669,10 +669,9 @@ AnalyzeImageConfounding <- function(
                                 yes = list(MyEmbeds_$embeddings),
                                 no = list(cbind(as.matrix(X), MyEmbeds_$embeddings)))[[1]]
           myGlmnet_ <- glmnet::cv.glmnet(
-                              x = glmnetInput[indices_forTraining,],
-                              y = obsW[indices_forTraining],
+                              x = as.matrix(glmnetInput[indices_forTraining,]),
+                              y = as.matrix(obsW[indices_forTraining]),
                               alpha = 0, # alpha = 0 is the ridge penalty
-                              nfolds = 5,
                               family = "binomial")
           obsW_ <- obsW[indices_]
           obsY_ <- obsY[indices_]
@@ -680,9 +679,9 @@ AnalyzeImageConfounding <- function(
           # compute QOIs
           myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
           prW_est_ <- sigmoid( cbind(1, glmnetInput) %*% myGlmnet_coefs_ )
-          tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/(prW_est_) - (1-obsW_)*obsY_/(1-prW_est_) )
-          tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/(prW_est_))) -
-            sum(obsY*prop.table((1-obsW_)/(1-prW_est_) ))
+          tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/c(prW_est_) - (1-obsW_)*obsY_/c(1-prW_est_) )
+          tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/c(prW_est_))) -
+            sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
           if(jr == 1){
             nTrainable <- length(  myGlmnet_coefs_  )
             tauHat_propensityHajek <- tauHat_propensityHajek_
