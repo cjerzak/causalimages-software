@@ -475,7 +475,6 @@ AnalyzeImageConfounding <- function(
         if( is.null(ds_next_train) ){
           print("Re-setting iterator! (type 1)")
           tf$random$set_seed(as.integer(runif(1,1,1000000)))
-          #tf_dataset_train <- tf_dataset_train$`repeat`()
           tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
           ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
           RestartedIterator <- T
@@ -485,7 +484,6 @@ AnalyzeImageConfounding <- function(
           if(as.numeric(ds_next_train[[2]]$shape) < batchSize){
             print("Re-setting iterator! (type 2)")
             tf$random$set_seed(as.integer(runif(1,1,1000000)))
-            #tf_dataset_train <- tf_dataset_train$`repeat`()
             tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
             ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
             RestartedIterator <- T
