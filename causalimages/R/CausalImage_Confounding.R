@@ -792,8 +792,9 @@ AnalyzeImageConfounding <- function(
             col_ <- ifelse(in_ %in% top_treated,
                            yes = "black", no = "gray")
             in_counter <- in_counter + 1
-            long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f",
-                                    f2n(lat[in_]), f2n(long[in_]))
+            if(!is.null(lat)){
+              long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_]))
+            }
 
             # extract
             im_orig <- im_ <- InitImageProcess(
@@ -957,12 +958,15 @@ AnalyzeImageConfounding <- function(
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
       } }
 
-      preDiff <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
-                      colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
+      postDiffInLat <- preDiffInLat <- NULL
+      if(!is.null(lat)){
+        preDiffInLat <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
+                        colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
+        postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*wt1) -
+          colSums(cbind(long[obsW == 0],lat[obsW == 0])*wt0)
+      }
       wt1 <- prop.table(1/prW_est[obsW == 1])
       wt0 <- prop.table(1/(1-prW_est[obsW == 0]))
-      postDiff <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*wt1) -
-        colSums(cbind(long[obsW == 0],lat[obsW == 0])*wt0)
 
       tauHat_propensity <- mean(  obsW*obsY/(prW_est) - (1-obsW)*obsY/(1-prW_est) )
       tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/(prW_est))) -
@@ -992,6 +996,8 @@ AnalyzeImageConfounding <- function(
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
       "prW_est" = prW_est,
+      "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat,
+                                "postDiffInLat"  = postDiffInLat)
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
       "nTrainableParameters" = nTrainable
     ) )
