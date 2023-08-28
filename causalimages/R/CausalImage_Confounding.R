@@ -111,6 +111,7 @@ AnalyzeImageConfounding <- function(
                                    nDenseWidth = 32L,
                                    channelNormalize = T,
                                    printDiagnostics = F,
+                                   TfRecords_BufferScaler = 5L,
                                    tf_seed = NULL,
                                    quiet = F){
   print("Initializing the tensorflow environment...")
@@ -183,8 +184,7 @@ AnalyzeImageConfounding <- function(
 
       getParsed_tf_dataset_train <- function(tf_dataset){
         dataset <- tf_dataset$map( parse_tfr_element )
-        dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(10*batchSize),dtype=tf$int64),
-        #dataset <- dataset$shuffle(buffer_size = tf$data$AUTOTUNE,
+        dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
         dataset <- dataset$batch(as.integer(batchSize))
       }
@@ -444,7 +444,7 @@ AnalyzeImageConfounding <- function(
         print(sprintf("Iteration: %i",i) );
         try(par(mfrow = c(1,1)),T);try(plot(loss_vec),T); try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
       }
-      if(i %% 5 == 0){ py_gc$collect() }
+      if(i %% 2 == 0){ py_gc$collect() }
       if((i %% 10 == 0 | i == 1 ) & doParallel == T){
         write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
       }
