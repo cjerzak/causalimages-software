@@ -189,6 +189,7 @@ AnalyzeImageConfounding <- function(
 
       # setup iterators
       tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+      tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(1.1*ceiling(batchSize*nSGD / length(obsY)  ) ) )
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
 
       # reset iterators
@@ -280,8 +281,8 @@ AnalyzeImageConfounding <- function(
     trainIndices <- (1:length(obsY))[! 1:length(obsY) %in% testIndices]
 
     # define tf function
-    #tf_function_use  <- tf_function
-    tf_function_use  <- function(.){.}
+    tf_function_use  <- tf_function
+    #tf_function_use  <- function(x){print("Warning: Not using tf_function()"); return(x)}
 
     # set up holders
     prW_est <- rep(NA,times = length(obsW))
@@ -474,19 +475,21 @@ AnalyzeImageConfounding <- function(
         RestartedIterator <- F
         if( is.null(ds_next_train) ){
           #print("Re-setting iterator! (type 1)")
-          tf$random$set_seed(as.integer(runif(1,1,1000000)))
-          tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-          ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
-          RestartedIterator <- T
+          #tf$random$set_seed(as.integer(runif(1,1,1000000)))
+          #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+          #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
+          #RestartedIterator <- T
         }
 
         if(!RestartedIterator){
-          if(as.numeric(ds_next_train[[2]]$shape) < batchSize){
+          if(as.numeric(ds_next_train[[2]]$shape) != batchSize){
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
             #print("Re-setting iterator! (type 2)")
-            tf$random$set_seed(as.integer(runif(1,1,1000000)))
-            tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-            ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
-            RestartedIterator <- T
+            #tf$random$set_seed(as.integer(runif(1,1,1000000)))
+            #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+            #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
+            #RestartedIterator <- T
+            ds_next_train <- reticulate::iter_next( ds_iterator_train )
           }
         }
 
@@ -532,9 +535,9 @@ AnalyzeImageConfounding <- function(
 
     # get probabilities for inference (all observations)
     print("Starting to get probabilities for inference...")
-    gc();py_gc$collect()
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
       ok_counter <- ok_counter + 1
+      gc();py_gc$collect()
       print(sprintf("[%s] %.3f%% done getting inference probabilities",
                     format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
                     100*last_i / length(obsW)))
@@ -594,7 +597,7 @@ AnalyzeImageConfounding <- function(
         }
       }
 
-      gc();py_gc$collect()
+      gc(); py_gc$collect()
     }
     rm( batch_inference )
 
