@@ -805,6 +805,7 @@ AnalyzeImageConfounding <- function(
             text(0.5,0.5,labels = text_, srt=90,cex=3)
           }
           plot_index_counter <- 0; for(in_ in plot_indices){
+            gc(); py_gc$collect()
             plot_index_counter <- plot_index_counter + 1
             if(acquireImageMethod == "tf_record"){
               ds_next_in <- GetElementFromTfRecordAtIndices( indices = in_,
