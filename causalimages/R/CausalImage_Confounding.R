@@ -123,14 +123,19 @@ AnalyzeImageConfounding <- function(
     #tfd <- (tfp <- tf_probability())$distributions
     #tfa <- reticulate::import("tensorflow_addons")
 
-    try(tf$random$set_seed(  c( ifelse(is.null(tf_seed),
-                                yes = 123431L, no = as.integer(tf_seed)  ) )), T)
-    try(tf$keras$utils$set_random_seed( c( ifelse(is.null(tf_seed),
-                                yes = 123419L, no = as.integer(tf_seed)  ) )), T)
+    # setting seed can cause good or bad effects
+    # https://github.com/tensorflow/tensorflow/issues/37252
+    try(tf$random$set_seed(  c( ifelse(is.null(tf_seed),yes = 123431L, no = as.integer(tf_seed)  ) )), T)
+    try(tf$keras$utils$set_random_seed( c( ifelse(is.null(tf_seed), yes = 123419L, no = as.integer(tf_seed)  ) )), T)
 
     # import python garbage collectors
     py_gc <- reticulate::import("gc")
     gc(); py_gc$collect()
+
+    # define tf function
+    # remember - inputs to tf_functions should be tf$constants
+    tf_function_use  <- tf_function
+    #tf_function_use  <- function(x){print("Warning: Not using tf_function()"); return(x)}
   }
 
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
@@ -190,6 +195,9 @@ AnalyzeImageConfounding <- function(
       }
 
       # setup iterators
+      #Sys.setenv(M_CHECK_ = "1")
+      #LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
+      #Sys.setenv(MALLOC_TRIM_THRESHOLD_ = "0")
       tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
       #iterator = dataset.shuffle(int(1e7)).batch(int(1e6)).repeat(10)
       tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
@@ -215,10 +223,11 @@ AnalyzeImageConfounding <- function(
 
     trainingPertubations <- tf$identity
     if(useTrainingPertubations){
-      trainingPertubations <- (function(im__){
+      trainingPertubations <- tf_function_use(function(im__, iteration){
         #with( tf$device('/CPU:0'), {
-          im__ <- tf$image$random_flip_left_right(im__)
-          im__ <- tf$image$random_flip_up_down(im__)
+          print("not random flipping")
+          #im__ <- tf$image$random_flip_left_right(im__, iteration)
+          #im__ <- tf$image$random_flip_up_down(im__, iteration)
           #im__ <- tf$image$random_saturation(im__, 5, 10)
           #im__ <- tf$image$adjust_brightness(im__, 0.1)
           return( im__ )
@@ -228,22 +237,24 @@ AnalyzeImageConfounding <- function(
 
     binaryCrossLoss <- function(W,prW){return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
 
-    InitImageProcess <- function(im, training = F, input_ave_pooling_size = 1){
+    InitImageProcess <- tf_function_use(function(im,
+                                                 training,
+                                                 iteration){
 
       # expand dims if needed
       if(length(imageKeysOfUnits) == 1){ im <- tf$expand_dims(im,0L) }
 
       # normalize
-      im <- (im - NORM_MEAN_array) / NORM_SD_array
+      im <- tf$divide(tf$subtract(im, NORM_MEAN_array), NORM_SD_array)
 
       # training pertubations if desired
       # note: trainingPertubations must be performed on CPU
-      if(training == T){ im <- trainingPertubations(im) }
+      if(training == T){ im <- trainingPertubations(im, iteration) }
 
       # downshift resolution if desired
       if(input_ave_pooling_size > 1){ im <- AvePoolingDownshift(im) }
       return( im  )
-    }
+    })
 
     # some hyperparameters parameters
     figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
@@ -289,10 +300,6 @@ AnalyzeImageConfounding <- function(
     # define train/test indices
     testIndices <- sample(1:length(obsY), max(2,length(obsY)*testFrac))
     trainIndices <- (1:length(obsY))[! 1:length(obsY) %in% testIndices]
-
-    # define tf function
-    tf_function_use  <- tf_function
-    #tf_function_use  <- function(x){print("Warning: Not using tf_function()"); return(x)}
 
     # set up holders
     prW_est <- rep(NA,times = length(obsW))
@@ -401,7 +408,7 @@ AnalyzeImageConfounding <- function(
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(im = ds_next_train[[1]],
                                                                  training = T,
-                                                                 input_ave_pooling_size = input_ave_pooling_size),
+                                                                 iteration = tf$constant(1.)),
                                    x_getLoss = tf$constant( as.matrix(X[batch_indices,]),tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(obsW[batch_indices]),tf$float32 ),
                                    mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32),
@@ -420,7 +427,8 @@ AnalyzeImageConfounding <- function(
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
     optimizer_tf = tf$optimizers$legacy$Nadam()
-    getGrad <- tf_function_use(function(im_train, x_train, truth_train, mask){
+    getGrad <- tf_function_use(getGrad_r <- function(im_train, x_train, truth_train, mask){
+      print("Initializing getGrad")
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = im_train,
                                    x_getLoss = x_train,
@@ -429,16 +437,19 @@ AnalyzeImageConfounding <- function(
                                    training_getLoss = T)
       })
       my_grads <- tape$gradient( myLoss_forGrad, trainable_variables )
-      return(list(myLoss_forGrad,my_grads))
+      return(list(myLoss_forGrad, my_grads))
     })
+    #trainStep <- tf_function_use(function(im_train, x_train, truth_train, mask){
     trainStep <- (function(im_train, x_train, truth_train, mask){
+      #print("Initializing trainStep")
+      # note: MEMORY LEAK WHEN TRAINSTEP IS TF_FUNCTION DECORATED
       my_grads <- getGrad(im_train, x_train, truth_train, mask)
+      #my_grads <- getGrad_r(im_train, x_train, truth_train, mask, training_vars)
       myLoss_forGrad <- my_grads[[1]]
       my_grads <- my_grads[[2]]
-      optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+
-                                                         NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
       optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ])
-      return(  list(myLoss_forGrad, my_grads)  )
+      #optimizer$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+ NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
+      return(  list( myLoss_forGrad, my_grads )  )
     })
 
     # number of trainable variables
@@ -478,6 +489,7 @@ AnalyzeImageConfounding <- function(
         )
       }
 
+      #if(i == 1){ds_next_train <- reticulate::iter_next( ds_iterator_train )}
       if(acquireImageMethod == "tf_record"){
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
 
@@ -509,23 +521,30 @@ AnalyzeImageConfounding <- function(
         batch_indices <- c(as.array(ds_next_train[[2]]))
       }
 
+      # get image and apply loss
+      ProcessedIm <- InitImageProcess(ds_next_train[[1]],
+                       training = T,
+                       iteration = tf$constant(as.numeric(i)))
       myLoss_forGrad <- trainStep(
-        im_train = InitImageProcess(ds_next_train[[1]],
-                                    training = T,
-                                    input_ave_pooling_size = input_ave_pooling_size),
+        im_train = ProcessedIm,
         x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32),
         mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32)
+        #optimizer = optimizer_tf #training_vars = trainable_variables
       )
+      optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+ NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
 
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
+      if(T == F){
       grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
       if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
         print("NA in loss -- opening browser")
         print("Image sum:")
-        print(as.numeric(tf$math$reduce_sum( InitImageProcess(ds_next_train[[1]],
-              training = T, input_ave_pooling_size = input_ave_pooling_size) )))
+        print(as.numeric(tf$math$reduce_sum(
+            InitImageProcess(ds_next_train[[1]],
+              training = T,
+              iteration = tf$constant(as.numeric((runif(1,1,100000)))) ))))
         print("Prior recent losses:")
         try( print(loss_vec[(i-10):i]), T)
         print("Keys:")
@@ -538,6 +557,7 @@ AnalyzeImageConfounding <- function(
         print(sum(  X[batch_indices,] ))
         browser()
         stop("NA introduced in training! Check images + input data for NAs. Try increasing batch size.")
+      }
       }
     }
     print("Done with training sequence...")
@@ -576,7 +596,7 @@ AnalyzeImageConfounding <- function(
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
                                                                                   training = F,
-                                                                                  input_ave_pooling_size = input_ave_pooling_size),
+                                                                                  iteration = tf$constant(as.numeric(runif(1,1,100000)))),
                                                     x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                     training_getProb = F ))),T)
         if( "try-error" %in% class(insert_probs)){
@@ -603,8 +623,9 @@ AnalyzeImageConfounding <- function(
             batch_inference[[1]] <- tf$concat(list(batch_inference[[1]],batch_inference[[1]]),0L)
           }
           last_i <- max( batch_indices_inference )
-          insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]], training = F,
-                                                                                    input_ave_pooling_size = input_ave_pooling_size),
+          insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
+                                                                                    training = F,
+                                                                                    iteration = tf$constant(1.)),
                                                       x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                       training_getProb = F ))),T)
           if(drop_ == T){  insert_probs <- insert_probs[-1]  }
@@ -846,7 +867,7 @@ AnalyzeImageConfounding <- function(
             # extract
             im_orig <- im_ <- InitImageProcess(
                                 im = ds_next_in[[1]], training = F,
-                                input_ave_pooling_size = input_ave_pooling_size)
+                                seed = tf$constant(1.))
             XToConcat_values <- tf$constant(t(X[in_,]),tf$float32)
             if(modelClass == "cnn"){
               im_processed <- getProcessedImage(im_, training = F)
@@ -993,7 +1014,8 @@ AnalyzeImageConfounding <- function(
 
         im_ <- InitImageProcess(
                           ds_next_in[[1]],
-                          input_ave_pooling_size = input_ave_pooling_size)
+                          training = F,
+                          seed = tf$constant(1.))
         x_ <- tf$constant(t(X[samp_,]),tf$float32)
         SalienceX <- rbind(SalienceX,as.matrix( getSalienceVec(im_=im_, x_=x_)))
         }
