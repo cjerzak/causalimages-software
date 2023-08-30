@@ -200,7 +200,7 @@ AnalyzeImageConfounding <- function(
       #Sys.setenv(MALLOC_TRIM_THRESHOLD_ = "0")
       tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
       #iterator = dataset.shuffle(int(1e7)).batch(int(1e6)).repeat(10)
-      tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
+      #tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
 
       # reset iterators
@@ -210,7 +210,6 @@ AnalyzeImageConfounding <- function(
         # see https://stackoverflow.com/questions/72552605/how-to-fix-tensorflow-datasets-memory-leak-when-shuffling
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
         batch_indices <- as.array(ds_next_train[[2]])
-        batch_indices
       }
       ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
 
@@ -498,10 +497,9 @@ AnalyzeImageConfounding <- function(
         if( is.null(ds_next_train) ){
           print("Re-setting iterator! (type 1)")
           #tf$random$set_seed(as.integer(runif(1,1,1000000)))
-          #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-          #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
-          #RestartedIterator <- T
-          ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+          ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) ); RestartedIterator <- T
+          #ds_next_train <- reticulate::iter_next( ds_iterator_train )
         }
 
         if(!RestartedIterator){
@@ -509,11 +507,10 @@ AnalyzeImageConfounding <- function(
             # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
             print("Re-setting iterator! (type 2)")
             #tf$random$set_seed(as.integer(runif(1,1,1000000)))
-            #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-            #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
-            #RestartedIterator <- T
+            tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+            ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )); RestartedIterator <- T
 
-            ds_next_train <- reticulate::iter_next( ds_iterator_train )
+            #ds_next_train <- reticulate::iter_next( ds_iterator_train )
           }
         }
 
