@@ -16,7 +16,7 @@ data(  CausalImagesTutorialData )
 # example acquire image function (loading from memory)
 # in general, you'll want to write a function that returns images
 # that saved disk associated with keys
-acquireImageRepFromMemory <- function(keys, training = F){
+acquireImageFromMemory <- function(keys, training = F){
   # here, the function input keys
   # refers to the unit-associated image keys
   return( FullImageArray[match(keys, KeysOfImages),,,] )
@@ -49,7 +49,7 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
 MyImageEmbeddings <- GetRandomizedImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  acquireImageFxn = acquireImageRepFromMemory,
+  acquireImageFxn = acquireImageFromMemory,
   nFeatures = 100,
   kernelSize = 3L,
   conda_env = "tensorflow_m1",
@@ -86,7 +86,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   batchSize = 4, samplingType = "balancedTrain",
 
-  acquireImageFxn = acquireImageRepFromMemory,
+  acquireImageFxn = acquireImageFromMemory,
   modelClass = "cnn", # uses convolutional network (richer model class)
   #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   file = NULL,

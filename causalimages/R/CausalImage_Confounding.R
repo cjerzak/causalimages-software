@@ -181,19 +181,29 @@ AnalyzeImageConfounding <- function(
       }
 
       getParsed_tf_dataset_train <- function(tf_dataset){
-        dataset <- tf_dataset$map( parse_tfr_element )
+        dataset <- tf_dataset$map( parse_tfr_element,
+                                   num_parallel_calls=tf$data$AUTOTUNE)
         dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
-        dataset <- dataset$batch(as.integer(batchSize))
+        dataset <- dataset$batch(  as.integer(batchSize)   )
+        dataset <- dataset$prefetch(tf$data$AUTOTUNE)
       }
 
       # setup iterators
       tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-      tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(1.1*ceiling(batchSize*nSGD / length(obsY)  ) ) )
+      #iterator = dataset.shuffle(int(1e7)).batch(int(1e6)).repeat(10)
+      tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
 
       # reset iterators
       ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+      if(T == F){
+        # TESTING
+        # see https://stackoverflow.com/questions/72552605/how-to-fix-tensorflow-datasets-memory-leak-when-shuffling
+        ds_next_train <- reticulate::iter_next( ds_iterator_train )
+        batch_indices <- as.array(ds_next_train[[2]])
+        batch_indices
+      }
       ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
 
       # checks
@@ -448,9 +458,9 @@ AnalyzeImageConfounding <- function(
         try(par(mfrow = c(1,1)),T);try(plot(loss_vec),T); try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
       }
       if(i %% 1 == 0){ py_gc$collect() }
-      if((i %% 10 == 0 | i == 1 ) & doParallel == T){
-        write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
-      }
+
+      # for debugging purposes
+      write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
 
       if(i == 1){ batch_indices_past <- myLoss_forGrad_past <- NA }
       if(i > 1){ myLoss_forGrad_past <- myLoss_forGrad; batch_indices_past <- batch_indices }
@@ -474,21 +484,23 @@ AnalyzeImageConfounding <- function(
         # if we run out of observations, reset iterator...
         RestartedIterator <- F
         if( is.null(ds_next_train) ){
-          #print("Re-setting iterator! (type 1)")
+          print("Re-setting iterator! (type 1)")
           #tf$random$set_seed(as.integer(runif(1,1,1000000)))
           #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
           #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) )
           #RestartedIterator <- T
+          ds_next_train <- reticulate::iter_next( ds_iterator_train )
         }
 
         if(!RestartedIterator){
           if(as.numeric(ds_next_train[[2]]$shape) != batchSize){
             # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-            #print("Re-setting iterator! (type 2)")
+            print("Re-setting iterator! (type 2)")
             #tf$random$set_seed(as.integer(runif(1,1,1000000)))
             #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
             #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ))
             #RestartedIterator <- T
+
             ds_next_train <- reticulate::iter_next( ds_iterator_train )
           }
         }
@@ -536,6 +548,10 @@ AnalyzeImageConfounding <- function(
     # get probabilities for inference (all observations)
     print("Starting to get probabilities for inference...")
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
+
+      # for debugging purposes
+      write.csv(file = sprintf("./checkpoint2%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "ok_counter"=ok_counter))
+
       ok_counter <- ok_counter + 1
       gc();py_gc$collect()
       print(sprintf("[%s] %.3f%% done getting inference probabilities",

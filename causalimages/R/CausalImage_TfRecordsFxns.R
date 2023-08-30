@@ -5,28 +5,29 @@
 #'
 #' @usage
 #'
-#' WriteTfRecord(file,acquireImageRepFxn,conda_env)
+#' WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env)
 #'
 #' @param file A character string naming a file for writing.
-#' @param acquireImageRepFxn A function whose input is an observation index and whose output is an image.
-#' @param imageKeys A vector specifying the image keys of the corpus. A key grabs an image via acquireImageRepFxn(key)
+#' @param imageKeysOfUnits A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)
+#' @param acquireImageFxn A function whose input is an observation index and whose output is an image.
 #' @param conda_env A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #'
-#' @return Writes an index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
+#' @return Writes an key- and index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
 #'
 #' @examples
 #' # Example usage:
 #' #WriteTfRecord(
 #' #  file = "./NigeriaConfoundApp.tfrecord",
-#' #  acquireImageRepFxn = acquireImageRepFxn,
+#' #  keys = 1:n,
+#' #  acquireImageFxn = acquireImageFxn,
 #' #  conda_env = "tensorflow_m1")
 #'
 #' @export
 #' @md
 WriteTfRecord <- function(file,
-                          imageKeys,
-                          acquireImageRepFxn,
+                          imageKeysOfUnits,
+                          acquireImageFxn,
                           conda_env = NULL,
                           conda_env_required = F){
   if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
@@ -88,11 +89,11 @@ WriteTfRecord <- function(file,
   setwd( new_wd )
   tf_record_writer = tf$io$TFRecordWriter( tf_record_name[length(tf_record_name)] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
-  for(irz in 1:length(imageKeys)){
+  for(irz in 1:length(imageKeysOfUnits)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
-    tf_record_write_output <- parse_single_image(image = r2const(acquireImageRepFxn( imageKeys[irz]  ), tf$float32),
+    tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ), tf$float32),
                                                  index = as.integer( irz ),
-                                                 key = as.integer( imageKeys[irz]  ) )
+                                                 key = as.integer( imageKeysOfUnits[irz]  ) )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
   }
   print("Done! Finalizing tfrecords....")

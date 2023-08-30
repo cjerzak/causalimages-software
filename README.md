@@ -70,13 +70,13 @@ You will write your `acquireImageFxn` to take in two arguments: `keys` and `trai
 ### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 
 ```
-acquireImageRepFromMemory <- function(keys, training = F){
+acquireImageFromMemory <- function(keys, training = F){
   # here, the function input keys 
   # refers to the unit-associated keys 
   return( FullImageArray[match(keys, KeysOfImages),,,] )  
 }
 
-ImageSample <- acquireImageRepFromMemory(sample(KeysOfObservations,10))
+ImageSample <- acquireImageFromMemory(sample(KeysOfObservations,10))
 dim( ImageSample )
 
 # plot image: it's always a good idea 
@@ -89,7 +89,7 @@ image2( ImageSample[3,,,1] )
 ### When Reading in Images from Disk 
 For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageFxn` that reads images from disk: 
 ```
-acquireImageRepFromDisk <- function(keys,training = F){
+acquireImageFromDisk <- function(keys,training = F){
   ## IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
   
   # initialize an array shell to hold image slices
@@ -135,7 +135,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           obsW =  obsW,
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
-          acquireImageFxn = acquireImageRepFromMemory,
+          acquireImageFxn = acquireImageFromMemory,
           conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
           X = X, 
           
