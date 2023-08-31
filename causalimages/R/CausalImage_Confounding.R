@@ -109,7 +109,7 @@ AnalyzeImageConfounding <- function(
                                    nDenseWidth = 32L,
                                    channelNormalize = T,
                                    printDiagnostics = F,
-                                   TfRecords_BufferScaler = 5L,
+                                   TfRecords_BufferScaler = 4L,
                                    tf_seed = NULL,
                                    quiet = F){
   print("Initializing the tensorflow environment...")
@@ -186,12 +186,13 @@ AnalyzeImageConfounding <- function(
       }
 
       getParsed_tf_dataset_train <- function(tf_dataset){
-        dataset <- tf_dataset$map( parse_tfr_element,
-                                   num_parallel_calls=tf$data$AUTOTUNE)
+        dataset <- tf_dataset$map( parse_tfr_element )
+                                   #num_parallel_calls = tf$data$AUTOTUNE)
         dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
         dataset <- dataset$batch(  as.integer(batchSize)   )
-        dataset <- dataset$prefetch(tf$data$AUTOTUNE)
+        #dataset <- dataset$prefetch(tf$data$AUTOTUNE)
+        return( dataset  )
       }
 
       # setup iterators
@@ -201,6 +202,7 @@ AnalyzeImageConfounding <- function(
       tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
       #iterator = dataset.shuffle(int(1e7)).batch(int(1e6)).repeat(10)
       #tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
+      tf_dataset_train <- tf_dataset_train$`repeat`(  -1L )
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
 
       # reset iterators
@@ -497,9 +499,9 @@ AnalyzeImageConfounding <- function(
         if( is.null(ds_next_train) ){
           print("Re-setting iterator! (type 1)")
           #tf$random$set_seed(as.integer(runif(1,1,1000000)))
-          tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-          ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) ); RestartedIterator <- T
-          #ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+          #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train ) ); RestartedIterator <- T
+          ds_next_train <- reticulate::iter_next( ds_iterator_train )
         }
 
         if(!RestartedIterator){
@@ -507,10 +509,10 @@ AnalyzeImageConfounding <- function(
             # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
             print("Re-setting iterator! (type 2)")
             #tf$random$set_seed(as.integer(runif(1,1,1000000)))
-            tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
-            ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )); RestartedIterator <- T
+            #tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+            #ds_next_train <- reticulate::iter_next( ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )); RestartedIterator <- T
 
-            #ds_next_train <- reticulate::iter_next( ds_iterator_train )
+            ds_next_train <- reticulate::iter_next( ds_iterator_train )
           }
         }
 
