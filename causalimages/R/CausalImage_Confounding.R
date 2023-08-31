@@ -227,29 +227,36 @@ AnalyzeImageConfounding <- function(
     #iterationFxn <- function(x){ x %% 4 }
     iterationFxn <- function(x){ sample(0L:3L,1) }
     if(useTrainingPertubations){
+      #flip_left_right <- (function(x){ tf$image$flip_left_right(x)})
+      #flip_up_down <- (function(x){ tf$image$flip_up_down(x)})
+      flip_left_right <- tf_function_use(function(x){ tf$image$flip_left_right(x)})
+      flip_up_down <- tf_function_use(function(x){ tf$image$flip_up_down(x)})
       #trainingPertubations <- tf_function_use(function(im__, iteration){
       trainingPertubations <- (function(im__, iteration){
         #with( tf$device('/CPU:0'), {
+        ({
 
           if(iteration == 0){
             # do nothing
           }
           if(iteration == 1){
-            im__ <- tf$image$flip_left_right(im__)
+            #im__ <- tf$image$flip_left_right(im__)
+            im__ <- flip_left_right(im__)
           }
           if(iteration == 2){
-            im__ <- tf$image$flip_up_down(im__)
+            #im__ <- tf$image$flip_up_down(im__)
+            im__ <- flip_up_down(im__)
           }
           if(iteration == 3){
-            im__ <- tf$image$flip_up_down(im__)
-            im__ <- tf$image$flip_left_right(im__)
+            #im__ <- tf$image$flip_left_right( tf$image$flip_up_down(im__) )
+            im__ <- flip_left_right( flip_up_down(im__) )
           }
           #im__ <- tf$image$random_flip_left_right(im__, iteration)
           #im__ <- tf$image$random_flip_up_down(im__, iteration)
           #im__ <- tf$image$random_saturation(im__, 5, 10)
           #im__ <- tf$image$adjust_brightness(im__, 0.1)
           return( im__ )
-        #})
+        })
     })
     }
 
@@ -421,12 +428,13 @@ AnalyzeImageConfounding <- function(
     })
 
     # arms
-    print("Initializing training arms...")
+    print("Initializing training arm...")
     # note: new TF version may kill compiled fxn here (use 2.12)
-    for(ARM in c(T,F)){
+    #for(ARM in c(T,F)){ # F arm is unnecessary, bloats memory
+    for(ARM in c(T)){
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(im = ds_next_train[[1]],
-                                                                 training = T,
+                                                                 training = ARM,
                                                                  iteration = iterationFxn(1.)),
                                    x_getLoss = tf$constant( as.matrix(X[batch_indices,]),tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(obsW[batch_indices]),tf$float32 ),
@@ -445,7 +453,8 @@ AnalyzeImageConfounding <- function(
 
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
-    optimizer_tf = tf$optimizers$legacy$Nadam()
+    #optimizer_tf = tf$optimizers$legacy$Nadam()
+    optimizer_tf = tf$optimizers$Nadam()
     getGrad <- tf_function_use(getGrad_r <- function(im_train, x_train, truth_train, mask){
       print("Initializing getGrad")
       with(tf$GradientTape() %as% tape, {
@@ -539,15 +548,13 @@ AnalyzeImageConfounding <- function(
       }
 
       # get image and apply loss
-      ProcessedIm <- InitImageProcess(ds_next_train[[1]],
-                       training = T,
-                       iteration = iterationFxn(i))
       myLoss_forGrad <- trainStep(
-        im_train = ProcessedIm,
+        im_train = (ds_next_train[[1]] <-
+                      InitImageProcess(ds_next_train[[1]],
+                       training = T, iteration = iterationFxn(i))),
         x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
         truth_train = tf$constant(as.matrix(obsW[batch_indices]),tf$float32),
         mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32)
-        #optimizer = optimizer_tf #training_vars = trainable_variables
       )
       optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+ NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
 
