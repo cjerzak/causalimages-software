@@ -38,7 +38,9 @@ WriteTfRecord <- function(file,
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
 
-    tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
+    # import python garbage collectors
+    py_gc <- reticulate::import("gc")
+    gc(); py_gc$collect()
   }
 
   # for clarity, set file to tf_record_name
@@ -136,8 +138,11 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     try(tensorflow::use_condaenv(conda_env, required = T),T)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
-
     tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
+
+    # import python garbage collectors
+    py_gc <- reticulate::import("gc")
+    gc(); py_gc$collect()
   }
 
   if(is.null(iterator)){
@@ -202,7 +207,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
         return_list[[li_]][[index_counter]] <- tf$expand_dims(element[[li_]],0L)
       }
     }
-    if(index_counter %% 5==0){ py_gc$collect() }
+    if(index_counter %% 5==0){ try(py_gc$collect(),T) }
   }
 
   if(index_counter > 1){ for(li_ in 1:length(element)){

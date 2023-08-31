@@ -227,8 +227,8 @@ AnalyzeImageConfounding <- function(
     #iterationFxn <- function(x){ x %% 4 }
     iterationFxn <- function(x){ sample(0L:3L,1) }
     if(useTrainingPertubations){
-      trainingPertubations <- tf_function_use(function(im__, iteration){
-      #trainingPertubations <- (function(im__, iteration){
+      #trainingPertubations <- tf_function_use(function(im__, iteration){
+      trainingPertubations <- (function(im__, iteration){
         #with( tf$device('/CPU:0'), {
 
           if(iteration == 0){
@@ -489,7 +489,7 @@ AnalyzeImageConfounding <- function(
       if(i %% 1 == 0){ py_gc$collect() }
 
       # for debugging purposes
-      write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
+      # write.csv(file = sprintf("./checkpoint%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "i"=i))
 
       if(i == 1){ batch_indices_past <- myLoss_forGrad_past <- NA }
       if(i > 1){ myLoss_forGrad_past <- myLoss_forGrad; batch_indices_past <- batch_indices }

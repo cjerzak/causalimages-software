@@ -22,7 +22,7 @@ acquireImageFromMemory <- function(keys, training = F){
   return( FullImageArray[match(keys, KeysOfImages),,,] )
 }
 
-# exampole video function (this here just appends two identical images for illustration only)
+# example video function (this here just appends two identical images for illustration only)
 # in practice, image sequence / video data will be read from disk
 acquireVideoRepFromMemory <- function(keys, training = F){
   tmp <- FullImageArray[match(keys, KeysOfImages),,,]
@@ -83,11 +83,11 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
   long = LongLat$geo_long[ take_indices ],
   lat = LongLat$geo_lat[ take_indices ],
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  batchSize = 4, samplingType = "balancedTrain",
 
+  imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireImageFromMemory,
   modelClass = "cnn", # uses convolutional network (richer model class)
+  batchSize = 4,
   #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   file = NULL,
   plotBands = c(1,2,3),
