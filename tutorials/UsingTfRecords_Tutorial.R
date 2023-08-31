@@ -62,7 +62,6 @@ MyImageEmbeddings$embeddings
 #MyImageEmbeddings$embeddings_fxn
 
 # perform causal inference with image and tabular confounding
-install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   obsW = obsW[ take_indices ],
   obsY = obsY[ take_indices ],
@@ -86,7 +85,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   conda_env_required = T
 )
 
-# ATE estimate (image  confounder adjusted)
+# ATE estimate (image confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek
 
 # ATE se estimate (image confounder adjusted)

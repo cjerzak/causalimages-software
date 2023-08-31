@@ -216,7 +216,6 @@ AnalyzeImageConfounding <- function(
       }
       ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
 
-      browser()
       # checks
       # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
       # ds_next_train <- reticulate::iter_next( ds_iterator_train )
@@ -325,6 +324,7 @@ AnalyzeImageConfounding <- function(
 
     # initialize layers
     if(modelClass == "cnn"){
+    print( "Initializing CNN layers..." )
     AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(input_ave_pooling_size,input_ave_pooling_size)))
     try(eval(parse(text = paste("rm(", paste(trainable_layers,collapse=","),")"))),T)
     trainable_layers <- ls()
@@ -554,28 +554,28 @@ AnalyzeImageConfounding <- function(
       # post-processing checks
       loss_vec[i] <- as.numeric( myLoss_forGrad[[1]] )
       if(T == F){
-      grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
-      if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
-        print("NA in loss -- opening browser")
-        print("Image sum:")
-        print(as.numeric(tf$math$reduce_sum(
-            InitImageProcess(ds_next_train[[1]],
-              training = T,
-              iteration = iterationFxn(1.)
-            ) )))
-        print("Prior recent losses:")
-        try( print(loss_vec[(i-10):i]), T)
-        print("Keys:")
-        print( ds_next_train[[1]] )
-        print("Batch indices:")
-        print( batch_indices )
-        print("Table of batch sampled W's:" )
-        print(table(  obsW[batch_indices] ))
-        print("Sum of batch sampled X's:" )
-        print(sum(  X[batch_indices,] ))
-        browser()
-        stop("NA introduced in training! Check images + input data for NAs. Try increasing batch size.")
-      }
+        grad_norm <- f2n(try(sum(unlist(lapply(myLoss_forGrad[[2]],function(zer){sum(as.numeric(zer)^2)}))),T))
+        if(is.na(loss_vec[i] ) | is.na(grad_norm) ){
+          print("NA in loss -- opening browser")
+          print("Image sum:")
+          print(as.numeric(tf$math$reduce_sum(
+              InitImageProcess(ds_next_train[[1]],
+                training = T,
+                iteration = iterationFxn(1.)
+              ) )))
+          print("Prior recent losses:")
+          try( print(loss_vec[(i-10):i]), T)
+          print("Keys:")
+          print( ds_next_train[[1]] )
+          print("Batch indices:")
+          print( batch_indices )
+          print("Table of batch sampled W's:" )
+          print(table(  obsW[batch_indices] ))
+          print("Sum of batch sampled X's:" )
+          print(sum(  X[batch_indices,] ))
+          browser()
+          stop("NA introduced in training! Check images + input data for NAs. Try increasing batch size.")
+        }
       }
     }
     print("Done with training sequence...")
@@ -1021,7 +1021,8 @@ AnalyzeImageConfounding <- function(
           print(sprintf("Tabular Salience Iteration %s of %s", samp_counter <- samp_counter + 1, 100))
           if(acquireImageMethod == "tf_record"){
             ds_next_in <- GetElementFromTfRecordAtIndices( indices = samp_,
-                                                         filename = file )
+                                                           filename = file,
+                                                           nObs = length(imageKeysOfUnits) )
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
           if(acquireImageMethod == "functional"){
@@ -1057,8 +1058,8 @@ AnalyzeImageConfounding <- function(
     print(  "Done with image confounding analysis!"  )
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
-      "tauHat_propensity"  = tauHat_propensity,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
+      "tauHat_propensity"  = tauHat_propensity,
       "tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
