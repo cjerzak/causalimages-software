@@ -885,7 +885,7 @@ AnalyzeImageConfounding <- function(
             # extract
             im_orig <- im_ <- InitImageProcess(
                                 im = ds_next_in[[1]], training = F,
-                                seed = tf$constant(1.))
+                                iteration = tf$constant(1.))
             XToConcat_values <- tf$constant(t(X[in_,]),tf$float32)
             if(modelClass == "cnn"){
               im_processed <- getProcessedImage(im_, training = F)
@@ -948,9 +948,8 @@ AnalyzeImageConfounding <- function(
             # plot salience map
             par(mar = mar_vec)
             salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
-            print(summary(c(salience_map)))
+            # print(summary(c(salience_map)))
             salience_map <- sign(salience_map)*log(abs(salience_map)+1)
-            print(summary(c(salience_map)))
             if(nrows_im == 2){
               mar_vec_finalIm <- mar_vec
               mar_vec_finalIm[1] <- 4
@@ -1034,7 +1033,7 @@ AnalyzeImageConfounding <- function(
         im_ <- InitImageProcess(
                           ds_next_in[[1]],
                           training = F,
-                          seed = tf$constant(1.))
+                          iteration = tf$constant(1.))
         x_ <- tf$constant(t(X[samp_,]),tf$float32)
         SalienceX <- rbind(SalienceX,as.matrix( getSalienceVec(im_=im_, x_=x_)))
         }
