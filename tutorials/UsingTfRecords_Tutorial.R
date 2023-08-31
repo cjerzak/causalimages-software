@@ -38,7 +38,7 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 #take_indices <- 1:length( obsY )
 
 # write a tf records repository
-WriteTfRecord(file = "~/Downloads/ExampleRecord.tfrecords",
+WriteTfRecord(file = "~/Downloads/ExampleRecord.tfrecord",
               imageKeys = KeysOfObservations[ take_indices ],
               acquireImageFxn = acquireImageFromMemory,
               conda_env = "tensorflow_m1")
@@ -62,6 +62,7 @@ MyImageEmbeddings$embeddings
 #MyImageEmbeddings$embeddings_fxn
 
 # perform causal inference with image and tabular confounding
+install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   obsW = obsW[ take_indices ],
   obsY = obsY[ take_indices ],
@@ -71,7 +72,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   batchSize = 4, samplingType = "balancedTrain",
 
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  file = "~/Downloads/ExampleRecord.tfrecords",
+  file = "~/Downloads/ExampleRecord.tfrecord", # point to tfrecords file
   acquireImageFxn = NULL,
   modelClass = "cnn", # uses convolutional network (richer model class)
   #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)

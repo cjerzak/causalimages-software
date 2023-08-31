@@ -216,6 +216,7 @@ AnalyzeImageConfounding <- function(
       }
       ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
 
+      browser()
       # checks
       # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
       # ds_next_train <- reticulate::iter_next( ds_iterator_train )
@@ -587,7 +588,7 @@ AnalyzeImageConfounding <- function(
     last_i <- 0; ok_counter <- 0; ok<-F;while(!ok){
 
       # for debugging purposes
-      write.csv(file = sprintf("./checkpoint2%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "ok_counter"=ok_counter))
+      # write.csv(file = sprintf("./checkpoint2%s.csv",CommandArg_i), data.frame("CommandArg_i"=CommandArg_i, "ok_counter"=ok_counter))
 
       ok_counter <- ok_counter + 1
       gc();py_gc$collect()
