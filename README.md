@@ -9,7 +9,7 @@
 
 Additional tutorials: 
 [**Image-based De-confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
-| [**Image/Video Embeddings**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R) | Using `tfrecords` (in progress)
+| [**Image/Video Embeddings**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R) | [**Using `tfrecords`**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 
 # What is `causalimages`?<a id="description"></a>
 

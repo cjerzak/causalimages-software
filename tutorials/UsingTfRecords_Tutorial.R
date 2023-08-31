@@ -74,8 +74,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord", # point to tfrecords file
   acquireImageFxn = NULL,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
