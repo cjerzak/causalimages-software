@@ -41,6 +41,7 @@
 #' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"randomizedEmbeds"`.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
+#' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return A list consiting of \itemize{
 #'   \item `ATE_est` ATE estimate.
@@ -223,10 +224,26 @@ AnalyzeImageConfounding <- function(
     }
 
     trainingPertubations <- tf$identity
+    #iterationFxn <- function(x){ x %% 4 }
+    iterationFxn <- function(x){ sample(0L:3L,1) }
     if(useTrainingPertubations){
       trainingPertubations <- tf_function_use(function(im__, iteration){
+      #trainingPertubations <- (function(im__, iteration){
         #with( tf$device('/CPU:0'), {
-          print("not random flipping")
+
+          if(iteration == 0){
+            # do nothing
+          }
+          if(iteration == 1){
+            im__ <- tf$image$flip_left_right(im__)
+          }
+          if(iteration == 2){
+            im__ <- tf$image$flip_up_down(im__)
+          }
+          if(iteration == 3){
+            im__ <- tf$image$flip_up_down(im__)
+            im__ <- tf$image$flip_left_right(im__)
+          }
           #im__ <- tf$image$random_flip_left_right(im__, iteration)
           #im__ <- tf$image$random_flip_up_down(im__, iteration)
           #im__ <- tf$image$random_saturation(im__, 5, 10)
@@ -409,7 +426,7 @@ AnalyzeImageConfounding <- function(
       with(tf$GradientTape() %as% tape, {
         myLoss_forGrad <- getLoss( im_getLoss = InitImageProcess(im = ds_next_train[[1]],
                                                                  training = T,
-                                                                 iteration = tf$constant(1.)),
+                                                                 iteration = iterationFxn(1.)),
                                    x_getLoss = tf$constant( as.matrix(X[batch_indices,]),tf$float32),
                                    treatt_getLoss = tf$constant(as.matrix(obsW[batch_indices]),tf$float32 ),
                                    mask = tf$constant(as.matrix(1*(batch_indices %in% trainIndices)),tf$float32),
@@ -523,7 +540,7 @@ AnalyzeImageConfounding <- function(
       # get image and apply loss
       ProcessedIm <- InitImageProcess(ds_next_train[[1]],
                        training = T,
-                       iteration = tf$constant(as.numeric(i)))
+                       iteration = iterationFxn(i))
       myLoss_forGrad <- trainStep(
         im_train = ProcessedIm,
         x_train = tf$constant(as.matrix(X[batch_indices,]),dtype=tf$float32),
@@ -543,7 +560,8 @@ AnalyzeImageConfounding <- function(
         print(as.numeric(tf$math$reduce_sum(
             InitImageProcess(ds_next_train[[1]],
               training = T,
-              iteration = tf$constant(as.numeric((runif(1,1,100000)))) ))))
+              iteration = iterationFxn(1.)
+            ) )))
         print("Prior recent losses:")
         try( print(loss_vec[(i-10):i]), T)
         print("Keys:")
@@ -595,7 +613,7 @@ AnalyzeImageConfounding <- function(
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
                                                                                   training = F,
-                                                                                  iteration = tf$constant(as.numeric(runif(1,1,100000)))),
+                                                                                  iteration = iterationFxn(1.)),
                                                     x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                     training_getProb = F ))),T)
         if( "try-error" %in% class(insert_probs)){
@@ -624,7 +642,7 @@ AnalyzeImageConfounding <- function(
           last_i <- max( batch_indices_inference )
           insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
                                                                                     training = F,
-                                                                                    iteration = tf$constant(1.)),
+                                                                                    iteration = iterationFxn(1.)),
                                                       x_getProb = tf$constant(as.matrix(X[batch_indices_inference,]),dtype=tf$float32),
                                                       training_getProb = F ))),T)
           if(drop_ == T){  insert_probs <- insert_probs[-1]  }
