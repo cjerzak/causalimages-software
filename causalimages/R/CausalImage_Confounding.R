@@ -895,7 +895,7 @@ AnalyzeImageConfounding <- function(
               ds_next_in <- list( ds_next_in )
             }
 
-            print(in_)
+            #print(in_)
             col_ <- ifelse(in_ %in% top_treated,
                            yes = "black", no = "gray")
             in_counter <- in_counter + 1
