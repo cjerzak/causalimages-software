@@ -69,18 +69,19 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
   long = LongLat$geo_long[ take_indices ],
   lat = LongLat$geo_lat[ take_indices ],
-  batchSize = 4, samplingType = "balancedTrain",
+  batchSize = 4L, # increase this (e.g., to 50L) in full analysis
+  samplingType = "balancedTrain",
 
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord", # point to tfrecords file
   acquireImageFxn = NULL,
-  modelClass = "cnn", # uses convolutional network (richer model class)
-  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  #modelClass = "cnn", # uses convolutional network (richer model class)
+  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
-  nBoot = 10,
-  nSGD = 10, # this should be more like 1000 in full analysis
+  nBoot = 5, # increase this (e.g., to 50) in full analysis
+  nSGD = 10, # increase this (e.g., to 1000) in full analysis
   figuresPath = "~/Downloads/", # figures saved here
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T
