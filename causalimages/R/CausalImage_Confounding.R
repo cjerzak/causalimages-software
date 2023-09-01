@@ -139,6 +139,20 @@ AnalyzeImageConfounding <- function(
     #tf_function_use  <- function(x){print("Warning: Not using tf_function()"); return(x)}
   }
 
+  # make all directory logic explicit
+  orig_wd <- getwd()
+  if(substr(figuresPath,start = 0, stop = 1) == "."){
+    figuresPath <- gsub(figuresPath,
+                        pattern = '\\.',
+                        replace = orig_wd)
+  }
+  if(substr(figuresPath,start = 0, stop = 1) == "/"){
+    figuresPath <- gsub(figuresPath,
+                        pattern = '/',
+                        replace = paste(orig_wd, "/", sep = ""))
+  }
+
+
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
@@ -173,12 +187,13 @@ AnalyzeImageConfounding <- function(
       acquireImageMethod <- "tf_record"
 
       # established tfrecord connection
-      orig_wd <- getwd()
+      print("Establishing connection with tfrecord")
       tf_record_name <- file
       tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-      new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+      new_wd <- paste(tf_record_name[-length(tf_record_name)],
+                      collapse = "/")
       setwd( new_wd )
-      tf_dataset = tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+      tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
       # helper functions
       getParsed_tf_dataset_inference <- function(tf_dataset){
@@ -209,8 +224,7 @@ AnalyzeImageConfounding <- function(
       # reset iterators
       ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
       if(T == F){
-        # TESTING
-        # see https://stackoverflow.com/questions/72552605/how-to-fix-tensorflow-datasets-memory-leak-when-shuffling
+        # tests; see https://stackoverflow.com/questions/72552605/how-to-fix-tensorflow-datasets-memory-leak-when-shuffling
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
         batch_indices <- as.array(ds_next_train[[2]])
       }
@@ -220,7 +234,6 @@ AnalyzeImageConfounding <- function(
       # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
       # ds_next_train <- reticulate::iter_next( ds_iterator_train )
       # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
-      setwd(  orig_wd  )
     }
 
     trainingPertubations <- tf$identity
@@ -1060,6 +1073,11 @@ AnalyzeImageConfounding <- function(
         colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
       postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*prop.table(1/prW_est[obsW == 1])) -
         colSums(cbind(long[obsW == 0],lat[obsW == 0])*prop.table(1/(1-prW_est[obsW == 0])))
+    }
+
+    if(acquireImageMethod == "tf_record"){
+      # reset to original wd which was altered during records initialization
+      setwd(  orig_wd  )
     }
 
     print(  "Done with image confounding analysis!"  )
