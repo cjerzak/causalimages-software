@@ -39,8 +39,8 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 #take_indices <- 1:length( obsY )
 
 # set tfrecord save location
-#tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
-tfrecord_loc <- "ExampleRecord.tfrecord"
+tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
+#tfrecord_loc <- "ExampleRecord.tfrecord"
 
 # write a tf records repository
 WriteTfRecord(file = tfrecord_loc,
@@ -73,14 +73,14 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
   long = LongLat$geo_long[ take_indices ],
   lat = LongLat$geo_lat[ take_indices ],
-  batchSize = 4L, # increase this (e.g., to 50L) in full analysis
   samplingType = "balancedTrain",
+  batchSize = 4L, # increase this (e.g., to 50L) in full analysis
 
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
-  modelClass = "cnn", # uses convolutional network (richer model class)
-  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  #modelClass = "cnn", # uses convolutional network (richer model class)
+  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
