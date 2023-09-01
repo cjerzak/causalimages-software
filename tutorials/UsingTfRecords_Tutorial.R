@@ -63,7 +63,7 @@ MyImageEmbeddings <- GetRandomizedImageEmbeddings(
 # each column represents an embedding dimension associated with the imagery for that location
 MyImageEmbeddings$embeddings
 
-# embeddings_fxn is the randomized embedding function written in tf (used for other package functions)
+# embeddings_fxn is the randomized embedding function written in tf (used in other package functions)
 MyImageEmbeddings$embeddings_fxn
 
 # perform causal inference with image and tabular confounding
@@ -86,6 +86,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   tagInFigures = T, figuresTag = "TutorialExample",
   nBoot = 5, # increase this (e.g., to 50) in full analysis
   nSGD = 10, # increase this (e.g., to 1000) in full analysis
+  nEmbedDim = 256L, # used in modelClass = "randomizedEmbeds" case
   figuresPath = "~/Downloads/", # figures saved here
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T
