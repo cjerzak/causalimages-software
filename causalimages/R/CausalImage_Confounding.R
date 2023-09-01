@@ -453,8 +453,8 @@ AnalyzeImageConfounding <- function(
 
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
-    #optimizer_tf = tf$optimizers$legacy$Nadam()
     optimizer_tf = tf$optimizers$Nadam()
+    #optimizer_tf = tf$optimizers$legacy$Adam()
     getGrad <- tf_function_use(getGrad_r <- function(im_train, x_train, truth_train, mask){
       print("Initializing getGrad")
       with(tf$GradientTape() %as% tape, {
@@ -472,11 +472,12 @@ AnalyzeImageConfounding <- function(
       #print("Initializing trainStep")
       # note: MEMORY LEAK WHEN TRAINSTEP IS TF_FUNCTION DECORATED
       my_grads <- getGrad(im_train, x_train, truth_train, mask)
-      #my_grads <- getGrad_r(im_train, x_train, truth_train, mask, training_vars)
       myLoss_forGrad <- my_grads[[1]]
       my_grads <- my_grads[[2]]
-      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ])
-      #optimizer$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+ NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
+      optimizer_tf$apply_gradients(
+                          rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ]
+                    )
+      #optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle))*(i<nSGD/2)+ NA20(LEARNING_RATE_BASE*(i>=nSGD/2)/(i-nSGD/2+1)^.3) ) )
       return(  list( myLoss_forGrad, my_grads )  )
     })
 

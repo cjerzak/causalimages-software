@@ -47,7 +47,7 @@ WriteTfRecord(file = "~/Downloads/ExampleRecord.tfrecord",
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
 MyImageEmbeddings <- GetRandomizedImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  file = "~/Downloads/ExampleRecord.tfrecords",
+  file = "~/Downloads/ExampleRecord.tfrecord",
   acquireImageFxn = NULL,
   nFeatures = 100,
   kernelSize = 3L,
