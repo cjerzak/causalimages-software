@@ -189,6 +189,9 @@ AnalyzeImageConfounding <- function(
       # established tfrecord connection
       print("Establishing connection with tfrecord")
       tf_record_name <- file
+      if( !grepl(tf_record_name, pattern = "/") ){
+        tf_record_name <- paste("./",tf_record_name, sep = "")
+      }
       tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
       new_wd <- paste(tf_record_name[-length(tf_record_name)],
                       collapse = "/")
