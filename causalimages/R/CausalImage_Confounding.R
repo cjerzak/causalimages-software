@@ -466,7 +466,8 @@ AnalyzeImageConfounding <- function(
 
     # define optimizer and training step
     NA20 <- function(zer){zer[is.na(zer)] <- 0;zer[is.infinite(zer)] <- 0;zer}
-    optimizer_tf = tf$optimizers$Nadam()
+    #optimizer_tf = tf$optimizers$Nadam() # pass
+    optimizer_tf = tf$optimizers$legacy$Nadam()
     #optimizer_tf = tf$optimizers$legacy$Adam()
     getGrad <- tf_function_use(getGrad_r <- function(im_train, x_train, truth_train, mask){
       print("Initializing getGrad")
