@@ -80,11 +80,11 @@ GetRandomizedImageEmbeddings <- function(
 
   acquireImageMethod <- "functional";
   # define base tf record + train/test fxns
+  orig_wd <- getwd()
   if(  !is.null(  file  )  ){
     acquireImageMethod <- "tf_record"
 
     # established tfrecord connection
-    orig_wd <- getwd()
     tf_record_name <- file
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
@@ -116,7 +116,6 @@ GetRandomizedImageEmbeddings <- function(
     # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
     # ds_next_train <- reticulate::iter_next( ds_iterator_train )
     # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
-    setwd(  orig_wd  )
   }
 
   # coerce output to tf$constant
@@ -214,6 +213,9 @@ GetRandomizedImageEmbeddings <- function(
     gc(); try(py_gc$collect(), T)
   }
   print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))
+
+  # reset wd (may have been changed via tfrecords use)
+  setwd(  orig_wd  )
 
 
    return( list( "embeddings"= embeddings,

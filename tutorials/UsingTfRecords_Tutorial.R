@@ -38,8 +38,12 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
 
+# set tfrecord save location
+#tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
+tfrecord_loc <- "./ExampleRecord.tfrecord"
+
 # write a tf records repository
-WriteTfRecord(file = "~/Downloads/ExampleRecord.tfrecord",
+WriteTfRecord(file = tfrecord_loc,
               imageKeys = KeysOfObservations[ take_indices ],
               acquireImageFxn = acquireImageFromMemory,
               conda_env = "tensorflow_m1")
@@ -60,7 +64,7 @@ MyImageEmbeddings <- GetRandomizedImageEmbeddings(
 MyImageEmbeddings$embeddings
 
 # embeddings_fxn is the randomized embedding function written in tf (used for other package functions)
-#MyImageEmbeddings$embeddings_fxn
+MyImageEmbeddings$embeddings_fxn
 
 # perform causal inference with image and tabular confounding
 ImageConfoundingAnalysis <- AnalyzeImageConfounding(
@@ -73,10 +77,10 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   samplingType = "balancedTrain",
 
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  file = "~/Downloads/ExampleRecord.tfrecord", # point to tfrecords file
+  file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
@@ -92,3 +96,4 @@ ImageConfoundingAnalysis$tauHat_propensityHajek
 
 # ATE se estimate (image confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek_se
+
