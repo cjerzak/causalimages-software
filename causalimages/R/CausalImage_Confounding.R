@@ -192,7 +192,7 @@ AnalyzeImageConfounding <- function(
       tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
       new_wd <- paste(tf_record_name[-length(tf_record_name)],
                       collapse = "/")
-      print( new_wd )
+      print( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
       setwd( new_wd )
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
