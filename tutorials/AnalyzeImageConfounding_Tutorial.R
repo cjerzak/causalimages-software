@@ -63,7 +63,7 @@ MyImageEmbeddings$embeddings
 # embeddings_fxn is the embedding function written in tf (used for other package functions)
 #MyImageEmbeddings$embeddings_fxn
 
-# obtain video embeddings generalizing Rolf et al.
+# obtain video embeddings
 # each column represents an embedding dimension associated with the image sequence for that location
 MyVideoEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],

@@ -21,13 +21,13 @@ AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 
 \item{nFilters}{(default = \code{50L}) Integer specifying the number of convolutional filters used.}
 
-\item{modelClass}{(default = \code{"cnn"}) Either \code{"cnn"} or \code{"randomizedEmbeds"}.}
+\item{modelClass}{(default = \code{"cnn"}) Either \code{"cnn"} or \code{"embeddings"}.}
 
 \item{nBoot}{(default = \code{100L}) Number of bootstrap iterations for uncertainty estimation.}
 
 \item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
 
-\item{nEmbedDim}{(default = \code{96L}) Integer specifying the image/image sequence embedding dimension. Used if \code{modelClass = "randomizedEmbeds"}.}
+\item{nEmbedDim}{(default = \code{96L}) Integer specifying the image/image sequence embedding dimension. Used if \code{modelClass = "embeddings"}.}
 
 \item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
 First argument should be image key values and second argument have be \code{training} (in case different behavior in training/inference mode).}
@@ -73,6 +73,8 @@ First argument should be image key values and second argument have be \code{trai
 \item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
 
 \item{channelNormalize}{(default = \code{T}) Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
+
+\item{TfRecords_BufferScaler}{(default = \code{4L}) The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{tf_seed}{(default = \code{NULL}) Specification for the tensorflow seed.}
 
