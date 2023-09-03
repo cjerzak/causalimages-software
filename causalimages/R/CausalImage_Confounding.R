@@ -742,7 +742,7 @@ AnalyzeImageConfounding <- function(
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
 
          # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
-          MyEmbeds_ <- GetRandomizedImageEmbeddings(
+          MyEmbeds_ <- GetImageEmbeddings(
             imageKeysOfUnits = imageKeysOfUnits,
             batchSize = min(  batchSize, length(imageKeysOfUnits) ),
             acquireImageFxn = acquireImageFxnEmbeds,
