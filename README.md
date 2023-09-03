@@ -31,7 +31,7 @@ Then, to load the software, use
 library(   causalimages  ) 
 ```
 
-# Tutorial<a id="tutorial"></a>
+# Image Heterogeneity Tutorial<a id="tutorial"></a>
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
