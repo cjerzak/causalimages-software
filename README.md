@@ -193,7 +193,7 @@ ImageHeterogeneityResults$clusterProbs_sd
 ```
 
 ## Pointers 
-Here are a few tips: 
+Here are a few tips for using the `AnalyzeImageHeterogeneity` function: 
 - If the cluster probabilities are very extreme (all 0 or 1), try increasing `nSGD`, simplifying the model structure (e.g., making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller), or increasing the number of Monte Carlo interations in the Variational Inference training (increase `nMonte_variational`).
 - If the treatment effect cluster distributions look very similar, make sure the input to `acquireImageFxn` is correctly yielding the images associated with each observation via `imageKeysOfUnits`. You could also try increasing or decreasing model complexity (e.g., by making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller or larger). It's also always possible that the image information is not particularly informative regarding treatment effect heterogeneity. 
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
