@@ -1,11 +1,11 @@
 #!/usr/bin/env Rscript
-#' Generates randomized image and video embeddings useful in earth observation tasks for casual inference, generalizing the approach in Rolf, Esther, et al.  (2021).
+#' Generates image and video embeddings useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).
 #'
-#' Generates randomized image and video embeddings useful in earth observation tasks for casual inference, generalizing the approach in Rolf, Esther, et al.  (2021).
+#' Generates image and video embeddings useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).
 #'
 #' @usage
 #'
-#' GetRandomizedImageEmbeddings(imageKeysOfUnits, acquireImageFxn, nFeatures, ...)
+#' GetImageEmbeddings(imageKeysOfUnits, acquireImageFxn, nFeatures, ...)
 #'
 #' @param acquireImageFxn A function specifying how to load images representations associated with `imageKeysOfUnits` into memory. For example, if observation `3` has a value  of `"a34f"` in `imageKeysOfUnits`, `acquireImageFxn` should extract the image associated with the unique key `"a34f"`.
 #' First argument should be image key values and second argument have be `training` (in case different behavior in training/inference mode).
@@ -38,7 +38,7 @@
 #' @export
 #' @md
 
-GetRandomizedImageEmbeddings <- function(
+GetImageEmbeddings <- function(
     acquireImageFxn  = NULL,
     imageKeysOfUnits = NULL,
     file = NULL,
@@ -177,7 +177,7 @@ GetRandomizedImageEmbeddings <- function(
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nFeatures)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
     ok_counter <- ok_counter + 1
-    print(sprintf("[%s] %.2f%% done getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
+    print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
     # in functional mode
       batch_indices <- (last_i+1):(last_i+batchSize)
@@ -216,7 +216,7 @@ GetRandomizedImageEmbeddings <- function(
 
     gc(); try(py_gc$collect(), T)
   }
-  print(sprintf("[%s] %.2f%% done with getting randomized embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))
+  print(sprintf("[%s] %.2f%% done with getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))
 
   # reset wd (may have been changed via tfrecords use)
   setwd(  orig_wd  )

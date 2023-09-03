@@ -201,7 +201,7 @@ Here are a few tips for using the `AnalyzeImageHeterogeneity` function:
 
 # Other Package Functions <a id="otherfunctions"></a>
 The package contains other useful functions for image and video analysis (see the [documentation](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf) for details): 
-- `GetRandomizedImageEmbeddings` generates randomized image and video embeddings useful in earth observation tasks for casual inference, in a generalization of the approach in [Rolf, Esther, et al.  (2021)](https://www.nature.com/articles/s41467-021-24638-z).
+- `GetImageEmbeddings` generates image and video embeddings useful in earth observation tasks for casual inference, in a generalization of the approach in [Rolf, Esther, et al.  (2021)](https://www.nature.com/articles/s41467-021-24638-z).
 - `image2` plots a matrix as a heatmap with the correct north/south/east/west spatial orientation. 
 
 # Development Plan

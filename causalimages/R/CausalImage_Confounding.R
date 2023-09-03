@@ -27,7 +27,7 @@
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
 #' @param nFilters (default = `50L`) Integer specifying the number of convolutional filters used.
-#' @param nEmbedDim (default = `96L`) Integer specifying the image/image sequence embedding dimension. Used if `modelClass = "randomizedEmbeds"`.
+#' @param nEmbedDim (default = `96L`) Integer specifying the image/image sequence embedding dimension. Used if `modelClass = "embeddings"`.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param dropoutRate (default = `0.1`) Droppout rate used in training used to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param testFrac (default = `0.01`) Fraction of observations held out as a test set to evaluate out-of-sample loss values.
@@ -38,7 +38,7 @@
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param tf_seed (default = `NULL`) Specification for the tensorflow seed.
-#' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"randomizedEmbeds"`.
+#' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"embeddings"`.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
@@ -71,7 +71,7 @@ AnalyzeImageConfounding <- function(
                                    nDimLowerDimConv = 3L,
                                    nFilters = 50L,
                                    samplingType = "none",
-                                   modelClass = "randomizedEmbeds",
+                                   modelClass = "embeddings",
                                    nBoot = 50L,
                                    typeBoot = "SamplingOnly",
                                    nEmbedDim = 96L,
@@ -716,7 +716,7 @@ AnalyzeImageConfounding <- function(
       })
     }
 
-    if(modelClass == "randomizedEmbeds"){
+    if(modelClass == "embeddings"){
       acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
         acquireImageFxn2 <- acquireImageFxn
         InitImageProcess2 <- InitImageProcess
@@ -865,7 +865,7 @@ AnalyzeImageConfounding <- function(
       makePlots <- function(){
 
         try({
-        nrows_im <- (modelClass=="cnn")*3 + (modelClass=="randomizedEmbeds")*2
+        nrows_im <- (modelClass=="cnn")*3 + (modelClass=="embeddings")*2
         pdf(sprintf("%s/CSM_KW%s_AvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,

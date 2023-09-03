@@ -55,8 +55,7 @@ WriteTfRecord(file = tfrecord_loc,
               conda_env = "tensorflow_m1")
 
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
-#MyImageEmbeddings <- causalimages::GetRandomizedImageEmbeddings(
-MyImageEmbeddings <- GetRandomizedImageEmbeddings(
+MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord",
   acquireImageFxn = NULL,
@@ -70,7 +69,7 @@ MyImageEmbeddings <- GetRandomizedImageEmbeddings(
 # each column represents an embedding dimension associated with the imagery for that location
 plot(  MyImageEmbeddings$embeddings )
 
-# embeddings_fxn is the randomized embedding function written in tf (used in other package functions)
+# embeddings_fxn is the embedding function written in tf (used in other package functions)
 MyImageEmbeddings$embeddings_fxn
 
 # perform causal inference with image and tabular confounding
@@ -87,13 +86,13 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
   modelClass = "cnn", # uses convolutional network (richer model class)
-  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  #modelClass = "embeddings", # uses image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
   nBoot = 5, # increase this (e.g., to 50) in full analysis
   nSGD = 10, # increase this (e.g., to 1000) in full analysis
-  nEmbedDim = 256L, # used in modelClass = "randomizedEmbeds" case
+  nEmbedDim = 256L, # used in modelClass = "embeds" case
   figuresPath = "~/Downloads/", # figures saved here
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T

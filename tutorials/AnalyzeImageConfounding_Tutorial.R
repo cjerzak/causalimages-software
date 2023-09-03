@@ -47,7 +47,7 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 #take_indices <- 1:length( obsY )
 
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
-MyImageEmbeddings <- GetRandomizedImageEmbeddings(
+MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireImageFromMemory,
   nFeatures = 100,
@@ -60,12 +60,12 @@ MyImageEmbeddings <- GetRandomizedImageEmbeddings(
 # each column represents an embedding dimension associated with the imagery for that location
 MyImageEmbeddings$embeddings
 
-# embeddings_fxn is the randomized embedding function written in tf (used for other package functions)
+# embeddings_fxn is the embedding function written in tf (used for other package functions)
 #MyImageEmbeddings$embeddings_fxn
 
 # obtain video embeddings generalizing Rolf et al.
 # each column represents an embedding dimension associated with the image sequence for that location
-MyVideoEmbeddings <- GetRandomizedImageEmbeddings(
+MyVideoEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireVideoRepFromMemory,
   temporalKernelSize = 2L,
@@ -86,9 +86,9 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
 
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireImageFromMemory,
-  modelClass = "cnn", # uses convolutional network (richer model class)
   batchSize = 4,
-  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "embeddings", # uses image embeddings (faster)
   file = NULL,
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
