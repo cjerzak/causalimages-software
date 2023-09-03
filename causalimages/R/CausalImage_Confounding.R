@@ -737,7 +737,7 @@ AnalyzeImageConfounding <- function(
       sigmoid<-function(.){1/(1+exp(-.))}
       tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
       for(jr in 1:(nBoot+1)){
-        print( sprintf("Bootstrap iteration %s of %s [randomized embedding model class]", jr-1L, nBoot) )
+        print( sprintf("Bootstrap iteration %s of %s [embeddings model class]", jr-1L, nBoot) )
         if(jr == 1){ indices_ <- 1:length( imageKeysOfUnits ) }
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
 
