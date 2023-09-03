@@ -17,6 +17,7 @@
 #' @param nFeatures (default = `64L`) Dimensions used in the convolution kernels.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param batchSize (default = `50L`) Integer specifying batch size in obtaining embeddings.
+#' @param TfRecords_BufferScaler (default = `10L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #' @param seed (default = `NULL`) Integer specifying the seed.
 #' @param outputType (default = `"R"`) Either `"R"` or `"tensorflow"` indicating whether to output R or tensorflow arrays.
 #'
@@ -49,7 +50,7 @@ GetRandomizedImageEmbeddings <- function(
     strides = 1L,
     temporalKernelSize = 2L,
     kernelSize = 3L,
-    compile = T,
+    TfRecords_BufferScaler = 10L,
     seed = NULL,
     quiet = F){
 
@@ -97,12 +98,12 @@ GetRandomizedImageEmbeddings <- function(
     # helper functions
     getParsed_tf_dataset_inference <- function(tf_dataset){
       dataset <- tf_dataset$map( parse_tfr_element ) # return
-      return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
+      return( dataset <- dataset$batch( as.integer(max(2L, round(batchSize/2L)  ))) )
     }
 
     getParsed_tf_dataset_train <- function(tf_dataset){
       dataset <- tf_dataset$map( parse_tfr_element )
-      dataset <- dataset$shuffle(tf$constant(as.integer(10*batchSize),dtype=tf$int64),
+      dataset <- dataset$shuffle(tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=tf$int64),
                                  reshuffle_each_iteration = T)
       dataset <- dataset$batch(as.integer(batchSize))
     }

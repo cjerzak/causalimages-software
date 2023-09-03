@@ -90,7 +90,7 @@ WriteTfRecord <- function(file,
 
   orig_wd <- getwd()
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-  new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
+  new_wd <- paste(tf_record_name[- length(tf_record_name) ],collapse = "/")
   setwd( new_wd )
   tf_record_writer = tf$io$TFRecordWriter( tf_record_name[length(tf_record_name)] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
@@ -163,6 +163,12 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
 
     # Parse the tf.Example messages
     dataset <- dataset$map(   parse_tfr_element   )
+
+    if(T == F){
+      dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
+      dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
+      element <- reticulate::iter_next( dataset_iterator )
+    }
 
     index_counter <- last_in_ <- 0L
     return_list <- replicate(length( dataset$element_spec),
@@ -262,11 +268,9 @@ parse_tfr_element <- function(element){
   raw_image = content[['raw_image']]
 
   #get our 'feature' (our image)...
-  feature = tf$io$parse_tensor( raw_image, out_type = tf$float32)
+  feature = tf$io$parse_tensor( raw_image, out_type = tf$float32 )
 
   #  and reshape it appropriately
-  feature = tf$reshape(feature, shape = c(height, width, depth))
-  #feature = tf$reshape(feature, shape = tf$stack(c(height, width, depth),0L))
-  #feature = tf$reshape(feature, shape = as.integer( image_dims )) # works
+  feature = tf$reshape(  feature, shape = c(height, width, depth)  )
   return(    list(feature, index, key)    )
 }

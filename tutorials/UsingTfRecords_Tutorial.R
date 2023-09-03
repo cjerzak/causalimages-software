@@ -20,8 +20,14 @@ data(  CausalImagesTutorialData )
 acquireImageFromMemory <- function(keys, training = F){
   # here, the function input keys
   # refers to the unit-associated image keys
-  return( FullImageArray[match(keys, KeysOfImages),,,] )
+  m_ <- FullImageArray[match(keys, KeysOfImages),,,]
+
+  # uncomment for a test with different image dimensions
+  #if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
+  return( m_ )
 }
+
+acquireImageFromMemory(KeysOfImages[1])
 
 # drop first column
 X <- X[,-1]
@@ -49,11 +55,12 @@ WriteTfRecord(file = tfrecord_loc,
               conda_env = "tensorflow_m1")
 
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
+#MyImageEmbeddings <- causalimages::GetRandomizedImageEmbeddings(
 MyImageEmbeddings <- GetRandomizedImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord",
   acquireImageFxn = NULL,
-  nFeatures = 100,
+  nFeatures = 100L,
   kernelSize = 3L,
   conda_env = "tensorflow_m1",
   conda_env_required = T
@@ -61,7 +68,7 @@ MyImageEmbeddings <- GetRandomizedImageEmbeddings(
 
 # each row corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location
-MyImageEmbeddings$embeddings
+plot(  MyImageEmbeddings$embeddings )
 
 # embeddings_fxn is the randomized embedding function written in tf (used in other package functions)
 MyImageEmbeddings$embeddings_fxn
