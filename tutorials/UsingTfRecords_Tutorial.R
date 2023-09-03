@@ -23,7 +23,7 @@ acquireImageFromMemory <- function(keys, training = F){
   m_ <- FullImageArray[match(keys, KeysOfImages),,,]
 
   # uncomment for a test with different image dimensions
-  #if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
+  if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
   return( m_ )
 }
 
@@ -86,8 +86,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "randomizedEmbeds", # uses randomized image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
