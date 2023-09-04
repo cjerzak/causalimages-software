@@ -184,7 +184,7 @@ AnalyzeImageConfounding <- function(
   {
     acquireImageMethod <- "functional";
     # define base tf record + train/test fxns
-    if(  !is.null(  file  )  ){
+    changed_wd <- F; if(  !is.null(  file  )  ){
       acquireImageMethod <- "tf_record"
 
       # established tfrecord connection
