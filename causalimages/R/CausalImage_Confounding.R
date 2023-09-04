@@ -447,7 +447,6 @@ AnalyzeImageConfounding <- function(
 
     # arms
     print("Initializing training arm...")
-    # note: new TF version may kill compiled fxn here (use 2.12)
     #for(ARM in c(T,F)){ # F arm is unnecessary, bloats memory
     for(ARM in c(T)){
       with(tf$GradientTape() %as% tape, {
@@ -718,6 +717,7 @@ AnalyzeImageConfounding <- function(
     }
 
     if(modelClass == "embeddings"){
+      if(acquireImageMethod == "tf_record"){ setwd(orig_wd)  }
       acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
         acquireImageFxn2 <- acquireImageFxn
         InitImageProcess2 <- InitImageProcess
@@ -799,6 +799,7 @@ AnalyzeImageConfounding <- function(
             })
           }
       }
+      if(acquireImageMethod == "tf_record"){ setwd(new_wd)  }
     }
 
     # process in and out of sample losses

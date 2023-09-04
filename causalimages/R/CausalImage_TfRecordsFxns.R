@@ -45,11 +45,6 @@ WriteTfRecord <- function(file,
     gc(); py_gc$collect()
   }
 
-  # for clarity, set file to tf_record_name
-  tf_record_name <- file
-  if( !grepl(tf_record_name, pattern = "/") ){
-    tf_record_name <- paste("./",tf_record_name, sep = "")
-  }
 
   # helper fxns
   {
@@ -103,11 +98,17 @@ WriteTfRecord <- function(file,
   }
   }
 
+  # for clarity, set file to tf_record_name
+  tf_record_name <- file
+  if( !grepl(tf_record_name, pattern = "/") ){
+    tf_record_name <- paste("./",tf_record_name, sep = "")
+  }
+
   orig_wd <- getwd()
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
   new_wd <- paste(tf_record_name[- length(tf_record_name) ],collapse = "/")
   setwd( new_wd )
-  tf_record_writer = tf$io$TFRecordWriter( tf_record_name[length(tf_record_name)] ) #create a writer that'll store our data to disk
+  tf_record_writer = tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
   for(irz in 1:length(imageKeysOfUnits)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
@@ -118,9 +119,6 @@ WriteTfRecord <- function(file,
   }
   print("Done! Finalizing tfrecords....")
   tf_record_writer$close()
-
-  # reset wd
-  setwd( orig_wd )
 }
 
 #!/usr/bin/env Rscript
