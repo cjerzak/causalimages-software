@@ -101,8 +101,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "embeddings", # uses image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "embeddings", # uses image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
