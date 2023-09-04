@@ -749,7 +749,7 @@ AnalyzeImageConfounding <- function(
             acquireImageFxn = acquireImageFxnEmbeds,
             file = file,
             strides = strides,
-            nFeatures = nEmbedDim,
+            nEmbedDim = nEmbedDim,
             kernelSize = kernelSize,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",

@@ -4,7 +4,7 @@
 \alias{GetImageEmbeddings}
 \title{Generates image and video embeddings useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).}
 \usage{
-GetImageEmbeddings(imageKeysOfUnits, acquireImageFxn, nFeatures, ...)
+GetImageEmbeddings(imageKeysOfUnits, acquireImageFxn, nEmbedDim, ...)
 }
 \arguments{
 \item{acquireImageFxn}{A function specifying how to load images representations associated with \code{imageKeysOfUnits} into memory. For example, if observation \code{3} has a value  of \code{"a34f"} in \code{imageKeysOfUnits}, \code{acquireImageFxn} should extract the image associated with the unique key \code{"a34f"}.
@@ -18,7 +18,7 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
 
-\item{nFeatures}{(default = \code{128L}) Number of embedding features output.}
+\item{nEmbedDim}{(default = \code{128L}) Number of embedding features output.}
 
 \item{batchSize}{(default = \code{50L}) Integer specifying batch size in obtaining embeddings.}
 

@@ -64,7 +64,7 @@ MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord",
   acquireImageFxn = NULL,
-  nFeatures = 128L,
+  nEmbedDim = 128L,
   kernelSize = 3L,
   conda_env = "tensorflow_m1",
   conda_env_required = T

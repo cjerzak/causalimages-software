@@ -50,7 +50,7 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireImageFromMemory,
-  nFeatures = 100,
+  nEmbedDim = 100,
   kernelSize = 3L,
   conda_env = "tensorflow_m1",
   conda_env_required = T
@@ -70,7 +70,7 @@ MyVideoEmbeddings <- GetImageEmbeddings(
   acquireImageFxn = acquireVideoRepFromMemory,
   temporalKernelSize = 2L,
   kernelSize = 3L,
-  nFeatures = 100,
+  nEmbedDim = 100,
   conda_env = "tensorflow_m1",
   conda_env_required = T
 )
