@@ -141,9 +141,11 @@ GetImageEmbeddings <- function(
     }
   }
   if(acquireImageMethod == "tf_record"){
+    setwd(orig_wd)
     test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L,
                                                              filename = file,
                                                              nObs = length(imageKeysOfUnits))[[1]],0L)
+    setwd(new_wd)
   }
 
   imageDims <- length( dim(test_) ) - 2L
@@ -204,6 +206,7 @@ GetImageEmbeddings <- function(
       }
 
       if(acquireImageMethod == "tf_record"){
+        setwd(orig_wd)
         batch_inference <- GetElementFromTfRecordAtIndices( indices = batch_indices,
                                                             filename = file,
                                                             nObs = length(imageKeysOfUnits),
@@ -211,6 +214,7 @@ GetImageEmbeddings <- function(
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]])
+        setwd(new_wd)
         saved_iterator <- batch_inference[[2]]
         batch_inference <- batch_inference[[1]]
         # batch_inference[[2]]; batch_indices

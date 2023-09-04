@@ -194,8 +194,7 @@ AnalyzeImageConfounding <- function(
         tf_record_name <- paste("./",tf_record_name, sep = "")
       }
       tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-      new_wd <- paste(tf_record_name[-length(tf_record_name)],
-                      collapse = "/")
+      new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
       print( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
       changed_wd <- T; setwd( new_wd )
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
@@ -754,6 +753,7 @@ AnalyzeImageConfounding <- function(
             conda_env = "tensorflow_m1",
             conda_env_required = T
           )
+
           # checks
           #tmp <- MyEmbeds$embeddings_fxn( acquireImageFxnEmbeds( imageKeysOfUnits ))
 
