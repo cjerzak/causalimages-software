@@ -22,12 +22,19 @@ acquireImageFromMemory <- function(keys, training = F){
   # refers to the unit-associated image keys
   m_ <- FullImageArray[match(keys, KeysOfImages),,,]
 
+  # if keys == 1, add the batch dimension so output dims are always consistent
+  # (here in image case, dims are batch by height by width by channel)
+  if(length(keys) == 1){
+    m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
+  }
+
   # uncomment for a test with different image dimensions
-  if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
+  #if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
   return( m_ )
 }
 
-acquireImageFromMemory(KeysOfImages[1])
+dim( acquireImageFromMemory(KeysOfImages[1]) )
+dim( acquireImageFromMemory(KeysOfImages[1:2]) )
 
 # drop first column
 X <- X[,-1]

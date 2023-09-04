@@ -10,6 +10,7 @@
 #' @param file A character string naming a file for writing.
 #' @param imageKeysOfUnits A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)
 #' @param acquireImageFxn A function whose input is an observation index and whose output is an image.
+#' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
 #' @param conda_env A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #'
@@ -28,6 +29,7 @@
 WriteTfRecord <- function(file,
                           imageKeysOfUnits,
                           acquireImageFxn,
+                          writeVideo = F,
                           conda_env = NULL,
                           conda_env_required = F){
   if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
@@ -77,12 +79,25 @@ WriteTfRecord <- function(file,
     my_serialize_array <- function(array){return( tf$io$serialize_tensor(array) )}
 
     parse_single_image <- function(image, index, key){
-        data = dict("height" = my_int_feature(image$shape[[1]]),
-                    "width" = my_int_feature(image$shape[[2]]),
-                    "depth" = my_int_feature(image$shape[[3]]),
-                    "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
-                    "index" = my_int_feature(index),
-                    "key" = my_int_feature(key))
+       if(writeVideo == F){
+          data = dict(
+                      "height" = my_int_feature(image$shape[[2]]),
+                      "width" = my_int_feature(image$shape[[3]]),
+                      "depth" = my_int_feature(image$shape[[4]]),
+                      "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
+                      "index" = my_int_feature(index),
+                      "key" = my_int_feature(key))
+       }
+      if(writeVideo == T){
+        data = dict(
+          "time" = my_int_feature(image$shape[[2]]),
+          "height" = my_int_feature(image$shape[[3]]),
+          "width" = my_int_feature(image$shape[[4]]),
+          "depth" = my_int_feature(image$shape[[5]]),
+          "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
+          "index" = my_int_feature(index),
+          "key" = my_int_feature(key))
+      }
         out = tf$train$Example(  features = tf$train$Features(feature = data)  )
         return( out )
   }
