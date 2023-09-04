@@ -66,15 +66,27 @@ One important part of the image analysis pipeline is writing a function that acq
 You will write your `acquireImageFxn` to take in two arguments: `keys` and `training` 
 - `keys` (a positional argument) is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `imageKeysOfUnits = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
 - `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you want to randomly flip images around their left-right axis during training mode to prevent overfitting (these pertubations are handled by the package). 
+Make sure that `acquireImageFxn` returns tensors with the same number of dimensions (i.e. batch by height by width by channels in the case of images and batch by time by height by width by channels in the case of image sequences/videos).
 
 ### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 
 ```
 acquireImageFromMemory <- function(keys, training = F){
-  # here, the function input keys 
-  # refers to the unit-associated keys 
-  return( FullImageArray[match(keys, KeysOfImages),,,] )  
+  # here, the function input keys
+  # refers to the unit-associated image keys
+  m_ <- FullImageArray[match(keys, KeysOfImages),,,]
+
+  # if keys == 1, add the batch dimension so output dims are always consistent
+  # (here in image case, dims are batch by height by width by channel)
+  if(length(keys) == 1){
+    m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
+  }
+  
+  return( m_ )
 }
+
+OneImage <- acquireImageFromMemory(sample(KeysOfObservations,1))
+dim( OneImage )
 
 ImageSample <- acquireImageFromMemory(sample(KeysOfObservations,10))
 dim( ImageSample )

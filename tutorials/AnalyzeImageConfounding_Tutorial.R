@@ -19,8 +19,17 @@ data(  CausalImagesTutorialData )
 acquireImageFromMemory <- function(keys, training = F){
   # here, the function input keys
   # refers to the unit-associated image keys
-  return( FullImageArray[match(keys, KeysOfImages),,,] )
+  m_ <- FullImageArray[match(keys, KeysOfImages),,,]
+
+  # if keys == 1, add the batch dimension so output dims are always consistent
+  # (here in image case, dims are batch by height by width by channel)
+  if(length(keys) == 1){
+    m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
+  }
+
+  return( m_ )
 }
+
 
 # example video function (this here just appends two identical images for illustration only)
 # in practice, image sequence / video data will be read from disk
