@@ -53,9 +53,9 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 #take_indices <- 1:length( obsY )
 
 # set tfrecord save location (use absolute paths)
-tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
+#tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
 
-#tfrecord_loc <- "ExampleRecord.tfrecord"
+tfrecord_loc <- "ExampleRecord.tfrecord"
 
 # don't use relative paths like below:
 #tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
@@ -103,8 +103,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = tfrecord_loc, # point to tfrecords file
   acquireImageFxn = NULL,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "embeddings", # uses image embeddings (faster)
+  modelClass = "cnn", # uses convolutional network (richer model class)
+  #modelClass = "embeddings", # uses image embeddings (faster)
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
   tagInFigures = T, figuresTag = "TutorialExample",
