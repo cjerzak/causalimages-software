@@ -890,9 +890,11 @@ AnalyzeImageConfounding <- function(
             gc(); py_gc$collect()
             plot_index_counter <- plot_index_counter + 1
             if(acquireImageMethod == "tf_record"){
+              setwd(orig_wd)
               ds_next_in <- GetElementFromTfRecordAtIndices( indices = in_,
                                                              filename = file,
                                                              nObs = length(imageKeysOfUnits) )
+              setwd(new_wd)
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
             if(acquireImageMethod == "functional"){
@@ -1046,9 +1048,11 @@ AnalyzeImageConfounding <- function(
         for(samp_ in sample(1:nrow(X),100,replace = T)){
           print(sprintf("Tabular Salience Iteration %s of %s", samp_counter <- samp_counter + 1, 100))
           if(acquireImageMethod == "tf_record"){
+            setwd(orig_wd)
             ds_next_in <- GetElementFromTfRecordAtIndices( indices = samp_,
                                                            filename = file,
                                                            nObs = length(imageKeysOfUnits) )
+            setwd(new_wd)
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
           if(acquireImageMethod == "functional"){
