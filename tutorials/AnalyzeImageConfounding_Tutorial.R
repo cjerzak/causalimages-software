@@ -109,10 +109,11 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   conda_env_required = T
 )
 
-ImageConfoundingAnalysis$ModelEvaluationMetrics
-
-# ATE estimate (image  confounder adjusted)
+# ATE estimate (image confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek
 
 # ATE se estimate (image confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek_se
+
+# some out-of-sample evaluation metrics s
+ImageConfoundingAnalysis$ModelEvaluationMetrics

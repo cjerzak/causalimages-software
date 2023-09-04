@@ -728,11 +728,10 @@ AnalyzeImageConfounding <- function(
         acquireImageFxnEmbeds <- function(keys,
                                           acquireImageFxn_ = acquireImageFxn2,
                                           InitImageProcess_ = InitImageProcess2,
-                                          input_ave_pooling_size_ = input_ave_pooling_size2,
                                           training = F){
-              InitImageProcess_(im = acquireImageFxn_( keys ),
-                               training = F,
-                               input_ave_pooling_size = input_ave_pooling_size_)
+              InitImageProcess_( im = tf$constant(acquireImageFxn_( keys ),tf$float32),
+                                 training = F,
+                                 iteration = tf$constant(1.) )
         }
       }
       sigmoid<-function(.){1/(1+exp(-.))}
