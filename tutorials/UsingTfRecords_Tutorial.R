@@ -44,22 +44,27 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
 
-# set tfrecord save location
+# set tfrecord save location (use absolute paths)
 tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
-#tfrecord_loc <- "ExampleRecord.tfrecord"
+
+# don't use relative paths like below:
+#tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
+
+# instead use absolute paths
+#tfrecord_loc <- "~/Downloads/test1/test2/test3/ExampleRecord.tfrecord"
 
 # write a tf records repository
-WriteTfRecord(file = tfrecord_loc,
-              imageKeys = KeysOfObservations[ take_indices ],
-              acquireImageFxn = acquireImageFromMemory,
-              conda_env = "tensorflow_m1")
+WriteTfRecord(  file = tfrecord_loc,
+                imageKeys = KeysOfObservations[ take_indices ],
+                acquireImageFxn = acquireImageFromMemory,
+                conda_env = "tensorflow_m1"  )
 
 # obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
 MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord",
   acquireImageFxn = NULL,
-  nFeatures = 100L,
+  nFeatures = 128L,
   kernelSize = 3L,
   conda_env = "tensorflow_m1",
   conda_env_required = T
@@ -67,6 +72,9 @@ MyImageEmbeddings <- GetImageEmbeddings(
 
 # each row corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location
+dim( MyImageEmbeddings$embeddings )
+
+# plot first and second dimensions (no guarantee of 0 correlation, unlike)
 plot(  MyImageEmbeddings$embeddings )
 
 # embeddings_fxn is the embedding function written in tf (used in other package functions)

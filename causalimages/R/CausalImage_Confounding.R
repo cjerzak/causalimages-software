@@ -39,6 +39,7 @@
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param tf_seed (default = `NULL`) Specification for the tensorflow seed.
 #' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"embeddings"`.
+#' @param file (default = `NULL`) Absolute path to a tfrecord file.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
@@ -196,7 +197,7 @@ AnalyzeImageConfounding <- function(
       new_wd <- paste(tf_record_name[-length(tf_record_name)],
                       collapse = "/")
       print( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
-      setwd( new_wd )
+      changed_wd <- T; setwd( new_wd )
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
       # helper functions
@@ -1080,7 +1081,7 @@ AnalyzeImageConfounding <- function(
         colSums(cbind(long[obsW == 0],lat[obsW == 0])*prop.table(1/(1-prW_est[obsW == 0])))
     }
 
-    if(acquireImageMethod == "tf_record"){
+    if( changed_wd ){
       # reset to original wd which was altered during records initialization
       setwd(  orig_wd  )
     }

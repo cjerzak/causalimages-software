@@ -14,7 +14,7 @@
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param kernelSize (default = `5L`) Dimensions used in the convolution kernels.
 #' @param temporalKernelSize (default = `2L`) Dimensions used in the temporal part of the convolution kernels if using image sequences.
-#' @param nFeatures (default = `64L`) Dimensions used in the convolution kernels.
+#' @param nFeatures (default = `128L`) Number of embedding features output.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param batchSize (default = `50L`) Integer specifying batch size in obtaining embeddings.
 #' @param TfRecords_BufferScaler (default = `10L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
@@ -45,7 +45,7 @@ GetImageEmbeddings <- function(
     conda_env = NULL,
     conda_env_required = F,
 
-    nFeatures = 64L,
+    nFeatures = 128L,
     batchSize = 50L,
     strides = 1L,
     temporalKernelSize = 2L,
@@ -147,27 +147,33 @@ GetImageEmbeddings <- function(
 
   imageDims <- length( dim(test_) ) - 2L
 
+  if(nFeatures %% 2 == 0){ OddInput <- F; nFilters <-  nFeatures/2 }
+  if(nFeatures %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nFeatures/2) }
   if(imageDims == 2){
-    myConv = tf$keras$layers$Conv2D(filters=round(nFeatures),
+    myConv = tf$keras$layers$Conv2D(filters=nFilters,
                           kernel_size = c(kernelSize,kernelSize),
                           activation = "linear",
                           strides = c(strides,strides),
                           padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
-    #GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
+    GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
   }
   if(imageDims == 3){
-    myConv = tf$keras$layers$Conv3D(filters = round(nFeatures),
+    myConv = tf$keras$layers$Conv3D(filters = nFilters,
                                     kernel_size = c(temporalKernelSize, kernelSize,kernelSize),
                                     activation = "linear",
                                     strides = c(1L,strides,strides),
                                     padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last",name="GlobalMax")
-    #GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
+    GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
   }
 
-  #GlobalPoolLayer <- function(z){return(tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)) }
-  GlobalPoolLayer <- function(z){return(GlobalMaxPoolLayer(z)) }
+  GlobalPoolLayer <- function(z){
+    z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
+    if(OddInput){ z <- tf$gather(z, as.integer(1L:nFeatures), axis = 1L) }
+    return( z )
+  }
+  #GlobalPoolLayer <- function(z){return(GlobalMaxPoolLayer(z)) }
 
   getEmbedding <- tf_function(function(im_){
     im_ <- GlobalMaxPoolLayer ( myConv( im_ ) )
