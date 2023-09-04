@@ -13,6 +13,8 @@ WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env)
 
 \item{acquireImageFxn}{A function whose input is an observation index and whose output is an image.}
 
+\item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
+
 \item{conda_env}{A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
 
 \item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
