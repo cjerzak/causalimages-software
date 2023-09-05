@@ -107,7 +107,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   tagInFigures = T, figuresTag = "TutorialExample",
   nBoot = 10,
   nSGD = 10, # this should be more like 1000 in full analysis
-  figuresPath = "./Downloads", # figures saved here
+  figuresPath = "~/Downloads", # figures saved here
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T
 )

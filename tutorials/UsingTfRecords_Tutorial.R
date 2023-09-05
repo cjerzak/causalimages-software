@@ -57,13 +57,13 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # set tfrecord save location (safest using absolute path)
 tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
 
-#tfrecord_loc <- "ExampleRecord.tfrecord"
+# tfrecord_loc <- "ExampleRecord.tfrecord"
 
 # you may use relative paths like this:
 # tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
 
 # or absolute paths like this:
-#tfrecord_loc <- "~/Downloads/test1/test2/test3/ExampleRecord.tfrecord"
+# tfrecord_loc <- "~/Downloads/test1/test2/test3/ExampleRecord.tfrecord"
 
 # write a tf records repository
 WriteTfRecord(  file = tfrecord_loc,
