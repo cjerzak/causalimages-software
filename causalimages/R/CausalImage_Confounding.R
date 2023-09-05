@@ -1047,7 +1047,8 @@ AnalyzeImageConfounding <- function(
         }, T)
       }
 
-      try(makePlots(),T)
+      #try(makePlots(),T)
+      makePlots()
     }
 
     # compute salience for tabular covariates
