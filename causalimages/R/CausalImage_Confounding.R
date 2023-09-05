@@ -789,7 +789,8 @@ AnalyzeImageConfounding <- function(
             getTreatProb <- tf_function_use( function(im_getProb, x_getProb, training_getProb){
               if(!XisNull){
                 concatDat <- tf$concat(list(
-                               tf$ones(list(im_getProb$shape[[1]],1L)), x_getProb, embeddings_fxn( im_getProb )
+                               tf$ones(list(im_getProb$shape[[1]],1L)),
+                                     x_getProb, embeddings_fxn( im_getProb )
                               ), 1L)
               }
               if(XisNull){
@@ -829,12 +830,9 @@ AnalyzeImageConfounding <- function(
       "ClassError_in_baseline" = lossClassError_IN_baseline
     )
 
-
     # reset to original wd which was altered during records initialization
     # do this before plotting to avoid disrupting plot save locations
-    if( changed_wd ){
-      setwd(  orig_wd  )
-    }
+    if( changed_wd ){ setwd(  orig_wd  ) }
 
     # do some analysis with examples
     processedDims <- NULL

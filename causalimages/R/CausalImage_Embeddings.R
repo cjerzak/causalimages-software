@@ -179,7 +179,7 @@ GetImageEmbeddings <- function(
   #GlobalPoolLayer <- function(z){return(GlobalMaxPoolLayer(z)) }
 
   getEmbedding <- tf_function(function(im_){
-    im_ <- GlobalMaxPoolLayer ( myConv( im_ ) )
+    im_ <- GlobalPoolLayer ( myConv( im_ ) )
     return( im_  )
   } )
 

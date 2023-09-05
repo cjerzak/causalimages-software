@@ -468,7 +468,6 @@ SimulateImageSystem <- function(dag = NULL,...){
             if(is.na(myLoss_forGrad)){print("NA in LOSS");browser()}
           }
 
-
           AllTreatProb <- as.array( getTreatProb( as.array(ImageBlocks_tf)[,1,,,],training = F ) )
           AllWobs <- as.array((obsW))
           AllYobs <- as.array((obsY))
