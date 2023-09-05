@@ -1107,6 +1107,9 @@ AnalyzeImageConfounding <- function(
       setwd(  orig_wd  )
     }
 
+    # set salience map names
+    if(!is.null(SalienceX)){ names(SalienceX) <- colnames(X) }
+
     print(  "Done with image confounding analysis!"  )
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
