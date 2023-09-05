@@ -7,9 +7,8 @@
 # remote install latest version of the package if needed
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 
-# local install for developers
+# local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
-
 
 # load in package
 library( causalimages  )
@@ -100,8 +99,8 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   acquireImageFxn = acquireImageFromMemory,
   batchSize = 4,
-  modelClass = "cnn", # uses convolutional network (richer model class)
-  #modelClass = "embeddings", # uses image embeddings (faster)
+  #modelClass = "cnn", # uses convolutional network (richer model class)
+  modelClass = "embeddings", # uses image embeddings (faster)
   file = NULL,
   plotBands = c(1,2,3),
   dropoutRate = 0.1,
