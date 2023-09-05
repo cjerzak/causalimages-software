@@ -78,7 +78,7 @@ AnalyzeImageConfounding <- function(
                                    nEmbedDim = 96L,
                                    HiddenDim  = 64L,
                                    DenseActivation = "linear",
-                                   input_ave_pooling_size = 1L, # if seeking to downshift the resolution
+                                   inputAvePoolingSize = 1L, # if seeking to downshift the resolution
                                    useTrainingPertubations = T,
 
                                    orthogonalize = F,
@@ -182,6 +182,7 @@ AnalyzeImageConfounding <- function(
   }
 
   {
+    loss_vec <- NULL
     acquireImageMethod <- "functional";
     # define base tf record + train/test fxns
     changed_wd <- F; if(  !is.null(  file  )  ){
@@ -294,7 +295,7 @@ AnalyzeImageConfounding <- function(
       if(training == T){ im <- trainingPertubations(im, iteration) }
 
       # downshift resolution if desired
-      if(input_ave_pooling_size > 1){ im <- AvePoolingDownshift(im) }
+      if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) }
       return( im  )
     })
 
@@ -349,7 +350,7 @@ AnalyzeImageConfounding <- function(
     # initialize layers
     if(modelClass == "cnn"){
     print( "Initializing CNN layers..." )
-    AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(input_ave_pooling_size,input_ave_pooling_size)))
+    AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
     try(eval(parse(text = paste("rm(", paste(trainable_layers,collapse=","),")"))),T)
     trainable_layers <- ls()
     {
@@ -720,10 +721,10 @@ AnalyzeImageConfounding <- function(
       acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
         acquireImageFxn2 <- acquireImageFxn
         InitImageProcess2 <- InitImageProcess
-        input_ave_pooling_size2 <- input_ave_pooling_size
+        inputAvePoolingSize2 <- inputAvePoolingSize
         assign("InitImageProcess2", InitImageProcess2, envir = .GlobalEnv)
         assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
-        assign("input_ave_pooling_size2", input_ave_pooling_size2, envir = .GlobalEnv)
+        assign("inputAvePoolingSize2", inputAvePoolingSize2, envir = .GlobalEnv)
         acquireImageFxnEmbeds <- function(keys,
                                           acquireImageFxn_ = acquireImageFxn2,
                                           InitImageProcess_ = InitImageProcess2,
@@ -804,7 +805,7 @@ AnalyzeImageConfounding <- function(
 
     # process in and out of sample losses
     prWEst_baseline <- prW_est
-    prWEst_baseline[] <- mean(obsW)
+    prWEst_baseline[] <- mean( obsW[trainIndices] )
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
     lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
     lossCE_OUT <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
@@ -867,10 +868,10 @@ AnalyzeImageConfounding <- function(
 
         try({
         nrows_im <- (modelClass=="cnn")*3 + (modelClass=="embeddings")*2
-        pdf(sprintf("%s/CSM_KW%s_AvePool%s_%s_Tag%s.pdf",
+        pdf(sprintf("%s/CSM_KW%s_InputAvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
-                    input_ave_pooling_size,
+                    inputAvePoolingSize,
                     modelClass,
                     figuresTag),
             width = length(plot_indices)*5+2,height = nrows_im*5)
@@ -1003,11 +1004,27 @@ AnalyzeImageConfounding <- function(
         dev.off()
         }, T)
 
+
+        if(modelClass == "cnn"){
+          pdf(sprintf("%s/Loss_KW%s_InputAvePool%s_%s_Tag%s.pdf",
+                      figuresPath,
+                      kernelSize,
+                      inputAvePoolingSize,
+                      modelClass,
+                      figuresTag))
+            par(mar = c(5,5,1,1))
+            try(plot(loss_vec, cex = 1.5, cex.lab = 2,
+                     xlab = "Iteration",
+                     ylab = "Loss"),T);
+            try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
+          dev.off()
+        }
+
         try({
-        pdf(sprintf("%s/Hist_KW%s_AvePool%s_%s_Tag%s.pdf",
+        pdf(sprintf("%s/Hist_KW%s_InputAvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
-                    input_ave_pooling_size,
+                    inputAvePoolingSize,
                     modelClass,
                     figuresTag))
         {
@@ -1099,6 +1116,7 @@ AnalyzeImageConfounding <- function(
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
       "prW_est" = prW_est,
+      "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat,
                                 "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
