@@ -113,7 +113,7 @@ ImageConfoundingAnalysis <- AnalyzeImageConfounding(
   nBoot = 5, # increase this (e.g., to 50) in full analysis
   nSGD = 10, # increase this (e.g., to 1000) in full analysis
   nEmbedDim = 256L, # used in modelClass = "embeds" case
-  figuresPath = "~/Downloads/test1", # figures saved here
+  figuresPath = "./Downloads/test1", # figures saved here
   conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
   conda_env_required = T
 )
