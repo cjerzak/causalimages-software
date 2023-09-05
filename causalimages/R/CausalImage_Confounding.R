@@ -142,17 +142,14 @@ AnalyzeImageConfounding <- function(
 
   # make all directory logic explicit
   orig_wd <- getwd()
-  if(substr(figuresPath,start = 0, stop = 1) == "."){
-    figuresPath <- gsub(figuresPath,
-                        pattern = '\\.',
-                        replace = orig_wd)
+  cond1 <- substr(figuresPath,start = 0, stop = 1) == "."
+  cond2 <- substr(figuresPath,start = 0, stop = 1) == "/"
+  if(cond1){
+    figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd)
   }
-  if(substr(figuresPath,start = 0, stop = 1) == "/"){
-    figuresPath <- gsub(figuresPath,
-                        pattern = '/',
-                        replace = paste(orig_wd, "/", sep = ""))
+  if(cond2){
+    figuresPath <- gsub(figuresPath, pattern = '/', replace = paste(orig_wd, "/", sep = ""))
   }
-
 
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
