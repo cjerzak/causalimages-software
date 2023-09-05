@@ -829,6 +829,13 @@ AnalyzeImageConfounding <- function(
       "ClassError_in_baseline" = lossClassError_IN_baseline
     )
 
+
+    # reset to original wd which was altered during records initialization
+    # do this before plotting to avoid disrupting plot save locations
+    if( changed_wd ){
+      setwd(  orig_wd  )
+    }
+
     # do some analysis with examples
     processedDims <- NULL
     if(    plotResults == T  ){
@@ -1004,7 +1011,6 @@ AnalyzeImageConfounding <- function(
         dev.off()
         }, T)
 
-
         if(modelClass == "cnn"){
           pdf(sprintf("%s/Loss_KW%s_InputAvePool%s_%s_Tag%s.pdf",
                       figuresPath,
@@ -1100,11 +1106,6 @@ AnalyzeImageConfounding <- function(
         colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
       postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*prop.table(1/prW_est[obsW == 1])) -
         colSums(cbind(long[obsW == 0],lat[obsW == 0])*prop.table(1/(1-prW_est[obsW == 0])))
-    }
-
-    if( changed_wd ){
-      # reset to original wd which was altered during records initialization
-      setwd(  orig_wd  )
     }
 
     # set salience map names

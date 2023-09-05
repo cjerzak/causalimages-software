@@ -4,8 +4,12 @@
 # Image confounding tutorial using causalimages
 ################################
 
-# install latest version of the package if needed
-#devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
+# remote install latest version of the package if needed
+# devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
+
+# local install for developers
+# install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
+
 
 # load in package
 library( causalimages  )

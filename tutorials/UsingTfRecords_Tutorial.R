@@ -5,9 +5,11 @@
 # and tfrecords for faster results
 ################################
 
-# install latest version of the package if needed
-# install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
+# remote install latest version of the package if needed
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
+
+# local install for developers
+# install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
 # load in package
 library( causalimages  )
@@ -52,13 +54,13 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
 
-# set tfrecord save location
+# set tfrecord save location (safest using absolute path)
 tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
 
 #tfrecord_loc <- "ExampleRecord.tfrecord"
 
 # you may use relative paths like this:
-#tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
+# tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
 
 # or absolute paths like this:
 #tfrecord_loc <- "~/Downloads/test1/test2/test3/ExampleRecord.tfrecord"
