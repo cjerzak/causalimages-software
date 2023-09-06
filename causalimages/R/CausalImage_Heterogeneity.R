@@ -1288,7 +1288,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                               fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                               fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                 no = ""))
-                )
               }
               if(length(plotBands) >= 3){
                 orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
