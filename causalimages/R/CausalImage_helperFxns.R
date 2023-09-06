@@ -32,7 +32,10 @@
 #' @export
 #' @md
 #'
-image2 = function(x,xaxt=NULL,yaxt = NULL,xlab = "", ylab = "", main=NULL,cex.main = NULL,cex.lab = 1.5, col.main = "black", box=F){
+image2 = function(x,xaxt=NULL,yaxt = NULL,xlab = "", ylab = "",
+                  main=NULL,cex.main = NULL,
+                  col.lab = "black", col.main = "black",
+                  cex.lab = 1.5, box=F){
   image((t(x)[,nrow(x):1]),
         axes = F,
         main = main,
@@ -40,6 +43,7 @@ image2 = function(x,xaxt=NULL,yaxt = NULL,xlab = "", ylab = "", main=NULL,cex.ma
         ylab = ylab,
         xaxs = "i",
         cex.lab = cex.lab,
+        col.lab = col.lab,
         col.main = col.main,
         cex.main = cex.main)
   if(box == T){box()}

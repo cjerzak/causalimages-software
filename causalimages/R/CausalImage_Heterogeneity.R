@@ -1277,15 +1277,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
 
               if(length(plotBands) < 3){
-                browser()
                 orig_scale_im_raster <-  (as.array(acquireImageFxn(
-                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands]))
+                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands[1]]))
                 causalimages::image2(
-                  as.matrix( orig_scale_im_raster[,,plotBands[1]] ),
-                  main = long_lat_in_, cex.main = 2.5, col.main =  col_,
-                  xlab = ifelse( plot_index_counter == 1,
-                                 yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
-                                 no = "")
+                  as.matrix( orig_scale_im_raster ),
+                  main = main_,
+                  cex.lab = 2.5, col.lab = k_, col.main = k_,
+                  xlab = ifelse(!is.null(long),
+                                yes = sprintf("Long: %s, Lat: %s",
+                                              fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                              fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                no = ""))
                 )
               }
               if(length(plotBands) >= 3){
@@ -1296,7 +1298,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                  r = 1, g = 2, b = 3,
                                  mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
                                  main = main_,  stretch = "lin",
-                                 cex.lab = 2.5,col.lab = k_,
+                                 cex.lab = 2.5, col.lab = k_,
                                  xlab = ifelse(!is.null(long),
                                            yes = sprintf("Long: %s, Lat: %s",
                                                 fixZeroEndings(round(coordinate_i,2L)[1],2L),
