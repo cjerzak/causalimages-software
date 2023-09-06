@@ -1277,8 +1277,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
 
               if(length(plotBands) < 3){
-                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
-                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
+                browser()
+                orig_scale_im_raster <-  (as.array(acquireImageFxn(
+                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands]))
                 causalimages::image2(
                   as.matrix( orig_scale_im_raster[,,plotBands[1]] ),
                   main = long_lat_in_, cex.main = 2.5, col.main =  col_,
