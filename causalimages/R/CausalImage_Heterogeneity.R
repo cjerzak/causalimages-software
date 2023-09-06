@@ -48,6 +48,7 @@
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param plotResults (default = `T`) Should analysis results be plotted?
+#' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #'
 #' @return A list consiting of \itemize{
@@ -74,7 +75,6 @@
 #'
 #' @import tensorflow
 #' @import keras
-#' @import latex2exp
 #' @export
 #' @md
 AnalyzeImageHeterogeneity <- function(obsW,
@@ -92,6 +92,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
                                       figuresTag = "",
                                       figuresPath = "./",
+                                      plotBands = 1L,
                                       modelType = "variational_minimal",
                                       simMode = F,
                                       plotResults = F,
@@ -117,7 +118,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       printDiagnostics = F,
                                       quiet = F){
   if(T == T){
-    #conda_env <- "tensorflow_m1"
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
@@ -208,17 +208,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
   GlobalMax <- tf$keras$layers$GlobalMaxPool2D()
   GlobalAve <- tf$keras$layers$GlobalAveragePooling2D()
   GlobalFlatten <- tf$keras$layers$Flatten()
-  #GlobalSpatial <- tfa$layers$SpatialPyramidPooling2D(bins = list(4L,4L))
-  #FinalImageSummary <- GlobalAve
   FinalImageSummary <- function(x){tf$concat(list(GlobalMax(x),GlobalAve(x)),1L)}
+  #GlobalSpatial <- tfa$layers$SpatialPyramidPooling2D(bins = list(4L,4L))
   #FinalImageSummary <- function(x){GlobalFlatten( GlobalSpatial( x ) )}
   #FinalImageSummary <- GlobalFlatten
 
   adaptiveMomentum <- F
   BNPreOutput <- F;
   BNPrePreOutput <- T;
-  ConvActivation <- "swish"
-  LowerDimActivation <- "swish"; LowerDimInputDense <- F
+  LowerDimActivation <- ConvActivation <- "swish"
+  LowerDimInputDense <- F
   doBN_conv1 <- T; doBN_conv2 <- T
   kernelSize_est <- as.integer(  kernelSize )
   batchFracOut <- max(1/3*batchSize,3) / batchSize
@@ -782,7 +781,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     print2("Initial forward pass...")
-    for(bool_ in c(T,F)){
+    for(bool_ in c(T)){ # Initialize training branch only to preserve memory
       print2(bool_)
       with(tf$GradientTape() %as% tape, {
         samp_ <- sample(1:length(obsW),batchSize)
@@ -869,7 +868,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
     UniqueImageKeysByIndices <- list(tapply(which(obsW==0),imageKeysOfUnits[obsW==0],function(zer){sort(unique(zer))}),
                                      tapply(which(obsW==1),imageKeysOfUnits[obsW==1],function(zer){sort(unique(zer))}))
-    tauMeans <- c();i_<-1;for(i in i_:(n_sgd_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
+      #tauMeans <- c();i_<-1;for(i in i_:(n_sgd_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
+      tauMeans <- c();i_<-1;for(i in i_:nSGD){
       if(i %% 25 == 0){gc(); py_gc$collect()}
       #batch_indices <- unlist(apply(batch_indices_list == unique_batch_indices[i],2,which))
       #batch_indices_reffed <- trainIndices[batch_indices]
@@ -1207,7 +1207,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             par(mar=c(2, 5.9, 3, 0.5))
             layout_mat_orig <- layout_mat <- matrix(c(1:nExamples*3-3+1,
                                    1:nExamples*3-1,
-                                   1:nExamples*3),nrow = 3, byrow = T)
+                                   1:nExamples*3), nrow = 3, byrow = T)
             for(kr_ in 2:kClust_est){
               layout_mat <- rbind(layout_mat,
                                   layout_mat_orig+max(layout_mat))
@@ -1265,7 +1265,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   isUnique_ <- T; if(!is.null(long)){
                     dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
-                    #if(is.na(dist_m)){browser()}
                     if(all(dist_m >= 1000)){isUnique_ <- T}
                   }
                 }
@@ -1273,21 +1272,36 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
+
               used_coordinates <- rbind(coordinate_i,used_coordinates)
               print2(c(k_, i, im_i, long[im_i], lat[im_i]))
               if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
-              rbgPlot <- try(raster::plotRGB( raster::brick( 0.0001 + (as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,])) ) ,
-                               margins = T,
-                               r = 1, g = 2, b = 3,
-                               mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                               main = main_,
-                               cex.lab = 2.5,col.lab = k_,
-                               xlab = ifelse(!is.null(long),
-                                         yes = sprintf("Long: %s, Lat: %s",
-                                              fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                              fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                                         no = ""),
-                               col.main = k_, cex.main=4),T)
+
+              if(length(plotBands) < 3){
+                causalimages::image2(
+                  as.matrix( orig_scale_im_[,,plotBands[1]] ),
+                  main = long_lat_in_, cex.main = 2.5, col.main =  col_,
+                  xlab = ifelse( plot_index_counter == 1,
+                                 yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
+                                 no = "")
+                )
+              }
+              if(length(plotBands) >= 3){
+                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
+                                        imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
+                rbgPlot <- try(raster::plotRGB(  orig_scale_im_raster,
+                                 margins = T,
+                                 r = 1, g = 2, b = 3,
+                                 mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
+                                 main = main_,  stretch = "lin",
+                                 cex.lab = 2.5,col.lab = k_,
+                                 xlab = ifelse(!is.null(long),
+                                           yes = sprintf("Long: %s, Lat: %s",
+                                                fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                                fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                           no = ""),
+                                 col.main = k_, cex.main=4),T)
+              }
               if("try-error" %in% class(rbgPlot)){print2("rbgPlot broken")}
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
@@ -1295,8 +1309,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   tauk <- eval(parse(text = sprintf("tau%s",k_)))
                   ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
                   if(orthogonalize == T){
-                    library(latex2exp)
-                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_,tauk)))
+                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
                   }
                   axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,
                        col.axis=k_)
@@ -1367,7 +1380,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
               }
             }
-            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,used_coordinates),T)
+            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates),T)
             if("try-error" %in% class(plotting_coordinates_mat)){browser()}
             print2(used_coordinates)
           }

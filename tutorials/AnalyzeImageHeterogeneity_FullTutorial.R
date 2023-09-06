@@ -33,17 +33,7 @@ acquireImageFromMemory <- function(keys, training = F){
   return( m_ )
 }
 
-
-# example video function (this here just appends two identical images for illustration only)
-# in practice, image sequence / video data will be read from disk
-acquireVideoRepFromMemory <- function(keys, training = F){
-  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
-  tmp <- abind::abind(tmp, tmp, along = 0)
-  tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
-  return(  tmp  )
-}
-
-# drop first column
+# drop first column of X
 X <- X[,-1]
 
 # mean imputation for simplicity
@@ -60,7 +50,9 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   imageKeysOfUnits =  KeysOfObservations,
   acquireImageFxn = acquireImageFromMemory,
   conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
+  conda_env_required = T,
   X = X,
+  plotBands = 1L:3L,
 
   # inputs to control where visual results are saved as PDF or PNGs
   # (these image grids are large and difficult to display in RStudio's interactive mode)
@@ -79,9 +71,9 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   orthogonalize = F,
   modelType = "variational_minimal",
   kClust_est = 2,
-  nMonte_variational = 10L,
-  nSGD = 400L, # make this larger for real applications
-  batchSize = 22L,
+  nMonte_variational = 3L, # make this larger for real application (e.g., 10)
+  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  batchSize = 10L, # make this larger for real application (e.g., 50L)
   channelNormalize = T,
   compile = T,
   yDensity = "normal",
@@ -92,4 +84,17 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
+
+
+
+# now, let's go do an analysis using video data
+
+# example video function (this here just appends two identical images for illustration only)
+# in practice, image sequence / video data will be read from disk
+acquireVideoRepFromMemory <- function(keys, training = F){
+  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
+  tmp <- abind::abind(tmp, tmp, along = 0)
+  tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
+  return(  tmp  )
+}
 

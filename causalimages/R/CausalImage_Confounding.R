@@ -504,7 +504,7 @@ AnalyzeImageConfounding <- function(
 
     # perform training
     print("Starting training sequence...")
-    loss_vec <- rep(NA,times=nSGD)
+    loss_vec <- rep(NA, times = nSGD)
     in_ <- ip_ <- 0; for(i in 1:nSGD){
       if((i %% 10 == 0 | (i == 10) | i == nSGD) & doParallel == F | i < 50){
         print(sprintf("[%s] SGD Iteration: %i of %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), i, nSGD) );
