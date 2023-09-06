@@ -134,7 +134,7 @@ acquireImageFromDisk <- function(keys,training = F){
 }
 ```
 ### Alternatives to `acquireImageFxn` by Specifying Disk Location of Image/Video Data 
-In general, specifying a function to read images from disk will depend on your operating system and file system. Usually, reading in raster files and converting them to arrays is one way to go, or reading in image dimensions via `data.table::fread`. The fastest option is to use the `tfrecord` format. For that option, see (this dedicated tutorial)[https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R] on `tfrecord` use. 
+In general, specifying a function to read images from disk will depend on your operating system and file system. Usually, reading in raster files and converting them to arrays is one way to go, or reading in image dimensions via `data.table::fread`. The fastest option is to use the `tfrecord` format. For that option, see [this dedicated tutorial](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R) on `tfrecord` use. 
 
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
