@@ -1330,10 +1330,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
                         PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
                                                 tf$divide(ep_LabelSmooth,tf$constant(2)))
-                        LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed),
-                                              tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+                        #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+                        OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
                       })
-                      ImageGrad <- tape$jacobian( LOGIT_, m , experimental_use_pfor = F)
+                      ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = F)
                       ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
                       for(jf in 1:2){
                         if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,3L,keepdims = T)}
