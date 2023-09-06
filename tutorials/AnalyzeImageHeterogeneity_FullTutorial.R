@@ -71,9 +71,9 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   orthogonalize = F,
   modelType = "variational_minimal",
   kClust_est = 2,
-  nMonte_variational = 3L, # make this larger for real application (e.g., 10)
-  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
-  batchSize = 10L, # make this larger for real application (e.g., 50L)
+  nMonte_variational = 2L, # make this larger for real application (e.g., 10)
+  nSGD = 400L, # make this larger for real applications (e.g., 2000L)
+  batchSize = 50L, # make this larger for real application (e.g., 50L)
   channelNormalize = T,
   compile = T,
   yDensity = "normal",

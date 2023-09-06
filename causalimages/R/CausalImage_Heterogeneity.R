@@ -1279,9 +1279,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(length(plotBands) < 3){
                 orig_scale_im_raster <-  (as.array(acquireImageFxn(
                       imageKeysOfUnits[im_i], training = F )[1,,,plotBands[1]]))
-                causalimages::image2(
+                showImage <- causalimages::image2(
                   as.matrix( orig_scale_im_raster ),
-                  main = main_,
+                  main = main_, cex.main = 4,
                   cex.lab = 2.5, col.lab = k_, col.main = k_,
                   xlab = ifelse(!is.null(long),
                                 yes = sprintf("Long: %s, Lat: %s",
@@ -1292,7 +1292,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(length(plotBands) >= 3){
                 orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
                                         imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
-                rbgPlot <- (raster::plotRGB(  orig_scale_im_raster,
+                showImage <- (raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
                                  mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
@@ -1305,7 +1305,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                            no = ""),
                                  col.main = k_, cex.main=4))
               }
-              if("try-error" %in% class(rbgPlot)){print2("rbgPlot broken")}
+              if("try-error" %in% class(showImage)){print2("showImage broken")}
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
