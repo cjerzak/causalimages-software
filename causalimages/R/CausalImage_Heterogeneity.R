@@ -869,7 +869,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     UniqueImageKeysByIndices <- list(tapply(which(obsW==0),imageKeysOfUnits[obsW==0],function(zer){sort(unique(zer))}),
                                      tapply(which(obsW==1),imageKeysOfUnits[obsW==1],function(zer){sort(unique(zer))}))
       #tauMeans <- c();i_<-1;for(i in i_:(n_sgd_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
-      tauMeans <- c();i_<-1;for(i in i_:nSGD){
+      n_sgd_iters <- nSGD; tauMeans <- c();i_<-1;for(i in i_:nSGD){
       if(i %% 25 == 0){gc(); py_gc$collect()}
       #batch_indices <- unlist(apply(batch_indices_list == unique_batch_indices[i],2,which))
       #batch_indices_reffed <- trainIndices[batch_indices]
@@ -1259,15 +1259,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
                 }
 
-                coordinate_i <- c(long[im_i],lat[im_i])
+                coordinate_i <- c(long[im_i], lat[im_i])
                 if(bad_counter>50){browser()}
                 if(i > 1){
                   isUnique_ <- T; if(!is.null(long)){
                     dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
                     if(all(dist_m >= 1000)){isUnique_ <- T}
-                  }
-                }
+                } }
                 if(i == 1){isUnique_<-T}
                 print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
@@ -1278,8 +1277,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
 
               if(length(plotBands) < 3){
+                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
+                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
                 causalimages::image2(
-                  as.matrix( orig_scale_im_[,,plotBands[1]] ),
+                  as.matrix( orig_scale_im_raster[,,plotBands[1]] ),
                   main = long_lat_in_, cex.main = 2.5, col.main =  col_,
                   xlab = ifelse( plot_index_counter == 1,
                                  yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
@@ -1289,7 +1290,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(length(plotBands) >= 3){
                 orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
                                         imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
-                rbgPlot <- try(raster::plotRGB(  orig_scale_im_raster,
+                rbgPlot <- (raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
                                  mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
@@ -1300,7 +1301,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                 fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                 fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                            no = ""),
-                                 col.main = k_, cex.main=4),T)
+                                 col.main = k_, cex.main=4))
               }
               if("try-error" %in% class(rbgPlot)){print2("rbgPlot broken")}
               if(grepl(typePlot,pattern = "mean")){
@@ -1361,7 +1362,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   magPlot <- try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
                             col = viridis::magma(nColors - 1),
                             breaks = gradMag_breaks, axes = F),T)
-                  if("try-error" %in% class(magPlot)){print2("magPlot broken")}
+                  if("try-error" %in% class(magPlot)){
+                    browser()
+                    print2("magPlot broken")
+                  }
                   ylab_ <- ""; if(i==1){
                     axis(side = 2,at=0.5,labels = "Salience Magnitude",
                          pos=-0.,tick=F, cex.axis=3, col.axis=k_)

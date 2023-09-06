@@ -1059,6 +1059,9 @@ AnalyzeImageConfounding <- function(
             treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_,
                                                                  x_getProb = x_,
                                                                  training_getProb = F),0L),0L)
+
+            # calc salience using log probabilities
+            treat_prob_im <- tf$math$log( treat_prob_im )
           })
           return(  salience_vec <- tape$gradient( treat_prob_im, x_ )   ) }
         SalienceX <- c(); samp_counter <- 0

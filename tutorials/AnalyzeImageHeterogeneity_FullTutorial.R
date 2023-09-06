@@ -52,7 +52,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
   conda_env_required = T,
   X = X,
-  plotBands = 1L:3L,
+  plotBands = 1L,
 
   # inputs to control where visual results are saved as PDF or PNGs
   # (these image grids are large and difficult to display in RStudio's interactive mode)
