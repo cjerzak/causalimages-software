@@ -52,71 +52,44 @@ X <- apply(X,2,function(zer){
   return( zer )
 })
 
-# select observation subset to make tutorial analyses run faster
-take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)}) )
-
-# uncomment for a larger n analysis
-#take_indices <- 1:length( obsY )
-
-# obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
-MyImageEmbeddings <- GetImageEmbeddings(
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
+# perform image-based treatment effect heterogeneity decomposition
+ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+  # data inputs
+  obsW =  obsW,
+  obsY = obsY,
+  imageKeysOfUnits =  KeysOfObservations,
   acquireImageFxn = acquireImageFromMemory,
-  nEmbedDim = 100,
-  kernelSize = 3L,
-  conda_env = "tensorflow_m1",
-  conda_env_required = T
+  conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
+  X = X,
+
+  # inputs to control where visual results are saved as PDF or PNGs
+  # (these image grids are large and difficult to display in RStudio's interactive mode)
+  plotResults = T,
+  figuresPath = "~/Downloads",
+  printDiagnostics = T,
+  figuresTag = "CausalImagesTutorial",
+
+  # optional arguments for generating transportability maps
+  # here, we leave those NULL
+  transportabilityMat = NULL, #
+  lat =  NULL, # required only if transportabilityMat specified
+  long =  NULL, # # required only if transportabilityMat specified
+
+  # other modeling options
+  orthogonalize = F,
+  modelType = "variational_minimal",
+  kClust_est = 2,
+  nMonte_variational = 10L,
+  nSGD = 400L, # make this larger for real applications
+  batchSize = 22L,
+  channelNormalize = T,
+  compile = T,
+  yDensity = "normal",
+  kernelSize = 3L, maxPoolSize = 2L, strides = 1L,
+  nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
+  nFilters = 64L,
+  nDepthHidden_dense = 0L, nDenseWidth = 32L,
+  nDimLowerDimConv = 3L,
+  reparameterizationType = "Flipout"
 )
 
-# each row corresponds to an observation
-# each column represents an embedding dimension associated with the imagery for that location
-MyImageEmbeddings$embeddings
-
-# embeddings_fxn is the embedding function written in tf (used for other package functions)
-#MyImageEmbeddings$embeddings_fxn
-
-# obtain video embeddings
-# each column represents an embedding dimension associated with the image sequence for that location
-MyVideoEmbeddings <- GetImageEmbeddings(
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  acquireImageFxn = acquireVideoRepFromMemory,
-  temporalKernelSize = 2L,
-  kernelSize = 3L,
-  nEmbedDim = 100,
-  conda_env = "tensorflow_m1",
-  conda_env_required = T
-)
-MyVideoEmbeddings$embeddings
-
-# perform causal inference with image and tabular confounding
-ImageConfoundingAnalysis <- AnalyzeImageConfounding(
-  obsW = obsW[ take_indices ],
-  obsY = obsY[ take_indices ],
-  X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
-  long = LongLat$geo_long[ take_indices ],
-  lat = LongLat$geo_lat[ take_indices ],
-
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  acquireImageFxn = acquireImageFromMemory,
-  batchSize = 4,
-  #modelClass = "cnn", # uses convolutional network (richer model class)
-  modelClass = "embeddings", # uses image embeddings (faster)
-  file = NULL,
-  plotBands = c(1,2,3),
-  dropoutRate = 0.1,
-  tagInFigures = T, figuresTag = "TutorialExample",
-  nBoot = 10,
-  nSGD = 10, # this should be more like 1000 in full analysis
-  figuresPath = "~/Downloads", # figures saved here
-  conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
-  conda_env_required = T
-)
-
-# ATE estimate (image confounder adjusted)
-ImageConfoundingAnalysis$tauHat_propensityHajek
-
-# ATE se estimate (image confounder adjusted)
-ImageConfoundingAnalysis$tauHat_propensityHajek_se
-
-# some out-of-sample evaluation metrics s
-ImageConfoundingAnalysis$ModelEvaluationMetrics
