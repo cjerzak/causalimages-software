@@ -251,5 +251,5 @@ We thank [James Bailie](https://jameshbailie.github.io/), [Cindy Conlin](https:/
 }
 ```
 
-[<img src="https://connorjerzak.com/wp-content/uploads/2023/03/pexels-photo-60132.jpeg" width="500" height="400">](https://connorjerzak.com/image-based-treatment-heterogeneity/)
+[<img src="https://connorjerzak.com/wp-content/uploads/2023/03/pexels-photo-60132.jpeg" width="500" height="400">](https://proceedings.mlr.press/v213/jerzak23a.html)
 
