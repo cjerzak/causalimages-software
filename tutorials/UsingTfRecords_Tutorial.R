@@ -49,12 +49,16 @@ X <- apply(X,2,function(zer){
 })
 
 # select observation subset to make tutorial analyses run faster
+# select 50 treatment and 50 control observations
 take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)}) )
+
+# important note:
+# when using tf recordings, it is important that the data inputs be pre-shuffled like is done here.
+# you can use a seed for reproducing the shuffle (so the tfrecord is correctly indexed)
 
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
 
-# shuffle the data before saving tf.record
 
 # set tfrecord save location (safest using absolute path)
 tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
