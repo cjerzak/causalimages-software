@@ -742,7 +742,7 @@ AnalyzeImageConfounding <- function(
             imageKeysOfUnits = imageKeysOfUnits,
             batchSize = min(  batchSize, length(imageKeysOfUnits) ),
             acquireImageFxn = acquireImageFxnEmbeds,
-            InitImageProcess = InitImageProcess2,
+            inputAvePoolingSize = inputAvePoolingSize,
             file = file,
             strides = strides,
             nEmbedDim = nEmbedDim,
@@ -952,7 +952,6 @@ AnalyzeImageConfounding <- function(
             par(mar = (mar_vec <- c(2,1,3,1)))
 
             # plot raw image
-            browser(); browser();browser(); browser();
             if(length(plotBands) < 3){
               causalimages::image2(
                 as.matrix( orig_scale_im_[,,plotBands[1]] ),
@@ -1051,7 +1050,6 @@ AnalyzeImageConfounding <- function(
       }
 
       #try(makePlots(),T)
-      browser(); browser();
       makePlots()
     }
 

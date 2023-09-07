@@ -177,10 +177,7 @@ GetImageEmbeddings <- function(
   }
 
   AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
-  InitImageProcess <- tf_function_use(function(im){
-
-    # expand dims if needed
-    if(length(imageKeysOfUnits) == 1){ im <- tf$expand_dims(im,0L) }
+  InitImageProcess <- (function(im){
 
     # normalize if desired
     # im <- tf$divide(tf$subtract(im, NORM_MEAN_array), NORM_SD_array)
