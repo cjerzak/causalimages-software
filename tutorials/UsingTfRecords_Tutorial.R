@@ -54,6 +54,8 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
 
+# shuffle the data before saving tf.record
+
 # set tfrecord save location (safest using absolute path)
 tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
 

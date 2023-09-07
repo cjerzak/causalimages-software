@@ -85,8 +85,6 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   reparameterizationType = "Flipout"
 )
 
-
-
 # now, let's go do an analysis using video data
 
 # example video function (this here just appends two identical images for illustration only)

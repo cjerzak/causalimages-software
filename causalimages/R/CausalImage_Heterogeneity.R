@@ -41,6 +41,8 @@
 #' @param nFilters (default = `32L`) Integer specifying the number of convolutional filters used.
 #' @param nDenseWidth (default = `32L`) Width of dense projection layers post-convolutions.
 #' @param nDepthHidden_conv (default = `3L`) Hidden depth of convolutional layer.
+#' @param modelClass (default = `"cnn"`) Either `"cnn"` or `"embeddings"`.
+#' @param nEmbedDim (default = `96L`) Integer specifying the image/image sequence embedding dimension. Used if `modelClass = "embeddings"`.
 #' @param nDepthHidden_dense (default = `0L`) Hidden depth of dense layers. Default of `0L` means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).
 #' @param quiet (default = `F`) Should we suppress information about progress?
 #' @param yDensity (default = `normal`) Specifies the density for the outcome. Current options include `normal` and `lognormal`.
@@ -84,6 +86,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       imageKeysOfUnits = 1:length(obsY),
                                       kClust_est = 2,
                                       acquireImageFxn = NULL ,
+                                      file = NULL,
                                       transportabilityMat = NULL ,
                                       lat = NULL,
                                       long = NULL,
@@ -108,6 +111,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nMonte_salience = 100L,
                                       batchSize = 25L,
                                       kernelSize = 5L,
+                                      temporalKernelSize = 2L,
                                       nSGD  = 400L,
                                       nDenseWidth = 32L,
                                       reparameterizationType = "Reparameterization",
@@ -115,6 +119,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nDimLowerDimConv = 3L,
                                       nFilters = 32L,
                                       channelNormalize = T,
+                                      modelClass = "cnn",
+                                      nEmbedDim = 96L,
                                       printDiagnostics = F,
                                       quiet = F){
   if(T == T){
@@ -483,8 +489,36 @@ AnalyzeImageHeterogeneity <- function(obsW,
       LocalPool <- LocalMax
     }
 
+    if(modelClass == "embeddings"){
+        if(acquireImageMethod == "tf_record"){ setwd(orig_wd)  }
+        acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
+          acquireImageFxn2 <- acquireImageFxn
+          assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
+          acquireImageFxnEmbeds <- function(keys,
+                                            acquireImageFxn_ = acquireImageFxn2,
+                                            InitImageProcess_ = InitImageProcess2,
+                                            training = F){
+              tf$constant(acquireImageFxn_( keys , training = F ),tf$float32)
+          }
+        }
+          indices_ <- 1:length( imageKeysOfUnits )
+
+          # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
+          EmbeddingsFxn <- GetImageEmbeddings(
+            imageKeysOfUnits = sample( unique(imageKeysOfUnits), 10),
+            batchSize = min(  c(batchSize, 10) ),
+            acquireImageFxn = acquireImageFxnEmbeds,
+            file = file,
+            strides = strides,
+            nEmbedDim = nEmbedDim,
+            kernelSize = kernelSize,
+            temporalKernelSize = temporalKernelSize,
+            conda_env = "tensorflow_m1",
+            conda_env_required = T )$embeddings_fxn
+      }
+
     if(compile == T){ tf_function_fxn <- function(x){tf_function(x,experimental_relax_shapes = F)}}
-    if(compile == F){ tf_function_fxn <- function(x){x} }
+    if(compile == F){ tf_function_fxn <- function(x){print("Warning: Not compiling fxn");  return(x) } }
     getClusterLogits <- tf_function_fxn( function(  m , training){
       if( !modelType %in% "variational_minimal_visualizer" ){
         # convolution part
