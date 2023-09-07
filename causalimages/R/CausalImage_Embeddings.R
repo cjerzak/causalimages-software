@@ -52,6 +52,7 @@ GetImageEmbeddings <- function(
     temporalKernelSize = 2L,
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
+    inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL,
     quiet = F){
 
@@ -149,7 +150,6 @@ GetImageEmbeddings <- function(
   }
 
   imageDims <- length( dim(test_) ) - 2L
-
   if(nEmbedDim %% 2 == 0){ OddInput <- F; nFilters <-  nEmbedDim/2 }
   if(nEmbedDim %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nEmbedDim/2) }
   if(imageDims == 2){
@@ -170,16 +170,27 @@ GetImageEmbeddings <- function(
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last",name="GlobalMax")
     GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
   }
-
   GlobalPoolLayer <- function(z){
     z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
     if(OddInput){ z <- tf$gather(z, as.integer(1L:nEmbedDim), axis = 1L) }
     return( z )
   }
-  #GlobalPoolLayer <- function(z){return(GlobalMaxPoolLayer(z)) }
 
+  AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
+  InitImageProcess <- tf_function_use(function(im){
+
+    # expand dims if needed
+    if(length(imageKeysOfUnits) == 1){ im <- tf$expand_dims(im,0L) }
+
+    # normalize if desired
+    # im <- tf$divide(tf$subtract(im, NORM_MEAN_array), NORM_SD_array)
+
+    # downshift resolution if desired
+    if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) }
+    return( im  )
+  })
   getEmbedding <- tf_function(function(im_){
-    im_ <- GlobalPoolLayer ( myConv( im_ ) )
+    im_ <- GlobalPoolLayer ( myConv( InitImageProcess( im_ )  ) )
     return( im_  )
   } )
 

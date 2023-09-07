@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 
 ################################
-# Image confounding tutorial using causalimages
+# Full image heterogeneity tutorial using causalimages
+# **In process. Expected completion date Sept 12**
 ################################
 
 # remote install latest version of the package if needed

@@ -78,7 +78,7 @@ AnalyzeImageConfounding <- function(
                                    nEmbedDim = 96L,
                                    HiddenDim  = 64L,
                                    DenseActivation = "linear",
-                                   inputAvePoolingSize = 1L, # if seeking to downshift the resolution
+                                   inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
                                    useTrainingPertubations = T,
 
                                    orthogonalize = F,
@@ -274,7 +274,6 @@ AnalyzeImageConfounding <- function(
     }
 
     binaryCrossLoss <- function(W,prW){return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
-
     InitImageProcess <- tf_function_use(function(im,
                                                  training,
                                                  iteration){
@@ -339,13 +338,15 @@ AnalyzeImageConfounding <- function(
     testIndices <- sample(1:length(obsY), max(2,length(obsY)*testFrac))
     trainIndices <- (1:length(obsY))[! 1:length(obsY) %in% testIndices]
 
+    # define image downshift for supplementary analyses
+    AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
+
     # set up holders
     prW_est <- rep(NA,times = length(obsW))
 
     # initialize layers
     if(modelClass == "cnn"){
     print( "Initializing CNN layers..." )
-    AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
     try(eval(parse(text = paste("rm(", paste(trainable_layers,collapse=","),")"))),T)
     trainable_layers <- ls()
     {
@@ -741,6 +742,7 @@ AnalyzeImageConfounding <- function(
             imageKeysOfUnits = imageKeysOfUnits,
             batchSize = min(  batchSize, length(imageKeysOfUnits) ),
             acquireImageFxn = acquireImageFxnEmbeds,
+            InitImageProcess = InitImageProcess2,
             file = file,
             strides = strides,
             nEmbedDim = nEmbedDim,
@@ -865,8 +867,10 @@ AnalyzeImageConfounding <- function(
       # concatenate c and t indices
       plot_indices <- c(top_control, top_treated)
       makePlots <- function(){
+        print("Starting to make output plots...")
 
         try({
+        print("Plotting salience maps...")
         nrows_im <- (modelClass=="cnn")*3 + (modelClass=="embeddings")*2
         pdf(sprintf("%s/CSM_KW%s_InputAvePool%s_%s_Tag%s.pdf",
                     figuresPath,
@@ -905,10 +909,9 @@ AnalyzeImageConfounding <- function(
             }
 
             #print(in_)
-            col_ <- ifelse(in_ %in% top_treated,
-                           yes = "black", no = "gray")
+            col_ <- ifelse(in_ %in% top_treated, yes = "black", no = "gray")
             in_counter <- in_counter + 1
-            if(!is.null(lat)){
+            if(  !is.null(lat)  ){
               long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_]))
             }
 
@@ -949,6 +952,7 @@ AnalyzeImageConfounding <- function(
             par(mar = (mar_vec <- c(2,1,3,1)))
 
             # plot raw image
+            browser(); browser();browser(); browser();
             if(length(plotBands) < 3){
               causalimages::image2(
                 as.matrix( orig_scale_im_[,,plotBands[1]] ),
@@ -1020,6 +1024,7 @@ AnalyzeImageConfounding <- function(
         }
 
         try({
+        print("Plotting propensity histogram...")
         pdf(sprintf("%s/Hist_KW%s_InputAvePool%s_%s_Tag%s.pdf",
                     figuresPath,
                     kernelSize,
@@ -1046,6 +1051,7 @@ AnalyzeImageConfounding <- function(
       }
 
       #try(makePlots(),T)
+      browser(); browser();
       makePlots()
     }
 
