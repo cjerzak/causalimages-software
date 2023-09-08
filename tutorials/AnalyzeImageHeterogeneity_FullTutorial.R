@@ -14,8 +14,46 @@
 # load in package
 library( causalimages  )
 
-# load in tutorial data
-data(  CausalImagesTutorialData )
+# specify uganda data URL
+uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
+
+# download into new directory
+download.file( uganda_data_url,  destfile = (download_folder <- "~/Downloads/UgandaAnalysis.zip" ))
+
+# unzip and list files
+unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
+
+# set new wd
+setwd(sprintf('%s/Public Replication Data, YOP Experiment/',
+              gsub(download_folder,pattern="\\.zip",replace="")))
+
+# see directory contents
+list.files()
+
+# images saved here
+list.files(  "./Uganda2000_processed"  )
+
+# individual-level data
+UgandaDataProcessed <- read.csv(  "./UgandaDataProcessed.csv"  )
+
+# approximate longitude + latitude for units
+UgandaDataProcessed$geo_long
+UgandaDataProcessed$geo_lat
+
+# image keys of units (use for referencing satellite images)
+UgandaDataProcessed$geo_long_lat_key
+
+# information on keys linking to satellite images for all of Uganda
+# (not just experimental context, use for constructing transportability maps)
+UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
+
+
+
+
+
+
+
+# !!!!! IN PROCESS FOLLOWING HERE !!!!!
 
 # example acquire image function (loading from memory)
 # in general, you'll want to write a function that returns images

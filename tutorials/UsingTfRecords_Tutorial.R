@@ -55,7 +55,7 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 # !!! important note !!!
 # when using tf recordings, it is essential that the data inputs be pre-shuffled like is done here.
 # you can use a seed for reproducing the shuffle (so the tfrecord is correctly indexed and you don't need to re-make it)
-# tf records read data quasi-sequentially, so patterns in the data ordering
+# tf records read data quasi-sequentially, so systematic patterns in the data ordering
 # greatly reduce performance
 
 # uncomment for a larger n analysis
