@@ -2,7 +2,7 @@
 
 ################################
 # Full image heterogeneity tutorial using causalimages
-# **In process. Expected completion date Sept 12**
+# **In process**
 ################################
 
 # remote install latest version of the package if needed
@@ -43,35 +43,64 @@ UgandaDataProcessed$geo_lat
 # image keys of units (use for referencing satellite images)
 UgandaDataProcessed$geo_long_lat_key
 
+# an experimental outcome
+UgandaDataProcessed$Yobs
+
+# treatment variable
+UgandaDataProcessed$Wobs
+
 # information on keys linking to satellite images for all of Uganda
 # (not just experimental context, use for constructing transportability maps)
 UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
 
+# load in tensorflow (edit for your computer)
+library(tensorflow); library(keras)
+tensorflow::use_condaenv("tensorflow_m1", required = T)
+try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
+try( tf$config$set_soft_device_placement( T ) , T)
 
+# write a function that reads in images as saved and process them into an array
+acquireImageFromDisk <- function(keys, training = F){
+  # initialize an array shell to hold image slices
+  array_shell <- array(NA,dim = c(1L,imageHeight,imageWidth,NBANDS))
 
+  # iterate over keys:
+  # -- images are referenced to keys
+  # -- keys are referenced to units (to allow for duplicate images uses)
+  array_ <- sapply(keys,function(key_){
+    # iterate over all image bands (NBANDS = 3 for RBG images)
+    for(band_ in 1:NBANDS){
+      # place the image in the correct place in the array
+      array_shell[,,,band_] <-
+        (as.matrix(data.table::fread( # note the use of data.table::fread to speed up reading in image to memory
+          input = sprintf("./Uganda2000_processed/Key%s_BAND%s.csv",
+                          key_,
+                          band_),header = F)[-1,] ))
+    }
+    return( array_shell )
+  },
+  simplify="array")  #using simplify = "array" combines images slices together
 
-
-
-
-# !!!!! IN PROCESS FOLLOWING HERE !!!!!
-
-# example acquire image function (loading from memory)
-# in general, you'll want to write a function that returns images
-# that saved disk associated with keys
-acquireImageFromMemory <- function(keys, training = F){
-  # here, the function input keys
-  # refers to the unit-associated image keys
-  m_ <- FullImageArray[match(keys, KeysOfImages),,,]
-
-  # if keys == 1, add the batch dimension so output dims are always consistent
-  # (here in image case, dims are batch by height by width by channel)
-  if(length(keys) == 1){
-    m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
-  }
-
-  return( m_ )
+  # convert images to tensorflow array for further processing
+  # note: your acquireImageFxn need not return tensorflow arrays.
+  # R arrays are fine (with dimensions c(nBatch, imageWidth, imageHeight,nChannels)
+  # (R arrays will be detected converted and converted internally)
+  array_ <- tf$squeeze(tf$constant(array_,dtype=tf$float32),0L)
+  array_ <- tf$transpose(array_,c(3L,0L,1L,2L))
+  return( array_ )
 }
 
+
+# try out the function
+# note: some units are co-located in same area (hence, multiple observations per image key)
+acquireImageFromDisk(
+    UgandaDataProcessed$geo_long_lat_key[c(1,20,50)],
+    training = F
+)
+
+
+
+# !!!!! IN PROCESS AFTER THIS POINT !!!!!
 # drop first column of X
 X <- X[,-1]
 
