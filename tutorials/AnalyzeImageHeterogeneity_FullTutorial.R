@@ -2,7 +2,6 @@
 
 ################################
 # Full image heterogeneity tutorial using causalimages
-# **In process**
 # Note: In future builds of causalimages, we will
 # add easier ways to download and store satellite imagery.
 # Stay tuned! Contributions & bug fixes are welcome!
@@ -40,6 +39,11 @@ list.files(  "./Uganda2000_processed"  )
 # individual-level data
 UgandaDataProcessed <- read.csv(  "./UgandaDataProcessed.csv"  )
 
+# unit-level covariates (many covariates are subject to missingness!)
+dim( UgandaDataProcessed )
+table( UgandaDataProcessed$female )
+table( UgandaDataProcessed$age )
+
 # approximate longitude + latitude for units
 UgandaDataProcessed$geo_long
 UgandaDataProcessed$geo_lat
@@ -56,11 +60,12 @@ UgandaDataProcessed$Wobs
 # information on keys linking to satellite images for all of Uganda
 # (not just experimental context, use for constructing transportability maps)
 UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
+tail( UgandaGeoKeyMat )
 
 # load in tensorflow (edit for your computer)
 library(tensorflow); library(keras)
 tensorflow::use_condaenv("tensorflow_m1", required = T)
-try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
+try( tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
 try( tf$config$set_soft_device_placement( T ) , T)
 
 # write a function that reads in images as saved and process them into an array
@@ -98,7 +103,7 @@ acquireImageFromDisk <- function(keys, training = F){
 
 # try out the function
 # note: some units are co-located in same area (hence, multiple observations per image key)
-check_indices <- c(1,20,50)
+check_indices <- c(1,20,50, 101)
 ImageBatch <- acquireImageFromDisk(
     keys = UgandaDataProcessed$geo_long_lat_key[check_indices],
     training = F
@@ -113,6 +118,8 @@ UgandaDataProcessed$geo_lat[check_indices[1]]
 # https://www.google.com/maps/place/1%C2%B018'16.4%22N+34%C2%B005'15.1%22E/@1.3111951,34.0518834,10145m/data=!3m1!1e3!4m4!3m3!8m2!3d1.3045556!4d34.0875278?entry=ttu
 # checks out okay, we're good to move on
 
+
+# talk in tutorial about NAs and how they're handled
 # perform image-based treatment effect heterogeneity decomposition
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
