@@ -3,6 +3,9 @@
 ################################
 # Full image heterogeneity tutorial using causalimages
 # **In process**
+# Note: In future builds of causalimages, we will
+# add easier ways to download and store satellite imagery.
+# Stay tuned! Contributions & bug fixes are welcome!
 ################################
 
 # remote install latest version of the package if needed
@@ -60,6 +63,8 @@ try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GP
 try( tf$config$set_soft_device_placement( T ) , T)
 
 # write a function that reads in images as saved and process them into an array
+NBANDS <- 3L
+imageHeight <- imageWidth <- 351L #  pixel height/width
 acquireImageFromDisk <- function(keys, training = F){
   # initialize an array shell to hold image slices
   array_shell <- array(NA,dim = c(1L,imageHeight,imageWidth,NBANDS))
@@ -73,7 +78,7 @@ acquireImageFromDisk <- function(keys, training = F){
       # place the image in the correct place in the array
       array_shell[,,,band_] <-
         (as.matrix(data.table::fread( # note the use of data.table::fread to speed up reading in image to memory
-          input = sprintf("./Uganda2000_processed/Key%s_BAND%s.csv",
+          input = sprintf("./Uganda2000_processed/GeoKey%s_BAND%s.csv",
                           key_,
                           band_),header = F)[-1,] ))
     }
@@ -93,10 +98,21 @@ acquireImageFromDisk <- function(keys, training = F){
 
 # try out the function
 # note: some units are co-located in same area (hence, multiple observations per image key)
-acquireImageFromDisk(
-    UgandaDataProcessed$geo_long_lat_key[c(1,20,50)],
+check_indices <- c(1,20,50)
+ImageBatch <- acquireImageFromDisk(
+    keys = UgandaDataProcessed$geo_long_lat_key[check_indices],
     training = F
 )
+
+# sanity checks in the analysis of earth observation data are essential
+# check that images are centered around correct location
+causalimages::image2(  as.array(ImageBatch)[1,,,1] )
+UgandaDataProcessed$geo_long[check_indices[1]]
+UgandaDataProcessed$geo_lat[check_indices[1]]
+# check against google maps
+# https://www.google.com/maps/place/1%C2%B018'16.4%22N+34%C2%B005'15.1%22E/@1.3111951,34.0518834,10145m/data=!3m1!1e3!4m4!3m3!8m2!3d1.3045556!4d34.0875278?entry=ttu
+# checks out okay, we're good to move on
+
 
 
 
