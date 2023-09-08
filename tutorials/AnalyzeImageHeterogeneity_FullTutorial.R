@@ -14,17 +14,18 @@
 # local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
-# load in package
-library( causalimages  )
-
 # specify uganda data URL
 uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
+download_folder <- "~/Downloads/UgandaAnalysis.zip"
 
 # download into new directory
-download.file( uganda_data_url,  destfile = (download_folder <- "~/Downloads/UgandaAnalysis.zip" ))
+download.file( uganda_data_url,  destfile = )
 
 # unzip and list files
 unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
+
+# load in package
+library( causalimages  )
 
 # set new wd
 setwd(sprintf('%s/Public Replication Data, YOP Experiment/',
@@ -95,7 +96,6 @@ acquireImageFromDisk <- function(keys, training = F){
   return( array_ )
 }
 
-
 # try out the function
 # note: some units are co-located in same area (hence, multiple observations per image key)
 check_indices <- c(1,20,50)
@@ -113,18 +113,13 @@ UgandaDataProcessed$geo_lat[check_indices[1]]
 # https://www.google.com/maps/place/1%C2%B018'16.4%22N+34%C2%B005'15.1%22E/@1.3111951,34.0518834,10145m/data=!3m1!1e3!4m4!3m3!8m2!3d1.3045556!4d34.0875278?entry=ttu
 # checks out okay, we're good to move on
 
-
-
-
-# !!!!! IN PROCESS AFTER THIS POINT !!!!!
-
 # perform image-based treatment effect heterogeneity decomposition
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
-  obsW =  obsW,
-  obsY = obsY,
-  imageKeysOfUnits =  KeysOfObservations,
-  acquireImageFxn = acquireImageFromMemory,
+  obsW =  UgandaDataProcessed$Wobs,
+  obsY = UgandaDataProcessed$Yobs,
+  imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
+  acquireImageFxn = acquireImageFromDisk,
   conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
   conda_env_required = T,
   X = X,
@@ -133,12 +128,12 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # inputs to control where visual results are saved as PDF or PNGs
   # (these image grids are large and difficult to display in RStudio's interactive mode)
   plotResults = T,
-  figuresPath = "~/Downloads",
+  figuresPath = "~/Downloads/YOPResults/",
   printDiagnostics = T,
-  figuresTag = "CausalImagesTutorial",
+  figuresTag = "causalimagesTutorial",
 
   # optional arguments for generating transportability maps
-  # here, we leave those NULL
+  # here, we leave those NULL for simplicity
   transportabilityMat = NULL, #
   lat =  NULL, # required only if transportabilityMat specified
   long =  NULL, # # required only if transportabilityMat specified
@@ -148,10 +143,10 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   modelType = "variational_minimal",
   kClust_est = 2,
   nMonte_variational = 2L, # make this larger for real application (e.g., 10)
-  nSGD = 400L, # make this larger for real applications (e.g., 2000L)
-  batchSize = 50L, # make this larger for real application (e.g., 50L)
-  channelNormalize = T,
+  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  batchSize = 34L, # make this larger for real application (e.g., 50L)
   compile = T,
+  channelNormalize = T,
   yDensity = "normal",
   kernelSize = 3L, maxPoolSize = 2L, strides = 1L,
   nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
@@ -161,4 +156,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   reparameterizationType = "Flipout"
 )
 
+# in progress:
+# 1. Using tfrecords to speed up training
+# 2. Using randomized embeddings instead of CNN as image model class
 
