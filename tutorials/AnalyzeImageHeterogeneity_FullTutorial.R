@@ -117,14 +117,6 @@ UgandaDataProcessed$geo_lat[check_indices[1]]
 
 
 # !!!!! IN PROCESS AFTER THIS POINT !!!!!
-# drop first column of X
-X <- X[,-1]
-
-# mean imputation for simplicity
-X <- apply(X,2,function(zer){
-  zer[is.na(zer)] <- mean( zer,na.rm = T )
-  return( zer )
-})
 
 # perform image-based treatment effect heterogeneity decomposition
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
@@ -169,14 +161,4 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   reparameterizationType = "Flipout"
 )
 
-# now, let's go do an analysis using video data
-
-# example video function (this here just appends two identical images for illustration only)
-# in practice, image sequence / video data will be read from disk
-acquireVideoRepFromMemory <- function(keys, training = F){
-  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
-  tmp <- abind::abind(tmp, tmp, along = 0)
-  tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
-  return(  tmp  )
-}
 
