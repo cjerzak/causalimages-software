@@ -150,8 +150,9 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   yDensity = "normal",
   kernelSize = 3L, maxPoolSize = 2L, strides = 1L,
   nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
-  nFilters = 64L,
-  nDepthHidden_dense = 0L, nDenseWidth = 32L,
+  nFilters = 64L, # vary the following depending on image type and GPU memory
+  nDepthHidden_dense = 0L,
+  nDenseWidth = 32L,
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
