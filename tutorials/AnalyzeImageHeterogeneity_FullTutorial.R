@@ -122,7 +122,7 @@ UgandaDataProcessed$geo_lat[check_indices[1]]
 # in progress:
 # 1. Using tfrecords to speed up training
 # 2. Using randomized embeddings instead of CNN as image model class
-# 3. talk in tutorial about NAs and how they're handled
+# 3. Talk in tutorial about NAs and how they're handled
 # performing image-based treatment effect heterogeneity decomposition
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
