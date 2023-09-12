@@ -238,7 +238,7 @@ We thank [James Bailie](https://jameshbailie.github.io/), [Cindy Conlin](https:/
 }
 ```
 
-[2.] Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.12985.pdf)
+[2.] Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.12985.pdf) [\[Dataverse\]](https://doi.org/10.7910/DVN/QLCSVR)
 ```
 @article{JJD-Confounding,
   title={Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities},
