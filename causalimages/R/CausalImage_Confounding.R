@@ -1116,8 +1116,8 @@ AnalyzeImageConfounding <- function(
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
-      "tauHat_propensity"  = tauHat_propensity,
-      "tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
+      #"tauHat_propensity"  = tauHat_propensity,
+      #"tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
       "prW_est" = prW_est,
