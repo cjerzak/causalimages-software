@@ -779,6 +779,8 @@ AnalyzeImageConfounding <- function(
             tauHat_propensityHajek <- tauHat_propensityHajek_
             tauHat_propensity <- tauHat_propensity_
             myGlmnet_coefs <- myGlmnet_coefs_
+            myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
+                                         ncol = length(myGlmnet_coefs_))
             prW_est <- prW_est_
             embeddings_fxn <- MyEmbeds_$embeddings_fxn
 
@@ -797,6 +799,7 @@ AnalyzeImageConfounding <- function(
               my_probs <- tf$nn$sigmoid(  tf$matmul(concatDat, myGlmnet_coefs_tf)  )
             })
           }
+          myGlmnet_coefs_mat[jr,] <- c(myGlmnet_coefs_)
       }
       if(acquireImageMethod == "tf_record"){ setwd(new_wd)  }
     }
@@ -1054,7 +1057,7 @@ AnalyzeImageConfounding <- function(
     }
 
     # compute salience for tabular covariates
-    SalienceX <- NULL; if(!XisNull){
+    SalienceX_se <- SalienceX <- NULL; if(!XisNull){
     if(modelClass == "cnn"){
         getSalienceVec <- function(im_, x_){
           x_ <- tf$Variable(x_,trainable = T)
@@ -1099,6 +1102,8 @@ AnalyzeImageConfounding <- function(
       }
       if(modelClass != "cnn"){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
+        SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)]
+        if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
     } }
 
     postDiffInLat <- preDiffInLat <- NULL
@@ -1116,10 +1121,9 @@ AnalyzeImageConfounding <- function(
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
-      #"tauHat_propensity"  = tauHat_propensity,
-      #"tauHat_propensity_se"  = sd(tauHat_propensity_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "SalienceX" = SalienceX,
+      "SalienceX_se" = SalienceX_se,
       "prW_est" = prW_est,
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat,
