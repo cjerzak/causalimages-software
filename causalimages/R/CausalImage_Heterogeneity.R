@@ -1516,9 +1516,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   nColors <- 1000
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
-                    pos_breaks <- sort( quantile(c(IG[,,2][IG[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
-                    neg_breaks <- sort(quantile(c(IG[,,2][IG[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
-                    gradMag_breaks <- sort(quantile((c(IG[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T))
+                    pos_breaks <- try(sort( quantile(c(IG[,,2][IG[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    neg_breaks <- try(sort(quantile(c(IG[,,2][IG[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    gradMag_breaks <- try(sort(quantile((c(IG[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
+                    if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors/2) }
                   }
 
                   # magnitude
@@ -1677,13 +1678,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   {
                     take_k <- k_
                     if(i == 1){
+                      ep_LabelSmooth<-tf$constant(0.01)
                       ImageGrad_fxn <- (function(m){
                         m <- tf$Variable(m,trainable = T)
                         with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
                           tape$watch( m )
                           PROBS_ <- tf$reduce_mean(tf$concat(
                             replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
-                          PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
+                          PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
                                                    tf$divide(ep_LabelSmooth,tf$constant(2)))
                           #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
                           OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
@@ -1692,15 +1694,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
                         ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
                         print(dim(ImageGrad_o))
                         for(jf in 1:2){
-                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,4L,keepdims = T)}
-                          if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o,4L, keepdims = T)}
-                          ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
+                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, 4L,keepdims = T)}
+                          if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, 4L, keepdims = T)}
+
+                          # uncomment if seeking to average
+                          #ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
                           if(jf == 1){ImageGrad_L2 <- ImageGrad}
                           if(jf == 2){ImageGrad_E <- ImageGrad}
                         }
                         return(tf$concat(list(ImageGrad_L2,  # salience magnitude
                                               ImageGrad_E), # salience direction
-                                         3L))
+                                         4L))
                       })
                       AveragingConv <- tf$keras$layers$Conv3D(filters=1L,
                                                                 kernel_size = c(1L, (gradAnalysisFilterDim<-10L), 10L),
@@ -1712,14 +1716,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     }
                     IG <- as.array( ImageGrad_fxn(
                           m = InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F)
-                                ))
+                                ))[1,,,,]
+
+                    #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,1,,,1])
+                    #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,2,,,1])
+                    #image2(IG[1,,,1])
+                    #image2(IG[2,,,1])
 
                     nColors <- 1000
                     { #if(i == 1){
                       # pos/neg breaks should be on the same scale across observation
-                      pos_breaks <- sort( quantile(c(IG[,,,2][IG[,,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
-                      neg_breaks <- sort(quantile(c(IG[,,,2][IG[,,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
-                      gradMag_breaks <- sort(quantile((c(IG[,,,1])),probs = seq(0,1,length.out = nColors),na.rm=T))
+                      pos_breaks <- try(sort( quantile(c(IG[,,,2][IG[,,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                      neg_breaks <- try(sort(quantile(c(IG[,,,2][IG[,,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                      gradMag_breaks <- try(sort(quantile((c(IG[,,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
+                      if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors/2) }
                     }
 
                     # magnitude - check for changes in salings
@@ -1728,10 +1738,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     animation::saveGIF({
                       for (t_ in 1:nTimeSteps) {
                          par(mar = c(1,5,1,1))
-                         try(image(t(IG[t_,,,1])[,nrow(IG[,,,1]):1],
+                         try(image(t(IG[t_,,,1])[,nrow(IG[t_,,,1]):1],
                                          col = viridis::magma(nColors - 1),
                                          ylab = "Salience Magnitude",cex.axis = 3,
-                                         #xaxt = "",
                                          cex.axis=(cex_tile_axis <- 4), col.axis=k_,
                                          breaks = gradMag_breaks, axes = F),T)
                         animation::ani.pause()  # Pause to make sure it gets rendered

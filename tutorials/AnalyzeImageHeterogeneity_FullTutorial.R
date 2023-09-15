@@ -130,7 +130,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 }
 
 # initial image-based heterogeneity analysis
-{
+if(T == F){
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
   obsW =  UgandaDataProcessed$Wobs,
@@ -220,12 +220,12 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
 
   # other modeling options
   #modelClass = "cnn", # CNN image modeling class
-  modelClass = "embeddings", # image/video embeddings model class
+  modelClass = "embeddings", nEmbedDim = 128L, temporalKernelSize = 2L, # image/video embeddings model class
   orthogonalize = F,
   heterogeneityModelType = "variational_minimal",
   kClust_est = 2, # vary depending on problem. Usually < 5
-  nMonte_variational = 2L, # make this larger for real application (e.g., 10)
-  nSGD = 50L, # make this larger for real applications (e.g., 2000L)
+  nMonte_variational = 5L, # make this larger for real application (e.g., 10)
+  nSGD = 500L, # make this larger for real applications (e.g., 2000L)
   batchSize = 34L, # make this larger for real application (e.g., 50L)
   compile = T,
   channelNormalize = T,
@@ -234,12 +234,11 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
   nFilters = 64L, # vary the following depending on image type and GPU memory
   nDepthHidden_dense = 0L,
-  nDenseWidth = 32L,
+  nDenseWidth = 50L,
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
 }
-
 
 # Image heterogeneity example with tfrecords (faster)
 # (in progress)
