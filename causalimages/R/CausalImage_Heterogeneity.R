@@ -209,6 +209,66 @@ AnalyzeImageHeterogeneity <- function(obsW,
     #YandW_mat$Yobs_ortho[is.na(YandW_mat$Yobs_ortho)] <- mean(YandW_mat$Yobs_ortho,na.rm=T)
   }
 
+  # setup tf record
+  loss_vec <- NULL
+  acquireImageMethod <- "functional";
+  # define base tf record + train/test fxns
+  changed_wd <- F; if(  !is.null(  file  )  ){
+    acquireImageMethod <- "tf_record"
+
+    # established tfrecord connection
+    print("Establishing connection with tfrecord")
+    tf_record_name <- file
+    if( !grepl(tf_record_name, pattern = "/") ){
+      tf_record_name <- paste("./",tf_record_name, sep = "")
+    }
+    tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+    new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
+    print( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
+    changed_wd <- T; setwd( new_wd )
+    tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+
+    # helper functions
+    getParsed_tf_dataset_inference <- function(tf_dataset){
+      dataset <- tf_dataset$map( parse_tfr_element ) # return
+      return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
+    }
+
+    getParsed_tf_dataset_train <- function(tf_dataset){
+      dataset <- tf_dataset$map( parse_tfr_element )
+      #num_parallel_calls = tf$data$AUTOTUNE)
+      dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                 reshuffle_each_iteration = T)
+      dataset <- dataset$batch(  as.integer(batchSize)   )
+      #dataset <- dataset$prefetch(tf$data$AUTOTUNE)
+      return( dataset  )
+    }
+
+    # setup iterators
+    #Sys.setenv(M_CHECK_ = "1")
+    #LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
+    #Sys.setenv(MALLOC_TRIM_THRESHOLD_ = "0")
+    tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset )
+    #iterator = dataset.shuffle(int(1e7)).batch(int(1e6)).repeat(10)
+    #tf_dataset_train <- tf_dataset_train$`repeat`(  as.integer(2*ceiling(batchSize*nSGD / length(obsY)  ) ) )
+    tf_dataset_train <- tf_dataset_train$`repeat`(  -1L )
+    tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
+
+    # reset iterators
+    ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+    if(T == F){
+      # tests; see https://stackoverflow.com/questions/72552605/how-to-fix-tensorflow-datasets-memory-leak-when-shuffling
+      ds_next_train <- reticulate::iter_next( ds_iterator_train )
+      batch_indices <- as.array(ds_next_train[[2]])
+    }
+    ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
+
+    # checks
+    # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
+    # ds_next_train <- reticulate::iter_next( ds_iterator_train )
+    # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
+  }
+
   # specify some training parameters + helper functions
   rzip <- function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
   GlobalMax <- tf$keras$layers$GlobalMaxPool2D()
@@ -515,25 +575,33 @@ AnalyzeImageHeterogeneity <- function(obsW,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
             conda_env_required = T )$embeddings_fxn
-      }
+    }
 
     if(compile == T){ tf_function_fxn <- function(x){tf_function(x,experimental_relax_shapes = F)}}
     if(compile == F){ tf_function_fxn <- function(x){print("Warning: Not compiling fxn");  return(x) } }
     getClusterLogits <- tf_function_fxn( function(  m , training){
       if( !heterogeneityModelType %in% "variational_minimal_visualizer" ){
-        # convolution part
-        for(conv__ in 1L:nDepthHidden_conv){
-          eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { ClusterConv%s( m ) }) ",conv__)))
-          if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
-          doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-          if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_%s(m,training=training)",conv__)))}
-          if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterConvProj%s( m ) })",conv__))) }
-          if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_Proj_%s(m,training=training)",conv__)))}
+
+        # convolution model
+        if(modelClass == "cnn"){
+          for(conv__ in 1L:nDepthHidden_conv){
+            eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { ClusterConv%s( m ) }) ",conv__)))
+            if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
+            doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
+            if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_%s(m,training=training)",conv__)))}
+            if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterConvProj%s( m ) })",conv__))) }
+            if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_Proj_%s(m,training=training)",conv__)))}
+          }
+          print2("Final convolved image dimensions: ")
+          print2(dim(m))
+          m <- FinalImageSummary(m)
+          m <- BNLayer_Axis1_Clust(m, training = training)
         }
-        print2("Final convolved image dimensions: ")
-        print2(dim(m))
-        m <- FinalImageSummary(m)
-        m <- BNLayer_Axis1_Clust(m, training = training)
+
+        # embeddings model
+        if(modelClass == "embeddings"){
+           m <- EmbeddingsFxn(   m    )
+        }
 
         # dense part
         if(nDepthHidden_dense > 0){
@@ -557,16 +625,26 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     if(heterogeneityModelType == "tarnet"){
       getImageRep <- tf_function_fxn( function(m,training){
-        for(conv__ in 1:nDepthHidden_conv){
-          eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m  ) })",conv__)))
-          if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
-          doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-          if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))}
-          if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
-          if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))}
+
+        # convolutional model
+        if(modelClass == "cnn"){
+          for(conv__ in 1:nDepthHidden_conv){
+            eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m  ) })",conv__)))
+            if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
+            doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
+            if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))}
+            if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
+            if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))}
+          }
+          m <- FinalImageSummary( m  )
+          m <- BNLayer_Axis1_Y0(m, training = training)
         }
-        m <- FinalImageSummary( m  )
-        m <- BNLayer_Axis1_Y0(m, training = training)
+
+        # embeddings model
+        if(modelClass == "embeddings"){
+          m <- EmbeddingsFxn(   m    )
+        }
+
       } )
       getY0 <- tf_function_fxn(function(  m , training  ){
         m <- getImageRep(m,training=training)
@@ -590,17 +668,24 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(grepl(heterogeneityModelType, pattern = "variational")){
       getY0 <- tf_function_fxn(function(  m , training  ){
         if(! heterogeneityModelType %in% "variational_minimal_visualizer"){
-          # convolution part
-          for(conv__ in 1:nDepthHidden_conv){
-            eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m )} )",conv__)))
-            if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
-            doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-            if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))}
-            if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
-            if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))}
+
+          # convolution model
+          if(modelClass == "cnn"){
+            for(conv__ in 1:nDepthHidden_conv){
+              eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m )} )",conv__)))
+              if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
+              doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
+              if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))}
+              if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
+              if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))}
+            }
+            m <- FinalImageSummary( m  )
+            m <- BNLayer_Axis1_Y0(m, training = training)
           }
-          m <- FinalImageSummary( m  )
-          m <- BNLayer_Axis1_Y0(m, training = training)
+
+          if(modelClass == "embeddings"){
+            m <- EmbeddingsFxn(   m    )
+          }
 
           # dense part
           if(nDepthHidden_dense > 0){
@@ -630,17 +715,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
         getTau <- tf_function_fxn(function(  m, training  ){
           m_orig <- m
           m_ret<-list();for(k____ in 1:kClust_est){
-            for(conv__ in 1:nDepthHidden_conv){
-              if(conv__ == 1){ m <- m_orig }
-              eval(parse(text = sprintf("m <-  TauConv%s_%s( m )",conv__,k____)))
-              if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
-              doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-              if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_%s_%s(m,training=training)",conv__,k____)))}
-              if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauConvProj%s_%s( m )})",conv__,k____))) }
-              if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_Proj_%s_%s(m,training=training)",conv__,k____)))}
+
+            # cnn model
+            if(modelClass == "cnn"){
+              for(conv__ in 1:nDepthHidden_conv){
+                if(conv__ == 1){ m <- m_orig }
+                eval(parse(text = sprintf("m <-  TauConv%s_%s( m )",conv__,k____)))
+                if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
+                doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
+                if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_%s_%s(m,training=training)",conv__,k____)))}
+                if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauConvProj%s_%s( m )})",conv__,k____))) }
+                if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_Proj_%s_%s(m,training=training)",conv__,k____)))}
+              }
+              m <- FinalImageSummary( m  )
+              eval(parse(text = sprintf("m <- BNLayer_Axis1_Tau%s(m, training = training)",k____)))
             }
-            m <- FinalImageSummary( m  )
-            eval(parse(text = sprintf("m <- BNLayer_Axis1_Tau%s(m, training = training)",k____)))
+
+            # cnn model
+            if(modelClass == "embeddings"){
+              m <- EmbeddingsFxn( m )
+            }
+
             eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauProj%s(m)} )",k____)))
             if(BNPreOutput){
               eval(parse(text = sprintf("m <- BNLayer_Axis1_ProjTau%s(m, training = training)",k____)))
@@ -651,7 +746,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           return( m_ret  )
         } )
         getY1 <- tf_function_fxn( function(  m , training){
-          Y0 <- getY0(m=m,training = training)
+          Y0 <- getY0(m = m,
+                      training = training)
           Clust_logits <- getClusterLogits(m,training = training)
           clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
           tau_i <- getTau(m,training = training)
@@ -688,7 +784,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       nMonte_internal <- 1L
 
       # cluster probabilities
-      Clust_logits <- replicate(nMonte_internal,tf$expand_dims(getClusterLogits(dat, training = training),0L))
+      Clust_logits <- replicate(nMonte_internal,
+                                tf$expand_dims(getClusterLogits(dat, training = training),0L))
       Clust_logits <- tf$concat(Clust_logits,0L)
       clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
       Clust_probs <- tf$nn$softmax(Clust_logits, 2L)
@@ -776,6 +873,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # generate KL components
         KLterm <- tf$zeros(list())
         if(! heterogeneityModelType  %in% c("variational_minimal_visualizer")){
+          if(modelClass == "cnn"){
           for(conv_ in 1:nDepthHidden_conv){
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(ClusterConv%s$kernel_posterior,ClusterConv%s$kernel_prior)",conv_,conv_)))
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(Y0Conv%s$kernel_posterior,Y0Conv%s$kernel_prior)",conv_,conv_)))
@@ -791,7 +889,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
               }
             }
-          }
+          } }
+
           if(nDepthHidden_dense > 0){ for(dense_ in 1:nDepthHidden_dense){
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s$kernel_posterior,DenseProj_Y0_%s$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
             KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s$kernel_posterior,DenseProj_Clust_%s$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
@@ -826,6 +925,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(bool_==T){ trainable_variables  <- tape$watched_variables() }
       })
     }
+    if(modelClass == "embeddings"){
+      trainable_variables <- trainable_variables[!grepl(unlist(lapply(trainable_variables,function(zer){ zer$name })),
+                                                        pattern = "conv\\d+d")]
+    }
     print2(sprintf("nTrainableParams: %i",nTrainableParams <- sum(unlist(lapply(unlist(trainable_variables,recursive=F),function(zer){
       len_<-try(length((zer)),T);return( len_ ) })))))
 
@@ -848,7 +951,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                     treat = treat,
                                     y = y,
                                     training = training)  })
-      my_grads <<- tape$gradient( myLoss_forGrad, tape$watched_variables() )
+        #watched_vars <- tape$watched_variables()
+      my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
 
       # update LR
       #optimizer_tf$learning_rate$assign(   LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   )
@@ -919,10 +1023,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #table(  obsW[batch_indices_reffed] )
 
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
+      # checks via e1 and e2 for embeddings case
+      # e1 <- EmbeddingsFxn(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ))
       trainStep(dat = acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = T ),
                 y = tf$constant(obsY[batch_indices_reffed],tf$float32),
                 treat = tf$constant(obsW[batch_indices_reffed],tf$float32),
                 training = T)
+      # e2 <- EmbeddingsFxn(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ))
+      # e1 - e2 # (should be 0)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
       if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function! Perhaps batchSize is too small?")}
@@ -1150,10 +1258,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(!truthKnown){
             my_density <- eval(parse(text = sprintf("
                         data.frame('y'=max(c(%s)))
-                        ", paste(paste("d",1:kClust_est,sep=""),collapse = ","))))
+                        ", paste(paste("d",1:kClust_est,sep=""),
+                                 collapse = ","))  ))
           }
           plot(my_density,
-               col=ifelse(truthKnown,yes="darkgray",no="white"),
+               col = ifelse(truthKnown,yes="darkgray",no="white"),
                lty = 2,
                xlim = c(min(synth_seq),max(synth_seq)),
                ylim = c(0,max(my_density$y,na.rm=T)*1.5),
@@ -1161,14 +1270,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
                ylab = "Density",
                xlab = "Per Image Treatment Effect")
           if(!truthKnown){ axis(2,cex.axis = 1) }
-          points(tau_vec,rep(0,times=kClust_est),
+          #points(tau_vec, rep(0,times=kClust_est),
+          points(Tau_mean_vec_n, rep(0,times=kClust_est),
                  col = col_seq,
                  pch = "|", cex = 4)
           for(krk_ in 1:kClust_est){
-            points(synth_seq, eval(parse(text = sprintf("d%s",krk_))),
+            points(synth_seq,
+                   eval(parse(text = sprintf("d%s",krk_))),
                    type = "l", col= col_seq[krk_],lwd = 3)
           }
-          #text(tau_vec, rep(max(my_density,na.rm=T)*0.1,2),
+          #text(Tau_mean_vec_n, rep(max(my_density,na.rm=T)*0.1,2),
                #labels = sapply(numbering_seq, function(numbering_){
                  #eval(parse(text = sprintf("expression(hat(tau)(%s))", numbering_))) }),
                #col = col_seq, cex = 2)

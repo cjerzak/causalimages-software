@@ -132,7 +132,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 # in progress:
 # 1. Using tfrecords to speed up training
 # 2. Using randomized embeddings instead of CNN as image model class
-# 3. Talk in tutorial about NAs and how they're handled
+# check re: variables updateing
 # performing image-based treatment effect heterogeneity decomposition
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
@@ -159,6 +159,8 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   long =  NULL, # # required only if transportabilityMat specified
 
   # other modeling options
+  #modelClass = "cnn", # CNN image modeling class
+  modelClass = "embeddings", # image/video embeddings model class
   orthogonalize = F,
   heterogeneityModelType = "variational_minimal",
   kClust_est = 2, # vary depending on problem. Usually < 5

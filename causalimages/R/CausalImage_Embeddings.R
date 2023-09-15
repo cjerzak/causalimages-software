@@ -153,11 +153,13 @@ GetImageEmbeddings <- function(
   if(nEmbedDim %% 2 == 0){ OddInput <- F; nFilters <-  nEmbedDim/2 }
   if(nEmbedDim %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nEmbedDim/2) }
   if(imageDims == 2){
-    myConv = tf$keras$layers$Conv2D(filters=nFilters,
+    myConv <- tf$keras$layers$Conv2D(filters=nFilters,
                           kernel_size = c(kernelSize,kernelSize),
                           activation = "linear",
                           strides = c(strides,strides),
-                          padding = "valid")
+                          padding = "valid",
+                          trainable = F)
+    myConv$trainable <- F
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
     GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
   }
@@ -166,7 +168,8 @@ GetImageEmbeddings <- function(
                                     kernel_size = c(temporalKernelSize, kernelSize,kernelSize),
                                     activation = "linear",
                                     strides = c(1L,strides,strides),
-                                    padding = "valid")
+                                    padding = "valid", trainable = F)
+    myConv$trainable <- F
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last",name="GlobalMax")
     GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
   }
