@@ -177,7 +177,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
 )
 }
 
-# Video heterogeneity example
+# video heterogeneity example
 # example video function (this here just appends two identical images for illustration only)
 # in practice, actual image sequence / video data will be read from disk
 {
@@ -185,9 +185,12 @@ acquireVideoRepFromDisk <- function(keys, training = F){
   tmp <- acquireImageFromDisk(keys, training = training)
   tmp <- tf$expand_dims(tmp,0L)
   tmp <- tf$transpose(tmp,c(1L,0L,2L,3L,4L))
-  tmp <- tf$concat(list(tmp,tmp),axis = 1L)
+  tmp_ <- tf$transpose(tmp,c(0L,1L,3L,2L,4L)) # swap image dims too to see variability across time
+  tmp <- tf$concat(list(tmp,tmp_),axis = 1L)
   return(  tmp  )
 }
+# image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,1,,,1] )
+# image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,2,,,1] )
 dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]) )
 dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1]) )
 VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(

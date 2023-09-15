@@ -50,7 +50,7 @@
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param plotResults (default = `T`) Should analysis results be plotted?
-#' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).
+#' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #'
 #' @return A list consiting of \itemize{
@@ -1458,14 +1458,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
                                  mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                                 main = main_,  stretch = "lin",
+                                 main = main_,
                                  cex.lab = 2.5, col.lab = k_,
                                  xlab = ifelse(!is.null(long),
                                            yes = sprintf("Long: %s, Lat: %s",
                                                 fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                 fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                            no = ""),
-                                 col.main = k_, cex.main=4)
+                                 col.main = k_, cex.main=4,  stretch = "lin")
               }
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
@@ -1553,6 +1553,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             print2(used_coordinates)
           }
         }
+        dev.off()
         return( plotting_coordinates_mat )
       }
       }
@@ -1639,20 +1640,26 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 if(length(plotBands) >= 3){
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
+                    print( im_i )
                     orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
-                      imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])) )
+                      imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])) +
+                      runif(length(as.array(acquireImageFxn(
+                        imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])),
+                        min = 0, max = 0.01) # random jitter
+                      )
+                    # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                     raster::plotRGB(  orig_scale_im_raster,
                                       margins = T,
                                       r = 1, g = 2, b = 3,
                                       mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                                      main = main_,  stretch = "lin",
+                                      main = main_,
                                       cex.lab = 2.5, col.lab = k_,
                                       xlab = ifelse(!is.null(long),
                                                     yes = sprintf("Long: %s, Lat: %s",
                                                                   fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                                   fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                                     no = ""),
-                                      col.main = k_, cex.main=4)
+                                      col.main = k_, cex.main=4,  stretch = "lin")
                     }}, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
                                                figuresPath, pdf_name_key, figuresTag, k_, i) )
                 }
@@ -1738,7 +1745,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
               print2(used_coordinates)
             }
           }
-          dev.off()
           return( plotting_coordinates_mat )
         }
       }
