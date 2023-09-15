@@ -951,8 +951,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                     treat = treat,
                                     y = y,
                                     training = training)  })
-        #watched_vars <- tape$watched_variables()
-      my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
+        my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
 
       # update LR
       #optimizer_tf$learning_rate$assign(   LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   )
@@ -1045,7 +1044,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
         windowCounter <- windowCounter + 1
         z_counter <- 0
-        for(z in tape$watched_variables()){
+        for(z in trainable_variables){
           z_counter <- z_counter + 1
           z_name_orig <- z_name_ <- z$name
           z_name_ <- gsub(z_name_, pattern = ":",replace = "XCOLX")
