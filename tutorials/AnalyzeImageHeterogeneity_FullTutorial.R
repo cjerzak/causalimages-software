@@ -64,6 +64,12 @@ UgandaDataProcessed$Wobs
 UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
 tail( UgandaGeoKeyMat )
 
+# drop observations with NAs in key variables
+# (you can also use a multiple imputation strategy)
+UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
+                                             !is.na(UgandaDataProcessed$Wobs) &
+                                             !is.na(UgandaDataProcessed$geo_lat) , ]
+
 # sanity checks
 {
   # load in tensorflow (edit for your computer)
@@ -123,17 +129,7 @@ tail( UgandaGeoKeyMat )
   # checks out okay, we're good to move on
 }
 
-# drop observations with NAs in key variables
-# (you can also use multiple imputation strategies)
-UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
-                                             !is.na(UgandaDataProcessed$Wobs) &
-                                             !is.na(UgandaDataProcessed$geo_lat) , ]
-
-# in progress:
-# 1. Using tfrecords to speed up training
-# 2. Using randomized embeddings instead of CNN as image model class
-# check re: variables updateing
-# performing image-based treatment effect heterogeneity decomposition
+# initial image-based heterogeneity analysis
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
   obsW =  UgandaDataProcessed$Wobs,
@@ -178,3 +174,120 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
+ImageHeterogeneityResults$plottedCoordinatesList
+
+
+# Video heterogeneity example
+# example video function (this here just appends two identical images for illustration only)
+# in practice, actual image sequence / video data will be read from disk
+acquireVideoRepFromMemory <- function(keys, training = F){
+  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
+  tmp <- abind::abind(tmp, tmp, along = 0)
+  if(length(keys) == 1){
+    tmp <- array(tmp,dim = c(1L,dim(tmp)[1],dim(tmp)[2],dim(tmp)[3],dim(tmp)[4]))
+  }
+  if(length(keys)>1){
+    tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
+  }
+  return(  tmp  )
+}
+dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1:3]) )
+dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1]) )
+VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
+  # data inputs
+  obsW =  UgandaDataProcessed$Wobs,
+  obsY = UgandaDataProcessed$Yobs,
+  imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
+  acquireImageFxn = acquireVideoRepFromMemory, # this is new
+  conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
+  conda_env_required = T,
+  X = X,
+  plotBands = 1L,
+  lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+  long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
+
+  # inputs to control where visual results are saved as PDF or PNGs
+  # (these image grids are large and difficult to display in RStudio's interactive mode)
+  plotResults = T,
+  figuresPath = "~/Downloads/",
+  printDiagnostics = T,
+  figuresTag = "causalimagesTutorial",
+
+  # optional arguments for generating transportability maps
+  # here, we leave those NULL for simplicity
+  transportabilityMat = NULL, #
+
+  # other modeling options
+  #modelClass = "cnn", # CNN image modeling class
+  modelClass = "embeddings", # image/video embeddings model class
+  orthogonalize = F,
+  heterogeneityModelType = "variational_minimal",
+  kClust_est = 2, # vary depending on problem. Usually < 5
+  nMonte_variational = 2L, # make this larger for real application (e.g., 10)
+  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  batchSize = 34L, # make this larger for real application (e.g., 50L)
+  compile = T,
+  channelNormalize = T,
+  yDensity = "normal",
+  kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+  nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
+  nFilters = 64L, # vary the following depending on image type and GPU memory
+  nDepthHidden_dense = 0L,
+  nDenseWidth = 32L,
+  nDimLowerDimConv = 3L,
+  reparameterizationType = "Flipout"
+)
+
+# Image heterogeneity example with tfrecords (faster)
+# (in progress)
+ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+  # data inputs
+  obsW =  UgandaDataProcessed$Wobs,
+  obsY = UgandaDataProcessed$Yobs,
+  imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
+  acquireImageFxn = acquireImageFromDisk,
+  conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
+  conda_env_required = T,
+  X = X,
+  plotBands = 1L,
+  lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+  long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
+
+  # inputs to control where visual results are saved as PDF or PNGs
+  # (these image grids are large and difficult to display in RStudio's interactive mode)
+  plotResults = T,
+  figuresPath = "~/Downloads/",
+  printDiagnostics = T,
+  figuresTag = "causalimagesTutorial",
+
+  # optional arguments for generating transportability maps
+  # here, we leave those NULL for simplicity
+  transportabilityMat = NULL, #
+
+  # other modeling options
+  #modelClass = "cnn", # CNN image modeling class
+  modelClass = "embeddings", # image/video embeddings model class
+  orthogonalize = F,
+  heterogeneityModelType = "variational_minimal",
+  kClust_est = 2, # vary depending on problem. Usually < 5
+  nMonte_variational = 2L, # make this larger for real application (e.g., 10)
+  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  batchSize = 34L, # make this larger for real application (e.g., 50L)
+  compile = T,
+  channelNormalize = T,
+  yDensity = "normal",
+  kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+  nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
+  nFilters = 64L, # vary the following depending on image type and GPU memory
+  nDepthHidden_dense = 0L,
+  nDenseWidth = 32L,
+  nDimLowerDimConv = 3L,
+  reparameterizationType = "Flipout"
+)
+
+
+# in progress:
+# 1. Using tfrecords to speed up training
+# 2. Using randomized embeddings instead of CNN as image model class
+# check re: variables updateing
+# performing image-based treatment effect heterogeneity decomposition

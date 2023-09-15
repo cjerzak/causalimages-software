@@ -157,17 +157,30 @@ AnalyzeImageHeterogeneity <- function(obsW,
   rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
+    #browser()
     acquireImageRepFxn_orig <- acquireImageFxn
     tmp <- replicate(30, {
         tmp <- acquireImageFxn( sample(unique(imageKeysOfUnits), batchSize),
                          training = F)
-        list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
-             "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
+        if(length(dim(tmp)) == 4){
+          l_ <- list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
+               "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
+        }
+        if(length(dim(tmp)) == 5){
+          l_ <- list("NORM_MEAN" = apply(as.array(tmp),5,function(zer){mean(zer,na.rm=T)}),
+                     "NORM_SD" = apply(as.array(tmp),5,function(zer){sd(zer,na.rm=T)})  )
+        }
+        return( l_  )
     })
     NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",]))),0L),0L), 0L)
     NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(colMeans(do.call(rbind,tmp["NORM_SD",])),0L),0L), 0L)
-    acquireImageFxn <- function(keys, training){
-        (acquireImageRepFxn_orig(keys, training) - NORM_MEAN) / NORM_SD
+    if(length(dim(tmp)) == 5){
+      NORM_MEAN <- tf$expand_dims( NORM_MEAN, 0L)
+      NORM_SD <- tf$expand_dims( NORM_SD, 0L)
+    }
+    #acquireImageFxn <- function(keys, training){(acquireImageRepFxn_orig(keys, training) - NORM_MEAN) / NORM_SD }
+    InitImageProcess <- function(m, training){
+      (m - NORM_MEAN) / NORM_SD
     }
     rm(  tmp  )
   }
@@ -918,7 +931,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       print2(bool_)
       with(tf$GradientTape() %as% tape, {
         samp_ <- sample(1:length(obsW),batchSize)
-        myLoss_forGrad <- getLoss( dat = acquireImageFxn( imageKeysOfUnits[samp_], bool_),
+        myLoss_forGrad <- getLoss( dat = InitImageProcess(acquireImageFxn( imageKeysOfUnits[samp_], bool_),training = T),
                                    treat = tf$constant(obsW[samp_],tf$float32),
                                    y = tf$constant(obsY[samp_],tf$float32),
                                    training = bool_ )
@@ -1023,12 +1036,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       # checks via e1 and e2 for embeddings case
-      # e1 <- EmbeddingsFxn(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ))
-      trainStep(dat = acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = T ),
+      # e1 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
+      trainStep(dat = InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = T ),training = T),
                 y = tf$constant(obsY[batch_indices_reffed],tf$float32),
                 treat = tf$constant(obsW[batch_indices_reffed],tf$float32),
                 training = T)
-      # e2 <- EmbeddingsFxn(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ))
+      # e2 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
       # e1 - e2 # (should be 0)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
@@ -1077,7 +1090,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(zer)/length(test_tab)
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion done: %.3f",atP)) }
-      im_zer <- acquireImageFxn(  imageKeysOfUnits[zer], training = F)
+      im_zer <- InitImageProcess(acquireImageFxn(  imageKeysOfUnits[zer], training = F), training = F)
       l_ <- replicate(nMonte_predictive,
                       eval(parse(text = sprintf("list(tf$expand_dims(getY%s(m=im_zer, training = F),0L))",y_t_))))
       names(l_) <- NULL;
@@ -1115,14 +1128,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
+      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY0(im_indi,training = F)),1L),1L))
     }))
     Y1_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
+      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY1(im_indi,training = F)),1L),1L))
     }))
     Y0_est <- Rescale(Y0_est, doMean = T)
@@ -1141,7 +1154,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       atP <- max(indi_/length(obsY))
       if( any(indi_ %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
       if(runif(1)<0.1){ gc(); py_gc$collect() }
-      im_indi <- acquireImageFxn( imageKeysOfUnits[indi_],training = F)
+      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
       ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_indi,training = F)))
       ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
       ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
@@ -1188,7 +1201,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(! "function" %in% class(getLoss)){print2("getLoss must be R function for this part to work!")}
       KL_wt <- 0
       negELL <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-        ret_ <- as.numeric(getLoss( dat = acquireImageFxn(   imageKeysOfUnits[indi_]  , training = F),
+        ret_ <- as.numeric(getLoss( dat = InitImageProcess(acquireImageFxn(   imageKeysOfUnits[indi_]  , training = F),training = F),
                                     treat = tf$constant(obsW[indi_],tf$float32),
                                     y = tf$constant(obsY[indi_],tf$float32),
                                     training = F ))
@@ -1210,7 +1223,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(runif(1)<0.1){ gc(); py_gc$collect() }
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
-        im_keys <- acquireImageFxn(  transportabilityMat$key[zer], training = F )
+        im_keys <- InitImageProcess(acquireImageFxn(  transportabilityMat$key[zer],
+                                        training = F ), training = F)
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
@@ -1341,6 +1355,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       typePlot_counter <- typePlot_counter + 1
       rows_ <- kClust_est; nExamples <- 5
       if(typePlot == "uncertainty"){rows_ <- 1L}
+      # browser()
       plot_fxn <- function(){
         pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
             height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
@@ -1406,12 +1421,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 coordinate_i <- c(long[im_i], lat[im_i])
                 if(bad_counter>50){browser()}
                 if(i > 1){
-                  isUnique_ <- T; if(!is.null(long)){
-                    dist_m <- geosphere::distm(coordinate_i, used_coordinates, fun = geosphere::distHaversine)
+                  isUnique_ <- F; if(!is.null(long)){
+                    dist_m <- geosphere::distm(coordinate_i,
+                                               used_coordinates,
+                                               fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
                     if(all(dist_m >= 1000)){isUnique_ <- T}
                 } }
-                if(i == 1){isUnique_<-T}
+                if(i == 1){ isUnique_<-T }
                 print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
                 if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
