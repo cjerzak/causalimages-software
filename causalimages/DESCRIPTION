@@ -6,7 +6,7 @@ Description: R Package for causal inference with earth observation, bio-medical,
 Depends: R (>= 3.3.3)
 License: Creative Commons Attribution-Noncommercial-No Derivative Works 4.0, for academic use only.
 Encoding: UTF-8
-LazyData: true
+LazyData: false
 Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
 Imports: tensorflow, latex2exp, keras
 RoxygenNote: 7.2.3

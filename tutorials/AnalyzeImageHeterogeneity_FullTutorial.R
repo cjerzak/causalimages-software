@@ -181,27 +181,21 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
 # example video function (this here just appends two identical images for illustration only)
 # in practice, actual image sequence / video data will be read from disk
 {
-  # USE :
-  acquireImageFromDisk
-acquireVideoRepFromMemory <- function(keys, training = F){
-  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
-  tmp <- abind::abind(tmp, tmp, along = 0)
-  if(length(keys) == 1){
-    tmp <- array(tmp,dim = c(1L,dim(tmp)[1],dim(tmp)[2],dim(tmp)[3],dim(tmp)[4]))
-  }
-  if(length(keys)>1){
-    tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
-  }
+acquireVideoRepFromDisk <- function(keys, training = F){
+  tmp <- acquireImageFromDisk(keys, training = training)
+  tmp <- tf$expand_dims(tmp,0L)
+  tmp <- tf$transpose(tmp,c(1L,0L,2L,3L,4L))
+  tmp <- tf$concat(list(tmp,tmp),axis = 1L)
   return(  tmp  )
 }
-dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1:5]) )
-dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1]) )
+dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]) )
+dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1]) )
 VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
   obsW =  UgandaDataProcessed$Wobs,
   obsY = UgandaDataProcessed$Yobs,
   imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
-  acquireImageFxn = acquireVideoRepFromMemory, # this is new
+  acquireImageFxn = acquireVideoRepFromDisk, # this is new!
   conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
   conda_env_required = T,
   X = X,
