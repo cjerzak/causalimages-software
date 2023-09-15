@@ -157,16 +157,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
   rm( test_ )
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
-    #browser()
     acquireImageRepFxn_orig <- acquireImageFxn
     tmp <- replicate(30, {
         tmp <- acquireImageFxn( sample(unique(imageKeysOfUnits), batchSize),
                          training = F)
         if(length(dim(tmp)) == 4){
+          CausalImagesDataType <<- "image"
           l_ <- list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
                "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
         }
         if(length(dim(tmp)) == 5){
+          CausalImagesDataType <<- "video"
+          nTimeSteps <<- dim(tmp)[2]
           l_ <- list("NORM_MEAN" = apply(as.array(tmp),5,function(zer){mean(zer,na.rm=T)}),
                      "NORM_SD" = apply(as.array(tmp),5,function(zer){sd(zer,na.rm=T)})  )
         }
@@ -179,9 +181,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       NORM_SD <- tf$expand_dims( NORM_SD, 0L)
     }
     #acquireImageFxn <- function(keys, training){(acquireImageRepFxn_orig(keys, training) - NORM_MEAN) / NORM_SD }
-    InitImageProcess <- function(m, training){
-      (m - NORM_MEAN) / NORM_SD
-    }
+    InitImageProcess <- tf_function(  function(m, training){ (m - NORM_MEAN) / NORM_SD } )
     rm(  tmp  )
   }
 
@@ -1261,7 +1261,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       for(kr_ in 1:kClust_est){
         eval(parse(text = sprintf("d%s <- dnorm(synth_seq, mean = Tau_mean_vec_n[kr_], sd = Tau_sd_vec[kr_] )",  kr_)))
       }
-      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, heterogeneityModelType, figuresTag))
+      pdf(sprintf("%s/HeteroSimTauDensity%s_%s_ExternalFigureKey%s.pdf",
+                  figuresPath, pdf_name_key, heterogeneityModelType, figuresTag))
       {
         par(mar=c(5,5,1,1))
         numbering_seq <- 1:kClust_est #c("1","1")
@@ -1322,7 +1323,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(cor(ClusterProbs, ClusterProbs_est) < 0){
           col_dim <- rank(-ClusterProbs_est)#gtools::quantcut(ClusterProbs_est, q = 100)
         }
-        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",figuresPath, pdf_name_key, figuresTag))
+        pdf(sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s.pdf",
+                    figuresPath, pdf_name_key, figuresTag))
         {
           par(mar=c(5,5,1,1))
           plot( ClusterProbs[order_],
@@ -1355,8 +1357,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
       typePlot_counter <- typePlot_counter + 1
       rows_ <- kClust_est; nExamples <- 5
       if(typePlot == "uncertainty"){rows_ <- 1L}
-      # browser()
-      plot_fxn <- function(){
+
+      if(CausalImagesDataType == "image"){
+        plot_fxn <- function(){
         pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
             height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
             width = 4*nExamples)
@@ -1378,8 +1381,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
           layout(mat = layout_mat,
                  widths = rep(2,ncol(layout_mat)),
                  heights = rep(2,nrow(layout_mat)))
-          #reNormIm <- function(ar){for(ib in 1:NBANDS){ar[,,ib] <- (ar[,,ib])*NORM_SD[ib] + NORM_MEAN[ib]  };return(ar) }
-          reNormIm <- function(ar){for(ib in 1:NBANDS){ar <- ar*NORM_SD + NORM_MEAN  };return(ar) }
           plotting_coordinates_mat <- c()
           total_counter <- 0
           for(k_ in 1:rows_){
@@ -1438,22 +1439,22 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
 
               if(length(plotBands) < 3){
-                orig_scale_im_raster <-  (as.array(acquireImageFxn(
-                      imageKeysOfUnits[im_i], training = F )[1,,,plotBands[1]]))
-                showImage <- causalimages::image2(
-                  as.matrix( orig_scale_im_raster ),
-                  main = main_, cex.main = 4,
-                  cex.lab = 2.5, col.lab = k_, col.main = k_,
-                  xlab = ifelse(!is.null(long),
-                                yes = sprintf("Long: %s, Lat: %s",
-                                              fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                              fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                                no = ""))
+                  orig_scale_im_raster <-  (as.array(acquireImageFxn(
+                        imageKeysOfUnits[im_i], training = F )[1,,,plotBands[1]]))
+                  causalimages::image2(
+                    as.matrix( orig_scale_im_raster ),
+                    main = main_, cex.main = 4,
+                    cex.lab = 2.5, col.lab = k_, col.main = k_,
+                    xlab = ifelse(!is.null(long),
+                                  yes = sprintf("Long: %s, Lat: %s",
+                                                fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                                fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                  no = ""))
               }
               if(length(plotBands) >= 3){
                 orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
                                         imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
-                showImage <- (raster::plotRGB(  orig_scale_im_raster,
+                raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
                                  mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
@@ -1464,9 +1465,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                 fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                 fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                            no = ""),
-                                 col.main = k_, cex.main=4))
+                                 col.main = k_, cex.main=4)
               }
-              if("try-error" %in% class(showImage)){print2("showImage broken")}
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
@@ -1511,7 +1511,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv( tf$expand_dims(tf$gather(acquireImageFxn(  imageKeysOfUnits[im_i],training = F),1L, axis = 3L),3L)  )
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
-                  IG <- as.array( ImageGrad_fxn( acquireImageFxn( imageKeysOfUnits[im_i], training = F) ) )
+                  IG <- as.array( ImageGrad_fxn( InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F),
+                                                                   training = F)  ))
                   nColors <- 1000
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
@@ -1552,9 +1553,196 @@ AnalyzeImageHeterogeneity <- function(obsW,
             print2(used_coordinates)
           }
         }
-        dev.off()
         return( plotting_coordinates_mat )
       }
+      }
+
+
+      if(CausalImagesDataType == "video"){
+        plot_fxn <- function(){
+          {
+            plotting_coordinates_mat <- c()
+            total_counter <- 0
+            for(k_ in 1:rows_){
+              used_coordinates <- c()
+              for(i in 1:5){
+                #if(k_ == 2 & typePlot == "mean"){ browser() }
+                #if(k_ == 2 & i == 1){ browser() }
+                print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
+                total_counter <- total_counter + 1
+                rfxn <- function(xer){xer}
+                bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
+                  BreakTies <- function(x){x + runif(length(x),-1e-3,1e-3)}
+                  if(typePlot == "uncertainty"){
+                    main_ <- letters[  total_counter  ]
+
+                    # plot images with largest std's
+                    valBrokenTies <- BreakTies(ClusterProbs_std[,k_])
+                    sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
+                    im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
+                  }
+                  if(grepl(typePlot,pattern = "mean")){
+                    main_ <- total_counter
+
+                    # plot images with largest lower confidence
+                    if(typePlot ==  "mean"){
+                      valBrokenTies <- BreakTies(ClusterProbs_lower_conf[,k_])
+                      sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
+                      im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
+                    }
+
+                    # plot images with largest cluster probs
+                    if(typePlot ==  "mean_upperConf"){
+                      valBrokenTies <- BreakTies(ClusterProbs_est_full[,k_])
+                      sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
+                      im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
+                    }
+                  }
+
+                  coordinate_i <- c(long[im_i], lat[im_i])
+                  if(bad_counter>50){browser()}
+                  if(i > 1){
+                    isUnique_ <- F; if(!is.null(long)){
+                      dist_m <- geosphere::distm(coordinate_i,
+                                                 used_coordinates,
+                                                 fun = geosphere::distHaversine)
+                      bad_counter <- bad_counter + 1
+                      if(all(dist_m >= 1000)){isUnique_ <- T}
+                    } }
+                  if(i == 1){ isUnique_<-T }
+                  print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
+                  if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
+                }
+
+                used_coordinates <- rbind(coordinate_i,used_coordinates)
+                print2(c(k_, i, im_i, long[im_i], lat[im_i]))
+                if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
+
+                if(length(plotBands) < 3){
+                  orig_scale_im_raster <-  (as.array(acquireImageFxn(
+                    imageKeysOfUnits[im_i], training = F )[1,,,,plotBands[1]]))
+                  animation::saveGIF({
+                    for (t_ in 1:nTimeSteps) {
+                      causalimages::image2(
+                        as.matrix( orig_scale_im_raster[t_,,] ),
+                        main = main_, cex.main = 4,
+                        cex.lab = 2.5, col.lab = k_, col.main = k_,
+                        xlab = ifelse(!is.null(long),
+                                      yes = sprintf("Long: %s, Lat: %s",
+                                                    fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                                    fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                      no = ""))
+                      animation::ani.pause()  # Pause to make sure it gets rendered
+                  } }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
+                                          figuresPath, pdf_name_key, figuresTag, k_, i)  )
+                }
+                if(length(plotBands) >= 3){
+                  animation::saveGIF({
+                    for(t_ in 1:nTimeSteps){
+                    orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
+                      imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])) )
+                    raster::plotRGB(  orig_scale_im_raster,
+                                      margins = T,
+                                      r = 1, g = 2, b = 3,
+                                      mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
+                                      main = main_,  stretch = "lin",
+                                      cex.lab = 2.5, col.lab = k_,
+                                      xlab = ifelse(!is.null(long),
+                                                    yes = sprintf("Long: %s, Lat: %s",
+                                                                  fixZeroEndings(round(coordinate_i,2L)[1],2L),
+                                                                  fixZeroEndings(round(coordinate_i,2L)[2],2L)),
+                                                    no = ""),
+                                      col.main = k_, cex.main=4)
+                    }}, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
+                                               figuresPath, pdf_name_key, figuresTag, k_, i) )
+                }
+                if(grepl(typePlot,pattern = "mean")){
+                  # axis for plot
+                  ylab_ <- ""; if(i==1){
+                    tauk <- eval(parse(text = sprintf("tau%s",k_)))
+                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
+                    if(orthogonalize == T){
+                      ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
+                    }
+                  }
+
+                  #obtain image gradients
+                  {
+                    take_k <- k_
+                    if(i == 1){
+                      ImageGrad_fxn <- (function(m){
+                        m <- tf$Variable(m,trainable = T)
+                        with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
+                          tape$watch( m )
+                          PROBS_ <- tf$reduce_mean(tf$concat(
+                            replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
+                          PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
+                                                   tf$divide(ep_LabelSmooth,tf$constant(2)))
+                          #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+                          OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
+                        })
+                        ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = F)
+                        ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
+                        print(dim(ImageGrad_o))
+                        for(jf in 1:2){
+                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,4L,keepdims = T)}
+                          if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o,4L, keepdims = T)}
+                          ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
+                          if(jf == 1){ImageGrad_L2 <- ImageGrad}
+                          if(jf == 2){ImageGrad_E <- ImageGrad}
+                        }
+                        return(tf$concat(list(ImageGrad_L2,  # salience magnitude
+                                              ImageGrad_E), # salience direction
+                                         3L))
+                      })
+                      AveragingConv <- tf$keras$layers$Conv3D(filters=1L,
+                                                                kernel_size = c(1L, (gradAnalysisFilterDim<-10L), 10L),
+                                                                padding = "valid")
+                      AveragingConv( tf$expand_dims(tf$gather(
+                        InitImageProcess(acquireImageFxn(  imageKeysOfUnits[im_i],training = F),training = F),
+                                         1L, axis = 4L),4L)  )
+                      AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
+                    }
+                    IG <- as.array( ImageGrad_fxn(
+                          m = InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F)
+                                ))
+
+                    nColors <- 1000
+                    { #if(i == 1){
+                      # pos/neg breaks should be on the same scale across observation
+                      pos_breaks <- sort( quantile(c(IG[,,,2][IG[,,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
+                      neg_breaks <- sort(quantile(c(IG[,,,2][IG[,,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T))
+                      gradMag_breaks <- sort(quantile((c(IG[,,,1])),probs = seq(0,1,length.out = nColors),na.rm=T))
+                    }
+
+                    # magnitude - check for changes in salings
+                    #axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,col.axis=k_)
+                    print2(summary(c( IG[,,,1] )))
+                    animation::saveGIF({
+                      for (t_ in 1:nTimeSteps) {
+                         par(mar = c(1,5,1,1))
+                         try(image(t(IG[t_,,,1])[,nrow(IG[,,,1]):1],
+                                         col = viridis::magma(nColors - 1),
+                                         ylab = "Salience Magnitude",cex.axis = 3,
+                                         #xaxt = "",
+                                         cex.axis=(cex_tile_axis <- 4), col.axis=k_,
+                                         breaks = gradMag_breaks, axes = F),T)
+                        animation::ani.pause()  # Pause to make sure it gets rendered
+                      }},movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s_SalienceMag.gif",
+                                              figuresPath, pdf_name_key, figuresTag, k_, i)  )
+                  }
+                }
+              }
+              plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates),T)
+              if("try-error" %in% class(plotting_coordinates_mat)){browser()}
+              print2(used_coordinates)
+            }
+          }
+          dev.off()
+          return( plotting_coordinates_mat )
+        }
+      }
+
       plotting_coordinates_mat <- try(plot_fxn(),T)
       if("try-error" %in% class(plotting_coordinates_mat)){ browser() }
       plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat

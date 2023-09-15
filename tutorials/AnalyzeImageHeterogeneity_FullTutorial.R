@@ -130,6 +130,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 }
 
 # initial image-based heterogeneity analysis
+{
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
   obsW =  UgandaDataProcessed$Wobs,
@@ -155,8 +156,8 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   transportabilityMat = NULL, #
 
   # other modeling options
-  #modelClass = "cnn", # CNN image modeling class
-  modelClass = "embeddings", # image/video embeddings model class
+  #modelClass = "cnn", # uses CNN image modeling class
+  modelClass = "embeddings", # uses image/video embeddings model class
   orthogonalize = F,
   heterogeneityModelType = "variational_minimal",
   kClust_est = 2, # vary depending on problem. Usually < 5
@@ -174,12 +175,14 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
-ImageHeterogeneityResults$plottedCoordinatesList
-
+}
 
 # Video heterogeneity example
 # example video function (this here just appends two identical images for illustration only)
 # in practice, actual image sequence / video data will be read from disk
+{
+  # USE :
+  acquireImageFromDisk
 acquireVideoRepFromMemory <- function(keys, training = F){
   tmp <- FullImageArray[match(keys, KeysOfImages),,,]
   tmp <- abind::abind(tmp, tmp, along = 0)
@@ -191,7 +194,7 @@ acquireVideoRepFromMemory <- function(keys, training = F){
   }
   return(  tmp  )
 }
-dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1:3]) )
+dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1:5]) )
 dim( acquireVideoRepFromMemory(UgandaDataProcessed$geo_long_lat_key[1]) )
 VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
@@ -202,7 +205,8 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
   conda_env_required = T,
   X = X,
-  plotBands = 1L,
+  plotBands = 1L:3L, # select 3 bands to plot
+  #plotBands = 1L, # or select 1 bands to plot
   lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
   long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
 
@@ -224,7 +228,7 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   heterogeneityModelType = "variational_minimal",
   kClust_est = 2, # vary depending on problem. Usually < 5
   nMonte_variational = 2L, # make this larger for real application (e.g., 10)
-  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  nSGD = 50L, # make this larger for real applications (e.g., 2000L)
   batchSize = 34L, # make this larger for real application (e.g., 50L)
   compile = T,
   channelNormalize = T,
@@ -237,6 +241,8 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
+}
+
 
 # Image heterogeneity example with tfrecords (faster)
 # (in progress)
@@ -291,3 +297,4 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
 # 2. Using randomized embeddings instead of CNN as image model class
 # check re: variables updateing
 # performing image-based treatment effect heterogeneity decomposition
+# figure out why data is being loaded in without call to data
