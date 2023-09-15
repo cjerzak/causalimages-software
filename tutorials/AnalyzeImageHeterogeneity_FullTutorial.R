@@ -144,6 +144,8 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   conda_env_required = T,
   X = X,
   plotBands = 1L,
+  lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+  long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
 
   # inputs to control where visual results are saved as PDF or PNGs
   # (these image grids are large and difficult to display in RStudio's interactive mode)
@@ -155,8 +157,6 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # optional arguments for generating transportability maps
   # here, we leave those NULL for simplicity
   transportabilityMat = NULL, #
-  lat =  NULL, # required only if transportabilityMat specified
-  long =  NULL, # # required only if transportabilityMat specified
 
   # other modeling options
   #modelClass = "cnn", # CNN image modeling class
