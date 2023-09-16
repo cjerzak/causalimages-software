@@ -242,65 +242,65 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
 
 # Image heterogeneity example with tfrecords (faster)
 if(T == T){
-# scramble data so no patterning in the tf record sequence
-# make sure to set seed so you can re-use the saved tfrecord
-tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
-set.seed(144L); UgandaDataProcessed_ <- UgandaDataProcessed[sample(1:nrow(UgandaDataProcessed)),]
+  # scramble data so no patterning in the tf record sequence
+  # make sure to set seed so you can re-use the saved tfrecord
+  tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
+  set.seed(144L); UgandaDataProcessed_ <- UgandaDataProcessed[sample(1:nrow(UgandaDataProcessed)),]
 
-if(T == F){
-# run code to (re)create tfrecord
-# write a tf records repository
-WriteTfRecord(  file = tfrecord_loc,
-                imageKeys = UgandaDataProcessed$geo_long_lat_key,
-                acquireImageFxn = acquireImageFromDisk,
-                conda_env = "tensorflow_m1"  )
-}
+  if(T == F){
+    # run code to (re)create tfrecord
+    # write a tf records repository
+    WriteTfRecord(  file = tfrecord_loc,
+                    imageKeys = UgandaDataProcessed$geo_long_lat_key,
+                    acquireImageFxn = acquireImageFromDisk,
+                    conda_env = "tensorflow_m1"  )
+  }
 
-ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
-  # data inputs
-  obsW =  UgandaDataProcessed_$Wobs,
-  obsY = UgandaDataProcessed_$Yobs,
-  imageKeysOfUnits =  UgandaDataProcessed_$geo_long_lat_key,
-  file = tfrecord_loc, # location of tf record (absolute paths are safest)
-  acquireImageFxn = NULL,
-  conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
-  conda_env_required = T,
-  X = X,
-  plotBands = 1L,
-  lat =  UgandaDataProcessed_$geo_lat, # not required but helpful for dealing with redundant locations in EO data
-  long =  UgandaDataProcessed_$geo_long, # not required but helpful for dealing with redundant locations in EO data
+  ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+    # data inputs
+    obsW =  UgandaDataProcessed_$Wobs,
+    obsY = UgandaDataProcessed_$Yobs,
+    imageKeysOfUnits =  UgandaDataProcessed_$geo_long_lat_key,
+    file = tfrecord_loc, # location of tf record (absolute paths are safest)
+    acquireImageFxn = NULL,
+    conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
+    conda_env_required = T,
+    X = X,
+    plotBands = 1L:3L,
+    lat =  UgandaDataProcessed_$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+    long =  UgandaDataProcessed_$geo_long, # not required but helpful for dealing with redundant locations in EO data
 
-  # inputs to control where visual results are saved as PDF or PNGs
-  # (these image grids are large and difficult to display in RStudio's interactive mode)
-  plotResults = T,
-  figuresPath = "~/Downloads/",
-  printDiagnostics = T,
-  figuresTag = "causalimagesTutorial",
+    # inputs to control where visual results are saved as PDF or PNGs
+    # (these image grids are large and difficult to display in RStudio's interactive mode)
+    plotResults = T,
+    figuresPath = "~/Downloads/",
+    printDiagnostics = T,
+    figuresTag = "causalimagesTutorial",
 
-  # optional arguments for generating transportability maps
-  # here, we leave those NULL for simplicity
-  transportabilityMat = NULL, #
+    # optional arguments for generating transportability maps
+    # here, we leave those NULL for simplicity
+    transportabilityMat = NULL, #
 
-  # other modeling options
-  modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
-  #modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 9L,# image embeddings model class
-  orthogonalize = F,
-  heterogeneityModelType = "variational_minimal",
-  kClust_est = 2, # vary depending on problem. Usually < 5
-  nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-  nSGD = 500L, # make this larger for real applications (e.g., 2000L)
-  batchSize = 34L, # make this larger for real application (e.g., 50L)
-  compile = T,
-  channelNormalize = T,
-  yDensity = "normal",
-  maxPoolSize = 2L, strides = 2L,
-  nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
-  nFilters = 64L, # vary the following depending on image type and GPU memory
-  nDepthHidden_dense = 0L,
-  nDenseWidth = 50L,
-  nDimLowerDimConv = 3L,
-  reparameterizationType = "Flipout"
-)
+    # other modeling options
+    #modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
+    modelClass = "embeddings", nEmbedDim = 128L, kernelSize = 9L,# image embeddings model class
+    orthogonalize = F,
+    heterogeneityModelType = "variational_minimal",
+    kClust_est = 2, # vary depending on problem. Usually < 5
+    nMonte_variational = 5L, # make this larger for real application (e.g., 10)
+    nSGD = 500L, # make this larger for real applications (e.g., 2000L)
+    batchSize = 34L, # make this larger for real application (e.g., 50L)
+    compile = T,
+    channelNormalize = T,
+    yDensity = "normal",
+    maxPoolSize = 2L, strides = 2L,
+    nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
+    nFilters = 50L, # vary the following depending on image type and GPU memory
+    nDepthHidden_dense = 0L,
+    nDenseWidth = 50L,
+    nDimLowerDimConv = 3L,
+    reparameterizationType = "Flipout"
+  )
 }
 
 # video heterogeneity example with tfrecords (faster)
