@@ -112,6 +112,7 @@ AnalyzeImageConfounding <- function(
                                    channelNormalize = T,
                                    printDiagnostics = F,
                                    TfRecords_BufferScaler = 4L,
+                                   LEARNING_RATE_BASE = 0.005,
                                    dataType = "image",
                                    tf_seed = NULL,
                                    quiet = F){
@@ -303,7 +304,7 @@ AnalyzeImageConfounding <- function(
     poolingAt <- 1L # do pooling every poolingAt iterations
     poolingBy <- 2L # pool by poolingBy by poolingBy
     poolingType <- "max"
-    LEARNING_RATE_BASE <- 0.005; widthCycle <- 50
+    widthCycle <- 50
     doParallel <- F
 
     # get first iter batch for initializations
@@ -787,13 +788,12 @@ AnalyzeImageConfounding <- function(
             prW_est <- prW_est_
             embeddings_fxn <- MyEmbeds_$embeddings_fxn
 
-            myGlmnet_coefs_tf <- tf$constant(myGlmnet_coefs,dtype = tf$float32)
+            myGlmnet_coefs_tf <- tf$constant(myGlmnet_coefs, dtype = tf$float32)
             getTreatProb <- tf_function_use( function(im_getProb, x_getProb, training_getProb){
               if(!XisNull){
                 concatDat <- tf$concat(list(
                                tf$ones(list(im_getProb$shape[[1]],1L)),
-                                     x_getProb, embeddings_fxn( im_getProb )
-                              ), 1L)
+                                     x_getProb, embeddings_fxn( im_getProb )), 1L)
               }
               if(XisNull){
                 concatDat <- tf$concat(list(
@@ -1123,10 +1123,12 @@ AnalyzeImageConfounding <- function(
     if(!is.null(SalienceX)){ names(SalienceX) <- colnames(X) }
 
     print(  "Done with image confounding analysis!"  )
+    se <- function(x){ x <- na.omit(x); return(sqrt(x/length(x)))}
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
+      "tauHat_diffInMeans_se"  = sqrt(se(obsY[which(obsW==1)])^2 + se(obsY[which(obsW==0)])^2),
       "SalienceX" = SalienceX,
       "SalienceX_se" = SalienceX_se,
       "prW_est" = prW_est,

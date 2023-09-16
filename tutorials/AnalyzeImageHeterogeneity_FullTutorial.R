@@ -284,6 +284,7 @@ if(T == T){
     # other modeling options
     #modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
     modelClass = "embeddings", nEmbedDim = 128L, kernelSize = 9L,# image embeddings model class
+    LEARNING_RATE_BASE = 0.0005,
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
