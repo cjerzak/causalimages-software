@@ -144,7 +144,7 @@ WriteTfRecord <- function(file,
 #'
 #' @export
 #' @md
-GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
+GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo = F,
                                             conda_env = NULL, conda_env_required = F,
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
@@ -175,7 +175,8 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
     dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
     # Parse the tf.Example messages
-    dataset <- dataset$map(   parse_tfr_element   )
+    #dataset <- dataset$map(   parse_tfr_element   )
+    dataset <- dataset$map( function(x){parse_tfr_element(x, readVideo = readVideo)} ) # return
 
     if(T == F){
       dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
@@ -258,17 +259,31 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs,
 }
 
 # parse tf elements
-parse_tfr_element <- function(element){
+parse_tfr_element <- function(element, readVideo = F){
   #use the same structure as above; it's kinda an outline of the structure we now want to create
   dict_init_val <- list()
-  im_feature_description <- dict(
-    'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-    'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-    'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-    'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
-    'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-    'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
-  )
+  if(!readVideo){
+    im_feature_description <- dict(
+      'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
+      'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
+    )
+  }
+
+  if(readVideo){
+    im_feature_description <- dict(
+      'time'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
+      'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
+    )
+  }
 
   # parse tf record
   content = tf$io$parse_single_example(element, im_feature_description)
@@ -284,6 +299,13 @@ parse_tfr_element <- function(element){
   feature = tf$io$parse_tensor( raw_image, out_type = tf$float32 )
 
   #  and reshape it appropriately
-  feature = tf$reshape(  feature, shape = c(height, width, depth)  )
+  if(!readVideo){
+    feature = tf$reshape(  feature, shape = c(height, width, depth)  )
+  }
+  if(readVideo){
+    time = content[['time']]
+    feature = tf$reshape(  feature, shape = c(time, height, width, depth)  )
+  }
+
   return(    list(feature, index, key)    )
 }

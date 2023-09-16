@@ -112,6 +112,7 @@ AnalyzeImageConfounding <- function(
                                    channelNormalize = T,
                                    printDiagnostics = F,
                                    TfRecords_BufferScaler = 4L,
+                                   dataType = "image",
                                    tf_seed = NULL,
                                    quiet = F){
   print("Initializing the tensorflow environment...")
@@ -195,13 +196,14 @@ AnalyzeImageConfounding <- function(
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
       # helper functions
+      useVideo <- dataType == "video"
       getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( parse_tfr_element ) # return
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
         return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
       }
 
       getParsed_tf_dataset_train <- function(tf_dataset){
-        dataset <- tf_dataset$map( parse_tfr_element )
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
                                    #num_parallel_calls = tf$data$AUTOTUNE)
         dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
@@ -746,6 +748,7 @@ AnalyzeImageConfounding <- function(
             file = file,
             strides = strides,
             nEmbedDim = nEmbedDim,
+            dataType = dataType,
             kernelSize = kernelSize,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
@@ -901,6 +904,7 @@ AnalyzeImageConfounding <- function(
               #setwd(orig_wd)
               ds_next_in <- GetElementFromTfRecordAtIndices( indices = in_,
                                                              filename = file,
+                                                             readVideo = useVideo,
                                                              nObs = length(imageKeysOfUnits) )
               #setwd(new_wd)
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1078,6 +1082,7 @@ AnalyzeImageConfounding <- function(
             #setwd(orig_wd)
             ds_next_in <- GetElementFromTfRecordAtIndices( indices = samp_,
                                                            filename = file,
+                                                           readVideo = useVideo,
                                                            nObs = length(imageKeysOfUnits) )
             #setwd(new_wd)
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }

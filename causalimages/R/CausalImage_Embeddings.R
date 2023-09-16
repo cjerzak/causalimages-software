@@ -52,6 +52,7 @@ GetImageEmbeddings <- function(
     temporalKernelSize = 2L,
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
+    dataType = dataType,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL,
     quiet = F){
@@ -98,13 +99,14 @@ GetImageEmbeddings <- function(
     tf_dataset = tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
+    useVideo <- dataType == "video"
     getParsed_tf_dataset_inference <- function(tf_dataset){
-      dataset <- tf_dataset$map( parse_tfr_element ) # return
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
       return( dataset <- dataset$batch( as.integer(max(2L, round(batchSize/2L)  ))) )
     }
 
     getParsed_tf_dataset_train <- function(tf_dataset){
-      dataset <- tf_dataset$map( parse_tfr_element )
+      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
       dataset <- dataset$shuffle(tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=tf$int64),
                                  reshuffle_each_iteration = T)
       dataset <- dataset$batch(as.integer(batchSize))
@@ -145,6 +147,7 @@ GetImageEmbeddings <- function(
     setwd(orig_wd)
     test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L,
                                                              filename = file,
+                                                             readVideo = useVideo,
                                                              nObs = length(imageKeysOfUnits))[[1]],0L)
     setwd(new_wd)
   }
@@ -222,6 +225,7 @@ GetImageEmbeddings <- function(
                                                             filename = file,
                                                             nObs = length(imageKeysOfUnits),
                                                             return_iterator = T,
+                                                            readVideo = useVideo,
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]])

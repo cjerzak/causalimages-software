@@ -124,6 +124,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nEmbedDim = 96L,
                                       printDiagnostics = F,
                                       TfRecords_BufferScaler = 4L,
+                                      dataType = "image",
                                       quiet = F){
   # note to maintainers:
   # jit only things outside of Monte Carlo steps
@@ -171,13 +172,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
+    useVideo <- dataType == "video"
     getParsed_tf_dataset_inference <- function(tf_dataset){
-      dataset <- tf_dataset$map( parse_tfr_element ) # return
+      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
       return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
     }
 
     getParsed_tf_dataset_train <- function(tf_dataset){
-      dataset <- tf_dataset$map( parse_tfr_element )
+      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
       #num_parallel_calls = tf$data$AUTOTUNE)
       dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                  reshuffle_each_iteration = T)
@@ -599,12 +601,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
             batchSize = min(  c(batchSize, 10) ),
             acquireImageFxn = acquireImageFxnEmbeds,
             file = file,
+            dataType = dataType,
             strides = strides,
             nEmbedDim = nEmbedDim,
             kernelSize = kernelSize,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
             conda_env_required = T )$embeddings_fxn
+          if(acquireImageMethod == "tf_record"){ setwd( new_wd )  }
     }
 
     if(compile == T){ tf_function_fxn <- function(x){tf_function(x,experimental_relax_shapes = F)}}
@@ -1079,6 +1083,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           print("Re-setting iterator! (type 1)")
           ds_next_train <- reticulate::iter_next( ds_iterator_train )
           batch_indices <- c(as.array(ds_next_train[[2]]))
+          ds_next_train <- ds_next_train[[1]]
         }
 
         if(!RestartedIterator){
@@ -1087,6 +1092,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             print("Re-setting iterator! (type 2)")
             ds_next_train <- reticulate::iter_next( ds_iterator_train )
             batch_indices <- c(as.array(ds_next_train[[2]]))
+            ds_next_train <- ds_next_train[[1]]
           }
         }
       }
@@ -1144,10 +1150,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
   for(y_t_ in c(0,1)){
     test_tab <- sort( 1:length(testIndices)%%round(length(testIndices)/max(1,round(batchFracOut*batchSize))));
     passedIterator <- NULL
+    print(  sprintf("Getting Y(%s)'s",y_t_)   )
     Y_test_est <-  tapply(testIndices,test_tab,function(zer){
-      if(runif(1)<0.1){ gc(); py_gc$collect() }
+      gc(); py_gc$collect()
       atP <- max(zer)/length(test_tab)
-      if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion done: %.3f",atP)) }
+      if( any(zer %% 100 == 0) ){ print2(sprintf("[%s] Proportion done: %.3f",
+                                                 format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                                                 atP)) }
         if(acquireImageMethod == "functional"){
           ds_next_in <- acquireImageFxn(  transportabilityMat$key[zer], training = F )
         }
@@ -1156,6 +1165,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
                                                           filename = file,
                                                           iterator = passedIterator,
+                                                          readVideo = useVideo,
                                                           nObs = length(imageKeysOfUnits),
                                                           return_iterator = T)
           passedIterator <<- ds_next_in[[2]]
@@ -1200,9 +1210,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if(heterogeneityModelType == "tarnet" | heterogeneityModelType=="variational_CNN"){
     passedIterator <- NULL
     Y0_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-      if(runif(1)<0.1){ gc(); py_gc$collect() }
+      gc(); py_gc$collect()
       atP <- max(indi_/length(obsY))
-      if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
+      if( any(zer %% 100 == 0) ){ print2(sprintf("[%s] Proportion Done: %.3f",
+                                                 format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                                                 atP)) }
         if(acquireImageMethod == "functional"){
           ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
         }
@@ -1211,6 +1223,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
                                                          filename = file,
                                                          iterator = passedIterator,
+                                                         readVideo = useVideo,
                                                          nObs = length(imageKeysOfUnits),
                                                          return_iterator = T)
           passedIterator <<- ds_next_in[[2]]
@@ -1225,9 +1238,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     passedIterator <- NULL
     Y1_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-      if(runif(1)<0.1){ gc(); py_gc$collect() }
+      gc(); py_gc$collect()
       atP <- max(indi_/length(obsY))
-      if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
+      if( any(zer %% 100 == 0) ){ print2(sprintf("[%s] Proportion Done: %.3f",
+                                                 format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                                                 atP)) }
       if(acquireImageMethod == "functional"){
         ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
       }
@@ -1236,6 +1251,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
                                                        filename = file,
                                                        iterator = passedIterator,
+                                                       readVideo = useVideo,
                                                        nObs = length(imageKeysOfUnits),
                                                        return_iterator = T)
         passedIterator <<- ds_next_in[[2]]
@@ -1262,7 +1278,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     passedIterator <- NULL
     ClusterProbs_est <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       atP <- max(indi_/length(obsY))
-      if( any(indi_ %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
+      if( any(indi_ %% 100 == 0) ){ print2(sprintf("[%s] Proportion Done: %.3f",
+                                                   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                                                   atP)) }
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       if(acquireImageMethod == "functional"){
         ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
@@ -1273,6 +1291,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
                                                        filename = file,
                                                        iterator = passedIterator,
+                                                       readVideo = useVideo,
                                                        nObs = length(imageKeysOfUnits),
                                                        return_iterator = T)
         passedIterator <<- ds_next_in[[2]]
@@ -1347,7 +1366,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       GetProbAndExpand <- tf_function_fxn(function(m){tf$expand_dims(getClusterProb(m,training = F),0L) })
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
-        if(runif(1)<0.1){ gc(); py_gc$collect() }
+        gc(); py_gc$collect()
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
         if(acquireImageMethod == "functional"){
@@ -1358,6 +1377,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           #setwd(orig_wd)
           ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
                                                          filename = file,
+                                                         readVideo = useVideo,
                                                          nObs = length(imageKeysOfUnits) )
           #setwd(new_wd)
           if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1381,6 +1401,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
 
+  # perform plots
+  if( changed_wd ){ setwd(  orig_wd  ) }
   if(!c("monti") %in% ls(envir = globalenv()) & simMode == F){
     pdf_name_key <- "RealDataFig"; monti <- NA
   }
@@ -1581,6 +1603,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 #setwd(orig_wd)
                 ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
                                                                filename = file,
+                                                               readVideo = useVideo,
                                                                nObs = length(imageKeysOfUnits) )
                 #setwd(new_wd)
                 ds_next_in <- ds_next_in[[1]]
@@ -1701,7 +1724,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         dev.off()
         return( plotting_coordinates_mat )
-      }
+        }
       }
 
 
@@ -1709,7 +1732,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         plot_fxn <- function(){
           {
             plotting_coordinates_mat <- c()
-            total_counter <- 0
+            total_counter <- 0; ep_LabelSmooth <- tf$constant(0.01)
             for(k_ in 1:rows_){
               used_coordinates <- c()
               for(i in 1:5){
@@ -1757,8 +1780,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                       if(all(dist_m >= 1000)){isUnique_ <- T}
                     } }
                   if(i == 1){ isUnique_<-T }
-                  print2(sd_im <- sd(as.array(ds_next_in[1,,,]),na.rm=T))
-                  if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
                 }
 
                 used_coordinates <- rbind(coordinate_i,used_coordinates)
@@ -1772,6 +1793,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   #setwd(orig_wd)
                   ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
                                                                  filename = file,
+                                                                 readVideo = useVideo,
                                                                  nObs = length(imageKeysOfUnits) )
                   #setwd(new_wd)
                   ds_next_in <- ds_next_in[[1]]
@@ -1794,7 +1816,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       no = ""))
                       animation::ani.pause()  # Pause to make sure it gets rendered
                   } }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
-                                          figuresPath, pdf_name_key, figuresTag, k_, i)  )
+                                          figuresPath, pdf_name_key, figuresTag, k_, i),
+                       autobrowse = F, autoplay = F)
                 }
                 if(length(plotBands) >= 3){
                   animation::saveGIF({
@@ -1834,7 +1857,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   {
                     take_k <- k_
                     if(i == 1){
-                      ep_LabelSmooth<-tf$constant(0.01)
+                      # don't jit -- take_k dynamic within
                       ImageGrad_fxn <- (function(m){
                         m <- tf$Variable(m,trainable = T)
                         with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
@@ -1901,7 +1924,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                          breaks = gradMag_breaks, axes = F),T)
                         animation::ani.pause()  # Pause to make sure it gets rendered
                       }},movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s_SalienceMag.gif",
-                                              figuresPath, pdf_name_key, figuresTag, k_, i)  )
+                                              figuresPath, pdf_name_key, figuresTag, k_, i),
+                          autobrowse = F, autoplay = F)
                   }
                 }
               }

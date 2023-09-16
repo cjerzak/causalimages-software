@@ -12,7 +12,7 @@ uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%2
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
 
 # download into new directory
-download.file( uganda_data_url,  destfile = )
+download.file( uganda_data_url,  destfile = download_folder)
 
 # unzip and list files
 unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
@@ -241,7 +241,7 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
 }
 
 # Image heterogeneity example with tfrecords (faster)
-if(T == F){
+if(T == T){
 # scramble data so no patterning in the tf record sequence
 # make sure to set seed so you can re-use the saved tfrecord
 tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
@@ -282,22 +282,22 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   transportabilityMat = NULL, #
 
   # other modeling options
-  #modelClass = "cnn", # CNN image modeling class
-  modelClass = "embeddings", # image/video embeddings model class
+  modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
+  #modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 9L,# image embeddings model class
   orthogonalize = F,
   heterogeneityModelType = "variational_minimal",
   kClust_est = 2, # vary depending on problem. Usually < 5
   nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-  nSGD = 4L, # make this larger for real applications (e.g., 2000L)
+  nSGD = 500L, # make this larger for real applications (e.g., 2000L)
   batchSize = 34L, # make this larger for real application (e.g., 50L)
   compile = T,
   channelNormalize = T,
   yDensity = "normal",
-  kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+  maxPoolSize = 2L, strides = 2L,
   nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
   nFilters = 64L, # vary the following depending on image type and GPU memory
   nDepthHidden_dense = 0L,
-  nDenseWidth = 32L,
+  nDenseWidth = 50L,
   nDimLowerDimConv = 3L,
   reparameterizationType = "Flipout"
 )
@@ -315,16 +315,18 @@ if(T == F){
     # write a tf records repository
     WriteTfRecord(  file = tfrecord_loc,
                     imageKeys = UgandaDataProcessed$geo_long_lat_key,
-                    acquireImageFxn = acquireVideoFromDisk,
+                    acquireImageFxn = acquireVideoRepFromDisk,
+                    writeVideo = T,
                     conda_env = "tensorflow_m1"  )
   }
 
-  ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+  VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
     # data inputs
     obsW =  UgandaDataProcessed_$Wobs,
     obsY = UgandaDataProcessed_$Yobs,
     imageKeysOfUnits =  UgandaDataProcessed_$geo_long_lat_key,
     file = tfrecord_loc, # location of tf record (absolute paths are safest)
+    dataType = "video",
     acquireImageFxn = NULL,
     conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
     conda_env_required = T,
@@ -345,8 +347,8 @@ if(T == F){
     transportabilityMat = NULL, #
 
     # other modeling options
-    #modelClass = "cnn", # CNN image modeling class
-    modelClass = "embeddings", # image/video embeddings model class
+    #modelClass = "cnn", kernelSize = 3L, # CNN image modeling class
+    modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 3L, temporalKernelSize = 2L, # image/video embeddings model class
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
@@ -356,7 +358,7 @@ if(T == F){
     compile = T,
     channelNormalize = T,
     yDensity = "normal",
-    kernelSize = 3L, maxPoolSize = 2L, strides = 2L,
+    maxPoolSize = 2L, strides = 2L,
     nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
     nFilters = 64L, # vary the following depending on image type and GPU memory
     nDepthHidden_dense = 0L,
