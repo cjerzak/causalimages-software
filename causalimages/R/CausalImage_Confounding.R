@@ -147,7 +147,6 @@ AnalyzeImageConfounding <- function(
   if(cond1){
     figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd)
   }
-  #if(cond2){figuresPath <- gsub(figuresPath, pattern = '/', replace = paste(orig_wd, "/", sep = "")) }
 
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
@@ -471,7 +470,8 @@ AnalyzeImageConfounding <- function(
     #optimizer_tf = tf$optimizers$legacy$Adam()
     getGrad <- tf_function_use(getGrad_r <- function(im_train, x_train, truth_train, mask){
       print("Initializing getGrad")
-      with(tf$GradientTape() %as% tape, {
+      with(tf$GradientTape(watch_accessed_variables=F) %as% tape, {
+        tape$watch(  trainable_variables   )
         myLoss_forGrad <- getLoss( im_getLoss = im_train,
                                    x_getLoss = x_train,
                                    treatt_getLoss = truth_train,

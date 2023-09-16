@@ -52,6 +52,7 @@
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param plotBands (default = `1L`) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
+#' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return A list consiting of \itemize{
 #'   \item `clusterTaus_mean` default
@@ -122,7 +123,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       modelClass = "cnn",
                                       nEmbedDim = 96L,
                                       printDiagnostics = F,
+                                      TfRecords_BufferScaler = 4L,
                                       quiet = F){
+  # note to maintainers:
+  # jit only things outside of Monte Carlo steps
+  # (jitting a Monte Carlo loop eats up memory)
   if(T == T){
     library(tensorflow); library(keras)
     try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
@@ -140,90 +145,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
     gc(); py_gc$collect()
   }
 
-  # coerce output to tf$constant
-  environment(acquireImageFxn) <- environment()
-  test_ <- acquireImageFxn(imageKeysOfUnits[1:5],training = F)
-  if(!"tensorflow.tensor" %in% class(test_)){
-    acquireImageFxn_as_input <- acquireImageFxn
-    acquireImageFxn <- function(keys, training){
-      m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
-      if(length(m_$shape) == 3){
-        # expand across batch dimension if receiving no batch dimension
-        m_ <- tf$expand_dims(m_,0L)
-      }
-      return( m_ )
-    }
-  }
-  rm( test_ )
-  if(channelNormalize == T){
-    print("Getting channel normalization parameters...")
-    acquireImageRepFxn_orig <- acquireImageFxn
-    tmp <- replicate(30, {
-        tmp <- acquireImageFxn( sample(unique(imageKeysOfUnits), batchSize),
-                         training = F)
-        if(length(dim(tmp)) == 4){
-          CausalImagesDataType <<- "image"
-          l_ <- list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
-               "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
-        }
-        if(length(dim(tmp)) == 5){
-          CausalImagesDataType <<- "video"
-          nTimeSteps <<- dim(tmp)[2]
-          l_ <- list("NORM_MEAN" = apply(as.array(tmp),5,function(zer){mean(zer,na.rm=T)}),
-                     "NORM_SD" = apply(as.array(tmp),5,function(zer){sd(zer,na.rm=T)})  )
-        }
-        return( l_  )
-    })
-    NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",]))),0L),0L), 0L)
-    NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(colMeans(do.call(rbind,tmp["NORM_SD",])),0L),0L), 0L)
-    if(length(dim(tmp)) == 5){
-      NORM_MEAN <- tf$expand_dims( NORM_MEAN, 0L)
-      NORM_SD <- tf$expand_dims( NORM_SD, 0L)
-    }
-    #acquireImageFxn <- function(keys, training){(acquireImageRepFxn_orig(keys, training) - NORM_MEAN) / NORM_SD }
-    InitImageProcess <- tf_function(  function(m, training){ (m - NORM_MEAN) / NORM_SD } )
-    rm(  tmp  )
+  # make all directory logic explicit
+  orig_wd <- getwd()
+  cond1 <- substr(figuresPath, start = 0, stop = 1) == "."
+  cond2 <- substr(figuresPath, start = 0, stop = 1) == "/"
+  if(cond1){
+    figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd)
   }
 
-  print2 <- function(x){if(!quiet){print(x)}}
-
-  # set environment of image sampling functions
-  if(is.null(acquireImageFxn)){ acquireImageFxn <- function(keys){acquireImageRepFxn_orig(keys, training = F)} }
-  figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
-  nDimLowerDimConv <- as.integer( nDimLowerDimConv )
-  windowCounter <- 0
-
-  # orthogonalize if specified
-  whichNA_dropped <- c()
-  if(orthogonalize){
-    print2("Orthogonalizing Potential Outcomes...")
-    if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
-
-    # drop observations with NAs in their orthogonalized outcomes
-    whichNA_dropped <- which( is.na(  rowSums( X ) ) )
-    if(length(whichNA_dropped) > 0){
-      # note: transportabilityMat doesn't need to drop dropNAs
-      obsW <- obsW[-whichNA_dropped]
-      obsY <- obsY[-whichNA_dropped]
-      X <- X[-whichNA_dropped,]
-      imageKeysOfUnits <- imageKeysOfUnits[-whichNA_dropped]
-      lat <- lat[ -whichNA_dropped ]
-      long <- long[ -whichNA_dropped ]
-    }
-    Yobs_ortho <- resid(temp_lm <- lm(obsY ~ X))
-    if(length(Yobs_ortho) != length(obsY)){
-      stop("length(Yobs_ortho) != length(obsY)")
-    }
-    plot(obsY,Yobs_ortho)
-    obsY <- Yobs_ortho
-    #YandW_mat[f2n(names(my_resid)),]$Yobs_ortho <- as.numeric(YandW_mat[f2n(names(my_resid)),]$Yobs_ortho)
-    #YandW_mat[["Yobs_ortho"]][f2n(names(my_resid))] <- my_resid
-    #try({plot(YandW_mat$Yobs_ortho,YandW_mat$Yobs);abline(a=0,b=1)},T)
-    #YandW_mat$Yobs_ortho[is.na(YandW_mat$Yobs_ortho)] <- mean(YandW_mat$Yobs_ortho,na.rm=T)
-  }
-
-  # setup tf record
-  loss_vec <- NULL
   acquireImageMethod <- "functional";
   # define base tf record + train/test fxns
   changed_wd <- F; if(  !is.null(  file  )  ){
@@ -281,6 +210,94 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # ds_next_train <- reticulate::iter_next( ds_iterator_train )
     # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
   }
+
+  # coerce output to tf$constant
+  if(acquireImageMethod == "functional"){
+    environment(acquireImageFxn) <- environment()
+    test_ <- acquireImageFxn(imageKeysOfUnits[1:5],training = F)
+    if(!"tensorflow.tensor" %in% class(test_)){
+      acquireImageFxn_as_input <- acquireImageFxn
+      acquireImageFxn <- function(keys, training){
+        m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
+        if(length(m_$shape) == 3){
+          # expand across batch dimension if receiving no batch dimension
+          m_ <- tf$expand_dims(m_,0L)
+        }
+        return( m_ )
+      }
+    }
+    rm( test_ )
+  }
+  if(channelNormalize == T){
+    print("Getting channel normalization parameters...")
+    tmp <- replicate(30, {
+        if(acquireImageMethod == "functional"){
+          tmp <- acquireImageFxn( sample(unique(imageKeysOfUnits), batchSize), training = F)
+        }
+        if(acquireImageMethod == "tf_record"){
+           tmp <- reticulate::iter_next( ds_iterator_train )[[1]]
+        }
+        if(length(dim(tmp)) == 4){
+          CausalImagesDataType <<- "image"
+          l_ <- list("NORM_MEAN" = apply(as.array(tmp),4,function(zer){mean(zer,na.rm=T)}),
+               "NORM_SD" = apply(as.array(tmp),4,function(zer){sd(zer,na.rm=T)})  )
+        }
+        if(length(dim(tmp)) == 5){
+          CausalImagesDataType <<- "video"
+          nTimeSteps <<- dim(tmp)[2]
+          l_ <- list("NORM_MEAN" = apply(as.array(tmp),5,function(zer){mean(zer,na.rm=T)}),
+                     "NORM_SD" = apply(as.array(tmp),5,function(zer){sd(zer,na.rm=T)})  )
+        }
+        return( l_  )
+    })
+    NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",]))),0L),0L), 0L)
+    NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(colMeans(do.call(rbind,tmp["NORM_SD",])),0L),0L), 0L)
+    if(length(dim(tmp)) == 5){
+      NORM_MEAN <- tf$expand_dims( NORM_MEAN, 0L)
+      NORM_SD <- tf$expand_dims( NORM_SD, 0L)
+    }
+    InitImageProcess <- tf_function(  function(m, training){ (m - NORM_MEAN) / NORM_SD } )
+    rm(  tmp  )
+  }
+
+  print2 <- function(x){if(!quiet){print(x)}}
+
+  # set environment of image sampling functions
+  figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
+  nDimLowerDimConv <- as.integer( nDimLowerDimConv )
+  windowCounter <- 0
+
+  # orthogonalize if specified
+  whichNA_dropped <- c()
+  if(orthogonalize){
+    print2("Orthogonalizing Potential Outcomes...")
+    if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
+
+    # drop observations with NAs in their orthogonalized outcomes
+    whichNA_dropped <- which( is.na(  rowSums( X ) ) )
+    if(length(whichNA_dropped) > 0){
+      # note: transportabilityMat doesn't need to drop dropNAs
+      obsW <- obsW[-whichNA_dropped]
+      obsY <- obsY[-whichNA_dropped]
+      X <- X[-whichNA_dropped,]
+      imageKeysOfUnits <- imageKeysOfUnits[-whichNA_dropped]
+      lat <- lat[ -whichNA_dropped ]
+      long <- long[ -whichNA_dropped ]
+    }
+    Yobs_ortho <- resid(temp_lm <- lm(obsY ~ X))
+    if(length(Yobs_ortho) != length(obsY)){
+      stop("length(Yobs_ortho) != length(obsY)")
+    }
+    plot(obsY,Yobs_ortho)
+    obsY <- Yobs_ortho
+    #YandW_mat[f2n(names(my_resid)),]$Yobs_ortho <- as.numeric(YandW_mat[f2n(names(my_resid)),]$Yobs_ortho)
+    #YandW_mat[["Yobs_ortho"]][f2n(names(my_resid))] <- my_resid
+    #try({plot(YandW_mat$Yobs_ortho,YandW_mat$Yobs);abline(a=0,b=1)},T)
+    #YandW_mat$Yobs_ortho[is.na(YandW_mat$Yobs_ortho)] <- mean(YandW_mat$Yobs_ortho,na.rm=T)
+  }
+
+  # setup tf record
+  loss_vec <- NULL
 
   # specify some training parameters + helper functions
   rzip <- function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
@@ -850,7 +867,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( likelihood_distribution_draw )
     } )
 
-    getExpectedLikelihood <- tf_function_fxn(function(dat,treat,y){
+    #getExpectedLikelihood <- tf_function_fxn(function(dat,treat,y){
+    getExpectedLikelihood <- (function(dat,treat,y){
       likelihood_distribution_expectation <- tf$zeros(list(batchSize),tf$float32)
       for(d_ in 1:nMonte_variational){
         likelihood_distribution_expectation <- likelihood_distribution_expectation +
@@ -859,19 +877,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( likelihood_distribution_expectation )
     })
 
-    getLoss <- tf_function_fxn( function(dat,treat,y,training){
+    #getLoss <- tf_function_fxn( function(dat,treat,y,training){
+    getLoss <- ( function(dat,treat,y,training){
       if(heterogeneityModelType == "tarnet"){
         m <- getImageRep(dat,training = training)
         Y0_hat <- getY0_finalStep(m,training=training)
         Y1_hat <- getY1_finalStep(m,training=training)
-        Yobs_hat <- tf$multiply(Y1_hat,tf$expand_dims(treat,1L)) + tf$multiply(Y0_hat,tf$expand_dims(1-treat,1L))
+        Yobs_hat <- tf$multiply(Y1_hat,tf$expand_dims(treat,1L)) +
+                                  tf$multiply(Y0_hat,tf$expand_dims(1-treat,1L))
         minThis <- tf$reduce_sum(tf$square(tf$expand_dims(y,1L) - Yobs_hat))
       }
 
       if(grepl(heterogeneityModelType,pattern= "variational")){
-        likelihood_distribution_expectation <- getExpectedLikelihood(dat=dat,
-                                                                     treat=treat,
-                                                                     y=y)
+        likelihood_distribution_expectation <- getExpectedLikelihood(dat = dat,
+                                                                     treat = treat,
+                                                                     y = y)
 
         # specify some distributions
         if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
@@ -930,14 +950,24 @@ AnalyzeImageHeterogeneity <- function(obsW,
     for(bool_ in c(T)){ # Initialize training branch only to preserve memory
       print2(bool_)
       with(tf$GradientTape() %as% tape, {
-        samp_ <- sample(1:length(obsW),batchSize)
-        myLoss_forGrad <- getLoss( dat = InitImageProcess(acquireImageFxn( imageKeysOfUnits[samp_], bool_),training = T),
-                                   treat = tf$constant(obsW[samp_],tf$float32),
-                                   y = tf$constant(obsY[samp_],tf$float32),
+        if(acquireImageMethod == "functional"){
+          batch_indices <- sample(1:length(obsW),batchSize)
+          ds_next_train <- acquireImageFxn( imageKeysOfUnits[batch_indices], training = F)
+        }
+        if(acquireImageMethod == "tf_record"){
+          ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          batch_indices <- c(as.array(ds_next_train[[2]]))
+          ds_next_train <- ds_next_train[[1]]
+        }
+        myLoss_forGrad <- getLoss( dat = InitImageProcess(ds_next_train, training = T),
+                                   treat = tf$constant(obsW[batch_indices],tf$float32),
+                                   y = tf$constant(obsY[batch_indices],tf$float32),
                                    training = bool_ )
         if(bool_==T){ trainable_variables  <- tape$watched_variables() }
       })
     }
+
+    # don't train conv in embeddigns approach
     if(modelClass == "embeddings"){
       trainable_variables <- trainable_variables[!grepl(unlist(lapply(trainable_variables,function(zer){ zer$name })),
                                                         pattern = "conv\\d+d")]
@@ -959,11 +989,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     trainStep <-  (function(dat,y,treat, training){
 
-      with(tf$GradientTape() %as% tape, {
+      with(tf$GradientTape(watch_accessed_variables=F) %as% tape, {
+        tape$watch(  trainable_variables   )
         myLoss_forGrad <<- getLoss( dat = dat,
                                     treat = treat,
                                     y = y,
-                                    training = training)  })
+                                    training = training)
+      })
         my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
 
       # update LR
@@ -978,9 +1010,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(i > 1) { InvLR$assign_add( tf$divide( L2_grad_i,InvLR ) ) }
       {
         optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables))
-        if(LR_method == "WNGrad"){
-          optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )
-        }
+        if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
       }
 
       # update momentum
@@ -1020,33 +1050,60 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                      tapply(which(obsW==1),imageKeysOfUnits[obsW==1],function(zer){sort(unique(zer))}))
       #tauMeans <- c();i_<-1;for(i in i_:(n_sgd_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
       n_sgd_iters <- nSGD; tauMeans <- c();i_<-1;for(i in i_:nSGD){
-      if(i %% 25 == 0){gc(); py_gc$collect()}
+      if(i %% 10 == 0){gc(); py_gc$collect()}
       #batch_indices <- unlist(apply(batch_indices_list == unique_batch_indices[i],2,which))
       #batch_indices_reffed <- trainIndices[batch_indices]
       #keys_SELECTED <- sample(unique(imageKeysOfUnits),batchSize)
       #batch_indices_reffed <- sapply(keys_SELECTED,function(zer){
       #f2n(sample(as.character(which(imageKeysOfUnits %in% zer)),1L)) })
-      batch_indices_reffed <-  c(  sapply(1:2, function(ze){
-        w_keys <- UniqueImageKeysByW[[ze]]
-        samp_w_keys <- sample(unique(w_keys),max(1,round(batchSize/2)))
-        unlist(  lapply(UniqueImageKeysByIndices[[ze]][as.character(samp_w_keys)],function(fa){
-          f2n(sample(as.character(fa),1))
-        }) ) }))
       #table(  obsW[batch_indices_reffed] )
+
+
+      if(acquireImageMethod == "functional"){
+        batch_indices <-  c(  sapply(1:2, function(ze){
+          w_keys <- UniqueImageKeysByW[[ze]]
+          samp_w_keys <- sample(unique(w_keys),max(1,round(batchSize/2)))
+          unlist(  lapply(UniqueImageKeysByIndices[[ze]][as.character(samp_w_keys)],function(fa){
+            f2n(sample(as.character(fa),1))
+          }) ) }))
+        ds_next_train <- acquireImageFxn( imageKeysOfUnits[ batch_indices ], training = T)
+      }
+      if(acquireImageMethod == "tf_record"){
+        ds_next_train <- reticulate::iter_next( ds_iterator_train )
+        batch_indices <- c(as.array(ds_next_train[[2]]))
+        ds_next_train <- ds_next_train[[1]]
+
+        # if we run out of observations, reset iterator...
+        RestartedIterator <- F
+        if( is.null(ds_next_train) ){
+          print("Re-setting iterator! (type 1)")
+          ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          batch_indices <- c(as.array(ds_next_train[[2]]))
+        }
+
+        if(!RestartedIterator){
+          if(length(batch_indices) != batchSize){
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
+            print("Re-setting iterator! (type 2)")
+            ds_next_train <- reticulate::iter_next( ds_iterator_train )
+            batch_indices <- c(as.array(ds_next_train[[2]]))
+          }
+        }
+      }
 
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       # checks via e1 and e2 for embeddings case
       # e1 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
-      trainStep(dat = InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = T ),training = T),
-                y = tf$constant(obsY[batch_indices_reffed],tf$float32),
-                treat = tf$constant(obsW[batch_indices_reffed],tf$float32),
+      trainStep(dat = InitImageProcess(ds_next_train, training = T),
+                y = tf$constant(obsY[batch_indices], tf$float32),
+                treat = tf$constant(obsW[batch_indices], tf$float32),
                 training = T)
       # e2 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
       # e1 - e2 # (should be 0)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
       if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function! Perhaps batchSize is too small?")}
-      i_ <- i ; if(i %% 20 == 0 | i == 1){
+      i_ <- i ; if(i %% 20 == 0 | i < 10 ){
         print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
           try({plot(loss_vec,log="y",main="If Still Decreasing at End of Training, \n Try Increasing nSGD",cex.main = 0.95,ylab = "Loss Function Value",xlab="SGD Iteration Number");points(smooth.spline( na.omit(loss_vec) ),col="red",type = "l",lwd=5)},T)
@@ -1086,11 +1143,28 @@ AnalyzeImageHeterogeneity <- function(obsW,
   print2("Getting predicted potential outcome means...")
   for(y_t_ in c(0,1)){
     test_tab <- sort( 1:length(testIndices)%%round(length(testIndices)/max(1,round(batchFracOut*batchSize))));
+    passedIterator <- NULL
     Y_test_est <-  tapply(testIndices,test_tab,function(zer){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(zer)/length(test_tab)
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion done: %.3f",atP)) }
-      im_zer <- InitImageProcess(acquireImageFxn(  imageKeysOfUnits[zer], training = F), training = F)
+        if(acquireImageMethod == "functional"){
+          ds_next_in <- acquireImageFxn(  transportabilityMat$key[zer], training = F )
+        }
+        if(acquireImageMethod == "tf_record"){
+          #setwd(orig_wd)
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
+                                                          filename = file,
+                                                          iterator = passedIterator,
+                                                          nObs = length(imageKeysOfUnits),
+                                                          return_iterator = T)
+          passedIterator <<- ds_next_in[[2]]
+          ds_next_in <- ds_next_in[[1]]
+          #setwd(new_wd)
+          if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          ds_next_in <- ds_next_in[[1]]
+        }
+      im_zer <- InitImageProcess(ds_next_in, training = F)
       l_ <- replicate(nMonte_predictive,
                       eval(parse(text = sprintf("list(tf$expand_dims(getY%s(m=im_zer, training = F),0L))",y_t_))))
       names(l_) <- NULL;
@@ -1124,18 +1198,53 @@ AnalyzeImageHeterogeneity <- function(obsW,
   print2("Getting predicted cluster probabilities....")
   batch_indices_tab <- sort( 1:length(obsY)%%round(length(obsY)/max(1,ceiling(batchFracOut*batchSize))))
   if(heterogeneityModelType == "tarnet" | heterogeneityModelType=="variational_CNN"){
+    passedIterator <- NULL
     Y0_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
+        if(acquireImageMethod == "functional"){
+          ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
+        }
+        if(acquireImageMethod == "tf_record"){
+          #setwd(orig_wd)
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
+                                                         filename = file,
+                                                         iterator = passedIterator,
+                                                         nObs = length(imageKeysOfUnits),
+                                                         return_iterator = T)
+          passedIterator <<- ds_next_in[[2]]
+          ds_next_in <- ds_next_in[[1]]
+          #setwd(new_wd)
+          if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          ds_next_in <- ds_next_in[[1]]
+        }
+      im_indi <- InitImageProcess(ds_next_in, training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY0(im_indi,training = F)),1L),1L))
     }))
+
+    passedIterator <- NULL
     Y1_est <- do.call(rbind,tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       if(runif(1)<0.1){ gc(); py_gc$collect() }
       atP <- max(indi_/length(obsY))
       if( any(zer %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
-      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
+      if(acquireImageMethod == "functional"){
+        ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
+      }
+      if(acquireImageMethod == "tf_record"){
+        #setwd(orig_wd)
+        ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
+                                                       filename = file,
+                                                       iterator = passedIterator,
+                                                       nObs = length(imageKeysOfUnits),
+                                                       return_iterator = T)
+        passedIterator <<- ds_next_in[[2]]
+        ds_next_in <- ds_next_in[[1]]
+        #setwd(new_wd)
+        if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+        ds_next_in <- ds_next_in[[1]]
+      }
+      im_indi <- InitImageProcess(ds_next_in, training = F)
       as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY1(im_indi,training = F)),1L),1L))
     }))
     Y0_est <- Rescale(Y0_est, doMean = T)
@@ -1150,11 +1259,29 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   if(grepl(heterogeneityModelType, pattern = "variational")){
     print2("Starting estimates for cluster probabilities")
+    passedIterator <- NULL
     ClusterProbs_est <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
       atP <- max(indi_/length(obsY))
       if( any(indi_ %% 100 == 0) ){ print2(sprintf("Proportion Done: %.3f",atP)) }
       if(runif(1)<0.1){ gc(); py_gc$collect() }
-      im_indi <- InitImageProcess(acquireImageFxn( imageKeysOfUnits[indi_],training = F), training = F)
+      if(acquireImageMethod == "functional"){
+        ds_next_in <- acquireImageFxn(  transportabilityMat$key[indi_], training = F )
+      }
+
+      if(acquireImageMethod == "tf_record"){
+        #setwd(orig_wd)
+        ds_next_in <- GetElementFromTfRecordAtIndices( indices = indi_,
+                                                       filename = file,
+                                                       iterator = passedIterator,
+                                                       nObs = length(imageKeysOfUnits),
+                                                       return_iterator = T)
+        passedIterator <<- ds_next_in[[2]]
+        ds_next_in <- ds_next_in[[1]]
+        #setwd(new_wd)
+        if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+        ds_next_in <- ds_next_in[[1]]
+      }
+      im_indi <- InitImageProcess(ds_next_in, training = F)
       ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_indi,training = F)))
       ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
       ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
@@ -1223,8 +1350,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(runif(1)<0.1){ gc(); py_gc$collect() }
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
-        im_keys <- InitImageProcess(acquireImageFxn(  transportabilityMat$key[zer],
-                                        training = F ), training = F)
+        if(acquireImageMethod == "functional"){
+          ds_next_in <- acquireImageFxn(  transportabilityMat$key[zer], training = F )
+        }
+
+        if(acquireImageMethod == "tf_record"){
+          #setwd(orig_wd)
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
+                                                         filename = file,
+                                                         nObs = length(imageKeysOfUnits) )
+          #setwd(new_wd)
+          if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          ds_next_in <- ds_next_in[[1]]
+        }
+        im_keys <- InitImageProcess(ds_next_in, training = F)
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
@@ -1430,17 +1569,26 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     if(all(dist_m >= 1000)){isUnique_ <- T}
                 } }
                 if(i == 1){ isUnique_<-T }
-                print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
-                if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
               }
 
               used_coordinates <- rbind(coordinate_i,used_coordinates)
               print2(c(k_, i, im_i, long[im_i], lat[im_i]))
-              if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
+
+              if(acquireImageMethod == "functional"){
+                ds_next_in <- acquireImageFxn(  transportabilityMat$key[im_i], training = F )
+              }
+              if(acquireImageMethod == "tf_record"){
+                #setwd(orig_wd)
+                ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
+                                                               filename = file,
+                                                               nObs = length(imageKeysOfUnits) )
+                #setwd(new_wd)
+                ds_next_in <- ds_next_in[[1]]
+                if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
+              }
 
               if(length(plotBands) < 3){
-                  orig_scale_im_raster <-  (as.array(acquireImageFxn(
-                        imageKeysOfUnits[im_i], training = F )[1,,,plotBands[1]]))
+                  orig_scale_im_raster <-  (as.array(ds_next_in[1,,,plotBands[1]]))
                   causalimages::image2(
                     as.matrix( orig_scale_im_raster ),
                     main = main_, cex.main = 4,
@@ -1452,8 +1600,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                   no = ""))
               }
               if(length(plotBands) >= 3){
-                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
-                                        imageKeysOfUnits[im_i], training = F )[1,,,plotBands])) )
+                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,,,plotBands])) )
                 raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
@@ -1508,11 +1655,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
                                                             kernel_size = gradAnalysisFilterDim <- 10L,
                                                             padding = "valid")
-                    AveragingConv( tf$expand_dims(tf$gather(acquireImageFxn(  imageKeysOfUnits[im_i],training = F),1L, axis = 3L),3L)  )
+                    AveragingConv( tf$expand_dims(tf$gather(ds_next_in,1L, axis = 3L),3L)  )
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
-                  IG <- as.array( ImageGrad_fxn( InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F),
-                                                                   training = F)  ))
+                  IG <- as.array( ImageGrad_fxn( InitImageProcess(ds_next_in, training = F)  ))
                   nColors <- 1000
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
@@ -1528,7 +1674,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                             col = viridis::magma(nColors - 1),
                             breaks = gradMag_breaks, axes = F),T)
                   if("try-error" %in% class(magPlot)){
-                    browser()
                     print2("magPlot broken")
                   }
                   ylab_ <- ""; if(i==1){
@@ -1612,17 +1757,30 @@ AnalyzeImageHeterogeneity <- function(obsW,
                       if(all(dist_m >= 1000)){isUnique_ <- T}
                     } }
                   if(i == 1){ isUnique_<-T }
-                  print2(sd_im <- sd(as.array(acquireImageFxn(  imageKeysOfUnits[im_i], training = F )[1,,,]),na.rm=T))
+                  print2(sd_im <- sd(as.array(ds_next_in[1,,,]),na.rm=T))
                   if(sd_im < .5){ bad_counter <- bad_counter + 1; isUnique_ <- F }
                 }
 
                 used_coordinates <- rbind(coordinate_i,used_coordinates)
                 print2(c(k_, i, im_i, long[im_i], lat[im_i]))
-                if(is.na(sum((as.array(acquireImageFxn( imageKeysOfUnits[im_i] )[1,,,]))))){ browser() }
+
+                # load in video
+                if(acquireImageMethod == "functional"){
+                  ds_next_in <- acquireImageFxn(  transportabilityMat$key[im_i], training = F )
+                }
+                if(acquireImageMethod == "tf_record"){
+                  #setwd(orig_wd)
+                  ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
+                                                                 filename = file,
+                                                                 nObs = length(imageKeysOfUnits) )
+                  #setwd(new_wd)
+                  ds_next_in <- ds_next_in[[1]]
+                  if(length(ds_next_in$shape) == 4){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
+                }
+
 
                 if(length(plotBands) < 3){
-                  orig_scale_im_raster <-  (as.array(acquireImageFxn(
-                    imageKeysOfUnits[im_i], training = F )[1,,,,plotBands[1]]))
+                  orig_scale_im_raster <-  (as.array(ds_next_in[1,,,,plotBands[1]]))
                   animation::saveGIF({
                     for (t_ in 1:nTimeSteps) {
                       causalimages::image2(
@@ -1642,10 +1800,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
                     print( im_i )
-                    orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(acquireImageFxn(
-                      imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])) +
-                      runif(length(as.array(acquireImageFxn(
-                        imageKeysOfUnits[im_i], training = F )[1,t_, , ,plotBands])),
+                    orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
+                      runif(length(as.array(ds_next_in[1,t_, , ,plotBands])),
                         min = 0, max = 0.01) # random jitter
                       )
                     # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
@@ -1710,12 +1866,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                                 kernel_size = c(1L, (gradAnalysisFilterDim<-10L), 10L),
                                                                 padding = "valid")
                       AveragingConv( tf$expand_dims(tf$gather(
-                        InitImageProcess(acquireImageFxn(  imageKeysOfUnits[im_i],training = F),training = F),
+                        InitImageProcess(ds_next_in,training = F),
                                          1L, axis = 4L),4L)  )
                       AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                     }
                     IG <- as.array( ImageGrad_fxn(
-                          m = InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F)
+                          m = InitImageProcess(ds_next_in, training = F)
                                 ))[1,,,,]
 
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,1,,,1])
