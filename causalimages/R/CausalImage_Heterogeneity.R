@@ -321,13 +321,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
   kernelSize_est <- as.integer(  kernelSize )
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
-  LEARNING_RATE_BASE <- .005; widthCycle <- 50
+  widthCycle <- 50
   WhenPool <- c(1,2)
-  INV_TEMP_GLOBAL <- 1/2
+  TEMP_GLOBAL <- 5.
   #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
-  #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
-  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
-  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
+  #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
+  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
+  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
   BN_MOM <- 0.9
   BN_EP <- 0.01
   if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- 0.90^(1/nMonte_variational) }
@@ -562,12 +562,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         MeanDist_tau[k_,"Prior"][[1]] <- list( tfd$Normal(Tau_mean_init_prior, 2*sd(tau_vec) ))
 
         # Y0
-        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(3*Y0_sds_prior_mean,trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
+        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(10*Y0_sds_prior_mean,trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
         SDDist_Y0[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name=sprintf("SDY0%s_sd",k_)) )
         SDDist_Y0[k_,"Prior"][[1]] <- list( tfd$Normal(Y0_sd_init_prior,2*sd(Y0_sd_vec)))
 
         # Y0
-        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(3*Y1_sds_prior_mean,trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
+        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(10*Y1_sds_prior_mean,trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
         SDDist_Y1[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name=sprintf("SDY1%s_sd",k_)) )
         SDDist_Y1[k_,"Prior"][[1]] <- list( tfd$Normal(Y1_sd_init_prior,2*sd(Y1_sd_vec)))
 
@@ -655,7 +655,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # final projection layer
       m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterProj(m) })
       if(BNPreOutput){m <- BNLayer_Axis1_Proj(m, training = training) }
-      m <- tf$concat(list( tf$zeros(list(tf$shape(m)[1],1L)),m),1L)
+      m <- tf$concat(list( tf$zeros(list(tf$shape(m)[1],1L)), m),1L)
       return( m  )
     })
 
@@ -682,27 +682,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
 
       } )
-      getY0 <- tf_function_fxn(function(  m , training  ){
+      getEY0 <- tf_function_fxn(function(  m , training  ){
         m <- getImageRep(m,training=training)
-        return( getY0_finalStep(m,training=training) )
+        return( getEY0_finalStep(m,training=training) )
       })
-      getY1 <- tf_function_fxn(function(  m , training  ){
+      getEY1 <- tf_function_fxn(function(  m , training  ){
         m <- getImageRep(m,training=training)
-        return( getY1_finalStep(m,training=training) )
+        return( getEY1_finalStep(m,training=training) )
       })
-      getY0_finalStep <- tf_function_fxn(function(  m , training  ){
+      getEY0_finalStep <- tf_function_fxn(function(  m , training  ){
         m <- with(tf$device( ProbLayerExecutionDevice ), { Y0Proj(m) } )
         if(BNPreOutput){m <- BNLayer_Axis1_ProjY0(m, training = training)}
         return( m  )
       } )
-      getY1_finalStep <- tf_function_fxn( function(  m , training){
+      getEY1_finalStep <- tf_function_fxn( function(  m , training){
         m <- with(tf$device( ProbLayerExecutionDevice ), { Y1Proj(m) } )
         if(BNPreOutput){m <- BNLayer_Axis1_ProjY1(m, training = training)}
         return( m  )
       } )
     }
     if(grepl(heterogeneityModelType, pattern = "variational")){
-      getY0 <- tf_function_fxn(function(  m , training  ){
+      getEY0 <- tf_function_fxn(function(  m , training  ){
         if(! heterogeneityModelType %in% "variational_minimal_visualizer"){
 
           # convolution model
@@ -743,8 +743,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( tf$nn$softmax(getClusterLogits(m, training = training), 1L) )
       })
       getClusterSamp_logitInput <- tf_function_fxn( function(logits_){
-        #clustT_samp = tf$cast(tfd$OneHotCategorical(logits = logits_)$sample(1L),dtype = tf$float32)
-        clustT_samp = tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, logits = logits_)$sample(1L)
+        clustT_samp = tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, logits = logits_)$sample(1L)
       })
 
       if(heterogeneityModelType == "variational_CNN"){
@@ -781,27 +780,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
           m_ret <- tf$concat(m_ret,1L)
           return( m_ret  )
         } )
-        getY1 <- tf_function_fxn( function(  m , training){
-          Y0 <- getY0(m = m,
+        getEY1 <- tf_function_fxn( function(  m , training){
+          EY0 <- getEY0(m = m,
                       training = training)
           Clust_logits <- getClusterLogits(m,training = training)
           clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
-          tau_i <- getTau(m,training = training)
-          tau_i <- tf$reduce_sum(tf$multiply(tau_i, clustT),1L,keepdims=T)
-          Y1 <- Y0 + tau_i
-          return(  Y1   )
+          Etau_i <- getTau(m, training = training)
+          Etau_i <- tf$reduce_sum(tf$multiply(Etau_i, clustT), axis = 1L, keepdims=T)
+          EY1 <- EY0 + Etau_i
+          return(  EY1   )
         } )
       }
       if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
-        getY1 <- tf_function_fxn( function(  m , training){
-          Y0 <- getY0(m=m,training = training)
+        getEY1 <- tf_function_fxn( function(  m , training){
+          EY0 <- getEY0(m=m,training = training)
           Clust_logits <- getClusterLogits(m,training = training)
           clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
           ETau_draw <-  (tfd$Normal(getTau_means(),
                                     tf$nn$softplus(MeanDist_tau[,"SD"])))$sample(1L)
-          tau_i <- tf$reduce_sum(tf$multiply(ETau_draw, clustT),1L,keepdims=T)
-          Y1 <- Y0 + tau_i
-          return(  Y1   )
+          Etau_i <- tf$reduce_sum(tf$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
+          EY1 <- EY0 + Etau_i
+          return(  EY1   )
         } )
       }
       marginal_tau <- tf$constant(mean(obsY[obsW==1],na.rm=T)-mean(obsY[obsW==0],na.rm=T), tf$float32)
@@ -827,7 +826,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Clust_probs <- tf$nn$softmax(Clust_logits, 2L)
       #CategoricalPost <- tfd$Categorical(probs = Clust_probs)
 
-      EY0_i <- replicate(nMonte_internal,tf$expand_dims(getY0(dat,training = training),0L))
+      EY0_i <- replicate(nMonte_internal,tf$expand_dims(getEY0(dat,training = training),0L))
       EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
 
       # enforce ATE
@@ -856,7 +855,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Y_Sigma <- (tf$multiply( 1 - treat , Sigma2_Y0_i ) +
                     tf$multiply( treat, Sigma2_Y1_i ))^0.5
       Y_Mean <- tf$multiply( 1 - treat, EY0_i ) +
-        tf$multiply( treat, EY1_i)
+                     tf$multiply( treat, EY1_i)
 
       # some commented analyses to triple-check code correctness re: initialization
       #plot(as.numeric(tf$reduce_mean(Y_Mean,0L)),as.numeric(y),col=as.numeric(treat)+1);abline(a=0,b=1)
@@ -933,8 +932,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     getLoss <- ( function(dat,treat,y,training){
       if(heterogeneityModelType == "tarnet"){
         m <- getImageRep(dat,training = training)
-        Y0_hat <- getY0_finalStep(m,training=training)
-        Y1_hat <- getY1_finalStep(m,training=training)
+        Y0_hat <- getEY0_finalStep(m,training=training)
+        Y1_hat <- getEY1_finalStep(m,training=training)
         Yobs_hat <- tf$multiply(Y1_hat,tf$expand_dims(treat,1L)) +
                                   tf$multiply(Y0_hat,tf$expand_dims(1-treat,1L))
         minThis <- tf$reduce_sum(tf$square(tf$expand_dims(y,1L) - Yobs_hat))
@@ -1239,7 +1238,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ds_next_in <- ds_next_in[[1]]
         }
       im_indi <- InitImageProcess(ds_next_in, training = F)
-      as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY0(im_indi,training = F)),1L),1L))
+      as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getEY0(im_indi,training = F)),1L),1L))
     }))
 
     passedIterator <- NULL
@@ -1267,7 +1266,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ds_next_in <- ds_next_in[[1]]
       }
       im_indi <- InitImageProcess(ds_next_in, training = F)
-      as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getY1(im_indi,training = F)),1L),1L))
+      as.matrix(tf$reduce_mean(tf$concat(replicate(nMonte_predictive,getEY1(im_indi,training = F)),1L),1L))
     }))
     Y0_est <- Rescale(Y0_est, doMean = T)
     Y1_est <- Rescale(Y1_est, doMean = T)
@@ -1587,8 +1586,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
 
                 coordinate_i <- c(long[im_i], lat[im_i])
-                if(bad_counter>50){browser()}
-                if(i > 1){
+                if(  bad_counter>length(obsY)  ){ browser() }
+                if(  i > 1  ){
                   isUnique_ <- F; if(!is.null(long)){
                     dist_m <- geosphere::distm(coordinate_i,
                                                used_coordinates,
@@ -1693,21 +1692,26 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
                   IG <- as.array( ImageGrad_fxn( InitImageProcess(ds_next_in, training = F)  ))
-                  nColors <- 1000
+                  {
+                    zzz
+                    nColors <- 1000
+                    pos_breaks <- try(sort( quantile(c(0,0,0,0,0,0),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                  }
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
-                    pos_breaks <- try(sort( quantile(c(IG[,,2][IG[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    IG_forBreaks <- IG + runif(length(IG),-0.0000001, 0.0000001)
+                    pos_breaks <- try(sort( quantile(c(IG_forBreaks[,,2][IG_forBreaks[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
                     if(class(pos_breaks) == "try-error"){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
 
-                    neg_breaks <- try(sort(quantile(c(IG[,,2][IG[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    neg_breaks <- try(sort(quantile(c(IG_forBreaks[,,2][IG_forBreaks[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
                     if(class(neg_breaks) == "try-error"){neg_breaks <-  seq(-1, 0,length.out=nColors/2) }
 
-                    gradMag_breaks <- try(sort(quantile((c(IG[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
+                    gradMag_breaks <- try(sort(quantile((c(IG_forBreaks[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
                     if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors) }
                   }
 
                   # magnitude
-                  print2(summary(c( IG[,,1] )))
+                  try(print2(summary(c( IG[,,1] ))), T)
                   magPlot <- try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
                             col = viridis::magma(nColors - 1),
                             breaks = gradMag_breaks, axes = F),T)
@@ -1715,13 +1719,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     print2("magPlot broken")
                   }
                   ylab_ <- ""; if(i==1){
-                    axis(side = 2,at=0.5,labels = "Salience Magnitude",
-                         pos=-0.,tick=F, cex.axis=3, col.axis=k_)
+                    try(axis(side = 2,at=0.5,labels = "Salience Magnitude",
+                         pos=-0.,tick=F, cex.axis=3, col.axis=k_),T)
                   }
 
                   # direction
                   dirPlot <- try(image(t(IG[,,2])[,nrow(IG[,,2]):1],
-                            col = c(hcl.colors(nColors/2 - 1,"reds"),
+                            col = c(hcl.colors(nColors/2-1L,"reds"),
                                     hcl.colors(nColors/2 ,"blues")),
                             breaks = c(neg_breaks,pos_breaks), axes = F),T)
                   if("try-error" %in% class(dirPlot)){print2("dirPlot broken")}
