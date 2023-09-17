@@ -7,23 +7,25 @@
 # Stay tuned! Contributions & bug fixes are welcome!
 ################################
 
-# specify uganda data URL
-uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
+# run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
+if(T == F){
+  # specify uganda data URL
+  uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
+  download_folder <- "~/Downloads/UgandaAnalysis.zip"
 
-# download into new directory
-download.file( uganda_data_url,  destfile = download_folder)
+  # download into new directory
+  download.file( uganda_data_url,  destfile = download_folder)
 
-# unzip and list files
-unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
+  # unzip and list files
+  unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
+}
 
 # remote install latest version of the package if needed
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 
 # local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
-
-download_folder <- "~/Downloads/UgandaAnalysis.zip"
 
 # load in package
 library( causalimages  )
@@ -63,6 +65,9 @@ UgandaDataProcessed$Wobs
 # (not just experimental context, use for constructing transportability maps)
 UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
 tail( UgandaGeoKeyMat )
+
+# set outcome to an income index
+UgandaDataProcessed$Yobs <- UgandaDataProcessed$income_index_e_RECREATED
 
 # drop observations with NAs in key variables
 # (you can also use a multiple imputation strategy)
@@ -129,7 +134,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
   # checks out okay, we're good to move on
 }
 
-# initial image-based heterogeneity analysis
+# image-based heterogeneity analysis
 if(T == F){
 ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
   # data inputs
@@ -250,6 +255,9 @@ if(T == T){
   if(T == F){
     # run code to (re)create tfrecord
     # write a tf records repository
+    # whenever changes are made to the
+    # input data to AnalyzeImageHeterogeneity,
+    #  WriteTfRecord() should be re-run
     WriteTfRecord(  file = tfrecord_loc,
                     imageKeys = UgandaDataProcessed$geo_long_lat_key,
                     acquireImageFxn = acquireImageFromDisk,
@@ -288,9 +296,9 @@ if(T == T){
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
-    nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-    nSGD = 1000L, # make this larger for real applications (e.g., 2000L)
-    batchSize = 64L, # make this larger for real application (e.g., 50L)
+    nMonte_variational = 10L, # make this larger for real application (e.g., 10)
+    nSGD = 500L, # make this larger for real applications (e.g., 2000L)
+    batchSize = 32L, # make this larger for real application (e.g., 50L)
     compile = T,
     channelNormalize = T,
     yDensity = "normal",

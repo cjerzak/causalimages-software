@@ -554,7 +554,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       for(k_ in 1:kClust_est){
         # prior SD - subject-matter knowledge informs this
         # set this to a small number so network starts off as nearly deterministic
-        sd_init_trainableParams <- as.numeric(tfp$math$softplus_inverse(0.01))
+        sd_init_trainableParams <- as.numeric(tfp$math$softplus_inverse(0.0001))
 
         MeanDist_tau[k_,"Mean"][[1]] <- list( tf$Variable(Tau_means_init[k_],trainable=T,name=sprintf("MeanTau%s_mean",k_) ) )
         MeanDist_tau[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name = sprintf("MeanTau%s_sd",k_) ) )
@@ -1110,7 +1110,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # e1 - e2 # (should be 0)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
-      if(is.na(myLoss_forGrad)){stop("Stopping: NA in loss function! Perhaps batchSize is too small?")}
+      if(is.na(myLoss_forGrad)){
+        browser()
+        stop("Stopping: NA in loss function! Perhaps batchSize is too small?")
+      }
       i_ <- i ; if(i %% 20 == 0 | i < 10 ){
         print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
