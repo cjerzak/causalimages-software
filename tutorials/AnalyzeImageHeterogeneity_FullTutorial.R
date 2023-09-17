@@ -21,7 +21,7 @@ if(T == F){
   unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
 }
 
-# remote install latest version of the package if needed
+# remote install latest version of the package
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 
 # local install for development team

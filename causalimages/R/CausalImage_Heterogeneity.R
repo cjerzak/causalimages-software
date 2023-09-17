@@ -322,7 +322,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
   LEARNING_RATE_BASE <- .005; widthCycle <- 50
-  INV_TEMP_GLOBAL <- 1/0.5
+  INV_TEMP_GLOBAL <- 1/2
   WhenPool <- c(1,2)
   #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
