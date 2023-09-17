@@ -122,7 +122,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       channelNormalize = T,
                                       modelClass = "cnn",
                                       nEmbedDim = 96L,
-                                      LEARNING_RATE_BASE = 0.0005,
+                                      LEARNING_RATE_BASE = 0.005,
                                       printDiagnostics = F,
                                       TfRecords_BufferScaler = 4L,
                                       dataType = "image",
@@ -1596,7 +1596,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
               }
 
               used_coordinates <- rbind(coordinate_i,used_coordinates)
-              print2(c(k_, i, im_i, long[im_i], lat[im_i]))
+              print(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
+                        as.integer(k_), as.integer(i), as.integer(im_i),
+                                 long[im_i], lat[im_i]))
 
               if(acquireImageMethod == "functional"){
                 ds_next_in <- acquireImageFxn(  transportabilityMat$key[im_i], training = F )
@@ -1625,7 +1627,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                   no = ""))
               }
               if(length(plotBands) >= 3){
-                orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,,,plotBands])) )
+                orig_scale_im_raster <- raster::brick( 0.0001 +
+                    runif(length(as.array(ds_next_in[1, , ,plotBands])), min = 0, max = 0.01) + # random jitter
+                    (as.array(ds_next_in[1,,,plotBands])) )
+                # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                 raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
                                  r = 1, g = 2, b = 3,
@@ -1729,7 +1734,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       }
 
-
       if(CausalImagesDataType == "video"){
         plot_fxn <- function(){
           {
@@ -1826,8 +1830,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     for(t_ in 1:nTimeSteps){
                     print( im_i )
                     orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
-                      runif(length(as.array(ds_next_in[1,t_, , ,plotBands])),
-                        min = 0, max = 0.01) # random jitter
+                      runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
                       )
                     # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                     raster::plotRGB(  orig_scale_im_raster,

@@ -284,17 +284,17 @@ if(T == T){
     # other modeling options
     #modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
     modelClass = "embeddings", nEmbedDim = 128L, kernelSize = 9L,# image embeddings model class
-    LEARNING_RATE_BASE = 0.0005,
+    LEARNING_RATE_BASE = 0.005,
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
     nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-    nSGD = 500L, # make this larger for real applications (e.g., 2000L)
-    batchSize = 34L, # make this larger for real application (e.g., 50L)
+    nSGD = 1000L, # make this larger for real applications (e.g., 2000L)
+    batchSize = 64L, # make this larger for real application (e.g., 50L)
     compile = T,
     channelNormalize = T,
     yDensity = "normal",
-    maxPoolSize = 2L, strides = 2L,
+    maxPoolSize = 2L, strides = 3L,
     nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
     nFilters = 50L, # vary the following depending on image type and GPU memory
     nDepthHidden_dense = 0L,
@@ -349,13 +349,13 @@ if(T == F){
 
     # other modeling options
     #modelClass = "cnn", kernelSize = 3L, # CNN image modeling class
-    modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 3L, temporalKernelSize = 2L, # image/video embeddings model class
+    modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 9L, temporalKernelSize = 2L, # image/video embeddings model class
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
     nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-    nSGD = 4L, # make this larger for real applications (e.g., 2000L)
-    batchSize = 34L, # make this larger for real application (e.g., 50L)
+    nSGD = 100L, # make this larger for real applications (e.g., 2000L)
+    batchSize = 50L, # make this larger for real application (e.g., 50L)
     compile = T,
     channelNormalize = T,
     yDensity = "normal",
