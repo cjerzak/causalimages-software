@@ -322,8 +322,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
   LEARNING_RATE_BASE <- .005; widthCycle <- 50
-  INV_TEMP_GLOBAL <- 1/2
   WhenPool <- c(1,2)
+  INV_TEMP_GLOBAL <- 1/2
+  #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
   #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = 1/INV_TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
@@ -1696,9 +1697,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
                     pos_breaks <- try(sort( quantile(c(IG[,,2][IG[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    if(class(pos_breaks) == "try-error"){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
+
                     neg_breaks <- try(sort(quantile(c(IG[,,2][IG[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
+                    if(class(neg_breaks) == "try-error"){neg_breaks <-  seq(-1, 0,length.out=nColors/2) }
+
                     gradMag_breaks <- try(sort(quantile((c(IG[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                    if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors/2) }
+                    if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors) }
                   }
 
                   # magnitude
@@ -1902,8 +1907,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                       AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                     }
                     IG <- as.array( ImageGrad_fxn(
-                          m = InitImageProcess(ds_next_in, training = F)
-                                ))[1,,,,]
+                          m = InitImageProcess(ds_next_in, training = F)))[1,,,,]
 
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,1,,,1])
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,2,,,1])
@@ -1913,10 +1917,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     nColors <- 1000
                     { #if(i == 1){
                       # pos/neg breaks should be on the same scale across observation
-                      pos_breaks <- try(sort( quantile(c(IG[,,,2][IG[,,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                      neg_breaks <- try(sort(quantile(c(IG[,,,2][IG[,,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
                       gradMag_breaks <- try(sort(quantile((c(IG[,,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                      if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors/2) }
+                      if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out = nColors) }
                     }
 
                     # magnitude - check for changes in salings
