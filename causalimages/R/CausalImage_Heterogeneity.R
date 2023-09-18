@@ -1635,8 +1635,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
               }
               if(length(plotBands) >= 3){
                 orig_scale_im_raster <- raster::brick( 0.0001 +
-                    runif(length(as.array(ds_next_in[1, , ,plotBands])), min = 0, max = 0.01) + # random jitter
+                    0*runif(length(as.array(ds_next_in[1, , ,plotBands])), min = 0, max = 0.01) + # random jitter
                     (as.array(ds_next_in[1,,,plotBands])) )
+                stretch <- ifelse(
+                    any(apply(as.array(ds_next_in[1, , ,plotBands]), 3,sd) < 1.),
+                            yes = "", no = "lin")
+                #raster::plotRGB(raster::brick(abs(tmp)),stretch="")
                 # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                 raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
@@ -1649,7 +1653,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                 fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                 fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                            no = ""),
-                                 col.main = k_, cex.main=4,  stretch = "lin")
+                                 col.main = k_, cex.main=4,  stretch = stretch)
               }
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
@@ -1846,6 +1850,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
                       runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
                       )
+                    stretch <- ifelse(
+                      any(apply(as.array(ds_next_in[1,t_, , ,plotBands]), 3,sd) < 1.),
+                      yes = "", no = "lin")
                     # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                     raster::plotRGB(  orig_scale_im_raster,
                                       margins = T,
@@ -1858,7 +1865,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                                   fixZeroEndings(round(coordinate_i,2L)[1],2L),
                                                                   fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                                     no = ""),
-                                      col.main = k_, cex.main=4,  stretch = "lin")
+                                      col.main = k_, cex.main=4,  stretch = stretch)
                     }}, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
                                                figuresPath, pdf_name_key, figuresTag, k_, i) )
                 }
