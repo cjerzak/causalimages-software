@@ -850,7 +850,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(batchSize)),0L)
 
       Etau_i <- try(tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L ),T)
-      if('try-error' %in% class(Etau_i){browser()}
+      if('try-error' %in% class(Etau_i)){browser()}
       EY1_i <- EY0_i + Etau_i
       impliedATE <- tf$reduce_mean(Etau_i,1L)
       Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( EY0SD_draw^2, clustT),2L)
