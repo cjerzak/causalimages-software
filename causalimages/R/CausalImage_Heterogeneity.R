@@ -1594,7 +1594,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 if(  i > 1  ){
                   isUnique_ <- F; if(!is.null(long)){
                     dist_m <- geosphere::distm(coordinate_i,
-                                               used_coordinates,
+                                               used_coordinates[,-1],
                                                fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
                     if(all(dist_m >= 1000)){isUnique_ <- T}
@@ -1602,7 +1602,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 if(i == 1){ isUnique_<-T }
               }
 
-              used_coordinates <- rbind(coordinate_i,used_coordinates)
+              used_coordinates <- rbind(used_coordinates, c("observation_index"=im_i, coordinate_i))
               print(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
                         as.integer(k_), as.integer(i), as.integer(im_i),
                                  long[im_i], lat[im_i]))
@@ -1712,10 +1712,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
 
                   # magnitude
-                  try(print2(summary(c( IG[,,1] ))), T)
-                  magPlot <- try(image(t(IG[,,1])[,nrow(IG[,,1]):1],
+                  # try(print2(summary(c( IG[,,1] ))), T)
+                  magPlot <- image(t(IG[,,1])[,nrow(IG[,,1]):1],
                             col = viridis::magma(nColors - 1),
-                            breaks = gradMag_breaks, axes = F),T)
+                            breaks = gradMag_breaks, axes = F)
                   if("try-error" %in% class(magPlot)){
                     print2("magPlot broken")
                   }
@@ -1725,19 +1725,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
 
                   # direction
-                  dirPlot <- try(image(t(IG[,,2])[,nrow(IG[,,2]):1],
+                  dirPlot <- image(t(IG[,,2])[,nrow(IG[,,2]):1],
                             col = c(hcl.colors(nColors/2-1L,"reds"),
                                     hcl.colors(nColors/2 ,"blues")),
-                            breaks = c(neg_breaks,pos_breaks), axes = F),T)
+                            breaks = c(neg_breaks,pos_breaks), axes = F)
                   if("try-error" %in% class(dirPlot)){print2("dirPlot broken")}
                   ylab_ <- ""; if(i==1){
-                    axis(side = 2,at=0.5,labels = "Salience Direction",
-                         pos=-0.,tick=F, cex.axis=3, col.axis=k_)
+                    try( axis(side = 2,at=0.5,labels = "Salience Direction",
+                            pos=-0.,tick=F, cex.axis=3, col.axis=k_),  T)
                   }
                 }
               }
             }
-            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates),T)
+            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,
+                                                  used_coordinates ),T)
             if("try-error" %in% class(plotting_coordinates_mat)){browser()}
             print2(used_coordinates)
           }
@@ -1944,7 +1945,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
                 }
               }
-              plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates),T)
+              plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,
+                                                    c("observation_index"=im_i, used_coordinates)),T)
               if("try-error" %in% class(plotting_coordinates_mat)){browser()}
               print2(used_coordinates)
             }
@@ -1953,10 +1955,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       }
 
-      plotting_coordinates_mat <- try(plot_fxn(),T)
-      if("try-error" %in% class(plotting_coordinates_mat)){ browser() }
-      plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat
+      plotting_coordinates_mat_ <- try(plot_fxn(),T)
+
+      # tests
+      if(T == F){
+        # table(UgandaDataProcessed_$geo_long_lat_key[plotting_coordinates_mat_[,"observation_index"]])
+        # table(imageKeysOfUnits[plotting_coordinates_mat_[,"observation_index"]])
+        ds_next_in <- GetElementFromTfRecordAtIndices( indices = as.integer(plotting_coordinates_mat_[,1]),
+                                                       filename = file,
+                                                       readVideo = useVideo,
+                                                       nObs = length(imageKeysOfUnits) )
+        imageKeysOfUnits[plotting_coordinates_mat_[,"observation_index"]]
+        ds_next_in[[3]]
+        image2(as.array(ds_next_in[[1]])[1,,,1])
+        image2(as.array(ds_next_in[[1]])[2,,,1])
+        image2(as.array(ds_next_in[[1]])[3,,,1])
+      }
+      try(dev.off(),T)
+      if("try-error" %in% class(plotting_coordinates_mat_)){ browser() }
+      plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat_
     }
+    browser()
     try({ names(plotting_coordinates_list) <- typePlot_vec},T)
     par(mfrow=c(1,1))
 

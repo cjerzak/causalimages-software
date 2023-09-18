@@ -259,7 +259,7 @@ if(T == T){
     # input data to AnalyzeImageHeterogeneity,
     #  WriteTfRecord() should be re-run
     WriteTfRecord(  file = tfrecord_loc,
-                    imageKeys = UgandaDataProcessed$geo_long_lat_key,
+                    imageKeys = UgandaDataProcessed_$geo_long_lat_key,
                     acquireImageFxn = acquireImageFromDisk,
                     conda_env = "tensorflow_m1"  )
   }
@@ -292,12 +292,12 @@ if(T == T){
     # other modeling options
     #modelClass = "cnn",  kernelSize = 3L, # CNN image modeling class
     modelClass = "embeddings", nEmbedDim = 128L, kernelSize = 9L,# image embeddings model class
+    nSGD = 5L, # make this larger for real applications (e.g., 2000L)
     LEARNING_RATE_BASE = 0.005,
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
     nMonte_variational = 10L, # make this larger for real application (e.g., 10)
-    nSGD = 500L, # make this larger for real applications (e.g., 2000L)
     batchSize = 32L, # make this larger for real application (e.g., 50L)
     compile = T,
     channelNormalize = T,
@@ -318,12 +318,15 @@ if(T == F){
   # make sure to set seed so you can re-use the saved tfrecord
   tfrecord_loc <- "~/Downloads/UgandaExampleVideo.tfrecord"
   set.seed(144L); UgandaDataProcessed_ <- UgandaDataProcessed[sample(1:nrow(UgandaDataProcessed)),]
+  # we keep a copy of the original data but
+  # will *always* use the shuffled copy for *all future analyzes*
+  # where tf records are involved to avoid bugs!
 
   if(T == F){
     # run code to (re)create tfrecord
     # write a tf records repository
     WriteTfRecord(  file = tfrecord_loc,
-                    imageKeys = UgandaDataProcessed$geo_long_lat_key,
+                    imageKeys = UgandaDataProcessed_$geo_long_lat_key,
                     acquireImageFxn = acquireVideoRepFromDisk,
                     writeVideo = T,
                     conda_env = "tensorflow_m1"  )
