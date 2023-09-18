@@ -1696,11 +1696,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
                   }
                   IG <- as.array( ImageGrad_fxn( InitImageProcess(ds_next_in, training = F)  ))
-                  {
-                    zzz
-                    nColors <- 1000
-                    pos_breaks <- try(sort( quantile(c(0,0,0,0,0,0),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                  }
                   { #if(i == 1){
                     # pos/neg breaks should be on the same scale across observation
                     IG_forBreaks <- IG + runif(length(IG),-0.0000001, 0.0000001)
