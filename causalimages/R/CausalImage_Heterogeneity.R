@@ -562,12 +562,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         MeanDist_tau[k_,"Prior"][[1]] <- list( tfd$Normal(Tau_mean_init_prior, 2*sd(tau_vec) ))
 
         # Y0
-        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(10*Y0_sds_prior_mean,trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
+        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(1*Y0_sds_prior_mean,trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
         SDDist_Y0[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name=sprintf("SDY0%s_sd",k_)) )
         SDDist_Y0[k_,"Prior"][[1]] <- list( tfd$Normal(Y0_sd_init_prior,2*sd(Y0_sd_vec)))
 
         # Y0
-        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(10*Y1_sds_prior_mean,trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
+        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(1*Y1_sds_prior_mean,trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
         SDDist_Y1[k_,"SD"][[1]] <- list( tf$Variable(sd_init_trainableParams,trainable=T,name=sprintf("SDY1%s_sd",k_)) )
         SDDist_Y1[k_,"Prior"][[1]] <- list( tfd$Normal(Y1_sd_init_prior,2*sd(Y1_sd_vec)))
 
@@ -826,7 +826,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Clust_probs <- tf$nn$softmax(Clust_logits, 2L)
       #CategoricalPost <- tfd$Categorical(probs = Clust_probs)
 
-      EY0_i <- replicate(nMonte_internal,tf$expand_dims(getEY0(dat,training = training),0L))
+      EY0_i <- replicate(nMonte_internal, tf$expand_dims(getEY0(dat,training = training),0L))
       EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
 
       # enforce ATE
@@ -836,19 +836,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
         Tau_mean_vec <- getTau_means()
-        MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
+        MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec,
+                                        (Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"]))))
         ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(batchSize),0L)
       }
 
-      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
+      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]),
+                                   tf$nn$softplus(SDDist_Y1[,"SD"])))
       EY1SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y1_post$sample(batchSize)),0L)
 
-      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
+      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]),
+                                   tf$nn$softplus(SDDist_Y0[,"SD"])))
       EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(batchSize)),0L)
 
-      tau_i <- tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L )
-      EY1_i <- EY0_i + tau_i
-      impliedATE <- tf$reduce_mean(tau_i,1L)
+      Etau_i <- try(tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L ),T)
+      if('try-error' %in% class(Etau_i){browser()}
+      EY1_i <- EY0_i + Etau_i
+      impliedATE <- tf$reduce_mean(Etau_i,1L)
       Sigma2_Y0_i <- tf$reduce_sum(tf$multiply( EY0SD_draw^2, clustT),2L)
       Sigma2_Y1_i <- tf$reduce_sum(tf$multiply( EY1SD_draw^2, clustT),2L)
       treat <- tf$expand_dims( treat , 0L)
