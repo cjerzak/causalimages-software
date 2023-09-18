@@ -156,6 +156,7 @@ GetImageEmbeddings <- function(
   if(nEmbedDim %% 2 == 0){ OddInput <- F; nFilters <-  nEmbedDim/2 }
   if(nEmbedDim %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nEmbedDim/2) }
   if(imageDims == 2){
+    AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
     myConv <- tf$keras$layers$Conv2D(filters=nFilters,
                           kernel_size = c(kernelSize,kernelSize),
                           activation = "linear",
@@ -167,22 +168,33 @@ GetImageEmbeddings <- function(
     GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
   }
   if(imageDims == 3){
-    myConv = tf$keras$layers$Conv3D(filters = nFilters,
-                                    kernel_size = c(temporalKernelSize, kernelSize,kernelSize),
-                                    activation = "linear",
-                                    strides = c(1L,strides,strides),
-                                    padding = "valid", trainable = F)
+    AvePoolingDownshift <- tf$keras$layers$AveragePooling3D(pool_size = as.integer(c(1L, inputAvePoolingSize,inputAvePoolingSize)))
+    # 3D conv method
+    if(T == T){
+      myConv <- tf$keras$layers$Conv3D(filters = nFilters,
+                                       kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
+                                       activation = "linear",
+                                       strides = c(1L,strides, strides), padding = "valid", trainable = F)
+      GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
+      GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve")
+    }
+
+    # 2D conv + LSTM method
+    if(T == F){
+      myConv <- tf$keras$layers$ConvLSTM2D(filters = as.integer(nFilters),
+                                       kernel_size = as.integer(c(kernelSize,kernelSize)),
+                                       strides = as.integer(c(strides,strides)), padding = "valid", trainable = F)
+      #myConv <- function(m){tf$expand_dims(tf$expand_dims( LSTM( tf$reduce_max(CONV(m),2L:3L) ),1L),1L)}
+      GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
+      GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
+    }
     myConv$trainable <- F
-    GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last",name="GlobalMax")
-    GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last",name="GlobalAve")
   }
   GlobalPoolLayer <- function(z){
     z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
     if(OddInput){ z <- tf$gather(z, as.integer(1L:nEmbedDim), axis = 1L) }
     return( z )
   }
-
-  AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
   InitImageProcess <- (function(im){
 
     # normalize if desired
@@ -199,10 +211,9 @@ GetImageEmbeddings <- function(
 
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nEmbedDim)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
-    ok_counter <- ok_counter + 1
-    print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
+      ok_counter <- ok_counter + 1
+      print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
-    # in functional mode
       batch_indices <- (last_i+1):(last_i+batchSize)
       batch_indices <- batch_indices[batch_indices <= length(imageKeysOfUnits)]
       last_i <- batch_indices[length(batch_indices)]
@@ -213,6 +224,7 @@ GetImageEmbeddings <- function(
         batchSizeOneCorrection <- T
       }
 
+      # in functional mode
       if(acquireImageMethod == "functional"){
         batch_inference <- list(
           tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices], training = F),tf$float32)

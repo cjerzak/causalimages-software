@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-
+{
 ################################
 # Full image heterogeneity tutorial using causalimages
 # Note: In future builds of causalimages, we will
@@ -246,7 +246,7 @@ VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
 }
 
 # Image heterogeneity example with tfrecords (faster)
-if(T == T){
+if(T == F){
   # scramble data so no patterning in the tf record sequence
   # make sure to set seed so you can re-use the saved tfrecord
   tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
@@ -313,7 +313,7 @@ if(T == T){
 }
 
 # video heterogeneity example with tfrecords (faster)
-if(T == F){
+if(T == T){
   # scramble data so no patterning in the tf record sequence
   # make sure to set seed so you can re-use the saved tfrecord
   tfrecord_loc <- "~/Downloads/UgandaExampleVideo.tfrecord"
@@ -343,7 +343,7 @@ if(T == F){
     conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
     conda_env_required = T,
     X = X,
-    plotBands = 1L,
+    plotBands = 1L:3L,
     lat =  UgandaDataProcessed_$geo_lat, # not required but helpful for dealing with redundant locations in EO data
     long =  UgandaDataProcessed_$geo_long, # not required but helpful for dealing with redundant locations in EO data
 
@@ -361,16 +361,16 @@ if(T == F){
     # other modeling options
     #modelClass = "cnn", kernelSize = 3L, # CNN image modeling class
     modelClass = "embeddings", nEmbedDim = 64L, kernelSize = 9L, temporalKernelSize = 2L, # image/video embeddings model class
+    nSGD = 10L, # make this larger for real applications (e.g., 2000L)
     orthogonalize = F,
     heterogeneityModelType = "variational_minimal",
     kClust_est = 2, # vary depending on problem. Usually < 5
     nMonte_variational = 5L, # make this larger for real application (e.g., 10)
-    nSGD = 100L, # make this larger for real applications (e.g., 2000L)
     batchSize = 50L, # make this larger for real application (e.g., 50L)
     compile = T,
     channelNormalize = T,
     yDensity = "normal",
-    maxPoolSize = 2L, strides = 2L,
+    maxPoolSize = 2L, strides = 3L,
     nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L
     nFilters = 64L, # vary the following depending on image type and GPU memory
     nDepthHidden_dense = 0L,
@@ -379,4 +379,4 @@ if(T == F){
     reparameterizationType = "Flipout"
   )
 }
-
+}

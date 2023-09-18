@@ -967,6 +967,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         if(acquireImageMethod == "tf_record"){
           ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          if( ds_next_train[[1]]$shape$as_list()[1] != batchSize ){
+            ds_next_train <- reticulate::iter_next( ds_iterator_train )
+          }
           batch_indices <- c(as.array(ds_next_train[[2]]))
           ds_next_train <- ds_next_train[[1]]
         }
@@ -1686,8 +1689,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                       ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = F)
                       ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
                       for(jf in 1:2){
-                        if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001,3L,keepdims = T)}
-                        if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o,3L, keepdims = T)}
+                        if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, axis = 3L, keepdims = T)}
+                        if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, axis = 3L, keepdims = T)}
                         ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
                         if(jf == 1){ImageGrad_L2 <- ImageGrad}
                         if(jf == 2){ImageGrad_E <- ImageGrad}
@@ -1886,11 +1889,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     if(i == 1){
                       # don't jit -- take_k dynamic within
                       ImageGrad_fxn <- (function(m){
-                        m <- tf$Variable(m,trainable = T)
+                        m <- tf$Variable(m, trainable = T)
                         with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
                           tape$watch( m )
                           PROBS_ <- tf$reduce_mean(tf$concat(
-                            replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
+                            replicate(nMonte_salience, getClusterProb(m, training = F)),0L),0L)
                           PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
                                                    tf$divide(ep_LabelSmooth,tf$constant(2)))
                           #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
@@ -1912,17 +1915,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                               ImageGrad_E), # salience direction
                                          4L))
                       })
-                      AveragingConv <- tf$keras$layers$Conv3D(filters=1L,
-                                                                kernel_size = c(1L, (gradAnalysisFilterDim<-10L), 10L),
-                                                                padding = "valid")
+                      AveragingConv <- tf$keras$layers$Conv3D(filters=12L,
+                                                              kernel_size = c(2L, (gradAnalysisFilterDim<-10L), 10L),
+                                                              padding = "valid")
                       AveragingConv( tf$expand_dims(tf$gather(
                         InitImageProcess(ds_next_in,training = F),
                                          1L, axis = 4L),4L)  )
                       AveragingConv$trainable_variables[[1]]$assign( 1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])) )
+                      # AveragingConv$trainable_variables[[1]]$shape
                     }
                     IG <- as.array( ImageGrad_fxn(
                           m = InitImageProcess(ds_next_in, training = F)))[1,,,,]
 
+                    # check for temporal symmetry
+                    #image2(as.array(ds_next_in)[1,1,,,1])
+                    #image2(as.array(ds_next_in)[1,2,,,1])
+                    #image2(IG[1,,,1])
+                    #image2(IG[2,,,1])
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,1,,,1])
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,2,,,1])
                     #image2(IG[1,,,1])
