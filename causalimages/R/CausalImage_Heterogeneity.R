@@ -830,6 +830,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       EY0_i <- tf$squeeze(tf$concat(EY0_i,0L),2L)
 
       # enforce ATE
+      nBatch_dynamic <- tf$gather(dat$shape,0L)
       if(heterogeneityModelType == "variational_CNN"){
         ETau_draw <- tf$concat(replicate(nMonte_internal,
                        tf$expand_dims(getTau(dat,training = training),0L)),0L)
@@ -838,16 +839,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
         Tau_mean_vec <- getTau_means()
         MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec,
                                         (Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"]))))
-        ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample(batchSize),0L)
+        ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample( nBatch_dynamic ),0L)
       }
 
       SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]),
                                    tf$nn$softplus(SDDist_Y1[,"SD"])))
-      EY1SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y1_post$sample(batchSize)),0L)
+      EY1SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y1_post$sample(nBatch_dynamic)),0L)
 
       SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]),
                                    tf$nn$softplus(SDDist_Y0[,"SD"])))
-      EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(batchSize)),0L)
+      EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(nBatch_dynamic)),0L)
 
       Etau_i <- try(tf$reduce_sum( tf$multiply(ETau_draw, clustT), 2L ),T)
       if('try-error' %in% class(Etau_i)){browser()}
