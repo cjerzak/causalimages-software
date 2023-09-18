@@ -1181,7 +1181,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       im_zer <- InitImageProcess(ds_next_in, training = F)
       l_ <- replicate(nMonte_predictive,
-                      eval(parse(text = sprintf("list(tf$expand_dims(getY%s(m=im_zer, training = F),0L))",y_t_))))
+                      eval(parse(text = sprintf("list(tf$expand_dims(getEY%s(m=im_zer, training = F),0L))",y_t_))))
       names(l_) <- NULL;
       l_ <- tf$concat(l_,0L)
       as.matrix(tf$reduce_mean(l_,0L))
