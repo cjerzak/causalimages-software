@@ -1704,7 +1704,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   { #if(i == 1){
                     nColors <- 1000
                     # pos/neg breaks should be on the same scale across observation
-                    IG_forBreaks <- IG + runif(length(IG),-0.0000001, 0.0000001)
+                    IG_forBreaks <- IG + runif(length(IG),-0.0000000000001, 0.0000000000001)
                     pos_breaks <- try(sort( quantile(c(IG_forBreaks[,,2][IG_forBreaks[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
                     if(class(pos_breaks) == "try-error"){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
 
@@ -1848,7 +1848,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     for(t_ in 1:nTimeSteps){
                     print( im_i )
                     orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
-                      runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
+                      0*runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
                       )
                     stretch <- ifelse(
                       any(apply(as.array(ds_next_in[1,t_, , ,plotBands]), 3,sd) < 1.),
