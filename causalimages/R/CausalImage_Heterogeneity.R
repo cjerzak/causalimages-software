@@ -1975,7 +1975,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if("try-error" %in% class(plotting_coordinates_mat_)){ browser() }
       plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat_
     }
-    browser()
     try({ names(plotting_coordinates_list) <- typePlot_vec},T)
     par(mfrow=c(1,1))
 
