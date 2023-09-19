@@ -1123,12 +1123,12 @@ AnalyzeImageConfounding <- function(
     if(!is.null(SalienceX)){ names(SalienceX) <- colnames(X) }
 
     print(  "Done with image confounding analysis!"  )
-    se <- function(x){ x <- na.omit(x); return(sqrt(x/length(x)))}
+    se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
-      "tauHat_diffInMeans_se"  = sqrt(se(obsY[which(obsW==1)])^2 + se(obsY[which(obsW==0)])^2),
+      "tauHat_diffInMeans_se"  = c(sqrt(se(obsY[which(obsW==1)])^2 + se(obsY[which(obsW==0)])^2)),
       "SalienceX" = SalienceX,
       "SalienceX_se" = SalienceX_se,
       "prW_est" = prW_est,
