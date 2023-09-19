@@ -36,7 +36,7 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{figuresPath}{(default = \code{"./"}) A string specifying file path for saved figures made in the analysis.}
 
-\item{plotBands}{(default = \code{1L}) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).}
+\item{plotBands}{(default = \code{1L}) An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).}
 
 \item{simMode}{(default = \code{F}) Should the analysis be performed in comparison with ground truth from simulation?}
 
@@ -82,6 +82,8 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 \item{modelClass}{(default = \code{"cnn"}) Either \code{"cnn"} or \code{"embeddings"}.}
 
 \item{nEmbedDim}{(default = \code{96L}) Integer specifying the image/image sequence embedding dimension. Used if \code{modelClass = "embeddings"}.}
+
+\item{TfRecords_BufferScaler}{(default = \code{4L}) The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
