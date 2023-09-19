@@ -1851,9 +1851,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
                     print( im_i )
-                    orig_scale_im_raster <- raster::brick( 0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
+                    orig_scale_im_raster <- raster::brick(
+                      0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
                       0*runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
-                      )
+                    )
                     stretch <- ifelse(
                       any(apply(as.array(ds_next_in[1,t_, , ,plotBands]), 3,sd) < 1.),
                       yes = "", no = "lin")
