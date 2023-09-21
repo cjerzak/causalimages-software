@@ -503,7 +503,7 @@ AnalyzeImageConfounding <- function(
     print(sprintf("%s Trainable Parameters",nTrainable))
 
     if( typeBoot == "EstimationAndSampling" | typeBoot == "InitializationEstimationAndSampling" ){
-        stop("Option `typeBoot='EstimationAndSampling'` under construction")
+        stop("That `typeBoot` option is under construction for the CNN arm!")
     }
 
     # perform training
