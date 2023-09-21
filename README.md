@@ -11,6 +11,10 @@ Additional tutorials:
 [**Image-based De-confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
 | [**Image/Video Embeddings**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R) | [**Speeding Up Code**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 
+Replication data: 
+[**Image-based Treatment-effect Heterogeneity Paper**](https://doi.org/10.7910/DVN/O8XOSF)
+[**Image-based De-confounding Paper**](https://doi.org/10.7910/DVN/QLCSVR)
+
 # What is `causalimages`?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
