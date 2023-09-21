@@ -23,7 +23,7 @@
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
 #' @param nSGD (default = `400L`) Number of stochastic gradient descent (SGD) iterations.
 #' @param nBoot (default = `100L`) Number of bootstrap iterations for uncertainty estimation.
-#' @param typeBoot (default = `SamplingOnly`) Bootstrap type. `typeBoot = 'SamplingOnly'` captures sampling uncertainty only. `typeBoot = 'EstimationAndSampling'` captures both estimation and sampling uncertainty.
+#' @param typeBoot (default = `SamplingOnly`) Bootstrap type. `typeBoot = 'SamplingOnly'` captures sampling uncertainty only. `typeBoot = 'EstimationAndSampling'` captures both estimation and sampling uncertainty. `typeBoot = 'InitializationEstimationAndSampling'` captures initializatoin, estimation, and sampling uncertainty.
 #' @param batchSize (default = `50L`) Batch size used in SGD optimization.
 #' @param doConvLowerDimProj (default = `T`) Should we project the `nFilters` convolutional feature dimensions down to `nDimLowerDimConv` to reduce the number of required parameters.
 #' @param nDimLowerDimConv (default = `3L`) If `doConvLowerDimProj = T`, then, in each convolutional layer, we project the `nFilters` feature dimensions down to `nDimLowerDimConv` to reduce the number of parameters needed.
@@ -502,7 +502,7 @@ AnalyzeImageConfounding <- function(
     nTrainable <- sum( unlist(  lapply(trainable_variables,function(zer){ prod(dim(zer)) }) ) )
     print(sprintf("%s Trainable Parameters",nTrainable))
 
-    if( typeBoot == "EstimationAndSampling" ){
+    if( typeBoot == "EstimationAndSampling" | typeBoot == "InitializationEstimationAndSampling" ){
         stop("Option `typeBoot='EstimationAndSampling'` under construction")
     }
 
@@ -741,6 +741,7 @@ AnalyzeImageConfounding <- function(
         if(jr > 1){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
 
          # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
+        if(typeBoot == "InitializationEstimationAndSampling" | jr == 1){
           MyEmbeds_ <- GetImageEmbeddings(
             imageKeysOfUnits = imageKeysOfUnits,
             batchSize = min(  batchSize, length(imageKeysOfUnits) ),
@@ -755,6 +756,7 @@ AnalyzeImageConfounding <- function(
             conda_env = "tensorflow_m1",
             conda_env_required = T
           )
+        }
 
           # checks
           #tmp <- MyEmbeds$embeddings_fxn( acquireImageFxnEmbeds( imageKeysOfUnits ))
