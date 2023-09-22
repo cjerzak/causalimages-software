@@ -27,6 +27,10 @@ if(T == F){
 # local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
+# low rank decomposition decomposing time and space
+# offer more points of comparison
+# aggregate across time
+
 # load in package
 library( causalimages  )
 
