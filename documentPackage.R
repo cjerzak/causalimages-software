@@ -12,4 +12,5 @@ system(sprintf("R CMD Rd2pdf %s",package_path))
 # library( causalimages ); data(  CausalImagesTutorialData )
 log(sort( sapply(ls(),function(l_){object.size(eval(parse(text=l_)))})))
 
-
+# Check package to ensure it meets CRAN standards.
+devtools::check( package_path )

@@ -27,7 +27,7 @@ AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, acquireImageFxn, ...)
 
 \item{nBoot}{(default = \code{100L}) Number of bootstrap iterations for uncertainty estimation.}
 
-\item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty.}
+\item{typeBoot}{(default = \code{SamplingOnly}) Bootstrap type. \code{typeBoot = 'SamplingOnly'} captures sampling uncertainty only. \code{typeBoot = 'EstimationAndSampling'} captures both estimation and sampling uncertainty. \code{typeBoot = 'InitializationEstimationAndSampling'} captures initializatoin, estimation, and sampling uncertainty.}
 
 \item{nEmbedDim}{(default = \code{96L}) Integer specifying the image/image sequence embedding dimension. Used if \code{modelClass = "embeddings"}.}
 

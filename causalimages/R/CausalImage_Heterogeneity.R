@@ -1710,13 +1710,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     # pos/neg breaks should be on the same scale across observation
                     IG_forBreaks <- IG + runif(length(IG),-0.0000000000001, 0.0000000000001)
                     pos_breaks <- try(sort( quantile(c(IG_forBreaks[,,2][IG_forBreaks[,,2]>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                    if(class(pos_breaks) == "try-error"){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
+                    if("try-error" %in% class(pos_breaks)){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
 
                     neg_breaks <- try(sort(quantile(c(IG_forBreaks[,,2][IG_forBreaks[,,2]<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                    if(class(neg_breaks) == "try-error"){neg_breaks <-  seq(-1, 0,length.out=nColors/2) }
+                    if("try-error" %in% class(neg_breaks)){neg_breaks <-  seq(-1, 0,length.out=nColors/2) }
 
                     gradMag_breaks <- try(sort(quantile((c(IG_forBreaks[,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                    if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out=nColors) }
+                    if("try-error" %in% class(gradMag_breaks)){gradMag_breaks <-  seq(-1, 1,length.out=nColors) }
                   }
 
                   # magnitude
@@ -1942,7 +1942,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     { #if(i == 1){
                       # pos/neg breaks should be on the same scale across observation
                       gradMag_breaks <- try(sort(quantile((c(IG[,,,1])),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                      if(class(gradMag_breaks) == "try-error"){gradMag_breaks <-  seq(-1, 1,length.out = nColors) }
+                      if("try-error" %in% class(gradMag_breaks)){gradMag_breaks <-  seq(-1, 1,length.out = nColors) }
                     }
 
                     # magnitude - check for changes in salings
