@@ -3,7 +3,7 @@ package_name <- "causalimages"
 setwd(sprintf("~/Documents/%s-software", package_name))
 
 package_path <- sprintf("~/Documents/%s-software/%s",package_name,package_name)
-
+tools::add_datalist(package_path, force = TRUE)
 devtools::document(package_path)
 try(file.remove(sprintf("./%s.pdf",package_name)),T)
 system(sprintf("R CMD Rd2pdf %s",package_path))

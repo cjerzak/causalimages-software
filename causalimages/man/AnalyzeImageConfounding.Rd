@@ -83,11 +83,11 @@ First argument should be image key values and second argument have be \code{trai
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
 \value{
-A list consisting of
+Returns a list consisting of
 \itemize{
-\item \code{ATE_est}: ATE estimate.
-\item \code{ATE_se}: Standard error estimate for the ATE.
-\item \code{plotResults}: If set to \code{TRUE}, causal salience plots are saved to disk, characterizing the image confounding structure. See references for details.
+\item \code{ATE_est} ATE estimate.
+\item \code{ATE_se} Standard error estimate for the ATE.
+\item \code{plotResults} If set to \code{TRUE}, causal salience plots are saved to disk, characterizing the image confounding structure. See references for details.
 }
 }
 \description{

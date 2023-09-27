@@ -22,9 +22,9 @@ Returns content from a \code{.tfrecord} associated with \code{indices}
 Reads indices from a \code{.tfrecord} file saved via a call to \code{causalimages::WriteTfRecord}. Assumes a tensorflow environment has been activated in R.
 }
 \examples{
-# Example usage:
-GetElementFromTfRecordAtIndices(
-  indices = 1:10,
-  file = "./NigeriaConfoundApp.tfrecord")
+# Example usage (not run):
+#GetElementFromTfRecordAtIndices(
+  #indices = 1:10,
+  #file = "./NigeriaConfoundApp.tfrecord")
 
 }

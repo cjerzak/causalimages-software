@@ -36,7 +36,6 @@
 #' \itemize{
 #' \item In \emph{simulation mode}, the function returns a list with as many elements as
 #' unique nodes in \verb{DAG}. Each element represents the simulated data.
-#'
 #' \item In \emph{estimation mode},the function returns an estimated treatment effect with 95\% confidence intervals.
 #' }
 #'

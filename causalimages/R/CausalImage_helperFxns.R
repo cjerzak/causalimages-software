@@ -151,17 +151,17 @@ LongLat2CRS_extent <- function(point_longlat,
 #'
 #' @examples
 #'
-#' # Example use (not run)
-#' MASTER_IMAGE_POOL_FULL_DIR <- c("./LargeTifs/tif1.tif","./LargeTifs/tif2.tif")
-#' GetAndSaveGeolocatedImages(
-#'                        long = GeoKeyMat$geo_long,
-#'                        lat = GeoKeyMat$geo_lat,
-#'                        image_pixel_width = 500L,
-#'                        keys = row.names(GeoKeyMat),
-#'                        tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
-#'                        save_folder = "./Data/Uganda2000_processed",
-#'                        save_as = "csv",
-#'                        lyrs = NULL)
+#' # Example use (not run):
+#' #MASTER_IMAGE_POOL_FULL_DIR <- c("./LargeTifs/tif1.tif","./LargeTifs/tif2.tif")
+#' #GetAndSaveGeolocatedImages(
+#'                        #long = GeoKeyMat$geo_long,
+#'                        #lat = GeoKeyMat$geo_lat,
+#'                        #image_pixel_width = 500L,
+#'                        #keys = row.names(GeoKeyMat),
+#'                        #tif_pool = MASTER_IMAGE_POOL_FULL_DIR,
+#'                        #save_folder = "./Data/Uganda2000_processed",
+#'                        #save_as = "csv",
+#'                        #lyrs = NULL)
 #'
 #' @import raster
 #' @export

@@ -44,11 +44,11 @@
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
-#' @return A list consisting of
+#' @return Returns a list consisting of
 #' \itemize{
-#'   \item `ATE_est`: ATE estimate.
-#'   \item `ATE_se`: Standard error estimate for the ATE.
-#'   \item `plotResults`: If set to `TRUE`, causal salience plots are saved to disk, characterizing the image confounding structure. See references for details.
+#'   \item `ATE_est` ATE estimate.
+#'   \item `ATE_se` Standard error estimate for the ATE.
+#'   \item `plotResults` If set to `TRUE`, causal salience plots are saved to disk, characterizing the image confounding structure. See references for details.
 #' }
 #'
 #' @section References:

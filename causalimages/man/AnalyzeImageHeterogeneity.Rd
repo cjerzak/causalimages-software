@@ -88,7 +88,7 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
 }
 \value{
-A list consiting of \itemize{
+Returns a list consiting of \itemize{
 \item \code{clusterTaus_mean} default
 \item \code{clusterTaus_sd} Estimated image effect cluster standard deviations.
 \item \code{clusterProbs_mean}. Estimated mean image effect cluster probabilities.

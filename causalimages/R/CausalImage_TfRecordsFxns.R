@@ -17,7 +17,7 @@
 #' @return Writes an key- and index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
 #'
 #' @examples
-#' # Example usage:
+#' # Example usage (not run):
 #' #WriteTfRecord(
 #' #  file = "./NigeriaConfoundApp.tfrecord",
 #' #  keys = 1:n,
@@ -138,10 +138,10 @@ WriteTfRecord <- function(file,
 #' @return Returns content from a `.tfrecord` associated with `indices`
 #'
 #' @examples
-#' # Example usage:
-#' GetElementFromTfRecordAtIndices(
-#'   indices = 1:10,
-#'   file = "./NigeriaConfoundApp.tfrecord")
+#' # Example usage (not run):
+#' #GetElementFromTfRecordAtIndices(
+#'   #indices = 1:10,
+#'   #file = "./NigeriaConfoundApp.tfrecord")
 #'
 #' @export
 #' @md

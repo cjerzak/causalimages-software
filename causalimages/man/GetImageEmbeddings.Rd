@@ -44,12 +44,15 @@ A list containing two items:
 \description{
 Generates image and video embeddings useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).
 }
+\section{References}{
+
+\itemize{
+\item Rolf, Esther, et al. "A generalizable and accessible approach to machine learning with global satellite imagery." \emph{Nature Communications} 12.1 (2021): 4392.
+}
+}
+
 \examples{
 # For a tutorial, see
 # github.com/cjerzak/causalimages-software/
- @section References:
-\itemize{
-\item Rolf, Esther, et al. "A generalizable and accessible approach to machine learning with global satellite imagery." *Nature Communications* 12.1 (2021): 4392.
-}
 
 }

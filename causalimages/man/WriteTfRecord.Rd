@@ -26,7 +26,7 @@ Writes an key- and index-referenced \code{.tfrecord} from an image corpus for us
 Writes an image corpus to a \code{.tfrecord} file for rapid reading of images into memory for fast ML training.
 }
 \examples{
-# Example usage:
+# Example usage (not run):
 #WriteTfRecord(
 #  file = "./NigeriaConfoundApp.tfrecord",
 #  keys = 1:n,

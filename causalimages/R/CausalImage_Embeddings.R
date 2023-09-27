@@ -28,13 +28,14 @@
 #' \item `embeddings_fxn` (function) The functioning performing the embedding, returned for re-use.
 #' }
 #'
-#' @examples
-#' # For a tutorial, see
-#' # github.com/cjerzak/causalimages-software/
-#'  @section References:
+#' @section References:
 #' \itemize{
 #' \item Rolf, Esther, et al. "A generalizable and accessible approach to machine learning with global satellite imagery." *Nature Communications* 12.1 (2021): 4392.
 #' }
+#'
+#' @examples
+#' # For a tutorial, see
+#' # github.com/cjerzak/causalimages-software/
 #'
 #' @export
 #' @md

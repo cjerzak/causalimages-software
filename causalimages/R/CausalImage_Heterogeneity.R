@@ -54,7 +54,7 @@
 #' @param channelNormalize (default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param TfRecords_BufferScaler (default = `4L`) The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
-#' @return A list consiting of \itemize{
+#' @return Returns a list consiting of \itemize{
 #'   \item `clusterTaus_mean` default
 #'   \item `clusterTaus_sd` Estimated image effect cluster standard deviations.
 #'   \item `clusterProbs_mean`. Estimated mean image effect cluster probabilities.
