@@ -20,8 +20,8 @@ Returns the long/lat location as a spatial point in the new CRS defined by \code
 A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
 }
 \examples{
-spatialPt <- LongLat2CRS(
-                  long = 49.932,
-                  lat = 35.432,
-                  CRS_ref = sp::CRS("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
+# (Not run)
+#spatialPt <- LongLat2CRS(long = 49.932,
+                  #lat = 35.432,
+                  #CRS_ref = sp::CRS("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
 }
