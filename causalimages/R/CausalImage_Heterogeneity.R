@@ -77,7 +77,6 @@
 #' # github.com/cjerzak/causalimages-software/
 #'
 #' @import tensorflow
-#' @import keras
 #' @export
 #' @md
 AnalyzeImageHeterogeneity <- function(obsW,
