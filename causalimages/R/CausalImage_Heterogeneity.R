@@ -2007,25 +2007,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "individualTau_est" = tau_i_est,
                  "transportabilityMat" = transportabilityMat,
                  "plottedCoordinatesList" = plotting_coordinates_list,
-                 #"negELL"=as.numeric(negELL),
                  "whichNA_dropped" = whichNA_dropped) )
   }
   if(simMode == T){
-    return(list("ClusterProbs_est" = ClusterProbs_est,
+    # depreciated
+    return(list(
+                "ClusterProbs_mean" = ClusterProbs_est,
                 "ClusterProbs" = ClusterProbs,
                 "Cluster" = as.numeric(tau1),
                 "tau2" = as.numeric(tau2),
                 "sd_tau1" = sd_tau1,
                 "sd_tau2" = sd_tau2,
-                "R2_Y0"=r2_y0_out,
-                "R2_Y1"=r2_y1_out,
+                #"R2_Y0"=r2_y0_out,
+                #"R2_Y1"=r2_y1_out,
                 "tau_i_est"=tau_i_est,
                 "impliedATE" = impliedATE,
-                "y0_true_out" = y0_true,
-                "y1_true_out" = y1_true,
-                "y0_est_out" = y0_est,
-                "y1_est_out" = y1_est,
-                "negELL"=as.numeric(negELL),
-                "whichNA_dropped" = whichNA_dropped ))
+                #"y0_true_out" = y0_true,
+                #"y1_true_out" = y1_true,
+                #"y0_est_out" = y0_est,
+                #"y1_est_out" = y1_est,
+                #"negELL"=as.numeric(negELL),
+                "whichNA_dropped" = whichNA_dropped
+                ))
   }
 }
