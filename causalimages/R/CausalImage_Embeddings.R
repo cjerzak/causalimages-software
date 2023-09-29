@@ -65,11 +65,9 @@ GetImageEmbeddings <- function(
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
-    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
+    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.);
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     try( tf$config$set_soft_device_placement( T ) , T)
-    #tfd <- (tfp <- tf_probability())$distributions
-    #tfa <- reticulate::import("tensorflow_addons")
 
     try(tf$random$set_seed(  c( ifelse(is.null(tf_seed),
                                        yes = 123431L, no = as.integer(tf_seed)  ) )), T)
