@@ -35,8 +35,7 @@ WriteTfRecord <- function(file,
   if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
   #{
     print("Loading Python environment (requires tensorflow)")
-    library(tensorflow);
-    #library(keras)
+    library(tensorflow); library(keras)
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
@@ -154,7 +153,9 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
   if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
     print("Loading Python environment (requires tensorflow)")
     library(tensorflow); library(keras)
-    try(tensorflow::use_condaenv(conda_env, required = T),T)
+    if(!is.null(conda_env)){
+      try(tensorflow::use_condaenv(conda_env, required = T),T)
+    }
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
     tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )

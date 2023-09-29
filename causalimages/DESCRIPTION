@@ -8,5 +8,5 @@ License: Creative Commons Attribution-Noncommercial-No Derivative Works 4.0, for
 Encoding: UTF-8
 LazyData: false
 Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
-Imports: tensorflow, latex2exp, keras, animation, reticulate, viridis, geosphere, raster, animation
+Imports: tensorflow, keras, latex2exp, keras, animation, reticulate, viridis, geosphere, raster, animation
 RoxygenNote: 7.2.3

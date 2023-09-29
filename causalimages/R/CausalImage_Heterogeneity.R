@@ -131,7 +131,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # (jitting a Monte Carlo loop eats up memory)
   if(T == T){
     library(tensorflow); library(keras)
-    try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+    if(!is.null(conda_env)){
+      try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+    }
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
