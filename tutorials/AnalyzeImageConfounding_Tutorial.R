@@ -35,12 +35,18 @@ acquireImageFromMemory <- function(keys, training = F){
 
 # example video function (this here just appends two identical images (with one rotated) for illustration only)
 # in practice, image sequence / video data will be read from disk
-acquireVideoRepFromDisk <- function(keys, training = F){
-  tmp <- acquireImageFromDisk(keys, training = training)
-  tmp <- tf$expand_dims(tmp,0L)
-  tmp <- tf$transpose(tmp,c(1L,0L,2L,3L,4L))
-  tmp_ <- tf$transpose(tmp,c(0L,1L,3L,2L,4L)) # swap image dims too to see variability across time
-  tmp <- tf$concat(list(tmp,tmp_),axis = 1L)
+acquireVideoRepFromMemory <- function(keys, training = F){
+  tmp <- acquireImageFromMemory(keys, training = training)
+
+  if(length(keys) == 1){
+    tmp <- array(tmp,dim = c(1L,dim(tmp)[1],dim(tmp)[2],dim(tmp)[3]))
+  }
+
+  tmp <- array(tmp,dim = c(dim(tmp)[1],
+                           2,
+                           dim(tmp)[3],
+                           dim(tmp)[4],
+                           1L))
   return(  tmp  )
 }
 
