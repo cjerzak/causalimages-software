@@ -61,9 +61,10 @@ GetImageEmbeddings <- function(
   if(   "try-error" %in% class(try(tf$constant(1.),T))   ){
     print("Initializing the tensorflow environment...")
     print("Looking for Python modules tensorflow, gc...")
-    library(tensorflow);
-    #library(keras)
-    try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+    library(tensorflow); library(keras)
+    if(!is.null(conda_env)){
+      try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+    }
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     try( tf$config$set_soft_device_placement( T ) , T)

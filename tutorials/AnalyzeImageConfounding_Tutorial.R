@@ -33,13 +33,14 @@ acquireImageFromMemory <- function(keys, training = F){
   return( m_ )
 }
 
-
-# example video function (this here just appends two identical images for illustration only)
+# example video function (this here just appends two identical images (with one rotated) for illustration only)
 # in practice, image sequence / video data will be read from disk
-acquireVideoRepFromMemory <- function(keys, training = F){
-  tmp <- FullImageArray[match(keys, KeysOfImages),,,]
-  tmp <- abind::abind(tmp, tmp, along = 0)
-  tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
+acquireVideoRepFromDisk <- function(keys, training = F){
+  tmp <- acquireImageFromDisk(keys, training = training)
+  tmp <- tf$expand_dims(tmp,0L)
+  tmp <- tf$transpose(tmp,c(1L,0L,2L,3L,4L))
+  tmp_ <- tf$transpose(tmp,c(0L,1L,3L,2L,4L)) # swap image dims too to see variability across time
+  tmp <- tf$concat(list(tmp,tmp_),axis = 1L)
   return(  tmp  )
 }
 
@@ -57,36 +58,6 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)
 
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
-
-# obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
-MyImageEmbeddings <- GetImageEmbeddings(
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  acquireImageFxn = acquireImageFromMemory,
-  nEmbedDim = 100,
-  kernelSize = 3L,
-  conda_env = "tensorflow_m1",
-  conda_env_required = T
-)
-
-# each row corresponds to an observation
-# each column represents an embedding dimension associated with the imagery for that location
-MyImageEmbeddings$embeddings
-
-# embeddings_fxn is the embedding function written in tf (used for other package functions)
-#MyImageEmbeddings$embeddings_fxn
-
-# obtain video embeddings
-# each column represents an embedding dimension associated with the image sequence for that location
-MyVideoEmbeddings <- GetImageEmbeddings(
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  acquireImageFxn = acquireVideoRepFromMemory,
-  temporalKernelSize = 2L,
-  kernelSize = 3L,
-  nEmbedDim = 100,
-  conda_env = "tensorflow_m1",
-  conda_env_required = T
-)
-MyVideoEmbeddings$embeddings
 
 # perform causal inference with image and tabular confounding
 ImageConfoundingAnalysis <- AnalyzeImageConfounding(

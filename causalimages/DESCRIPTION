@@ -1,5 +1,5 @@
 Package: causalimages
-Title: causalimages: R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+Title: causalimages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 Version: 0.1
 Author: 'Connor Jerzak <connor.jerzak@gmail.com> [aut, cre], Fredrik Johansson <fredrik.johansson@chalmers.se> [aut], Adel Daoud <adel.daoud@liu.se> [aut]'
 Description: R Package for causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos)
