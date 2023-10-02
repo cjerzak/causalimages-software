@@ -15,6 +15,8 @@ Replication data:
 [**Heterogeneity Paper**](https://doi.org/10.7910/DVN/O8XOSF) | 
 [**De-confounding Paper**](https://doi.org/10.7910/DVN/QLCSVR)
 
+_Note: A stable version of this package is housed at_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-software`](https://github.com/AIandGlobalDevelopmentLab/causalimages-software)
+
 # What is `causalimages`?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
