@@ -257,5 +257,18 @@ We thank [James Bailie](https://jameshbailie.github.io/), [Cindy Conlin](https:/
 }
 ```
 
+[3.] Connor T. Jerzak, Adel Daoud. Integrating Earth Observation Data into Causal Inference: Challenges and Opportunities. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2310.00233.pdf)
+```
+@article{JerDao2023,
+  title={CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images},
+  author={Jerzak, Connor T. and Adel Daoud},
+  journal={ArXiv Preprint},
+  year={2023},
+  volume={},
+  pages={},
+  publisher={}
+}
+```
+
 [<img src="https://connorjerzak.com/wp-content/uploads/2023/03/pexels-photo-60132.jpeg" width="500" height="400">](https://proceedings.mlr.press/v213/jerzak23a.html)
 
