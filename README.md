@@ -1,4 +1,4 @@
-# `causalimages`: An `R` Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+# `causalimages`: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 
 [**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
