@@ -1,4 +1,8 @@
 #!/usr/bin/env Rscript
+{
+
+# clear workspace
+rm(list=ls())
 
 ################################
 # Image confounding tutorial using causalimages
@@ -50,13 +54,14 @@ X <- apply(X,2,function(zer){
 
 # select observation subset to make tutorial analyses run faster
 # select 50 treatment and 50 control observations
+set.seed(1.)
 take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 50)}) )
 
 # !!! important note !!!
 # when using tf recordings, it is essential that the data inputs be pre-shuffled like is done here.
 # you can use a seed for reproducing the shuffle (so the tfrecord is correctly indexed and you don't need to re-make it)
 # tf records read data quasi-sequentially, so systematic patterns in the data ordering
-# greatly reduce performance
+# reduce performance
 
 # uncomment for a larger n analysis
 #take_indices <- 1:length( obsY )
@@ -78,7 +83,16 @@ WriteTfRecord(  file = tfrecord_loc,
                 acquireImageFxn = acquireImageFromMemory,
                 conda_env = "tensorflow_m1"  )
 
-# obtain image embeddings following Rolf et al. https://www.nature.com/articles/s41467-021-24638-z
+# the saving is re-startable
+stop()
+WriteTfRecord(  file = tfrecord_loc,
+                imageKeys = KeysOfObservations[ take_indices ],
+                acquireImageFxn = acquireImageFromMemory,
+                conda_env = "tensorflow_m1"  )
+
+
+# then obtain image embeddings
+# using the tfrecord
 MyImageEmbeddings <- GetImageEmbeddings(
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   file = "~/Downloads/ExampleRecord.tfrecord",
@@ -131,3 +145,4 @@ ImageConfoundingAnalysis$tauHat_propensityHajek
 # ATE se estimate (image confounder adjusted)
 ImageConfoundingAnalysis$tauHat_propensityHajek_se
 
+}
