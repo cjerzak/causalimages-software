@@ -53,11 +53,12 @@ GetImageEmbeddings <- function(
     temporalKernelSize = 2L,
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
-    dataType = dataType,
+    dataType = "image",
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL,
     quiet = F){
 
+  # initialize tensorflow if not already initialized
   if(   !"logical" %in% class(try(as.numeric(tf$square(1.))==1,T))   ){
     print("Initializing the tensorflow environment...")
     print("Looking for Python modules tensorflow, gc...")
@@ -100,7 +101,7 @@ GetImageEmbeddings <- function(
     tf_dataset = tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
-    useVideo <- dataType == "video"
+    useVideo <- (dataType == "video")
     getParsed_tf_dataset_inference <- function(tf_dataset){
         dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
       return( dataset <- dataset$batch( as.integer(max(2L, round(batchSize/2L)  ))) )
@@ -171,25 +172,15 @@ GetImageEmbeddings <- function(
   if(imageDims == 3){
     AvePoolingDownshift <- tf$keras$layers$AveragePooling3D(pool_size = as.integer(c(1L, inputAvePoolingSize,inputAvePoolingSize)))
     # 3D conv method
-    if(T == T){
+    {
       myConv <- tf$keras$layers$Conv3D(filters = nFilters,
                                        kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
                                        activation = "linear",
                                        strides = c(1L,strides, strides), padding = "valid", trainable = F)
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve")
+      myConv$trainable <- F
     }
-
-    # 2D conv + LSTM method
-    if(T == F){
-      myConv <- tf$keras$layers$ConvLSTM2D(filters = as.integer(nFilters),
-                                       kernel_size = as.integer(c(kernelSize,kernelSize)),
-                                       strides = as.integer(c(strides,strides)), padding = "valid", trainable = F)
-      #myConv <- function(m){tf$expand_dims(tf$expand_dims( LSTM( tf$reduce_max(CONV(m),2L:3L) ),1L),1L)}
-      GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
-      GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
-    }
-    myConv$trainable <- F
   }
   GlobalPoolLayer <- function(z){
     z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
@@ -213,7 +204,6 @@ GetImageEmbeddings <- function(
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nEmbedDim)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
-      print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
 
       batch_indices <- (last_i+1):(last_i+batchSize)
       batch_indices <- batch_indices[batch_indices <= length(imageKeysOfUnits)]
@@ -221,16 +211,17 @@ GetImageEmbeddings <- function(
       if(last_i == length(imageKeysOfUnits)){ ok <- T }
 
       batchSizeOneCorrection <- F; if(length(batch_indices) == 1){
-        batch_indices <- c(batch_indices, batch_indices)
         batchSizeOneCorrection <- T
       }
 
       # in functional mode
       if(acquireImageMethod == "functional"){
+        if(batchSizeOneCorrection){ batch_indices <- c(batch_indices, batch_indices) }
         batch_inference <- list(
           tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices], training = F),tf$float32)
         )
       }
+
 
       if(acquireImageMethod == "tf_record"){
         setwd(orig_wd)
@@ -242,6 +233,10 @@ GetImageEmbeddings <- function(
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]])
+        if(batchSizeOneCorrection){
+          batch_inference[[1]][[1]] <- tf$concat(list(tf$expand_dims(batch_inference[[1]][[1]],0L),
+                                                 tf$expand_dims(batch_inference[[1]][[1]],0L)), 0L)
+        }
         setwd(new_wd)
         saved_iterator <- batch_inference[[2]]
         batch_inference <- batch_inference[[1]]
@@ -253,14 +248,15 @@ GetImageEmbeddings <- function(
       if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices,] <- embed_
 
+      print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
+
     gc(); try(py_gc$collect(), T)
   }
-  print(sprintf("[%s] %.2f%% done with getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*1))
+  print(sprintf("[%s] done with getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
 
   # reset wd (may have been changed via tfrecords use)
   setwd(  orig_wd  )
 
-
-   return( list( "embeddings"= embeddings,
+  return( list( "embeddings"= embeddings,
                  "embeddings_fxn" = getEmbedding ) )
 }

@@ -136,3 +136,4 @@
   # ATE se estimate (image confounder adjusted)
   ImageConfoundingAnalysis$tauHat_propensityHajek_se
 }
+

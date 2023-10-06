@@ -853,6 +853,7 @@ AnalyzeImageConfounding <- function(
       showPerGroup <- min(c(3,unlist(table(obsW))), na.rm = T)
       ordered_control <- indices_c[order_c <- order(prW_est[indices_c],decreasing = F)]
       ordered_treated <- indices_t[order_t <- order(prW_est[indices_t],decreasing = T)]
+
       # checks
       # prW_est[ ordered_treated ];
       # prW_est[ ordered_control ]
