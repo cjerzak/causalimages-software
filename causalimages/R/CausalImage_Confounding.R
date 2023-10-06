@@ -120,7 +120,7 @@ AnalyzeImageConfounding <- function(
   print("Initializing the tensorflow environment...")
   print("Looking for Python modules tensorflow, gc...")
   {
-    library(tensorflow); library(keras)
+    library(tensorflow); # library(keras)
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }

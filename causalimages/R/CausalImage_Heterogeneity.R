@@ -129,7 +129,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # note to maintainers:
   # jit only things outside of Monte Carlo steps
   # (jitting a Monte Carlo loop eats up memory)
-  if(T == T){
+  {
     library(tensorflow); library(keras)
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
