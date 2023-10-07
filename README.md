@@ -16,6 +16,7 @@ Replication data:
 [**De-confounding Paper**](https://doi.org/10.7910/DVN/QLCSVR)
 
 _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-software`](https://github.com/AIandGlobalDevelopmentLab/causalimages-software)
+
 _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://github.com/cjerzak/causalimages-software)
 
 # What is `causalimages`?<a id="description"></a>
