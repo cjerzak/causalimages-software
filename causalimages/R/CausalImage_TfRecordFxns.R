@@ -5,7 +5,7 @@
 #'
 #' @usage
 #'
-#' WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env)
+#' WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required)
 #'
 #' @param file A character string naming a file for writing.
 #' @param imageKeysOfUnits A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)
@@ -30,8 +30,8 @@ WriteTfRecord <- function(file,
                           imageKeysOfUnits,
                           acquireImageFxn,
                           writeVideo = F,
-                          conda_env = NULL,
                           attemptRestart = F,
+                          conda_env = NULL,
                           conda_env_required = F){
   #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){ # note: calling tf$sqrt here induces downstream errors (i think a wrong version of python gets initialized)
   {
