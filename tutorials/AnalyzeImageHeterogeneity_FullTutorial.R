@@ -198,11 +198,18 @@ acquireVideoRepFromDisk <- function(keys, training = F){
   return(  tmp  )
 }
 if(T == F){
-# image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,1,,,1] )
-# image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,2,,,1] )
+# plot timestep 1
+causalimages::image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,1,,,1] )
+
+# plot timestep 2
+causalimages::image2( as.array(acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]))[1,2,,,1] )
+
+# analyze dimensions
 dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1:5]) )
 dim( acquireVideoRepFromDisk(UgandaDataProcessed$geo_long_lat_key[1]) )
-VideoHeterogeneityResults <- AnalyzeImageHeterogeneity(
+
+# obtain video results
+VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
   # data inputs
   obsW =  UgandaDataProcessed$Wobs,
   obsY = UgandaDataProcessed$Yobs,
