@@ -1084,6 +1084,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ds_next_train <- acquireImageFxn( imageKeysOfUnits[ batch_indices ], training = T)
       }
       if(acquireImageMethod == "tf_record"){
+        browser()
         ds_next_train <- reticulate::iter_next( ds_iterator_train )
         batch_indices <- c(as.array(ds_next_train[[2]]))
         ds_next_train <- ds_next_train[[1]]
