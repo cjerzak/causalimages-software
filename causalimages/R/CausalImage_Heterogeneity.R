@@ -128,6 +128,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # note to maintainers:
   # jit only things outside of Monte Carlo steps
   # (jitting a Monte Carlo loop eats up memory)
+
+  # create directory if needed
+  if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
+
   {
     library(tensorflow); library(keras)
     if(!is.null(conda_env)){
@@ -173,7 +177,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
-    useVideo <- dataType == "video"
+    useVideo <- (dataType == "video")
     getParsed_tf_dataset_inference <- function(tf_dataset){
       dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideo) } ) # return
       return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
@@ -241,13 +245,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
            tmp <- reticulate::iter_next( ds_iterator_train )[[1]]
         }
         if(length(dim(tmp)) == 4){
-          CausalImagesDataType <<- "image"
           l_ <- list("NORM_MEAN" = as.array(tf$reduce_mean(tmp, 0L:2L)),
                      "NORM_SD" = as.array(tf$math$reduce_std(tmp, 0L:2L))  )
         }
         if(length(dim(tmp)) == 5){
-          CausalImagesDataType <<- "video"
-          nTimeSteps <<- dim(tmp)[2]
           l_ <- list("NORM_MEAN" = as.array(tf$reduce_mean(tmp, 0L:3L)),
                      "NORM_SD" = as.array(tf$math$reduce_std(tmp, 0L:3L))  )
         }
@@ -340,7 +341,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # set up some placeholders
   y0_true <- r2_y1_out <- r2_y0_out <- ClusterProbs_est <- NULL
-  tau_i_est <- sd_tau1 <- sd_tau2 <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
+  tau_i_est <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
   if(!"ClusterProbs" %in% ls() &
      !"ClusterProbs" %in% ls(envir=globalenv())){ClusterProbs<-NULL}
 
@@ -1107,7 +1108,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
       L2grad_vec[i] <- as.numeric( L2_grad_i )
       if(is.na(myLoss_forGrad)){
-        browser()
         stop("Stopping: NA in loss function! Perhaps batchSize is too small?")
       }
       i_ <- i ; if(i %% 20 == 0 | i < 10 ){
@@ -1163,11 +1163,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         if(acquireImageMethod == "tf_record"){
           setwd(orig_wd)
-          ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in%
+                                                                              unique(imageKeysOfUnits)[zer]),
                                                          filename = file,
                                                          iterator = passedIterator,
                                                          readVideo = useVideo,
-                                                         nObs = length(imageKeysOfUnits), # zzzz
+                                                         nObs = length(unique(imageKeysOfUnits)),
                                                          return_iterator = T )
           passedIterator <- ds_next_in[[2]]
           key_ <- as.character( ds_next_in[[1]][[3]]$numpy() )
@@ -1200,12 +1201,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( ret_list  )
     })
     Results_by_keys <- as.data.frame(  do.call(rbind,Results_by_keys) )
+
+    # checks
+    #unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)[1:10]
+    #mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
+    #mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
+
+    # re-order data
     Results_by_keys <- Results_by_keys[match(imageKeysOfUnits,
                                              unlist(  Results_by_keys[["key"]] )),]
 
     # process all outcomes
     Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T)
-    Y1_est <- Rescale(unlist(Results_by_keys$y1_)[trainIndices], doMean = T)
+    Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T)
     Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
     tau_i_est <- Rescale( Y1_est - Y0_est, doMean = F)
     tau_vec_kmeans <- c( Rescale( kmeans(tau_i_est, centers=2)$centers, doMean = F ) )
@@ -1251,12 +1259,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Tau_sd_vec_ <- as.numeric(tf$sqrt(tf$math$reduce_variance(MeanDist_Tau_post$sample(100L),0L)))
       Tau_sd_vec <- sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
       Tau_sd_vec <- Tau_sd_vec * Y_sd
-      sd_tau1 <- Tau_sd_vec[1]
-      sd_tau2 <- Tau_sd_vec[2]
     }
 
     # obtaining the neg log likelihood if desired
-    negELL <- NA; if(T == F){
+    if(T == F){
       # obtaining the negative LL
       KL_wt_orig <- KL_wt
       if(! "function" %in% class(getLoss)){print2("getLoss must be R function for this part to work!")}
@@ -1291,7 +1297,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
         if(acquireImageMethod == "tf_record"){
           setwd(orig_wd)
-          ds_next_in <- GetElementFromTfRecordAtIndices( indices = zer,
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),
                                                          filename = file,
                                                          readVideo = useVideo,
                                                          nObs = nrow(transportabilityMat) )
@@ -1324,7 +1330,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
   if( plotResults == T){
     if(heterogeneityModelType == "variational_minimal"){
-      Tau_mean_vec_n <- as.numeric(Tau_mean_vec)
+      Tau_mean_vec_n <- as.numeric( Tau_mean_vec )
       synth_seq <- seq(min(Tau_mean_vec_n - 2 * as.numeric(Tau_sd_vec),Tau_mean_vec_n - 2 * as.numeric(Tau_sd_vec)),
                        max(Tau_mean_vec_n + 2 * as.numeric(Tau_sd_vec),Tau_mean_vec_n + 2 * as.numeric(Tau_sd_vec)),
                        length.out=1000)
@@ -1349,15 +1355,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(!truthKnown){
             my_density <- eval(parse(text = sprintf("
                         data.frame('y'=max(c(%s)))
-                        ", paste(paste("d",1:kClust_est,sep=""),
-                                 collapse = ","))  ))
+                        ", paste(paste("d",1:kClust_est,sep=""), collapse = ","))  ))
           }
           plot(my_density,
                col = ifelse(truthKnown,yes="darkgray",no="white"),
-               lty = 2,
+               lty = 2, cex = 0, lwd = 3,
                xlim = c(min(synth_seq),max(synth_seq)),
                ylim = c(0,max(my_density$y,na.rm=T)*1.5),
-               cex.lab = 2, main = "",lwd = 3,
+               cex.lab = 2, main = "",
                ylab = "Density",
                xlab = "Per Image Treatment Effect")
           if(!truthKnown){ axis(2,cex.axis = 1) }
@@ -1370,10 +1375,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                    eval(parse(text = sprintf("d%s",krk_))),
                    type = "l", col= col_seq[krk_],lwd = 3)
           }
-          #text(Tau_mean_vec_n, rep(max(my_density,na.rm=T)*0.1,2),
-               #labels = sapply(numbering_seq, function(numbering_){
-                 #eval(parse(text = sprintf("expression(hat(tau)(%s))", numbering_))) }),
-               #col = col_seq, cex = 2)
           legends_seq_vec <- c(expression("True"~p(Y[i](1)-Y[i](0)~"|"~M[i])),
                                sapply(numbering_seq, function(numbering_){
                                     eval(parse(text=sprintf('
@@ -1433,9 +1434,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     for(typePlot in (typePlot_vec <- c("uncertainty","mean","mean_upperConf"))){
       typePlot_counter <- typePlot_counter + 1
       rows_ <- kClust_est; nExamples <- 5
-      if(typePlot == "uncertainty"){rows_ <- 1L}
+      if(typePlot == "uncertainty"){ rows_ <- 1L }
 
-      if(CausalImagesDataType == "image"){
+      if(dataType == "image"){
         plot_fxn <- function(){
         pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf",figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
             height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
@@ -1461,10 +1462,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
           plotting_coordinates_mat <- c()
           total_counter <- 0
           for(k_ in 1:rows_){
-            used_coordinates <- c()
+            used_keys <- used_coordinates <- c()
             for(i in 1:5){
-              #if(k_ == 2 & typePlot == "mean"){ browser() }
-              #if(k_ == 2 & i == 1){ browser() }
+              #if(k_ == 2 & typePlot == "mean"){ }
+              #if(k_ == 2 & i == 1){  }
               print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
               total_counter <- total_counter + 1
               rfxn <- function(xer){xer}
@@ -1497,7 +1498,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
 
                 coordinate_i <- c(long[im_i], lat[im_i])
-                if(  bad_counter>length(obsY)  ){ browser() }
+                #if(  bad_counter>length(obsY)  ){ browser() }
                 if(  i > 1  ){
                   isUnique_ <- F; if(!is.null(long)){
                     dist_m <- geosphere::distm(coordinate_i,
@@ -1505,11 +1506,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
                     if(all(dist_m >= 1000)){isUnique_ <- T}
-                } }
+                  }
+                  if(is.null(long)){
+                    bad_counter <- bad_counter + 1
+                    isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_keys[,2] )
+                  }
+                }
                 if(i == 1){ isUnique_<-T }
               }
 
               used_coordinates <- rbind(used_coordinates, c("observation_index"=im_i, coordinate_i))
+              used_keys <- rbind(used_keys, c("observation_index"=im_i, imageKeysOfUnits[im_i]))
               print(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
                         as.integer(k_), as.integer(i), as.integer(im_i),
                                  long[im_i], lat[im_i]))
@@ -1519,10 +1526,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
               }
               if(acquireImageMethod == "tf_record"){
                 setwd(orig_wd)
-                ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
+                ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
                                                                filename = file,
                                                                readVideo = useVideo,
-                                                               nObs = length(imageKeysOfUnits) )
+                                                               nObs = length(unique(imageKeysOfUnits)) )
                 setwd(new_wd)
                 ds_next_in <- ds_next_in[[1]]
                 if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1548,7 +1555,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 stretch <- ifelse(
                     any(apply(as.array(ds_next_in[1, , ,plotBands]), 3,sd) < 1.),
                             yes = "", no = "lin")
-                #raster::plotRGB(raster::brick(abs(tmp)),stretch="")
+                # raster::plotRGB(raster::brick(abs(tmp)),stretch="")
                 # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                 raster::plotRGB(  orig_scale_im_raster,
                                  margins = T,
@@ -1566,7 +1573,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
-                  tauk <- eval(parse(text = sprintf("tau%s",k_)))
+                  tauk <- Tau_mean_vec[k_]
                   ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
                   if(orthogonalize == T){
                     ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
@@ -1660,13 +1667,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       }
 
-      if(CausalImagesDataType == "video"){
+      if(dataType == "video"){
         plot_fxn <- function(){
-          {
             plotting_coordinates_mat <- c()
             total_counter <- 0; ep_LabelSmooth <- tf$constant(0.01)
+            # k_<-i<-1
             for(k_ in 1:rows_){
-              used_coordinates <- c()
+              used_keys <- used_coordinates <- c()
               for(i in 1:5){
                 #if(k_ == 2 & typePlot == "mean"){ browser() }
                 #if(k_ == 2 & i == 1){ browser() }
@@ -1702,7 +1709,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   }
 
                   coordinate_i <- c(long[im_i], lat[im_i])
-                  if(bad_counter>50){browser()}
                   if(i > 1){
                     isUnique_ <- F; if(!is.null(long)){
                       dist_m <- geosphere::distm(coordinate_i,
@@ -1710,10 +1716,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                  fun = geosphere::distHaversine)
                       bad_counter <- bad_counter + 1
                       if(all(dist_m >= 1000)){isUnique_ <- T}
-                    } }
+                    }
+                    if(is.null(long)){
+                      bad_counter <- bad_counter + 1
+                      isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_keys[,2] )
+                      print(used_keys)
+                    }
+                  }
+                  print(im_i)
                   if(i == 1){ isUnique_<-T }
                 }
 
+                used_keys <- rbind(used_keys, c("observation_index"=im_i, "key" = imageKeysOfUnits[im_i]))
                 used_coordinates <- rbind(coordinate_i,used_coordinates)
                 print2(c(k_, i, im_i, long[im_i], lat[im_i]))
 
@@ -1722,19 +1736,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   ds_next_in <- acquireImageFxn(  transportabilityMat$key[im_i], training = F )
                 }
                 if(acquireImageMethod == "tf_record"){
-                  #setwd(orig_wd)
-                  ds_next_in <- GetElementFromTfRecordAtIndices( indices = im_i,
+                  setwd(orig_wd)
+                  ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
                                                                  filename = file,
                                                                  readVideo = useVideo,
-                                                                 nObs = length(imageKeysOfUnits) )
-                  #setwd(new_wd)
+                                                                 nObs = length(unique(imageKeysOfUnits)) )
+                  setwd(new_wd)
                   ds_next_in <- ds_next_in[[1]]
                   if(length(ds_next_in$shape) == 4){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
                 }
 
-
                 if(length(plotBands) < 3){
                   orig_scale_im_raster <-  (as.array(ds_next_in[1,,,,plotBands[1]]))
+                  nTimeSteps <- dim(orig_scale_im_raster)[1]
                   animation::saveGIF({
                     for (t_ in 1:nTimeSteps) {
                       causalimages::image2(
@@ -1747,11 +1761,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                     fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                       no = ""))
                       animation::ani.pause()  # Pause to make sure it gets rendered
-                  } }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
-                                          figuresPath, pdf_name_key, figuresTag, k_, i),
+                  } }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_Type%s_Ortho%s_k%s_i%s.gif",
+                                          figuresPath, pdf_name_key, figuresTag,
+                                          typePlot, orthogonalize, k_,
+                                          i),
                        autobrowse = F, autoplay = F)
                 }
                 if(length(plotBands) >= 3){
+                  nTimeSteps <- dim(ds_next_in[1,, , ,plotBands])[1]
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
                     print( im_i )
@@ -1781,7 +1798,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 if(grepl(typePlot,pattern = "mean")){
                   # axis for plot
                   ylab_ <- ""; if(i==1){
-                    tauk <- eval(parse(text = sprintf("tau%s",k_)))
+                    tauk <- Tau_mean_vec[k_]
                     ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
                     if(orthogonalize == T){
                       ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
@@ -1872,12 +1889,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if("try-error" %in% class(plotting_coordinates_mat)){browser()}
               print2(used_coordinates)
             }
-          }
-          return( plotting_coordinates_mat )
+            return( plotting_coordinates_mat )
         }
       }
 
+      print("Starting plot routine...")
       plotting_coordinates_mat_ <- try(plot_fxn(),T)
+
+      if("try-error" %in% class(plotting_coordinates_mat_)){
+        print('if("try-error" %in% class(plotting_coordinates_mat_)){')
+        browser()
+      }
 
       # tests
       if(T == F){
@@ -1894,7 +1916,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         image2(as.array(ds_next_in[[1]])[3,,,1])
       }
       try(dev.off(),T)
-      if("try-error" %in% class(plotting_coordinates_mat_)){ browser() }
       plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat_
     }
     try({ names(plotting_coordinates_list) <- typePlot_vec},T)
