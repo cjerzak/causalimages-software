@@ -4,6 +4,7 @@
 | [**Installation**](#installation)
 | [**Image Heterogeneity Tutorial**](#tutorial)
 | [**Other Package Functions**](#otherfunctions)
+| [**Data**](https://connorjerzak.com/data/)
 | [**References**](#references)
 | [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
 
