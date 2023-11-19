@@ -77,25 +77,25 @@ WriteTfRecord <- function(file,
 
     parse_single_image <- function(image, index, key){
        if(writeVideo == F){
-          data = dict(
+          data <- dict(
                       "height" = my_int_feature(image$shape[[2]]),
-                      "width" = my_int_feature(image$shape[[3]]),
-                      "depth" = my_int_feature(image$shape[[4]]),
+                      "width" = my_int_feature( image$shape[[3]] ),
+                      "channels" = my_int_feature( image$shape[[4]] ),
                       "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
-                      "index" = my_int_feature(index),
-                      "key" = my_int_feature(key))
+                      "index" = my_int_feature( index ),
+                      "key" = my_bytes_feature( my_serialize_array(key) ))
        }
       if(writeVideo == T){
-        data = dict(
+        data <- dict(
           "time" = my_int_feature(image$shape[[2]]),
           "height" = my_int_feature(image$shape[[3]]),
           "width" = my_int_feature(image$shape[[4]]),
-          "depth" = my_int_feature(image$shape[[5]]),
+          "channels" = my_int_feature(image$shape[[5]]),
           "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
           "index" = my_int_feature(index),
-          "key" = my_int_feature(key))
+          "key" = my_bytes_feature( my_serialize_array(key) ) )
       }
-        out = tf$train$Example(  features = tf$train$Features(feature = data)  )
+        out <- tf$train$Example(  features = tf$train$Features(feature = data)  )
         return( out )
   }
   }
@@ -115,8 +115,8 @@ WriteTfRecord <- function(file,
   for(irz in 1:length(imageKeysOfUnits)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
     tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ), tf$float32),
-                                                 index = as.integer( irz ),
-                                                 key = as.integer( imageKeysOfUnits[irz]  ) )
+                                                 index = irz,
+                                                 key = imageKeysOfUnits[irz] )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
   }
   print("Done! Finalizing tfrecords....")
@@ -159,7 +159,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
     }
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
-    tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
+    # tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
 
     # import python garbage collectors
     py_gc <- reticulate::import("gc")
@@ -257,7 +257,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
   if(is.null(iterator)){ setwd(  orig_wd  ) }
 
   if(return_iterator == T){
-    return_list <- list(return_list,list(dataset_iterator, last_in_))
+    return_list <- list(return_list, list(dataset_iterator, last_in_))
   }
 
   return(  return_list  )
@@ -269,48 +269,49 @@ parse_tfr_element <- function(element, readVideo = F){
   dict_init_val <- list()
   if(!readVideo){
     im_feature_description <- dict(
-      'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
-      'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
+      'height' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'width' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'channels' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'raw_image' = tf$io$FixedLenFeature(dict_init_val, tf$string),
+      'index' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'key' = tf$io$FixedLenFeature(dict_init_val, tf$string)
     )
   }
 
   if(readVideo){
     im_feature_description <- dict(
-      'time'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'height'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'width'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'depth'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'raw_image'= tf$io$FixedLenFeature(dict_init_val, tf$string),
-      'index'= tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'key'= tf$io$FixedLenFeature(dict_init_val, tf$int64)
+      'time' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'height' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'width' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'channels' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'raw_image' = tf$io$FixedLenFeature(dict_init_val, tf$string),
+      'index' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
+      'key'= tf$io$FixedLenFeature(dict_init_val, tf$string)
     )
   }
 
   # parse tf record
-  content = tf$io$parse_single_example(element, im_feature_description)
+  content <- tf$io$parse_single_example(element, im_feature_description)
 
-  height = content[['height']]
-  width = content[['width']]
-  depth = content[['depth']]
-  key = content[['key']]
-  index = content[['index']]
-  raw_image = content[['raw_image']]
+  # get our 'feature' (our image)...
+  feature <- tf$io$parse_tensor( content[['raw_image']], out_type = tf$float32 )
 
-  #get our 'feature' (our image)...
-  feature = tf$io$parse_tensor( raw_image, out_type = tf$float32 )
+  # get the key
+  key <- tf$io$parse_tensor( content[['key']], out_type = tf$string )
+
 
   #  and reshape it appropriately
   if(!readVideo){
-    feature = tf$reshape(  feature, shape = c(height, width, depth)  )
+    feature = tf$reshape(  feature, shape = c(content[['height']],
+                                              content[['width']],
+                                              content[['channels']])  )
   }
   if(readVideo){
-    time = content[['time']]
-    feature = tf$reshape(  feature, shape = c(time, height, width, depth)  )
+    feature = tf$reshape(  feature, shape = c(content[['time']],
+                                              content[['height']],
+                                              content[['width']],
+                                              content[['channels']])  )
   }
 
-  return(    list(feature, index, key)    )
+  return(    list(feature, content[['index']], key)    )
 }
