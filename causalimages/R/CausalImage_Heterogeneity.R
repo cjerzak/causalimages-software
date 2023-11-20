@@ -323,7 +323,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   nMonte_variational <- as.integer( nMonte_variational  )
   widthCycle <- 50
   WhenPool <- c(1,2)
-  TEMP_GLOBAL <- 5.
+  TEMP_GLOBAL <- 1/5.
   #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
   #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
   #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
@@ -1111,7 +1111,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         stop("Stopping: NA in loss function! Perhaps batchSize is too small?")
       }
       i_ <- i ; if(i %% 20 == 0 | i < 10 ){
-        print2(sprintf("SGD iteration %i of %i",i,n_sgd_iters));par(mfrow = c(1,1));
+        print2(sprintf("[%s] SGD iteration %i of %i",
+                       format(Sys.time(), "%Y-%m-%d %H:%M:%S"),i,n_sgd_iters));par(mfrow = c(1,1));
         if(!quiet){
           try({plot(loss_vec,log="y",main="If Still Decreasing at End of Training, \n Try Increasing nSGD",cex.main = 0.95,ylab = "Loss Function Value",xlab="SGD Iteration Number");points(smooth.spline( na.omit(loss_vec) ),col="red",type = "l",lwd=5)},T)
         }
@@ -1792,8 +1793,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                                   fixZeroEndings(round(coordinate_i,2L)[2],2L)),
                                                     no = ""),
                                       col.main = k_, cex.main=4,  stretch = stretch)
-                    }}, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s.gif",
-                                               figuresPath, pdf_name_key, figuresTag, k_, i) )
+                    }}, movie.name =  sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_Type%s_Ortho%s_k%s_i%s.gif",
+                                              figuresPath, pdf_name_key, figuresTag,
+                                              typePlot, orthogonalize, k_,
+                                              i) )
                 }
                 if(grepl(typePlot,pattern = "mean")){
                   # axis for plot
@@ -1868,7 +1871,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
                     # magnitude - check for changes in salings
                     #axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,col.axis=k_)
-                    print2(summary(c( IG[,,,1] )))
+                    #print2(summary(c( IG[,,,1] )))
                     animation::saveGIF({
                       for (t_ in 1:nTimeSteps) {
                          par(mar = c(1,5,1,1))
@@ -1889,6 +1892,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if("try-error" %in% class(plotting_coordinates_mat)){browser()}
               print2(used_coordinates)
             }
+            browser()
             return( plotting_coordinates_mat )
         }
       }
