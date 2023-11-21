@@ -123,6 +123,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       LEARNING_RATE_BASE = 0.005,
                                       printDiagnostics = F,
                                       TfRecords_BufferScaler = 4L,
+                                      temperature = 1,
                                       dataType = "image",
                                       quiet = F){
   # note to maintainers:
@@ -323,11 +324,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
   nMonte_variational <- as.integer( nMonte_variational  )
   widthCycle <- 50
   WhenPool <- c(1,2)
-  TEMP_GLOBAL <- 1/5.
   #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
-  #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
-  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
-  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
+  #plot(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1))
+  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="gray")
+  #points(as.matrix(do.call(rbind,replicate(10,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.1,0.9))$sample(1L))))[,2],pch = 1,col="black")
   BN_MOM <- 0.9
   BN_EP <- 0.01
   if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- 0.90^(1/nMonte_variational) }
@@ -743,7 +743,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( tf$nn$softmax(getClusterLogits(m, training = training), 1L) )
       })
       getClusterSamp_logitInput <- tf_function_fxn( function(logits_){
-        clustT_samp = tfd$RelaxedOneHotCategorical(temperature = TEMP_GLOBAL, logits = logits_)$sample(1L)
+        clustT_samp = tfd$RelaxedOneHotCategorical(temperature = temperature, logits = logits_)$sample(1L)
       })
 
       if(heterogeneityModelType == "variational_CNN"){
@@ -1463,7 +1463,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           plotting_coordinates_mat <- c()
           total_counter <- 0
           for(k_ in 1:rows_){
-            used_keys <- used_coordinates <- c()
+            used_coordinates <- c()
             for(i in 1:5){
               #if(k_ == 2 & typePlot == "mean"){ }
               #if(k_ == 2 & i == 1){  }
@@ -1502,22 +1502,26 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 #if(  bad_counter>length(obsY)  ){ browser() }
                 if(  i > 1  ){
                   isUnique_ <- F; if(!is.null(long)){
-                    dist_m <- geosphere::distm(coordinate_i,
-                                               used_coordinates[,-1],
+                    dist_m <- geosphere::distm(x = coordinate_i,
+                                               y = cbind(f2n(used_coordinates[,3]),
+                                                     f2n(used_coordinates[,4])),
                                                fun = geosphere::distHaversine)
                     bad_counter <- bad_counter + 1
                     if(all(dist_m >= 1000)){isUnique_ <- T}
                   }
                   if(is.null(long)){
                     bad_counter <- bad_counter + 1
-                    isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_keys[,2] )
+                    isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_coordinates[,2] )
                   }
                 }
                 if(i == 1){ isUnique_<-T }
               }
 
-              used_coordinates <- rbind(used_coordinates, c("observation_index"=im_i, coordinate_i))
-              used_keys <- rbind(used_keys, c("observation_index"=im_i, imageKeysOfUnits[im_i]))
+              used_coordinates <-  rbind(used_coordinates,
+                                        c("observation_index"=im_i,
+                                          "key"=imageKeysOfUnits[im_i],
+                                          "long" = coordinate_i[1],
+                                          "lat" = coordinate_i[2]))
               print(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
                         as.integer(k_), as.integer(i), as.integer(im_i),
                                  long[im_i], lat[im_i]))
@@ -1660,7 +1664,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
             plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,
                                                   used_coordinates ),T)
             if("try-error" %in% class(plotting_coordinates_mat)){browser()}
-            print2(used_coordinates)
           }
         }
         dev.off()
@@ -1674,7 +1677,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             total_counter <- 0; ep_LabelSmooth <- tf$constant(0.01)
             # k_<-i<-1
             for(k_ in 1:rows_){
-              used_keys <- used_coordinates <- c()
+              used_coordinates <- c()
               for(i in 1:5){
                 #if(k_ == 2 & typePlot == "mean"){ browser() }
                 #if(k_ == 2 & i == 1){ browser() }
@@ -1712,24 +1715,29 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   coordinate_i <- c(long[im_i], lat[im_i])
                   if(i > 1){
                     isUnique_ <- F; if(!is.null(long)){
-                      dist_m <- geosphere::distm(coordinate_i,
-                                                 used_coordinates,
+                      print(used_coordinates[,-c(1:2)])
+                      dist_m <- geosphere::distm(x = coordinate_i,
+                                                 y = cbind(f2n(used_coordinates[,3]),
+                                                          f2n(used_coordinates[,4])),
                                                  fun = geosphere::distHaversine)
                       bad_counter <- bad_counter + 1
                       if(all(dist_m >= 1000)){isUnique_ <- T}
                     }
                     if(is.null(long)){
                       bad_counter <- bad_counter + 1
-                      isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_keys[,2] )
-                      print(used_keys)
+                      isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_coordinates[,2] )
                     }
                   }
                   print(im_i)
                   if(i == 1){ isUnique_<-T }
                 }
 
-                used_keys <- rbind(used_keys, c("observation_index"=im_i, "key" = imageKeysOfUnits[im_i]))
-                used_coordinates <- rbind(coordinate_i,used_coordinates)
+                used_coordinates <- rbind(used_coordinates,
+                                          c("observation_index" = im_i,
+                                            "key" = imageKeysOfUnits[im_i],
+                                            "long" = coordinate_i[1],
+                                            "lat" = coordinate_i[2]))
+                print( used_coordinates )
                 print2(c(k_, i, im_i, long[im_i], lat[im_i]))
 
                 # load in video
@@ -1888,11 +1896,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
               }
               plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,
-                                                    c("observation_index"=im_i, used_coordinates)),T)
+                                                    used_coordinates ),T)
               if("try-error" %in% class(plotting_coordinates_mat)){browser()}
               print2(used_coordinates)
             }
-            browser()
             return( plotting_coordinates_mat )
         }
       }
