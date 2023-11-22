@@ -180,7 +180,7 @@ GetImageEmbeddings <- function(
       myConv <- tf$keras$layers$Conv3D(filters = nFilters,
                                        kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
                                        activation = "swish",
-                                       dilationRate = "zzz",
+                                       #dilationRate = 2L,
                                        strides = c(1L,strides, strides), padding = "valid", trainable = F)
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
