@@ -156,19 +156,22 @@ GetImageEmbeddings <- function(
   }
 
   imageDims <- length( dim(test_) ) - 2L
-  if(nEmbedDim %% 2 == 0){ OddInput <- F; nFilters <-  nEmbedDim/2 }
-  if(nEmbedDim %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nEmbedDim/2) }
+  useAvePooling <- F; if(useAvePooling){
+    if(nEmbedDim %% 2 == 0){ OddInput <- F; nFilters <-  nEmbedDim/2 }
+    if(nEmbedDim %% 2 == 1){ OddInput <- T; nFilters <-  ceiling(nEmbedDim/2) }
+  }
+  if(!useAvePooling){ nFilters <-  nEmbedDim  }
   if(imageDims == 2){
     AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
     myConv <- tf$keras$layers$Conv2D(filters=nFilters,
                           kernel_size = c(kernelSize,kernelSize),
-                          activation = "linear",
+                          activation = "swish",
                           strides = c(strides,strides),
                           padding = "valid",
                           trainable = F)
     myConv$trainable <- F
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
-    GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve")
+    if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve") }
   }
   if(imageDims == 3){
     AvePoolingDownshift <- tf$keras$layers$AveragePooling3D(pool_size = as.integer(c(1L, inputAvePoolingSize,inputAvePoolingSize)))
@@ -176,15 +179,19 @@ GetImageEmbeddings <- function(
     {
       myConv <- tf$keras$layers$Conv3D(filters = nFilters,
                                        kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
-                                       activation = "linear",
+                                       activation = "swish",
+                                       dilationRate = "zzz",
                                        strides = c(1L,strides, strides), padding = "valid", trainable = F)
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
-      GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve")
+      if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
     }
   }
   GlobalPoolLayer <- function(z){
-    z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
-    if(OddInput){ z <- tf$gather(z, as.integer(1L:nEmbedDim), axis = 1L) }
+    if(useAvePooling){
+      z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
+      if(OddInput){ z <- tf$gather(z, as.integer(1L:nEmbedDim), axis = 1L) }
+    }
+    if(!useAvePooling){ z <- GlobalMaxPoolLayer(z) }
     return( z )
   }
   InitImageProcess <- (function(im){

@@ -46,6 +46,7 @@
 #' @param quiet (default = `F`) Should we suppress information about progress?
 #' @param yDensity (default = `normal`) Specifies the density for the outcome. Current options include `normal` and `lognormal`.
 #' @param maxPoolSize (default = `2L`) Integer specifying the max pooling size used in the convolutional layers.
+#' @param dilationRate (default = `NULL`) Dilation rate.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.=
 #' @param simMode (default = `F`) Should the analysis be performed in comparison with ground truth from simulation?
 #' @param plotResults (default = `T`) Should analysis results be plotted?
@@ -135,7 +136,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   {
     #conda_env <- "tensorflow_m1"; conda_env_required <- T
-    library(tensorflow);# library(keras)
+    library(tensorflow);
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
@@ -594,7 +595,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       LocalPool <- LocalMax
     }
 
-    if(modelClass == "embeddings"){
+    if(BAYES_STEP == 1 & modelClass == "embeddings"){
         print("Initializing embeddings...")
         if(acquireImageMethod == "tf_record"){ setwd(orig_wd)  }
         acquireImageFxnEmbeds <- NULL; if(acquireImageMethod == "functional"){
@@ -972,7 +973,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     print2("Initial forward pass...")
     for(bool_ in c(T)){ # Initialize training branch only to preserve memory
-      print2(bool_)
       with(tf$GradientTape() %as% tape, {
         if(acquireImageMethod == "functional"){
           batch_indices <- sample(1:length(obsW),batchSize)
@@ -1593,7 +1593,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(grepl(typePlot,pattern = "mean")){
                 # axis for plot
                 ylab_ <- ""; if(i==1){
-                  tauk <- Tau_mean_vec[k_]
+                  tauk <- as.vector(Tau_mean_vec)[k_]
                   ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
                   if(orthogonalize == T){
                     ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
@@ -1607,7 +1607,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   take_k <- k_
                   if(i == 1){
                     ImageGrad_fxn <- (function(m){
-                      m <- tf$Variable(m,trainable = T)
                       with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
                         tape$watch( m )
                         PROBS_ <- tf$reduce_mean(tf$concat(
@@ -1699,6 +1698,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
                 total_counter <- total_counter + 1
                 rfxn <- function(xer){xer}
+                print("Starting while loop...")
                 bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
                   BreakTies <- function(x){x + runif(length(x),-1e-3,1e-3)}
                   if(typePlot == "uncertainty"){
@@ -1746,6 +1746,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   print(im_i)
                   if(i == 1){ isUnique_<-T }
                 }
+                print("Ending while loop...")
 
                 used_coordinates <- rbind(used_coordinates,
                                           c("observation_index" = im_i,
@@ -1795,7 +1796,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   nTimeSteps <- dim(ds_next_in[1,, , ,plotBands])[1]
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
-                    print( im_i )
                     orig_scale_im_raster <- raster::brick(
                       0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
                       0*runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
@@ -1824,7 +1824,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 if(grepl(typePlot,pattern = "mean")){
                   # axis for plot
                   ylab_ <- ""; if(i==1){
-                    tauk <- Tau_mean_vec[k_]
+                    tauk <- as.vector(Tau_mean_vec)[k_]
                     ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
                     if(orthogonalize == T){
                       ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
@@ -1837,7 +1837,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     if(i == 1){
                       # don't jit -- take_k dynamic within
                       ImageGrad_fxn <- (function(m){
-                        m <- tf$Variable(m, trainable = T)
                         with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
                           tape$watch( m )
                           PROBS_ <- tf$reduce_mean(tf$concat(

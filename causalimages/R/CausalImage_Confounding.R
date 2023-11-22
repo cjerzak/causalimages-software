@@ -1070,7 +1070,6 @@ AnalyzeImageConfounding <- function(
     SalienceX_se <- SalienceX <- NULL; if(!XisNull){
     if(modelClass == "cnn"){
         getSalienceVec <- function(im_, x_){
-          x_ <- tf$Variable(x_,trainable = T)
           with(tf$GradientTape() %as% tape, {
             tape$watch(x_)
             treat_prob_im <- tf$squeeze(tf$squeeze(getTreatProb( im_getProb = im_,
