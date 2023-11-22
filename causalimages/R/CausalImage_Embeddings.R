@@ -58,6 +58,7 @@ GetImageEmbeddings <- function(
     seed = NULL,
     quiet = F){
 
+
   # initialize tensorflow if not already initialized
   if(   !"logical" %in% class(try(as.numeric(tf$square(1.))==1,T))   ){
     print("Initializing the tensorflow environment...")
@@ -80,7 +81,7 @@ GetImageEmbeddings <- function(
   }
   gc(); try(py_gc$collect(), T)
 
-  if(batchSize > length(imageKeysOfUnits)){
+  if( batchSize > length(imageKeysOfUnits) ){
     batchSize <- length( imageKeysOfUnits  )
   }
 
@@ -179,7 +180,6 @@ GetImageEmbeddings <- function(
                                        strides = c(1L,strides, strides), padding = "valid", trainable = F)
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve")
-      myConv$trainable <- F
     }
   }
   GlobalPoolLayer <- function(z){
@@ -196,10 +196,11 @@ GetImageEmbeddings <- function(
     if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) }
     return( im  )
   })
+  #getEmbedding <- (function(im_){
   getEmbedding <- tf_function(function(im_){
     im_ <- GlobalPoolLayer ( myConv( InitImageProcess( im_ )  ) )
     return( im_  )
-  } )
+  }, autograph = F )
 
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nEmbedDim)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){

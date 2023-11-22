@@ -134,23 +134,28 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
   {
-    library(tensorflow); library(keras)
+    #conda_env <- "tensorflow_m1"; conda_env_required <- T
+    library(tensorflow);# library(keras)
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
     Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
+    #tf$config$list_physical_devices()
     tfp <- tf_probability()
     tfd <- tfp$distributions
-    #tfa <- reticulate::import("tensorflow_addons")
 
     tf$random$set_seed(  c( 1000L ) )
     tf$keras$utils$set_random_seed( 4L )
 
     py_gc <- reticulate::import("gc")
     gc(); py_gc$collect()
+
+    #https://developer.apple.com/forums/thread/723138
+    #tmp <- tf$`function`(function(x){ tf$abs(x)}, jit_compile = T, autograph = T); tmp(tf$constant(1.))
   }
+
 
   # make all directory logic explicit
   orig_wd <- getwd()
@@ -440,6 +445,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                                   beta_initializer = tf$constant_initializer(Tau_mean_init),
                                                                   gamma_initializer = tf$constant_initializer(Tau_sd_init))
       tmp_ <- 1*1/length(obsW[obsW==1])*var(obsY[obsW==1])+1/length(obsW[obsW==0])*var(obsY[obsW==0])
+
+      print("Initializing normalizations...")
       if(heterogeneityModelType == "variational_CNN"){ for(k___ in 1:kClust_est){
         eval(parse(text = sprintf("BNLayer_Axis1_Tau%s <- %s", k___, DenseNormText())))
         eval(parse(text =
@@ -453,7 +460,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           activation='linear')",k___, k___,k___)))
       }}
       if(reparameterizationType == "Flipout"){
-        #ProbLayerExecutionDevice <- '/GPU:0' # currently unavailable with tensorflow 2.11
+        #ProbLayerExecutionDevice <- '/GPU:0' # currently unavailable with tensorflow 2.15
         ProbLayerExecutionDevice <- '/CPU:0'
         ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
         ProbDenseType <-  tfp$layers$DenseFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
@@ -463,6 +470,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ProbConvType <- tfp$layers$Convolution2DReparameterization # less efficient
         ProbDenseType <-  tfp$layers$DenseReparameterization # less efficient
       }
+      print("Initializing convolutions and dense arms...")
       for(conv_ in 1:nDepthHidden_conv){
         eval(parse(text = sprintf("BNLayer_Axis3_Clust_%s <- %s",conv_,ConvNormText(nFilters) )))
         eval(parse(text = sprintf("BNLayer_Axis3_Y0_%s <- %s",conv_,ConvNormText(nFilters) )))
@@ -533,6 +541,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       }
       }
+
+      print("Initializing cluster projection...")
       ClusterProj = ProbDenseType( as.integer(kClust_est-1L),
                                    kernel_prior_fn = PRIOR_MODEL_FXN('ClusterProj'), activation='linear' )
       if(grepl(heterogeneityModelType, pattern = "variational")){Y0Proj = ProbDenseType(as.integer(1L),
@@ -550,6 +560,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Y0_sds_prior_mean <- tfp$math$softplus_inverse(SD_scaling*(Y0_sd_init))#<-SD_scaling*sd(obsY[obsW==0])))
       Y1_sds_prior_mean <- tfp$math$softplus_inverse(SD_scaling*(Y1_sd_init))#<-SD_scaling*sd(obsY[obsW==1])))
 
+      print("Initializing cluster centers...")
       base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
       SDDist_Y1 <- SDDist_Y0 <- MeanDist_tau <- base_mat
       for(k_ in 1:kClust_est){
@@ -584,8 +595,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
 
     if(modelClass == "embeddings"){
+        print("Initializing embeddings...")
         if(acquireImageMethod == "tf_record"){ setwd(orig_wd)  }
-        acquireImageFxnEmbeds <- NULL; if(!is.null(acquireImageFxn)){
+        acquireImageFxnEmbeds <- NULL; if(acquireImageMethod == "functional"){
           acquireImageFxn2 <- acquireImageFxn
           assign("acquireImageFxn2", acquireImageFxn2, envir = .GlobalEnv)
           acquireImageFxnEmbeds <- function(keys,
@@ -610,6 +622,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
             conda_env_required = T )$embeddings_fxn
+          # check correct use of new key process
           if(acquireImageMethod == "tf_record"){ setwd( new_wd )  }
     }
 
@@ -993,24 +1006,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
     #optimizer_tf = tf$optimizers$legacy$Adam(learning_rate = LEARNING_RATE_BASE) #$,clipnorm=1e1)
     optimizer_tf = tf$optimizers$legacy$Nadam(learning_rate = LEARNING_RATE_BASE) #$,clipnorm=1e1)
 
-    #LR_method <- "WNGrad"
     LR_method <- "constant"
     InvLR <- tf$Variable(0.,trainable  =  F)
 
-    trainStep <-  (function(dat,y,treat, training){
+    trainStep <-  tf_function(function(dat,y,treat, training){
       with(tf$GradientTape(watch_accessed_variables = F) %as% tape, {
         tape$watch(  trainable_variables   )
-        myLoss_forGrad <<- getLoss( dat = dat,
+        myLoss_forGrad <- getLoss( dat = dat,
                                     treat = treat,
                                     y = y,
                                     training = training)
       })
-      my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
+      my_grads <- tape$gradient( myLoss_forGrad, trainable_variables )
 
       # update LR
-      optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   ))
-      L2_grad_i <<- sqrt(sum((grad_i <- as.numeric(tf$concat(lapply(my_grads,function(x) tf$reshape(x,list(-1L,1L))),0L) ))^2) )
-      x_i <- as.numeric( tf$concat((lapply(trainable_variables, function(zer){tf$reshape(zer,-1L)})),0L))
+      #optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   ))
+      #L2_grad_i <<- sqrt(sum((grad_i <- as.numeric(tf$concat(lapply(my_grads,function(x) tf$reshape(x,list(-1L,1L))),0L) ))^2) )
+      #x_i <- as.numeric( tf$concat((lapply(trainable_variables, function(zer){tf$reshape(zer,-1L)})),0L))
       if(LR_method == "WNGrad"){ if(i == 1){
         L2_grad_init <<- L2_grad_scale*L2_grad_i
         InvLR$assign(  L2_grad_init )
@@ -1020,10 +1032,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
 
       # apply gradients
-      {
-        optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables))
-        if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
-      }
+      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables))
+      if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
+      return( list(myLoss_forGrad, my_grads) )
     })
 
     keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
@@ -1099,14 +1110,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       # checks via e1 and e2 for embeddings case
       # e1 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
-      trainStep(dat = InitImageProcess(ds_next_train, training = T),
+      myLoss_forGrad <- trainStep(
+                dat = InitImageProcess(ds_next_train, training = T),
                 y = tf$constant(obsY[batch_indices], tf$float32),
                 treat = tf$constant(obsW[batch_indices], tf$float32),
                 training = T)
+      my_grads <- myLoss_forGrad[[2]]
+      myLoss_forGrad <- myLoss_forGrad[[1]]
+      optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   ))
       # e2 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
       # e1 - e2 # (should be 0)
       loss_vec[i] <- myLoss_forGrad <- as.numeric( myLoss_forGrad )
-      L2grad_vec[i] <- as.numeric( L2_grad_i )
+      #L2grad_vec[i] <- as.numeric( L2_grad_i )
       if(is.na(myLoss_forGrad)){
         stop("Stopping: NA in loss function! Perhaps batchSize is too small?")
       }
