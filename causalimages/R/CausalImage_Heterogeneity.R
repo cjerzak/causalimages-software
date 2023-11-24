@@ -56,9 +56,8 @@
 #'
 #' @return Returns a list consiting of \itemize{
 #'   \item `clusterTaus_mean` default
-#'   \item `clusterTaus_sd` Estimated image effect cluster standard deviations.
 #'   \item `clusterProbs_mean`. Estimated mean image effect cluster probabilities.
-#'   \item `clusterTaus_sd`. Estimated image effect cluster probability standard deviations.
+#'   \item `clusterTaus_sigma`. Estimated cluster standard deviations.
 #'   \item `clusterProbs_lowerConf`. Estimated lower confidence for effect cluster probabilities.
 #'   \item `impliedATE`. Implied ATE.
 #'   \item `individualTau_est`. Estimated individual-level image-based treatment effects.
@@ -308,7 +307,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # setup tf record
-  loss_vec <- NULL
+  Tau_mean_sd_vec <- loss_vec <- NULL
 
   # specify some training parameters + helper functions
   rzip <- function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
@@ -620,6 +619,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             strides = strides,
             nEmbedDim = nEmbedDim,
             kernelSize = kernelSize,
+            InitImageProcess = InitImageProcess,
             temporalKernelSize = temporalKernelSize,
             conda_env = "tensorflow_m1",
             conda_env_required = T )$embeddings_fxn
@@ -851,6 +851,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
         Tau_mean_vec <- getTau_means()
+        Tau_mean_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])
         MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec,
                                         (Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"]))))
         ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample( nBatch_dynamic ),0L)
@@ -1948,7 +1949,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     return( list(
                  "clusterTaus_mean" = as.numeric(Tau_mean_vec),
-                 "clusterTaus_sd" = Tau_sd_vec,
+                 "clusterTaus_sd" = as.numeric(Tau_mean_sd_vec),
+                 "clusterSigmas" = Tau_sd_vec,
                  "clusterProbs_mean" = ClusterProbs_est_full,
                  "clusterProbs_sd" = ClusterProbs_std,
                  "clusterProbs_lowerConf" = ClusterProbs_lower_conf,
@@ -1964,7 +1966,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 "ClusterProbs_mean" = ClusterProbs_est,
                 "ClusterProbs" = ClusterProbs,
                 "clusterTaus_mean" = as.numeric(Tau_mean_vec),
-                "clusterTaus_sd" = Tau_sd_vec,
+                "clusterTaus_sd" = as.numeric(Tau_mean_sd_vec),
+                "clusterSigmas" = Tau_sd_vec,
                 "tau_i_est" = tau_i_est,
                 "impliedATE" = impliedATE,
                 "whichNA_dropped" = whichNA_dropped
