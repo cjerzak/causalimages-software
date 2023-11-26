@@ -1094,7 +1094,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$Variable(LEARNING_RATE_BASE, dtype = float_dtype)) #$,clipnorm=1e1)
     #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
     #optimizer_tf <- tf$optimizers$legacy$SGD(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
-    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype),clipvalue=cnst(1))
+    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
     optimizer_tf <- tf$keras$mixed_precision$LossScaleOptimizer( optimizer_tf, initial_scale = cnst(2^4))
 
     LR_method <- "constant"
@@ -1178,9 +1178,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 treat = tf$constant(obsW[batch_indices], float_dtype),
                 training = T)
       my_grads <- myLoss_forGrad[[2]]
-      # unlist(  lapply(lapply(unlist(myLoss_forGrad),tf$reduce_sum),as.numeric) )
       scaled_myLoss_forGrad <- myLoss_forGrad[[3]]
       myLoss_forGrad <- myLoss_forGrad[[1]]
+      print( summary( unlist(  lapply(lapply(unlist(myLoss_forGrad),
+                                      function(x){tf$reduce_sum(tf$abs(x))}), as.numeric) )) )
+      print(c(as.numeric(myLoss_forGrad), as.numeric(scaled_myLoss_forGrad)))
 
       # update LR
       #optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2) + LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 ), dtype = float_dtype   ))

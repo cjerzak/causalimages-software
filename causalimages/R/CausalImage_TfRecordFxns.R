@@ -114,7 +114,9 @@ WriteTfRecord <- function(file,
   tf_record_writer = tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
   for(irz in 1:length(imageKeysOfUnits)){
-    if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
+    if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s",
+                                                  format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                                                  irz, length(imageKeysOfUnits) ) ) }
     tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ),
                                                           eval(parse(text = sprintf("tf$%s",image_dtype)))),
                                                  index = irz,
