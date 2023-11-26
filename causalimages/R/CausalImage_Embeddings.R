@@ -199,38 +199,39 @@ GetImageEmbeddings <- function(
                                                  activation = "linear",
                                                  #groups = 1L,
                                                  strides = c(strides, strides), padding = "valid", trainable = F)
-        myConv_spatial_fxn <- function(m){
+        myConv_spatial_fxn <- (function(m){
           m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
           m_ <- tf$vectorized_map(myConv_spatial, m_) # vectorized_map only seems to work across axis 0L
           m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
           return( m_ )
-        }
+        })
         myConv_temporal <- tf$keras$layers$Conv3D(filters = nFilters,
                                                  kernel_size = c(temporalKernelSize, 1L, 1L),
                                                  activation = "linear",
                                                  groups = 1L,
-                                                 strides = c(1L, strides, strides), padding = "valid", trainable = F)
+                                                 strides = c(1L, strides, strides),
+                                                 #strides = c(1L, 1L, 1L),
+                                                 padding = "valid", trainable = F)
         # m <- batch_inference[[1]]
         # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
 
-        # myConv_spatial ( m )
-        # myConv(m)
-        myConv <- tf_function( function(m){ myConv_temporal( myConv_spatial_fxn(m) ) })
+        # myConv_spatial ( m );  myConv(m)
+        myConv <- ( function(m){ myConv_temporal( myConv_spatial_fxn( m ) ) })
       }
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
     }
   }
-  GlobalPoolLayer <- tf_function(function(z){
+  GlobalPoolLayer <- (function(z){
     if(useAvePooling){
       z <- tf$concat(list(GlobalMaxPoolLayer(z),GlobalAvePoolLayer(z)),1L)
-      if(OddInput){ z <- tf$gather(z, as.integer(1L:nEmbedDim), axis = 1L) }
+      if(OddInput){ z <- tf$gather(z, as.integer(0L:(nEmbedDim-1L)), axis = 1L) }
     }
     if(!useAvePooling){ z <- GlobalMaxPoolLayer(z) }
     return( z )
   })
   if(is.null(InitImageProcess)){
-    InitImageProcess <- tf_function(function(im, training = F){
+    InitImageProcess <- (function(im, training = F){
 
       # normalize if desired
       # im <- tf$divide(tf$subtract(im, NORM_MEAN_array), NORM_SD_array)

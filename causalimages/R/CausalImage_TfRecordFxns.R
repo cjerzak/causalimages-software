@@ -30,6 +30,7 @@ WriteTfRecord <- function(file,
                           imageKeysOfUnits,
                           acquireImageFxn,
                           writeVideo = F,
+                          image_dtype = "float16",
                           attemptRestart = F,
                           conda_env = NULL,
                           conda_env_required = F){
@@ -114,7 +115,8 @@ WriteTfRecord <- function(file,
   setwd(  orig_wd )
   for(irz in 1:length(imageKeysOfUnits)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("At index %s", irz ) ) }
-    tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ), tf$float32),
+    tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ),
+                                                          eval(parse(text = sprintf("tf$%s",image_dtype)))),
                                                  index = irz,
                                                  key = imageKeysOfUnits[irz] )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
