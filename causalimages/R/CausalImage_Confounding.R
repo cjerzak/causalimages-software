@@ -94,6 +94,7 @@ AnalyzeImageConfounding <- function(
                                    figuresPath = "./",
                                    tagInFigures = F,
                                    plotBands = 1L,
+                                   image_dtype = "float16",
 
                                    simMode = F,
                                    plotResults = T,
@@ -143,6 +144,14 @@ AnalyzeImageConfounding <- function(
     # remember - inputs to tf_functions should be tf$constants
     tf_function_use  <- tf_function
     #tf_function_use  <- function(x){print("Warning: Not using tf_function()"); return(x)}
+
+    # image dtype management
+    if(image_dtype == "float16"){
+      tf$keras$mixed_precision$set_global_policy( sprintf('mixed_%s', image_dtype) )
+    }
+    image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
+    if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
+    image_dtype <- image_dtype_
   }
 
   # make all directory logic explicit
@@ -321,7 +330,7 @@ AnalyzeImageConfounding <- function(
       if(acquireImageMethod == "functional"){
         batch_indices <- sample(1:length(obsY),batchSize,replace = F)
         ds_next_train <- list(
-          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = F) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = F) , dtype = image_dtype )
         )
       }
 
@@ -335,8 +344,8 @@ AnalyzeImageConfounding <- function(
       NORM_SD <- NORM_SD + apply(as.array(ds_next_train[[1]]),4,sd) / momentCalIters
       NORM_MEAN <- NORM_MEAN + apply(as.array(ds_next_train[[1]]),4,mean) / momentCalIters
     }
-    NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),tf$float32)
-    NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),tf$float32)
+    NORM_MEAN_array <- tf$constant(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
+    NORM_SD_array <- tf$constant(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
     py_gc$collect()
 
     # define train/test indices
@@ -534,7 +543,7 @@ AnalyzeImageConfounding <- function(
                              sample(trainIndices[which(obsW[trainIndices]==0)], batchSize/2) )
         }
         ds_next_train <- list(
-          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = T) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices], training = T) , dtype = image_dtype )
         )
       }
 
@@ -637,7 +646,7 @@ AnalyzeImageConfounding <- function(
         }
 
         batch_inference <- list(
-          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F) , dtype = tf$float32 )
+          r2const( acquireImageFxn(imageKeysOfUnits[batch_indices_inference], training = F) , dtype = image_dtype )
         )
 
         insert_probs <- try(c(as.array(getTreatProb(im_getProb = InitImageProcess(batch_inference[[1]],
@@ -731,7 +740,7 @@ AnalyzeImageConfounding <- function(
                                           acquireImageFxn_ = acquireImageFxn2,
                                           InitImageProcess_ = InitImageProcess2,
                                           training = F){
-              InitImageProcess_( im = tf$constant(acquireImageFxn_( keys ),tf$float32),
+              InitImageProcess_( im = tf$constant(acquireImageFxn_( keys ),image_dtype),
                                  training = F,
                                  iteration = tf$constant(1.) )
         }
@@ -916,7 +925,7 @@ AnalyzeImageConfounding <- function(
               if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
             }
             if(acquireImageMethod == "functional"){
-              ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[in_], training = F), dtype = tf$float32 )
+              ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[in_], training = F), dtype = image_dtype )
               if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
               ds_next_in <- list( ds_next_in )
             }
@@ -1093,7 +1102,7 @@ AnalyzeImageConfounding <- function(
             if(length(ds_next_in$shape) == 3){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           }
           if(acquireImageMethod == "functional"){
-            ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[ samp_ ], training = F), dtype = tf$float32 )
+            ds_next_in <- r2const( acquireImageFxn(imageKeysOfUnits[ samp_ ], training = F), dtype = image_dtype )
             if(length(ds_next_in$shape) == 3){ ds_next_in <- tf$expand_dims(ds_next_in,0L) }
             ds_next_in <- list( ds_next_in )
           }

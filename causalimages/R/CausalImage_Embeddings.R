@@ -56,6 +56,7 @@ GetImageEmbeddings <- function(
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
     dataType = "image",
+    image_dtype = "float16",
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL,
     quiet = F){
@@ -82,6 +83,13 @@ GetImageEmbeddings <- function(
     py_gc <- reticulate::import("gc")
   }
   gc(); try(py_gc$collect(), T)
+
+  # dtype setup
+  browser()
+  image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
+  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
+  image_dtype <- image_dtype_
+  float_dtype <- image_dtype
 
   if( batchSize > length(imageKeysOfUnits) ){
     batchSize <- length( imageKeysOfUnits  )
@@ -131,7 +139,13 @@ GetImageEmbeddings <- function(
     # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
   }
 
-  # coerce output to tf$constant
+  # image dtype management
+  image_dtype <- eval(parse(text = sprintf("tf$%s",image_dtype)))
+  image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
+  if(class(image_dtype_) == "try-error"){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
+  image_dtype <- image_dtype_
+
+  # acquire image
   if(acquireImageMethod == "functional"){
     myType <- acquireImageFxn(imageKeysOfUnits[1:2], training = F)
     environment(acquireImageFxn) <- environment()
@@ -139,7 +153,7 @@ GetImageEmbeddings <- function(
     if(!"tensorflow.tensor" %in% class(test_)){
       acquireImageFxn_as_input <- acquireImageFxn
       acquireImageFxn <- function(keys, training){
-        m_ <- tf$constant(acquireImageFxn_as_input(keys, training),tf$float32)
+        m_ <- tf$constant(acquireImageFxn_as_input(keys, training),image_dtype)
         if(length(m_$shape) == 3){
           # expand across batch dimension if receiving no batch dimension
           m_ <- tf$expand_dims(m_,0L)
@@ -153,6 +167,7 @@ GetImageEmbeddings <- function(
     test_ <- tf$expand_dims(GetElementFromTfRecordAtIndices( indices = 1L,
                                                              filename = file,
                                                              readVideo = useVideo,
+                                                             image_dtype = image_dtype,
                                                              nObs = length(imageKeysOfUnits))[[1]],0L)
     setwd(new_wd)
   }
@@ -188,6 +203,7 @@ GetImageEmbeddings <- function(
                                          kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
                                          activation = "linear",
                                          groups = 1L,
+                                         dtype = float_dtype,
                                          strides = c(1L, strides, strides), padding = "valid", trainable = F)
       }
       if(T == T){
@@ -197,7 +213,7 @@ GetImageEmbeddings <- function(
         myConv_spatial <- tf$keras$layers$SeparableConv2D(filters = nFilters,
                                                  kernel_size = c(kernelSize, kernelSize),
                                                  activation = "linear",
-                                                 #groups = 1L,
+                                                 dtype = float_dtype,
                                                  strides = c(strides, strides), padding = "valid", trainable = F)
         myConv_spatial_fxn <- (function(m){
           m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
@@ -209,6 +225,7 @@ GetImageEmbeddings <- function(
                                                  kernel_size = c(temporalKernelSize, 1L, 1L),
                                                  activation = "linear",
                                                  groups = 1L,
+                                                 dtype = float_dtype,
                                                  strides = c(1L, strides, strides),
                                                  #strides = c(1L, 1L, 1L),
                                                  padding = "valid", trainable = F)
@@ -265,7 +282,7 @@ GetImageEmbeddings <- function(
       if(acquireImageMethod == "functional"){
         if(batchSizeOneCorrection){ batch_indices <- c(batch_indices, batch_indices) }
         batch_inference <- list(
-          tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices], training = F),tf$float32)
+          tf$cast(acquireImageFxn(imageKeysOfUnits[batch_indices], training = F),image_dtype)
         )
       }
 
@@ -276,6 +293,7 @@ GetImageEmbeddings <- function(
                                                             nObs = length(imageKeysOfUnits),
                                                             return_iterator = T,
                                                             readVideo = useVideo,
+                                                            image_dtype = image_dtype,
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]])
