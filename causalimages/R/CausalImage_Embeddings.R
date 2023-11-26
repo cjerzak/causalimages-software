@@ -85,7 +85,6 @@ GetImageEmbeddings <- function(
   gc(); try(py_gc$collect(), T)
 
   # dtype setup
-  browser()
   image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
   if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
