@@ -88,7 +88,8 @@ GetImageEmbeddings <- function(
   image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
   if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
-  float_dtype <- image_dtype
+  #float_dtype <- image_dtype
+  float_dtype <- tf$float32
 
   if( batchSize > length(imageKeysOfUnits) ){
     batchSize <- length( imageKeysOfUnits  )
@@ -301,7 +302,7 @@ GetImageEmbeddings <- function(
       }
 
       # getEmbedding(batch_inference[[1]])
-      embed_ <- try(as.matrix(  getEmbedding(batch_inference[[1]])  ), T)
+      embed_ <- try(as.matrix(  getEmbedding( batch_inference[[1]] )  ), T)
       if("try-error" %in% class(embed_)){ browser() }
       if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices,] <- embed_

@@ -169,7 +169,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
     if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
     image_dtype <- image_dtype_
-    float_dtype <- image_dtype
+    #float_dtype <- image_dtype
+    float_dtype <- tf$float32
   }
 
 
@@ -261,6 +262,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     rm( test_ )
   }
+
+  # normalize
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
     tmp <- replicate(30, {
@@ -281,9 +284,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( l_  )
     })
     NORM_MEAN <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",])),
-                                                                           dtype = float_dtype),0L),0L), 0L)
+                                                                           dtype = image_dtype),0L),0L), 0L)
     NORM_SD <- tf$expand_dims( tf$expand_dims(tf$expand_dims(tf$constant(colMeans(do.call(rbind,tmp["NORM_SD",])),
-                                                                         dtype = float_dtype),0L),0L), 0L)
+                                                                         dtype = image_dtype),0L),0L), 0L)
     if(length(dim(tmp)) == 5){
       NORM_MEAN <- tf$expand_dims( NORM_MEAN, 0L)
       NORM_SD <- tf$expand_dims( NORM_SD, 0L)
@@ -292,10 +295,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
     rm(  tmp  )
   }
 
-  print2 <- function(x){if(!quiet){print(x)}}
 
   # set environment of image sampling functions
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
+  print2 <- function(x){if(!quiet){print(x)}}
   nDimLowerDimConv <- as.integer( nDimLowerDimConv )
   windowCounter <- 0
 
@@ -350,15 +353,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
   kernelSize_est <- as.integer(  kernelSize )
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
-  widthCycle <- 50
+  widthFreq <- 20
   WhenPool <- c(1,2)
   #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
   #plot(as.matrix(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1));abline(h=0.5)
   #plot(as.matrix(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.01,0.99))$sample(1L))))[,2],ylim = c(0,1));abline(h=0.5)
   #plot(as.matrix(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.001,0.999))$sample(1L))))[,2],ylim = c(0,1));abline(h=0.5)
   #plot(as.matrix(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.5,0.5))$sample(1L))))[,2],pch = 2,col="black");abline(h=0.5)
-  BN_MOM <- 0.9
-  BN_EP <- 0.01
+  BN_MOM <- cnst(0.9)
+  BN_EP <- cnst(0.01)
   if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- 0.90^(1/nMonte_variational) }
   ConvNormText <- function(dim_){"tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, dtype = float_dtype,
                                                                       momentum = BN_MOM, epsilon = BN_EP)"}
@@ -588,9 +591,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
       ClusterProj = ProbDenseType( as.integer(kClust_est-1L),
                                    dtype = float_dtype,
                                    kernel_prior_fn = PRIOR_MODEL_FXN('ClusterProj'),
+                                   name = "FinalClusterProj",
                                    activation = 'linear' )
-      if(grepl(heterogeneityModelType, pattern = "variational")){Y0Proj = ProbDenseType(as.integer(1L), dtype = float_dtype,
-                                                                      kernel_prior_fn = PRIOR_MODEL_FXN('Y0Proj'),activation='linear') }
+      if(grepl(heterogeneityModelType, pattern = "variational")){
+              Y0Proj <- ProbDenseType(as.integer(1L), dtype = float_dtype,
+                        name = "Y0Proj", kernel_prior_fn = PRIOR_MODEL_FXN('Y0Proj'),
+                        activation='linear')
+      }
       BNLayer_Axis1_ProjY1 <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
                                                                  dtype = float_dtype,
                                                                  beta_initializer = tf$constant_initializer( Y1_mean_init),
@@ -699,6 +706,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
            m <- EmbeddingsFxn(   m    )
         }
 
+        m <- tf$cast(m, dtype = float_dtype)
+
         # dense part
         if(nDepthHidden_dense > 0){
         for(dense_ in 1:nDepthHidden_dense){
@@ -720,7 +729,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     if(heterogeneityModelType == "tarnet"){
-      getImageRep <- tf_function_fxn( function(m,training){
+      getImageRep <- tf_function_fxn( function(m, training){
 
         # convolutional model
         if(modelClass == "cnn"){
@@ -741,6 +750,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
           m <- EmbeddingsFxn(   m    )
         }
 
+        m <- tf$cast(m, dtype = float_dtype)
+
+        return( m )
       } )
       getEY0 <- tf_function_fxn(function(  m , training  ){
         m <- getImageRep( m,training = training )
@@ -782,6 +794,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(modelClass == "embeddings"){
             m <- EmbeddingsFxn(   m    )
           }
+
+          m <- tf$cast( m , dtype = float_dtype)
 
           # dense part
           if(nDepthHidden_dense > 0){
@@ -831,6 +845,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
               m <- EmbeddingsFxn( m )
             }
 
+            m <- tf$cast( m , dtype = float_dtype)
+
             eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauProj%s(m)} )",k____)))
             if(BNPreOutput){
               eval(parse(text = sprintf("m <- BNLayer_Axis1_ProjTau%s(m, training = training)",k____)))
@@ -868,14 +884,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
       TauRunning <- tf$Variable(t(rep(as.matrix(marginal_tau),times=kClust_est)),
                                 dtype=float_dtype, trainable=F)
       getTau_means <- tf_function_fxn( function(){
-        if(yDensity == "normal"){ ret_ <- tf$identity(MeanDist_tau[,"Mean"]) }
-        if(yDensity == "lognormal"){ ret_ <- tf$identity(MeanDist_tau[,"Mean"]) }
+        if(yDensity == "normal"){ ret_ <- tf$stack(MeanDist_tau[,"Mean"]) }
+        if(yDensity == "lognormal"){ ret_ <- tf$stack(MeanDist_tau[,"Mean"]) }
         return(ret_)
       } )
     }
 
-    getTrainingLikelihoodDraw <- tf_function_fxn(function(dat,treat,y){
-      training <- T
+    getTrainingLikelihoodDraw <- tf_function_fxn(function(dat, treat, y, training){
       nMonte_internal <- 1L
 
       # cluster probabilities
@@ -891,22 +906,22 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # enforce ATE
       nBatch_dynamic <- tf$gather(dat$shape,0L)
-      if(heterogeneityModelType == "variational_CNN"){
+      if( heterogeneityModelType == "variational_CNN" ){
         ETau_draw <- tf$concat(replicate(nMonte_internal,
                        tf$expand_dims(getTau(dat,training = training),0L)),0L)
       }
-      if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
+      if( grepl(heterogeneityModelType, pattern = "variational_minimal") ){
         Tau_mean_vec <- getTau_means()
         MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec,
                                         (Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"]))))
         ETau_draw <- tf$expand_dims(MeanDist_Tau_post$sample( nBatch_dynamic ),0L)
       }
 
-      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]),
+      SDDist_Y1_post = (tfd$Normal(tf$stack(SDDist_Y1[,"Mean"]),
                                    tf$nn$softplus(SDDist_Y1[,"SD"])))
       EY1SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y1_post$sample(nBatch_dynamic)),0L)
 
-      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]),
+      SDDist_Y0_post = (tfd$Normal(tf$stack(SDDist_Y0[,"Mean"]),
                                    tf$nn$softplus(SDDist_Y0[,"SD"])))
       EY0SD_draw <- tf$expand_dims(tf$nn$softplus(SDDist_Y0_post$sample(nBatch_dynamic)),0L)
 
@@ -944,8 +959,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         Tau_mean_vec <- getTau_means()
         MeanDist_Tau_post = (tfd$Normal(Tau_mean_vec, Tau_sd_vec <- tf$nn$softplus(MeanDist_tau[,"SD"])))
       }
-      SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
-      SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
+      SDDist_Y1_post = (tfd$Normal(tf$stack(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
+      SDDist_Y0_post = (tfd$Normal(tf$stack(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
 
       # generate KL components
       KLterm <- tf$zeros(list(), dtype = float_dtype)
@@ -989,23 +1004,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
       minThis <- minThis / cnst(batchSize) # normalize
     })
 
-    getExpectedLikelihood <- tf_function_fxn(function(dat,treat,y){
+    getExpectedLikelihood <- tf_function_fxn(function(dat, treat, y, training){
     #getExpectedLikelihood <- (function(dat,treat,y){
       # note: compiling this also involves compiling thru the nMonte part (may cause issues!)
       likelihood_distribution_expectation <- tf$zeros(list(tf$shape(dat)[1]), float_dtype)
       for(d_ in 1:nMonte_variational){
         likelihood_distribution_expectation <- likelihood_distribution_expectation +
-          getTrainingLikelihoodDraw(dat=dat,treat=treat,y=y) / tf$constant(f2n(nMonte_variational), float_dtype)
+          getTrainingLikelihoodDraw(dat=dat, treat=treat, y=y, training = training) / tf$constant(f2n(nMonte_variational), float_dtype)
       }
       return( likelihood_distribution_expectation )
     })
 
     #getLoss <- ( function(dat,treat,y,training){
-    getLoss <- tf_function_fxn( function(dat,treat,y,training){
+    getLoss <- tf_function_fxn( function(dat, treat, y, training){
       if(heterogeneityModelType == "tarnet"){
         m <- getImageRep(dat,training = training)
-        Y0_hat <- getEY0_finalStep(m,training=training)
-        Y1_hat <- getEY1_finalStep(m,training=training)
+        Y0_hat <- getEY0_finalStep(m, training = training)
+        Y1_hat <- getEY1_finalStep(m, training = training)
         Yobs_hat <- tf$multiply(Y1_hat,tf$expand_dims(treat,1L)) +
                                   tf$multiply(Y0_hat,tf$expand_dims(1-treat,1L))
         minThis <- tf$reduce_sum(tf$square(tf$expand_dims(y,1L) - Yobs_hat))
@@ -1014,7 +1029,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(grepl(heterogeneityModelType,pattern= "variational")){
         likelihood_distribution_expectation <- getExpectedLikelihood(dat = dat,
                                                                      treat = treat,
-                                                                     y = y)
+                                                                     y = y,
+                                                                     training = training)
 
         #plot(as.numeric(tf$reduce_mean(likelihood_distribution_draws$log_prob( tf$expand_dims(y,0L) ),0L)),as.numeric( y  ),col = as.numeric( treat)+1)
         #optional ATE penalty: + tf$reduce_mean(tf$multiply(marginal_lambda, tf$square(marginal_tau - impliedATE)))
@@ -1023,35 +1039,47 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( minThis )
     })
 
-    #trainStep <-  (function(dat,y,treat, training){
-    trainStep <-  tf_function_fxn(function(dat,y,treat, training){
+
+    #trainStep <-  (function(dat, y, treat){
+    trainStep <-  tf_function_fxn(function(dat, y ,treat){
+
       #trainStep <-  (function(dat,y,treat, training){
       # note: compiling this also involves compiling thru the nMonte part (may cause issues!)
-      with(tf$GradientTape(watch_accessed_variables = F,
-                           persistent = F) %as% tape, {
+      with(tf$GradientTape(watch_accessed_variables = F) %as% tape, {
         tape$watch(  trainable_variables   )
         myLoss_forGrad <- getLoss( dat = dat,
                                    treat = treat,
                                    y = y,
-                                   training = training)
-        scaledLoss_forGrad <- optimizer_tf$get_scaled_loss( myLoss_forGrad )
+                                   training = T)
+                                   #training = tf$constant(T, tf$bool))
+        if(scaleLoss){ scaledLoss_forGrad <- optimizer_tf$get_scaled_loss( myLoss_forGrad )  }
       })
 
-      #my_grads <- tape$gradient( myLoss_forGrad, trainable_variables )
-      my_grads <- optimizer_tf$get_unscaled_gradients( tape$gradient( scaledLoss_forGrad, trainable_variables ) )
+      if(!scaleLoss){
+        my_grads <- tape$gradient( myLoss_forGrad, trainable_variables )
+        scaledLoss_forGrad <- cnst(1.)
+      }
+      if(scaleLoss){  my_grads <- optimizer_tf$get_unscaled_gradients( tape$gradient( scaledLoss_forGrad, trainable_variables ) ) }
+
 
       #L2_grad_i <<- sqrt(sum((grad_i <- as.numeric(tf$concat(lapply(my_grads,function(x) tf$reshape(x,list(-1L,1L))),0L) ))^2) )
       #x_i <- as.numeric( tf$concat((lapply(trainable_variables, function(zer){tf$reshape(zer,-1L)})),0L))
-      if(LR_method == "WNGrad"){ if(i == 1){
-        InvLR$assign( L2_grad_init <<- L2_grad_scale*L2_grad_i )
-        print2(sprintf("Initial LR: %.3f",1/L2_grad_init))
-      }
+      if(LR_method == "WNGrad"){ if(i == 1){ InvLR$assign( L2_grad_init <<- L2_grad_scale*L2_grad_i ) }
         if(i > 1) { InvLR$assign_add( tf$divide( L2_grad_i,InvLR ) ) }
       }
 
-      # apply gradients
-      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables))
-      if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
+      # apply gradients and apply adaptive clipping
+      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables) )
+
+      # apply adaptive update clipping (not implemented)
+      if(T == F){  for(l_i in 1:length(my_grads)){
+        frac_param_norm <- tf$multiply(tf$norm( trainable_variables[[l_i]] ), cnst(0.01)) # XXX% clip factor
+        updates[[l_i]] <- tf$clip_by_norm(updates[[l_i]], frac_param_norm)
+      } }
+
+
+      #if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
+
       return( list(myLoss_forGrad,
                    my_grads,
                    scaledLoss_forGrad) )
@@ -1091,11 +1119,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
       len_<-try(length((zer)),T);return( len_ ) })))))
 
     # define optimizer and training step
-    #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$Variable(LEARNING_RATE_BASE, dtype = float_dtype)) #$,clipnorm=1e1)
-    #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
     #optimizer_tf <- tf$optimizers$legacy$SGD(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
-    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
-    optimizer_tf <- tf$keras$mixed_precision$LossScaleOptimizer( optimizer_tf, initial_scale = cnst(2^4))
+    #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(.1))
+    #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$Variable(LEARNING_RATE_BASE, dtype = float_dtype)) #$,clipnorm=1e1)
+    #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE),
+    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = (LEARNING_RATE_BASE),
+                                              beta_1 = (0.9),
+                                              beta_2 = (0.999),
+                                              epsilon = (1e-5),
+                                              decay = (0))
+    if( scaleLoss <- T ){
+      optimizer_tf <- tf$keras$mixed_precision$LossScaleOptimizer( optimizer_tf ) #initial_scale = cnst(2^4))
+    }
 
     LR_method <- "constant"
     InvLR <- tf$Variable( 0.,trainable  =  F, dtype = float_dtype )
@@ -1169,24 +1204,29 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       }
 
+      # update LR
+      #optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2) + LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 ), dtype = float_dtype   ))
+      optimizer_tf$learning_rate <- cnst(  LEARNING_RATE_BASE*abs(sin(i/nSGD*widthFreq)  )*(i<=nSGD/2) +
+                                             LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )     )
+
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       # checks via e1 and e2 for embeddings case
       # e1 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
       myLoss_forGrad <- trainStep(
                 dat = InitImageProcess(ds_next_train, training = T),
                 y = tf$constant(obsY[batch_indices], float_dtype),
-                treat = tf$constant(obsW[batch_indices], float_dtype),
-                training = T)
+                treat = tf$constant(obsW[batch_indices], float_dtype) )
       my_grads <- myLoss_forGrad[[2]]
       scaled_myLoss_forGrad <- myLoss_forGrad[[3]]
       myLoss_forGrad <- myLoss_forGrad[[1]]
-      print( summary( unlist(  lapply(lapply(unlist(myLoss_forGrad),
-                                      function(x){tf$reduce_sum(tf$abs(x))}), as.numeric) )) )
+      myLoss_forGrad
+      print( summary( tmp1 <- unlist(  lapply(lapply(unlist(my_grads),
+                                      function(x){tf$reduce_mean(tf$abs(x))}), as.numeric) )) )
+      # my_grads[which.max(tmp1)]; trainable_variables[[which.max(tmp1)]]
+      print( summary( tmp2 <- unlist(  lapply(lapply(unlist(trainable_variables),
+                                             function(x){tf$reduce_max(tf$abs(x))}), as.numeric) )) )
       print(c(as.numeric(myLoss_forGrad), as.numeric(scaled_myLoss_forGrad)))
-
-      # update LR
-      #optimizer_tf$learning_rate$assign(   tf$constant(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2) + LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 ), dtype = float_dtype   ))
-      optimizer_tf$learning_rate <- cnst(LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2) + LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 )   )
+      #plot(tmp1, tmp2); abline(a=0,b=1)
 
       # e2 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
       # e1 - e2 # (should be 0)
@@ -1334,8 +1374,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if(grepl(heterogeneityModelType, pattern = "variational")){
     # characterizing the treatment effects
     print2("Summarizing results...")
-    SDDist_Y1_post = (tfd$Normal(tf$identity(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
-    SDDist_Y0_post = (tfd$Normal(tf$identity(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
+    SDDist_Y1_post = (tfd$Normal(tf$stack(SDDist_Y1[,"Mean"]), tf$nn$softplus(SDDist_Y1[,"SD"])))
+    SDDist_Y0_post = (tfd$Normal(tf$stack(SDDist_Y0[,"Mean"]), tf$nn$softplus(SDDist_Y0[,"SD"])))
     Sigma1_sd_vec <- as.numeric(tf$reduce_mean(tf$nn$softplus(SDDist_Y1_post$sample(100L)),0L))
     Sigma0_sd_vec <- as.numeric(tf$reduce_mean(tf$nn$softplus(SDDist_Y0_post$sample(100L)),0L))
 
