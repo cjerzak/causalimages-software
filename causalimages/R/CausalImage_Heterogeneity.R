@@ -706,7 +706,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
            m <- EmbeddingsFxn(   m    )
         }
 
-        m <- tf$cast(m, dtype = float_dtype)
 
         # dense part
         if(nDepthHidden_dense > 0){
@@ -724,6 +723,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # final projection layer
       m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterProj(m) })
       if(BNPreOutput){m <- BNLayer_Axis1_Proj(m, training = training) }
+
+      # cast
+      m <- tf$cast(m, dtype = float_dtype)
+
       m <- tf$concat(list( tf$zeros(list(tf$shape(m)[1],1L), dtype = float_dtype), m),1L)
       return( m  )
     })
@@ -795,8 +798,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
             m <- EmbeddingsFxn(   m    )
           }
 
-          m <- tf$cast( m , dtype = float_dtype)
-
           # dense part
           if(nDepthHidden_dense > 0){
           for(dense_ in 1:nDepthHidden_dense){
@@ -811,6 +812,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         m <- with(tf$device( ProbLayerExecutionDevice ), { Y0Proj(m) } )
         if(BNPreOutput){m <- BNLayer_Axis1_ProjY0(m, training = training)}
+        m <- tf$cast( m , dtype = float_dtype)
         return( m  )
       } )
       getClusterProb <- tf_function_fxn(function(m , training){
@@ -845,7 +847,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
               m <- EmbeddingsFxn( m )
             }
 
-            m <- tf$cast( m , dtype = float_dtype)
 
             eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauProj%s(m)} )",k____)))
             if(BNPreOutput){
@@ -854,13 +855,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
             m_ret[[k____]] <- m
           }
           m_ret <- tf$concat(m_ret,1L)
+          m_ret <- tf$cast( m_ret , dtype = float_dtype)
           return( m_ret  )
         } )
         getEY1 <- tf_function_fxn( function(  m , training){
-          EY0 <- getEY0(m = m,
-                      training = training)
-          Clust_logits <- getClusterLogits(m,training = training)
-          clustT <- tf$squeeze(getClusterSamp_logitInput(Clust_logits),0L)
+          EY0 <- getEY0(m = m, training = training)
+          Clust_logits <- getClusterLogits(m, training = training)
+          clustT <- tf$squeeze( getClusterSamp_logitInput(Clust_logits),0L)
           Etau_i <- getTau(m, training = training)
           Etau_i <- tf$reduce_sum(tf$multiply(Etau_i, clustT), axis = 1L, keepdims=T)
           EY1 <- EY0 + Etau_i
@@ -1219,13 +1220,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       my_grads <- myLoss_forGrad[[2]]
       scaled_myLoss_forGrad <- myLoss_forGrad[[3]]
       myLoss_forGrad <- myLoss_forGrad[[1]]
-      myLoss_forGrad
-      print( summary( tmp1 <- unlist(  lapply(lapply(unlist(my_grads),
-                                      function(x){tf$reduce_mean(tf$abs(x))}), as.numeric) )) )
+
+      #print( summary( tmp1 <- unlist(  lapply(lapply(unlist(my_grads), function(x){tf$reduce_mean(tf$abs(x))}), as.numeric) )) )
+      #print( summary( tmp2 <- unlist(  lapply(lapply(unlist(trainable_variables), function(x){tf$reduce_max(tf$abs(x))}), as.numeric) )) )
+      #print(c(as.numeric(myLoss_forGrad), as.numeric(scaled_myLoss_forGrad)))
+
       # my_grads[which.max(tmp1)]; trainable_variables[[which.max(tmp1)]]
-      print( summary( tmp2 <- unlist(  lapply(lapply(unlist(trainable_variables),
-                                             function(x){tf$reduce_max(tf$abs(x))}), as.numeric) )) )
-      print(c(as.numeric(myLoss_forGrad), as.numeric(scaled_myLoss_forGrad)))
       #plot(tmp1, tmp2); abline(a=0,b=1)
 
       # e2 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
@@ -1277,10 +1277,32 @@ AnalyzeImageHeterogeneity <- function(obsW,
     print2("Getting predicted quantities...")
     #test_tab <- sort( 1:length(testIndices)%%round(length(testIndices)/max(1,round(batchFracOut*batchSize))));
 
-    Results_by_keys <-  sapply(1:(nUniqueKeys <- length(unique(imageKeysOfUnits))),
-                               simplify = F, FUN = function(zer){
+
+    GetSummaries <- tf_function_fxn(function(m_){
+      y0_ <- replicate(nMonte_predictive, list(tf$expand_dims(getEY0(m=m_, training = F), 0L)))
+      y1_ <- replicate(nMonte_predictive, list(tf$expand_dims(getEY1(m=m_, training = F), 0L)))
+      y0_ <- tf$concat(y0_,0L); y0_ <- tf$reduce_mean(y0_,0L)
+      y1_ <- tf$concat(y1_,0L); y1_ <- tf$reduce_mean(y1_,0L)
+
+      # get predictions
+      ClusterProbs_est_ <- tf$concat(replicate(nMonte_predictive,getClusterProb(m_,training = F)),0L)
+      ClusterProbs_std_ <- (tf$math$reduce_std(ClusterProbs_est_,0L))
+      ClusterProbs_est_ <- (tf$reduce_mean(ClusterProbs_est_,0L))
+      ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
+
+      return(list(y0_,
+                  y1_,
+                  ClusterProbs_est_,
+                  ClusterProbs_lower_conf_,
+                  ClusterProbs_std_))
+    })
+
+
+    nUniqueKeys <- length(unique(imageKeysOfUnits))
+    Results_by_keys <- replicate(nUniqueKeys,list());
+    passedIterator <- NULL
+    for(zer in 1:nUniqueKeys){
       # zer <- 1
-      passedIterator <- NULL
       gc(); py_gc$collect()
       atP <- max(zer)/nUniqueKeys
       if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("[%s] Proportion done: %.3f",
@@ -1308,26 +1330,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
       im_zer <- InitImageProcess(ds_next_in, training = F)
 
-      # get outcomes
-      y0_ <- replicate(nMonte_predictive, list(tf$expand_dims(getEY0(m=im_zer, training = F),0L)))
-      y1_ <- replicate(nMonte_predictive, list(tf$expand_dims(getEY1(m=im_zer, training = F),0L)))
-      y0_ <- tf$concat(y0_,0L); y0_ <- as.matrix(tf$reduce_mean(y0_,0L))
-      y1_ <- tf$concat(y1_,0L); y1_ <- as.matrix(tf$reduce_mean(y1_,0L))
-
-      # get predictions
-      ClusterProbs_est_ <- replicate(nMonte_predictive,as.matrix(getClusterProb(im_zer,training = F)))
-      ClusterProbs_std_ <- apply(ClusterProbs_est_,1:2,function(re){sd(re,na.rm=T)})
-      ClusterProbs_est_ <- apply(ClusterProbs_est_,1:2,function(re){mean(re,na.rm=T)})
-      ClusterProbs_lower_conf_ <- ClusterProbs_est_ - 1. * ClusterProbs_std_
-
-      ret_list <- list("y0_" = y0_,
-                       "y1_" = y1_,
-                       "ClusterProbs_est_"=ClusterProbs_est_,
-                       "ClusterProbs_lower_conf_"=ClusterProbs_lower_conf_,
-                       "ClusterProbs_std_"=ClusterProbs_std_,
+      # get summaries and save
+      GottenSummaries <- GetSummaries(im_zer)
+      ret_list <- list("y0_" = as.matrix(GottenSummaries[[1]]),
+                       "y1_" = as.matrix(GottenSummaries[[2]]),
+                       "ClusterProbs_est_"=as.numeric(GottenSummaries[[3]]),
+                       "ClusterProbs_lower_conf_"=as.numeric(GottenSummaries[[4]]),
+                       "ClusterProbs_std_"=as.numeric(GottenSummaries[[5]]),
                        "key" = key_)
-      return( ret_list  )
-    })
+      Results_by_keys[[zer]] <- ret_list
+    }
     Results_by_keys <- as.data.frame(  do.call(rbind,Results_by_keys) )
 
     # checks
@@ -1724,16 +1736,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   take_k <- k_
                   if(i == 1){
                     ImageGrad_fxn <- (function(m){
-                      with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
+                      with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
                         tape$watch( m )
-                        PROBS_ <- tf$reduce_mean(tf$concat(
-                          replicate(nMonte_salience, getClusterProb(m,training = F)),0L),0L)
+                        PROBS_ <- tf$reduce_mean(
+                          tf$cast(tf$concat(
+                          replicate(nMonte_salience, getClusterProb(m,training = F)),
+                                      0L),float_dtype), 0L)
                         PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
                                                 tf$divide(ep_LabelSmooth,tf$constant(2)))
                         #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
                         OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
                       })
-                      ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = F)
+                      ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = T)
                       ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
                       for(jf in 1:2){
                         if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, axis = 3L, keepdims = T)}
@@ -1893,7 +1907,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 }
 
                 if(length(plotBands) < 3){
-                  orig_scale_im_raster <-  (as.array(ds_next_in[1,,,,plotBands[1]]))
+                  orig_scale_im_raster <-  as.array( tf$cast(ds_next_in[1,,,,plotBands[1]], float_dtype))
                   nTimeSteps <- dim(orig_scale_im_raster)[1]
                   animation::saveGIF({
                     for (t_ in 1:nTimeSteps) {
@@ -1918,11 +1932,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   animation::saveGIF({
                     for(t_ in 1:nTimeSteps){
                     orig_scale_im_raster <- raster::brick(
-                      0.0001 + (as.array(ds_next_in[1,t_, , ,plotBands])) +
-                      0*runif(length(as.array(ds_next_in[1,t_, , ,plotBands])), min = 0, max = 0.01) # random jitter
+                      0.0001 + (as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], float_dtype) )) +
+                      0*runif(length(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], float_dtype ))),
+                                     min = 0, max = 0.01) # random jitter
                     )
                     stretch <- ifelse(
-                      any(apply(as.array(ds_next_in[1,t_, , ,plotBands]), 3,sd) < 1.),
+                      any(apply(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands],float_dtype)), 3,sd) < 1.),
                       yes = "", no = "lin")
                     # raster::plotRGB(  orig_scale_im_raster, stretch = "lin")
                     raster::plotRGB(  orig_scale_im_raster,
@@ -1961,20 +1976,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
                     if(i == 1){
                       # don't jit -- take_k dynamic within
                       ImageGrad_fxn <- (function(m){
-                        with(tf$GradientTape(watch_accessed_variables = F,persistent  = T) %as% tape, {
+                        with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
                           tape$watch( m )
-                          PROBS_ <- tf$reduce_mean(tf$concat(
-                            replicate(nMonte_salience, getClusterProb(m, training = F)),0L),0L)
+                          PROBS_ <- tf$reduce_mean(tf$cast(tf$concat(
+                            replicate(nMonte_salience, getClusterProb(m, training = F)),0L),
+                             float_dtype), 0L)
                           PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
                                                    tf$divide(ep_LabelSmooth,tf$constant(2)))
                           #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
                           OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
                         })
-                        ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = F)
+                        ImageGrad <- tf$cast(tape$jacobian( OUTPUT_, m, experimental_use_pfor = T),float_dtype)
                         ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
                         print(dim(ImageGrad_o))
                         for(jf in 1:2){
-                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, 4L,keepdims = T)}
+                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.000001,
+                                                                                 4L,
+                                                                                 keepdims = T)}
                           if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, 4L, keepdims = T)}
 
                           # uncomment if seeking to average
@@ -1998,14 +2016,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 float_dtype) )
                       # AveragingConv$trainable_variables[[1]]$shape
                     }
-                    IG <- as.array( ImageGrad_fxn(
-                          m = InitImageProcess(ds_next_in, training = F)))[1,,,,]
+                    IG <- as.array( ImageGrad_fxn( m = InitImageProcess(ds_next_in, training = F) ))[1,,,,]
+                    #IG <- as.array( ImageGrad_fxn( m = tf$cast(InitImageProcess(ds_next_in, training = F),float_dtype) ))[1,,,,]
 
                     # check for temporal symmetry
                     #image2(as.array(ds_next_in)[1,1,,,1])
-                    #image2(as.array(ds_next_in)[1,2,,,1])
-                    #image2(IG[1,,,1])
-                    #image2(IG[2,,,1])
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,1,,,1])
                     #image2(as.array(InitImageProcess( acquireImageFxn( imageKeysOfUnits[im_i], training = F), training = F))[1,2,,,1])
                     #image2(IG[1,,,1])
