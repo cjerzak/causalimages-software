@@ -1040,7 +1040,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       return( minThis )
     })
 
-
     #trainStep <-  (function(dat, y, treat){
     trainStep <-  tf_function_fxn(function(dat, y ,treat){
 
@@ -1087,6 +1086,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     print2("Initial forward pass...")
+    gc(); py_gc$collect()
     #if(BAYES_STEP == 2){ browser() }
     for(bool_ in c(T)){ # Initialize training branch only to preserve memory
       with(tf$GradientTape() %as% tape, {
@@ -1151,6 +1151,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }))
 
     # training loop
+    gc(); py_gc$collect()
     IndicesByW <- tapply(1:length(obsW),obsW,c)
     UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
     UniqueImageKeysByIndices <- list(tapply(which(obsW==0),imageKeysOfUnits[obsW==0],function(zer){sort(unique(zer))}),
