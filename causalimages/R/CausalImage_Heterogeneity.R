@@ -106,20 +106,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       yDensity = "normal",
                                       compile = T,
                                       nMonte_variational = 5L,
-                                      nMonte_predictive = 20L,
-                                      nMonte_salience = 100L,
-                                      batchSize = 25L,
+                                      nMonte_predictive = 12L,
+                                      nMonte_salience = 50L,
+                                      batchSize = 32L,
                                       kernelSize = 5L,
                                       temporalKernelSize = 2L,
-                                      nSGD  = 400L,
-                                      nDenseWidth = 32L,
+                                      nSGD  = 500L,
+                                      nDenseWidth = 64L,
                                       reparameterizationType = "Reparameterization",
                                       doConvLowerDimProj = T,
                                       nDimLowerDimConv = 3L,
-                                      nFilters = 32L,
+                                      nFilters = 64L,
                                       channelNormalize = T,
                                       modelClass = "cnn",
-                                      nEmbedDim = 96L,
+                                      nEmbedDim = 64L,
                                       LEARNING_RATE_BASE = 0.005,
                                       printDiagnostics = F,
                                       TfRecords_BufferScaler = 4L,
@@ -399,15 +399,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
   Y0_sd_init_prior <- tfp$math$softplus_inverse(cnst(Y0_sd_init_prior))
   Y1_sd_init_prior <- tfp$math$softplus_inverse(cnst(Y1_sd_init_prior))
 
-  for(BAYES_STEP in c(1,2)){
+  #for(BAYES_STEP in c(1,2)){
+  for(BAYES_STEP in c(1)){
     if(BAYES_STEP == 1){ print2("Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...") }
     if(BAYES_STEP == 2){ print2("Empirical Bayes Estimation Step...") }
 
     if(BAYES_STEP == 1){
       nSGD_ORIG <- nSGD
       nSGD <- nSGD
-      L2_grad_scale <- 0.5
-      SD_PRIOR_MODEL <- .01; KL_wt <- 0
+      L2_grad_scale <- cnst( 0.5 )
+      SD_PRIOR_MODEL <- cnst(.01); KL_wt <- cnst(0)
       PRIOR_MODEL_FXN <- function(name_){
         eval(parse(text = 'function(dtype, shape, name, trainable, add_variable_fn){
       d_prior <- tfd$Normal(loc = tf$zeros(shape, float_dtype), scale = cnst(SD_PRIOR_MODEL))
@@ -417,8 +418,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     if(BAYES_STEP == 2){
       nSGD <- nSGD_ORIG
-      L2_grad_scale <- 0.5
-      KL_wt <- batchSize / length(obsY)
+      L2_grad_scale <- cnst( 0.5 )
+      KL_wt <- cnst( batchSize / length(obsY) )
       PRIOR_MODEL_FXN <- function(name_){
         prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_ )
         prior_SD_name <- sprintf("%s_PRIOR_SD_HASH818",name_ )
@@ -501,8 +502,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       if(reparameterizationType == "Reparameterization"){
         ProbLayerExecutionDevice <- '/GPU:0'
-        ProbConvType <- tfp$layers$Convolution2DReparameterization # less efficient
-        ProbDenseType <-  tfp$layers$DenseReparameterization # less efficient
+        ProbConvType <- tfp$layers$Convolution2DReparameterization #
+        ProbDenseType <-  tfp$layers$DenseReparameterization #
+      }
+      if(reparameterizationType == "DenseVariational"){
+        ProbLayerExecutionDevice <- '/GPU:0'
+        ProbConvType <- tfp$layers$Convolution2DVariational
+        ProbDenseType <-  tfp$layers$DenseVariational
       }
       print("Initializing convolutions and dense arms...")
       for(conv_ in 1:nDepthHidden_conv){
@@ -705,7 +711,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(modelClass == "embeddings"){
            m <- EmbeddingsFxn(   m    )
         }
-
 
         # dense part
         if(nDepthHidden_dense > 0){
@@ -1000,7 +1005,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     CombineLikelihoodWithKL <- tf_function_fxn( function(lik_, kl_){
-      lik_ = tf$where(tf$math$is_nan(lik_), tf$zeros_like(lik_), lik_) # remove NAs
+      #lik_ = tf$where(tf$math$is_nan(lik_), tf$zeros_like(lik_), lik_) # remove NAs
       minThis <- tf$negative(tf$reduce_sum( lik_ )) + KL_wt * kl_ # combine likelihood with prior
       minThis <- minThis / cnst(batchSize) # normalize
     })
@@ -1068,15 +1073,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(i > 1) { InvLR$assign_add( tf$divide( L2_grad_i,InvLR ) ) }
       }
 
-      # apply gradients and apply adaptive clipping
-      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables) )
-
-      # apply adaptive update clipping (not implemented)
-      if(T == F){  for(l_i in 1:length(my_grads)){
-        frac_param_norm <- tf$multiply(tf$norm( trainable_variables[[l_i]] ), cnst(0.01)) # XXX% clip factor
-        updates[[l_i]] <- tf$clip_by_norm(updates[[l_i]], frac_param_norm)
+      # apply adaptive update clipping
+      if(T == T){  for(l_i in 1:length(my_grads)){
+        param_norm <- tf$norm( trainable_variables[[l_i]] )
+        #grad_norm <- tf$norm( my_grads[[l_i]] )
+        #ratio_norm <- tf$divide(grad_norm, tf$add(param_norm,cnst(0.001)))
+        my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
+                                  clip_norm = tf$maximum(cnst(0.001),cnst(0.05)*param_norm))
       } }
 
+      # apply gradients and apply adaptive clipping
+      optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables) )
 
       #if(LR_method == "WNGrad"){ optimizer_tf$learning_rate$assign( tf$math$reciprocal( InvLR ) )}
 
@@ -1128,7 +1135,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                               beta_1 = (0.9),
                                               beta_2 = (0.999),
                                               epsilon = (1e-5),
-                                              decay = (0))
+                                              decay = (0),
+                                              clipvalue = (1))
     if( scaleLoss <- T ){
       optimizer_tf <- tf$keras$mixed_precision$LossScaleOptimizer( optimizer_tf ) #initial_scale = cnst(2^4))
     }
@@ -1339,6 +1347,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                        "ClusterProbs_lower_conf_"=as.numeric(GottenSummaries[[4]]),
                        "ClusterProbs_std_"=as.numeric(GottenSummaries[[5]]),
                        "key" = key_)
+      print(as.numeric(GottenSummaries[[3]]))
       Results_by_keys[[zer]] <- ret_list
     }
     Results_by_keys <- as.data.frame(  do.call(rbind,Results_by_keys) )
@@ -1572,8 +1581,65 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if(simMode == F){
     par(mfrow=c(1,1))
     gc(); py_gc$collect()
-    try(plot(ClusterProbs_est),T)
+    try(hist(ClusterProbs_est),T)
     plotting_coordinates_list <- list(); typePlot_counter <- 0
+    ep_LabelSmooth <- tf$constant(0.01)
+    if(dataType == "image"){
+      ImageGrad_fxn <- tf_function(function(m){
+          with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
+            tape$watch( m )
+            PROBS_ <- tf$reduce_mean(
+              tf$cast(tf$concat(
+                replicate(nMonte_salience, getClusterProb(m,training = F)),
+                0L),float_dtype), 0L)
+            PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
+                                     tf$divide(ep_LabelSmooth,tf$constant(2)))
+            #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+            OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
+          })
+          ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = T)
+          ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
+          for(jf in 1:2){
+            if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, axis = 3L, keepdims = T)}
+            if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, axis = 3L, keepdims = T)}
+            ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
+            if(jf == 1){ImageGrad_L2 <- ImageGrad}
+            if(jf == 2){ImageGrad_E <- ImageGrad}
+          }
+          return(tf$concat(list(ImageGrad_L2,ImageGrad_E),2L))
+        })
+    }
+    if(dataType == "video"){
+    VideoGrad_fxn <- tf_function(function(m){
+          with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
+            tape$watch( m )
+            PROBS_ <- tf$reduce_mean(tf$cast(tf$concat(
+              replicate(nMonte_salience, getClusterProb(m, training = F)),0L),
+              float_dtype), 0L)
+            PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
+                                     tf$divide(ep_LabelSmooth,tf$constant(2)))
+            #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
+            OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
+          })
+          ImageGrad <- tf$cast(tape$jacobian( OUTPUT_, m, experimental_use_pfor = T),float_dtype)
+          #ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
+          ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(0L), axis = 0L)
+          for(jf in 1:2){
+            if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.000001,
+                                                                   4L,
+                                                                   keepdims = T)}
+            if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, 4L, keepdims = T)}
+
+            # uncomment if seeking to average
+            #ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
+            if(jf == 1){ImageGrad_L2 <- ImageGrad}
+            if(jf == 2){ImageGrad_E <- ImageGrad}
+          }
+          return(tf$concat(list(ImageGrad_L2,  # salience magnitude
+                                ImageGrad_E), # salience direction
+                           4L))
+        })
+    }
     for(typePlot in (typePlot_vec <- c("uncertainty","mean","mean_upperConf"))){
       typePlot_counter <- typePlot_counter + 1
       rows_ <- kClust_est; nExamples <- 5
@@ -1735,30 +1801,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 {
                   gc(); py_gc$collect()
                   take_k <- k_
-                  if(i == 1){
-                    ImageGrad_fxn <- (function(m){
-                      with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
-                        tape$watch( m )
-                        PROBS_ <- tf$reduce_mean(
-                          tf$cast(tf$concat(
-                          replicate(nMonte_salience, getClusterProb(m,training = F)),
-                                      0L),float_dtype), 0L)
-                        PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth<-tf$constant(0.01)),PROBS_),
-                                                tf$divide(ep_LabelSmooth,tf$constant(2)))
-                        #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
-                        OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
-                      })
-                      ImageGrad <- tape$jacobian( OUTPUT_, m , experimental_use_pfor = T)
-                      ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
-                      for(jf in 1:2){
-                        if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.0000001, axis = 3L, keepdims = T)}
-                        if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, axis = 3L, keepdims = T)}
-                        ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
-                        if(jf == 1){ImageGrad_L2 <- ImageGrad}
-                        if(jf == 2){ImageGrad_E <- ImageGrad}
-                      }
-                      return(tf$concat(list(ImageGrad_L2,ImageGrad_E),2L))
-                    })
+                  if(i == 1 & T == F){
                     AveragingConv <- tf$keras$layers$Conv2D(filters=1L,
                                                             kernel_size = gradAnalysisFilterDim <- 10L,
                                                             dtype = float_dtype,
@@ -1822,7 +1865,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(dataType == "video"){
         plot_fxn <- function(){
             plotting_coordinates_mat <- c()
-            total_counter <- 0; ep_LabelSmooth <- tf$constant(0.01)
+            total_counter <- 0;
             # k_<-i<-1
             for(k_ in 1:rows_){
               used_coordinates <- c()
@@ -1865,7 +1908,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   coordinate_i <- c(long[im_i], lat[im_i])
                   if(i > 1){
                     isUnique_ <- F; if(!is.null(long)){
-                      print(used_coordinates[,-c(1:2)])
+                      # print(used_coordinates[,-c(1:2)])
                       dist_m <- geosphere::distm(x = coordinate_i,
                                                  y = cbind(f2n(used_coordinates[,3]),
                                                           f2n(used_coordinates[,4])),
@@ -1975,50 +2018,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   {
                     take_k <- k_
                     if(i == 1){
-                      # don't jit -- take_k dynamic within
-                      ImageGrad_fxn <- (function(m){
-                        with(tf$GradientTape(watch_accessed_variables = F, persistent  = T) %as% tape, {
-                          tape$watch( m )
-                          PROBS_ <- tf$reduce_mean(tf$cast(tf$concat(
-                            replicate(nMonte_salience, getClusterProb(m, training = F)),0L),
-                             float_dtype), 0L)
-                          PROBS_Smoothed <- tf$add(tf$multiply(tf$subtract(tf$constant(1), ep_LabelSmooth),PROBS_),
-                                                   tf$divide(ep_LabelSmooth,tf$constant(2)))
-                          #OUTPUT_ <- LOGIT_ <- tf$subtract(tf$math$log(PROBS_Smoothed), tf$math$log(tf$subtract(tf$constant(1), PROBS_Smoothed) ))
-                          OUTPUT_ <- LOG_PROBS_ <- tf$math$log(PROBS_Smoothed)
-                        })
-                        ImageGrad <- tf$cast(tape$jacobian( OUTPUT_, m, experimental_use_pfor = T),float_dtype)
-                        ImageGrad_o <- tf$gather(ImageGrad, indices = as.integer(take_k-1L), axis = 0L)
-                        print(dim(ImageGrad_o))
-                        for(jf in 1:2){
-                          if(jf == 1){ImageGrad <- tf$math$reduce_euclidean_norm(ImageGrad_o+0.000001,
-                                                                                 4L,
-                                                                                 keepdims = T)}
-                          if(jf == 2){ImageGrad <- tf$math$reduce_mean(ImageGrad_o, 4L, keepdims = T)}
-
-                          # uncomment if seeking to average
-                          #ImageGrad <- tf$gather(AveragingConv(ImageGrad),0L,axis = 0L)
-                          if(jf == 1){ImageGrad_L2 <- ImageGrad}
-                          if(jf == 2){ImageGrad_E <- ImageGrad}
-                        }
-                        return(tf$concat(list(ImageGrad_L2,  # salience magnitude
-                                              ImageGrad_E), # salience direction
-                                         4L))
-                      })
-                      AveragingConv <- tf$keras$layers$Conv3D(filters=12L,
-                                                              kernel_size = c(2L, (gradAnalysisFilterDim<-10L), 10L),
-                                                              dtype = float_dtype,
-                                                              padding = "valid")
-                      AveragingConv( tf$expand_dims(tf$gather(
-                        InitImageProcess(ds_next_in,training = F),
-                                         1L, axis = 4L),4L)  )
-                      AveragingConv$trainable_variables[[1]]$assign(
-                        tf$cast(1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])),
-                                float_dtype) )
+                      #AveragingConv <- tf$keras$layers$Conv3D(filters=12L,kernel_size = c(2L, (gradAnalysisFilterDim<-10L), 10L),
+                                                              #dtype = float_dtype, padding = "valid")
+                      #AveragingConv( tf$expand_dims(tf$gather( InitImageProcess(ds_next_in,training = F), 1L, axis = 4L),4L)  )
+                      #AveragingConv$trainable_variables[[1]]$assign(tf$cast(1 / gradAnalysisFilterDim^2 *tf$ones(tf$shape(AveragingConv$trainable_variables[[1]])),float_dtype) )
                       # AveragingConv$trainable_variables[[1]]$shape
                     }
-                    IG <- as.array( ImageGrad_fxn( m = InitImageProcess(ds_next_in, training = F) ))[1,,,,]
-                    #IG <- as.array( ImageGrad_fxn( m = tf$cast(InitImageProcess(ds_next_in, training = F),float_dtype) ))[1,,,,]
+                    IG <- as.array( VideoGrad_fxn( m = InitImageProcess(ds_next_in, training = F) ))[1,,,,]
+                    #IG <- as.array( VideoGrad_fxn( m = tf$cast(InitImageProcess(ds_next_in, training = F),float_dtype) ))[1,,,,]
 
                     # check for temporal symmetry
                     #image2(as.array(ds_next_in)[1,1,,,1])
