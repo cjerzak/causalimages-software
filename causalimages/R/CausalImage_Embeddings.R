@@ -194,20 +194,13 @@ GetImageEmbeddings <- function(
     }
     # 3D conv method
     {
-      if(T == F){
-        myConv <- tf$keras$layers$Conv3D(filters = nFilters,
-                                         kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
-                                         activation = "linear", dtype = float_dtype,
-                                         strides = c(1L, strides, strides), padding = "valid")
-      }
-      if(T == T){
         #myConv_spatial_fxn <- tf$keras$layers$Conv3D(filters = nFilters, kernel_size = c(1L, kernelSize, kernelSize),
-                                         #activation = "linear",
-                                         #strides = c(1L, strides, strides), padding = "valid", trainable = F)
+                                         #activation = "linear", strides = c(1L, strides, strides), padding = "valid", trainable = F)
         myConv_spatial <- tf$keras$layers$SeparableConv2D(filters = nFilters,
                                                  kernel_size = c(kernelSize, kernelSize),
                                                  activation = "linear",
                                                  dtype = float_dtype,
+                                                 kernel_initializer = tf$keras$initializers$VarianceScaling,
                                                  strides = c(strides, strides), padding = "valid")
         myConv_spatial_fxn <- (function(m){
           m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
@@ -220,21 +213,21 @@ GetImageEmbeddings <- function(
                                                  activation = "linear",
                                                  groups = 1L,
                                                  dtype = float_dtype,
-                                                 strides = c(1L, strides, strides),
-                                                 #strides = c(1L, 1L, 1L),
+                                                 kernel_initializer = tf$keras$initializers$VarianceScaling,
+                                                 strides = c(1L, strides, strides), #strides = c(1L, 1L, 1L),
                                                  padding = "valid")
-        BNLayer_Embedding <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T,
-                                                                  dtype = float_dtype, momentum = momentum, epsilon = 0.01)
+        BNLayer_conv4_embed <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
+                                        dtype = float_dtype, momentum = momentum, epsilon = 0.001,
+                                        name = "BNLayer_conv4_embed", synchronized = T)
         # m <- batch_inference[[1]]
         # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
-
         # myConv_spatial ( m );  myConv(m)
         if(!doBatchNorm){ myConv <- ( function(m, training){ myConv_temporal( myConv_spatial_fxn( m ) ) }) }
-        if(doBatchNorm){ myConv <- ( function(m, training){ tf$nn$swish( BNLayer_Embedding(
-                                                    myConv_temporal( myConv_spatial_fxn( m ) ), training)) })}
-      }
-      GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
-      if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
+        if(doBatchNorm){ myConv <- ( function(m, training){ tf$nn$swish( BNLayer_conv4_embed(
+                                                    myConv_temporal( myConv_spatial_fxn( m ) ), training) ) }) }
+
+        GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
+        if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
     }
   }
   GlobalPoolLayer <- (function(z){
@@ -259,7 +252,16 @@ GetImageEmbeddings <- function(
   getEmbedding <- tf_function(function(im_, training = F){
       return( im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training),
                                               training = training  ) ) )
+
+    # problem: variance of the output is too small
+    # tmp <- myConv( InitImageProcess( im_ , training = training), training = training  )
+    # tm_m <- GlobalMaxPoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
+    # tm_v <- GlobalAvePoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
+     #tm_a <- tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = training  ), 1L:3L)
+    # plot( tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = training  ),0L:3L) )
+    # plot(apply(as.matrix( tm_v), 2, sd),   apply(as.matrix( tm_m), 2, sd))
   } )
+  # getEmbedding(m)
 
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nEmbedDim)
   last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
