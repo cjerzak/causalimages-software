@@ -128,8 +128,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       dataType = "image",
                                       quiet = F){
   # note to maintainers:
-  # jit only things outside of Monte Carlo steps
+  # -- jit only things outside of Monte Carlo steps
   # (jitting a Monte Carlo loop eats up memory)
+  # -- all functions involving images assume images have been pre-processed (e.g., normalized).
+  # (don't double normalize!)
 
   # create directory if needed
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
@@ -185,7 +187,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd)
   }
 
-  BN_EP <- (0.01); BN_MOM <- (.90)
+  BN_EP <- (0.001); BN_MOM <- (.90)
   if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- BN_MOM^cnst(1/nMonte_variational) }
 
   acquireImageMethod <- "functional";
@@ -679,12 +681,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
             file = file,
             dataType = dataType,
             strides = strides,
-            doBatchNorm = F, ###
+            doBatchNorm = T, # set to TRUE
             momentum = BN_MOM,
+            InitImageProcess = NULL, # make sure this is null, otherwise processing happens TWICE
             nEmbedDim = nEmbedDim,
             kernelSize = kernelSize,
             image_dtype = image_dtype$name,
-            InitImageProcess = InitImageProcess,
             temporalKernelSize = temporalKernelSize,
             conda_env = conda_env,
             conda_env_required = conda_env_required )$embeddings_fxn
@@ -737,11 +739,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(nDepthHidden_dense > 0){
         for(dense_ in 1:nDepthHidden_dense){
           m_tminus1 <- m
+
           eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Clust_%s(m)})",dense_)))
           if(BNPrePreOutput){
             eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s(m,training = training)",dense_)))
           }
-          m_tminus1 <- m <- tf$add(m, m_tminus1)
+          #m_tminus1 <- m <- tf$add(m, m_tminus1)
           m <- ActFxn(  m   )
           #if(dense_ > 1 & dense_ < nDepthHidden_dense){
 
@@ -815,7 +818,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       getEY0 <- tf_function_fxn(getEY0_R <- function(  m , training  ){
         if(! heterogeneityModelType %in% "variational_minimal_visualizer"){
 
-          # m = InitImageProcess(ds_next_train, training = T); training = F; getEY0
 
           # convolution model
           if(modelClass == "cnn"){
@@ -840,6 +842,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             m <- BNLayer_Axis1_Y0(m, training = training)
           }
 
+          # m = InitImageProcess(ds_next_train, training = T); training = F; getEY0
           if(modelClass == "embeddings"){
             m <- EmbeddingsFxn( m, training = training )
           }
@@ -862,7 +865,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             if(BNPrePreOutput){
               eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s(m,training = training)",dense_)))
             }
-            m_tminus1 <- m <- m + m_tminus1
+            #m_tminus1 <- m <- m + m_tminus1
             m <- ActFxn(  m   )
             #if(dense_ > 1 & dense_ < nDepthHidden_dense){
           }
@@ -1134,7 +1137,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(scaleLoss){  my_grads <- optimizer_tf$get_unscaled_gradients( tape$gradient( scaledLoss_forGrad, trainable_variables ) ) }
 
       # apply adaptive update clipping
-      if(T == F){  for(l_i in 1:length(my_grads)){
+      if(T == T){  for(l_i in 1:length(my_grads)){
         param_norm <- tf$norm( trainable_variables[[l_i]] )
         my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
                                   clip_norm = tf$maximum(cnst(0.001),cnst(0.1)*param_norm))
@@ -1425,7 +1428,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tau_vec_kmeans <- c(  kmeans(tau_i_est, centers=2)$centers)
 
     # check results
-    browser()
     if(T == F){
         dev.off();
        plot(Yobs_est,obsY_orig); abline(a=0,b=1)
@@ -1942,7 +1944,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             # k_<-i<-1
             for(k_ in 1:rows_){
               used_coordinates <- c()
-              for(i in 1:3){
+              for(i in 1:5){
                 #if(k_ == 2 & i == 1 &  typePlot == "mean"){ browser() }
                 gc(); py_gc$collect()
                 print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))

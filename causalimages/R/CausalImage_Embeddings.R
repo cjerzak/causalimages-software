@@ -226,7 +226,12 @@ GetImageEmbeddings <- function(
         if(doBatchNorm){ myConv <- ( function(m, training){ tf$nn$swish( BNLayer_conv4_embed(
                                                     myConv_temporal( myConv_spatial_fxn( m ) ), training) ) }) }
 
-        GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
+        #GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
+        GlobalMaxPoolLayer <- function(m){
+          #m_ <- tf$reduce_mean(m, 1L ) # average across the time dimension
+          m_ <- tf$reduce_max(m, 1L ) # max across the time dimension confirmed to work
+          m_ <- tf$reduce_max(m_, 1L:2L ) # max across the space dimension
+        }
         if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
     }
   }
@@ -249,7 +254,7 @@ GetImageEmbeddings <- function(
       return( im  )
     })
   }
-  getEmbedding <- tf_function(function(im_, training = F){
+  getEmbedding <- tf_function(function(im_, training = F ){
       return( im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training),
                                               training = training  ) ) )
 
@@ -258,7 +263,8 @@ GetImageEmbeddings <- function(
     # tm_m <- GlobalMaxPoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
     # tm_v <- GlobalAvePoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
      #tm_a <- tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = training  ), 1L:3L)
-    # plot( tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = training  ),0L:3L) )
+    # plot( tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = T  ),0L:3L) )
+    # plot( tf$math$reduce_std(GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training), training = training  ) ),0L))
     # plot(apply(as.matrix( tm_v), 2, sd),   apply(as.matrix( tm_m), 2, sd))
   } )
   # getEmbedding(m)
@@ -306,7 +312,7 @@ GetImageEmbeddings <- function(
       }
 
       # getEmbedding(batch_inference[[1]])
-      embed_ <- try(as.matrix(  getEmbedding( batch_inference[[1]] )  ), T)
+      embed_ <- try(as.matrix(  getEmbedding( batch_inference[[1]], training = F)  ), T)
       if("try-error" %in% class(embed_)){ browser() }
       if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices,] <- embed_
