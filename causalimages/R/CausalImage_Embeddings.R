@@ -13,6 +13,8 @@
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #' @param kernelSize (default = `5L`) Dimensions used in the convolution kernels.
+#' @param doBatchNorm (default = `FALSE`)
+#' @param momentum
 #' @param temporalKernelSize (default = `2L`) Dimensions used in the temporal part of the convolution kernels if using image sequences.
 #' @param nEmbedDim (default = `128L`) Number of embedding features output.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
@@ -55,6 +57,8 @@ GetImageEmbeddings <- function(
     temporalKernelSize = 2L,
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
+    doBatchNorm = F,
+    momentum = 0.9,
     dataType = "image",
     image_dtype = "float16",
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
@@ -180,8 +184,7 @@ GetImageEmbeddings <- function(
                           kernel_size = c(kernelSize,kernelSize),
                           activation = "linear",
                           strides = c(strides,strides),
-                          padding = "valid",
-                          trainable = F)
+                          padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
     if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve") }
   }
@@ -198,7 +201,7 @@ GetImageEmbeddings <- function(
                                          activation = "linear",
                                          groups = 1L,
                                          dtype = float_dtype,
-                                         strides = c(1L, strides, strides), padding = "valid", trainable = F)
+                                         strides = c(1L, strides, strides), padding = "valid")
       }
       if(T == T){
         #myConv_spatial_fxn <- tf$keras$layers$Conv3D(filters = nFilters, kernel_size = c(1L, kernelSize, kernelSize),
@@ -208,7 +211,7 @@ GetImageEmbeddings <- function(
                                                  kernel_size = c(kernelSize, kernelSize),
                                                  activation = "linear",
                                                  dtype = float_dtype,
-                                                 strides = c(strides, strides), padding = "valid", trainable = F)
+                                                 strides = c(strides, strides), padding = "valid")
         myConv_spatial_fxn <- (function(m){
           m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
           m_ <- tf$vectorized_map(myConv_spatial, m_) # vectorized_map only seems to work across axis 0L
@@ -222,12 +225,15 @@ GetImageEmbeddings <- function(
                                                  dtype = float_dtype,
                                                  strides = c(1L, strides, strides),
                                                  #strides = c(1L, 1L, 1L),
-                                                 padding = "valid", trainable = F)
+                                                 padding = "valid")
+        BatchNorm_Embed <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T,
+                                                                  dtype = float_dtype, momentum = momentum, epsilon = 0.01)
         # m <- batch_inference[[1]]
         # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
 
         # myConv_spatial ( m );  myConv(m)
-        myConv <- ( function(m){ myConv_temporal( myConv_spatial_fxn( m ) ) })
+        if(!doBatchNorm){ myConv <- ( function(m, training){ myConv_temporal( myConv_spatial_fxn( m ) ) }) }
+        if(doBatchNorm){ myConv <- ( function(m, training){ BatchNorm_Embed(myConv_temporal( myConv_spatial_fxn( m ) ), training) })}
       }
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
@@ -252,9 +258,9 @@ GetImageEmbeddings <- function(
       return( im  )
     })
   }
-  getEmbedding <- tf_function(function(im_){
+  getEmbedding <- tf_function(function(im_, training = F){
     #with( tf$xla$experimental$jit_scope(compile_ops=F), {
-      im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = F)  ) )
+      im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training), training  ) )
     #})
     return( im_  )
   } )
