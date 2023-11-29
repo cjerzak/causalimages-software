@@ -194,13 +194,10 @@ GetImageEmbeddings <- function(
     }
     # 3D conv method
     {
-
       if(T == F){
         myConv <- tf$keras$layers$Conv3D(filters = nFilters,
                                          kernel_size = c(temporalKernelSize, kernelSize, kernelSize),
-                                         activation = "linear",
-                                         groups = 1L,
-                                         dtype = float_dtype,
+                                         activation = "linear", dtype = float_dtype,
                                          strides = c(1L, strides, strides), padding = "valid")
       }
       if(T == T){
@@ -226,14 +223,15 @@ GetImageEmbeddings <- function(
                                                  strides = c(1L, strides, strides),
                                                  #strides = c(1L, 1L, 1L),
                                                  padding = "valid")
-        BatchNorm_Embed <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T,
+        BNLayer_Embedding <- tf$keras$layers$BatchNormalization(axis = 3L, center = T, scale = T,
                                                                   dtype = float_dtype, momentum = momentum, epsilon = 0.01)
         # m <- batch_inference[[1]]
         # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
 
         # myConv_spatial ( m );  myConv(m)
         if(!doBatchNorm){ myConv <- ( function(m, training){ myConv_temporal( myConv_spatial_fxn( m ) ) }) }
-        if(doBatchNorm){ myConv <- ( function(m, training){ BatchNorm_Embed(myConv_temporal( myConv_spatial_fxn( m ) ), training) })}
+        if(doBatchNorm){ myConv <- ( function(m, training){ tf$nn$swish( BNLayer_Embedding(
+                                                    myConv_temporal( myConv_spatial_fxn( m ) ), training)) })}
       }
       GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
       if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
@@ -259,10 +257,8 @@ GetImageEmbeddings <- function(
     })
   }
   getEmbedding <- tf_function(function(im_, training = F){
-    #with( tf$xla$experimental$jit_scope(compile_ops=F), {
-      im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training), training  ) )
-    #})
-    return( im_  )
+      return( im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training),
+                                              training = training  ) ) )
   } )
 
   embeddings <- matrix(NA,nrow = length(imageKeysOfUnits), ncol = nEmbedDim)

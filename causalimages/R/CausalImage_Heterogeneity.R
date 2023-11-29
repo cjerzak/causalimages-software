@@ -29,7 +29,7 @@
 #' of posterior means (e.g., mean cluster probabilities).
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of the salience maps (e.g., image gradients of expected cluster probabilities).
-#' @param reparameterizationType (default = `"Flipout"`) Either `"Flipout"`, or `"Reparameterization"`. Specifies the estimator used in the Bayesian neural components. With `"Flipout"`, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.
+#' @param reparameterizationType (default = `"Reparameterization"`) Either `"Flipout"`, or `"Reparameterization"`. Specifies the estimator used in the Bayesian neural components. With `"Flipout"`, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.
 #' @param figuresTag (default = `""`) A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath (default = `"./"`) A string specifying file path for saved figures made in the analysis.
 #' @param kernelSize (default = `5L`) Dimensions used in convolution kernels.
@@ -270,6 +270,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # normalize
+  ActFxn <- tf$nn$swish
   if(channelNormalize == T){
     print("Getting channel normalization parameters...")
     tmp <- replicate(30, {
@@ -351,9 +352,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   BNPreOutput <- F;
   BNPrePreOutput <- T;
-  LowerDimActivation <- ConvActivation <- "swish"
   LowerDimInputDense <- F
-  doBN_conv1 <- T; doBN_conv2 <- T
+  doBN_conv1 <- T;
+  doBN_conv2 <- F # do BN on low (3D) arrays?
   kernelSize_est <- as.integer(  kernelSize )
   batchFracOut <- max(1/3*batchSize,3) / batchSize
   nMonte_variational <- as.integer( nMonte_variational  )
@@ -497,6 +498,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           activation='linear')",k___, k___,k___)))
       }}
       if(reparameterizationType == "Flipout"){
+        stop("Stopping: Flipout depreciated based on poor testing performance [Nov 28, 2023]!")
         #ProbLayerExecutionDevice <- '/GPU:0' # currently unavailable with tensorflow 2.15
         ProbLayerExecutionDevice <- '/CPU:0'
         ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
@@ -522,7 +524,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         eval(parse(text = sprintf("BNLayer_Axis3_Y0_Proj_%s <- %s",conv_,ConvNormText(ProjNormInput)  )))
         eval(parse(text = sprintf("ClusterConv%s <- ProbConvType(filters = nFilters,
                                                    kernel_size = kernelSize_est,
-                                                   activation = ConvActivation,
+                                                   activation = 'linear',
                                                    kernel_prior_fn = PRIOR_MODEL_FXN('ClusterConv%s'),
                                                    strides = strides,
                                                    name = 'ClusterConv%s',
@@ -531,12 +533,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         eval(parse(text = sprintf("ClusterConvProj%s <- ProbDenseType(nDimLowerDimConv,
                                 dtype = float_dtype,
                                 kernel_prior_fn = PRIOR_MODEL_FXN('ClusterConvProj%s'),
-                                activation=LowerDimActivation,
+                                activation='linear',
                                 name = 'ClusterConvProj%s')",conv_,conv_,conv_)))
         if(grepl(heterogeneityModelType,pattern="variational")){
           eval(parse(text = sprintf("Y0Conv%s <- ProbConvType(filters = nFilters,
                                                      kernel_size=c(kernelSize_est,kernelSize_est),
-                                                     activation = ConvActivation,
+                                                     activation = 'linear',
                                                      kernel_prior_fn = PRIOR_MODEL_FXN('Y0Conv%s'),
                                                      strides = strides,
                                                      name = 'Y0Conv%s',
@@ -545,11 +547,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
           eval(parse(text = sprintf("Y0ConvProj%s <- ProbDenseType(nDimLowerDimConv,
                                   dtype = float_dtype,
                                   kernel_prior_fn = PRIOR_MODEL_FXN('Y0ConvProj%s'),
-                                  activation=LowerDimActivation)",conv_,conv_)))
+                                  activation='linear')",conv_,conv_)))
           if(heterogeneityModelType == "variational_CNN"){ for(k____ in 1:kClust_est){
             eval(parse(text = sprintf("TauConv%s_%s <- ProbConvType(filters = nFilters,
                                                      kernel_size=c(kernelSize_est,kernelSize_est),
-                                                     activation=ConvActivation,
+                                                     activation='linear',
                                                      kernel_prior_fn = PRIOR_MODEL_FXN('TauConv%s_%s'),
                                                      strides = strides,
                                                      dtype = float_dtype,
@@ -558,7 +560,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             eval(parse(text = sprintf("TauConvProj%s_%s <- ProbDenseType(nDimLowerDimConv,
                                     dtype = float_dtype,
                                     kernel_prior_fn = PRIOR_MODEL_FXN('TauConvProj%s_%s'),
-                                    activation = LowerDimActivation)",conv_,k____,conv_,k____)))
+                                    activation = 'linear')",conv_,k____,conv_,k____)))
             eval(parse(text = sprintf("BNLayer_Axis3_Tau_%s_%s <- %s",conv_,k____,ConvNormText(nFilters))))
             eval(parse(text = sprintf("BNLayer_Axis3_Tau_Proj_%s_%s <- %s",conv_,k____,ConvNormText(nDimLowerDimConv))))
           }}
@@ -566,7 +568,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(heterogeneityModelType == "tarnet"){
           eval(parse(text = sprintf("Y0Conv%s <- tf$keras$layers$Conv2D(filters = nFilters,
                                                        kernel_size=c(kernelSize_est,kernelSize_est),
-                                                       activation=ConvActivation,
+                                                       activation='linear',
                                                        kernel_prior_fn = PRIOR_MODEL_FXN('Y0Conv%s'),
                                                        strides = strides,
                                                        dtype = float_dtype,
@@ -576,7 +578,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                   dtype = float_dtype,
                                   kernel_prior_fn = PRIOR_MODEL_FXN('Y0ConvProj%s'),
                                   name = 'Y0ConvProj%s',
-                                  activation=LowerDimActivation)",conv_,conv_,conv_)))
+                                  activation='linear')",conv_,conv_,conv_)))
         }
       }
       if(nDepthHidden_dense > 0){
@@ -586,11 +588,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
         eval(parse(text = sprintf("DenseProj_Clust_%s <- ProbDenseType(as.integer(nDenseWidth),
                                 dtype = float_dtype,
                                 kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Clust_%s'),
-                                activation = 'swish')",dense_,dense_)))
+                                activation = 'linear')",dense_,dense_)))
         eval(parse(text = sprintf("DenseProj_Y0_%s <- ProbDenseType(as.integer(nDenseWidth),
                                 dtype = float_dtype,
                                 kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Y0_%s'),
-                                activation = 'swish')",dense_,dense_)))
+                                activation = 'linear')",dense_,dense_)))
 
       }
       }
@@ -683,8 +685,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             image_dtype = image_dtype$name,
             InitImageProcess = InitImageProcess,
             temporalKernelSize = temporalKernelSize,
-            conda_env = "tensorflow_m1",
-            conda_env_required = T )$embeddings_fxn
+            conda_env = conda_env,
+            conda_env_required = conda_env_required )$embeddings_fxn
           # check correct use of new key process
           if(acquireImageMethod == "tf_record"){ setwd( new_wd )  }
     }
@@ -698,11 +700,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(modelClass == "cnn"){
           for(conv__ in 1L:nDepthHidden_conv){
             eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { ClusterConv%s( m ) }) ",conv__)))
-            if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
+
             doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-            if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_%s(m,training=training)",conv__)))}
-            if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterConvProj%s( m ) })",conv__))) }
-            if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_Proj_%s(m,training=training)",conv__)))}
+
+            if(doLower & doBN_conv1){
+              eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_%s(m,training=training)",conv__)))
+              m <- ActFxn( m )
+            }
+            if(conv__ %in% WhenPool){
+              m <- LocalPool( m )
+            }
+            if(doLower){
+              eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { ClusterConvProj%s( m ) })",conv__)))
+            }
+
+            if(doBN_conv2){
+              eval(parse(text = sprintf("m <- BNLayer_Axis3_Clust_Proj_%s(m,training=training)",conv__)))
+            }
           }
           print2("Final convolved image dimensions: ")
           print2(dim(m))
@@ -712,7 +726,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
         # embeddings model
         if(modelClass == "embeddings"){
-           m <- EmbeddingsFxn(   m, training = training)
+           m <- EmbeddingsFxn(m, training = training)
         }
 
         # dense part
@@ -723,6 +737,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(!(dense_ == nDepthHidden_dense & !BNPrePreOutput)){
             eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s(m,training = training)",dense_)))
           }
+          m <- ActFxn(  m   )
           if(dense_ > 1 & dense_ < nDepthHidden_dense){ m <- tf$add(m, m_tminus1) }
         }
         }
@@ -746,11 +761,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(modelClass == "cnn"){
           for(conv__ in 1:nDepthHidden_conv){
             eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m  ) })",conv__)))
-            if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
             doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-            if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))}
-            if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
-            if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))}
+            if(doLower & doBN_conv1){
+              eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m,training=training)",conv__)))
+              m <- ActFxn( m )
+            }
+            if(conv__ %in% WhenPool){
+              m <- LocalPool( m )
+            }
+            if(doLower){
+              eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__)))
+            }
+            if(doBN_conv2){
+              eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m,training=training)",conv__)))
+            }
           }
           m <- FinalImageSummary( m  )
           m <- BNLayer_Axis1_Y0(m, training = training)
@@ -785,25 +809,34 @@ AnalyzeImageHeterogeneity <- function(obsW,
       } )
     }
     if(grepl(heterogeneityModelType, pattern = "variational")){
-      getEY0 <- tf_function_fxn(function(  m , training  ){
+      getEY0 <- tf_function_fxn(getEY0_R <- function(  m , training  ){
         if(! heterogeneityModelType %in% "variational_minimal_visualizer"){
 
           # convolution model
           if(modelClass == "cnn"){
             for(conv__ in 1:nDepthHidden_conv){
               eval(parse(text = sprintf("m <-  with(tf$device( ProbLayerExecutionDevice ), { Y0Conv%s( m )} )",conv__)))
-              if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
               doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-              if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m, training=training)",conv__)))}
-              if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__))) }
-              if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m, training=training)",conv__)))}
+              if(doLower & doBN_conv1){
+                eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_%s(m, training=training)",conv__)))
+                m <- ActFxn( m )
+              }
+              if(conv__ %in% WhenPool){
+                m <- LocalPool( m )
+              }
+              if(doLower){
+                eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { Y0ConvProj%s( m ) })",conv__)))
+              }
+              if(doBN_conv2){
+                eval(parse(text = sprintf("m <- BNLayer_Axis3_Y0_Proj_%s(m, training=training)",conv__)))
+              }
             }
             m <- FinalImageSummary( m  )
             m <- BNLayer_Axis1_Y0(m, training = training)
           }
 
           if(modelClass == "embeddings"){
-            m <- EmbeddingsFxn(   m, training = training )
+            m <- EmbeddingsFxn( m, training = training )
           }
 
           # dense part
@@ -814,6 +847,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             if(!(dense_ == nDepthHidden_dense & !BNPrePreOutput)){
               eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s(m,training = training)",dense_)))
             }
+            m <- ActFxn(  m   )
             if(dense_ > 1 & dense_ < nDepthHidden_dense){ m <- m + m_tminus1 }
           }
           }
@@ -840,11 +874,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
               for(conv__ in 1:nDepthHidden_conv){
                 if(conv__ == 1){ m <- m_orig }
                 eval(parse(text = sprintf("m <-  TauConv%s_%s( m )",conv__,k____)))
-                if(conv__ %in% WhenPool){ m <- LocalPool( m ) }
                 doLower <- (ifelse(LowerDimInputDense,yes = T, no = conv__ < nDepthHidden_conv)) & doConvLowerDimProj
-                if(doLower & doBN_conv1){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_%s_%s(m,training=training)",conv__,k____)))}
-                if(doLower){eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauConvProj%s_%s( m )})",conv__,k____))) }
-                if(doBN_conv2){eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_Proj_%s_%s(m,training=training)",conv__,k____)))}
+                if(doLower & doBN_conv1){
+                  eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_%s_%s(m,training=training)",conv__,k____)))
+                  m <- ActFxn( m )
+                }
+                if(conv__ %in% WhenPool){
+                  m <- LocalPool( m )
+                }
+                if(doLower){
+                  eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { TauConvProj%s_%s( m )})",conv__,k____)))
+                }
+                if(doBN_conv2){
+                  eval(parse(text = sprintf("m <- BNLayer_Axis3_Tau_Proj_%s_%s(m,training=training)",conv__,k____)))
+                }
               }
               m <- FinalImageSummary( m  )
               eval(parse(text = sprintf("m <- BNLayer_Axis1_Tau%s(m, training = training)",k____)))
@@ -1057,7 +1100,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     })
 
     #trainStep <-  (function(dat, y, treat){
-    trainStep <-  tf_function_fxn(function(dat, y ,treat){
+    trainStep <-  tf_function_fxn( trainStep_R <- function(dat, y ,treat){
       # note: compiling this also involves compiling thru the nMonte part (may cause issues!)
       with(tf$GradientTape(watch_accessed_variables = F) %as% tape, {
         tape$watch(  trainable_variables   )
@@ -1163,6 +1206,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                      tapply(which(obsW==1),imageKeysOfUnits[obsW==1],function(zer){sort(unique(zer))}))
       #tauMeans <- c();i_<-1;for(i in i_:(n_sgd_iters <- length(unique_batch_indices <- sort(unique(c(batch_indices_list)))))){
       n_sgd_iters <- nSGD; tauMeans <- c();i_<-1;for(i in i_:nSGD){
+
+        # reset moving means and variances
+        if(T == F){ if(i == 5){
+          for(BNLayer_ in (BNLayers <- grep(ls(), pattern = "BNLayer",value=T))){
+            BN_MOM <- (1)
+            if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- BN_MOM^cnst(1/nMonte_variational) }
+            try(eval(parse(text = sprintf("%s$momentum <- BN_MOM",BNLayer_))), T)
+          }
+          trainStep <- tf_function( trainStep_R )
+          getEY0 <- tf_function_fxn(getEY0_R)
+          gc(); py_gc$collect()
+          browser()
+        }}
 
       if(i %% 10 == 0){gc(); py_gc$collect()}
       #batch_indices <- unlist(apply(batch_indices_list == unique_batch_indices[i],2,which))
@@ -1367,13 +1423,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     # check results
     if(T == F){
-       dev.off()
-       which.max( abs(obsY_orig-Yobs_est) )
+        dev.off();
        plot(Yobs_est,obsY_orig); abline(a=0,b=1)
        summary(lm(obsY_orig~Yobs_est))
+       # m = InitImageProcess(ds_next_train, training = T); training = F; getEY0
        getTrainingLikelihoodDraw(dat = InitImageProcess(ds_next_train, training = T),
                                  y = tf$constant(obsY[batch_indices], float_dtype),
-                                 treat = tf$constant(obsW[batch_indices], float_dtype), training = T)
+                                 treat = tf$constant(obsW[batch_indices], float_dtype),
+                                 training = F)
+       mean((obsY_orig-Yobs_est)^2)
     }
     if(grepl(heterogeneityModelType,pattern="variational_CNN")){ Tau_mean_vec <- tau_vec_kmeans; Tau_sd_vec <- NULL }
     impliedATE <- mean(  tau_i_est )
