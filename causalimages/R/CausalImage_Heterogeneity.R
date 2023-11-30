@@ -25,6 +25,7 @@
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
+#' @param optimizeEmbeddings (default = `TRUE`)
 #' @param nMonte_predictive (default = `20L`) An integer specifying how many Monte Carlo iterations to use in the calculation
 #' of posterior means (e.g., mean cluster probabilities).
 #' @param nMonte_salience (default = `100L`) An integer specifying how many Monte Carlo iterations to use in the calculation
@@ -99,6 +100,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       simMode = F,
                                       plotResults = F,
 
+                                      optimizeEmbeddings = T,
                                       nDepthHidden_conv = 1L,
                                       nDepthHidden_dense = 0L,
                                       maxPoolSize = 2L,
@@ -145,6 +147,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
     tfd <- (tfp <- tf_probability())$distributions
+    tfa <- reticulate::import("tensorflow_addons")
 
     tf$random$set_seed(  c( 1000L ) )
     tf$keras$utils$set_random_seed( 4L )
@@ -399,10 +402,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
   Y0_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); return(sd(obsY[top_][obsW[top_]==0])) }))
   Y1_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); sd(obsY[top_][obsW[top_]==1]) }))
   tau_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); mean(obsY[top_][obsW[top_]==1]) - mean(obsY[top_][obsW[top_]==0]) }))
-  Y0_mean_init_prior <- Y0_mean_init <- mean(obsY[obsW==0]); Y0_sd_init_prior <- Y0_sd_init <- max(0.01, median(Y0_sd_vec,na.rm=T))
-  Y1_mean_init_prior <- Y1_mean_init <- mean(obsY[obsW==1]); Y1_sd_init_prior <- Y1_sd_init <- max(0.01, median(Y1_sd_vec,na.rm=T))
-  Y0_sd_init_prior <- tfp$math$softplus_inverse(cnst(Y0_sd_init_prior))
-  Y1_sd_init_prior <- tfp$math$softplus_inverse(cnst(Y1_sd_init_prior))
+  Y0_mean_init_prior <- Y0_mean_init <- mean(obsY[obsW==0]); Y0_sd_raw <- max(0.01, mean(Y0_sd_vec,na.rm=T))
+  Y1_mean_init_prior <- Y1_mean_init <- mean(obsY[obsW==1]); Y1_sd_raw <- max(0.01, mean(Y1_sd_vec,na.rm=T))
+  Y0_sd_priorMean <- tfp$math$softplus_inverse(cnst(Y0_sd_raw))
+  Y1_sd_priorMean <- tfp$math$softplus_inverse(cnst(Y1_sd_raw))
+  Y0_sd_initMean <- tfp$math$softplus_inverse(cnst((SD_scaling <- 1)*Y0_sd_raw))#<-SD_scaling*sd(obsY[obsW==0])))
+  Y1_sd_initMean <- tfp$math$softplus_inverse(cnst(SD_scaling*Y1_sd_raw))#<-SD_scaling*sd(obsY[obsW==1])))
 
   #for(BAYES_STEP in c(1,2)){
   for(BAYES_STEP in c(1)){
@@ -465,8 +470,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # set other priors
       Tau_mean_init_prior <- as.vector(MeanDist_tau[k_,"Mean"][[1]])
-      Y0_sd_init_prior <- as.vector(SDDist_Y0[k_,"Mean"][[1]])
-      Y1_sd_init_prior <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
+      Y0_sd_priorMean <- as.vector(SDDist_Y0[k_,"Mean"][[1]])
+      Y1_sd_priorMean <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
     }
     print2("Building clustering model...")
     {
@@ -476,7 +481,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       BNLayer_Axis1_ProjY0 <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
                                                                  dtype = float_dtype,
                                                                  beta_initializer = tf$constant_initializer(Y0_mean_init),
-                                                                 gamma_initializer = tf$constant_initializer(Y0_sd_init),
+                                                                 gamma_initializer = tf$constant_initializer(Y0_sd_raw),
                                                                  name = "BN_Y0")
       BNLayer_Axis1_ProjTau <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
                                                                   dtype = float_dtype,
@@ -500,7 +505,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                           activation='linear')",k___, k___,k___)))
       }}
       if(reparameterizationType == "Flipout"){
-        stop("Stopping: Flipout depreciated based on poor testing performance [Nov 28, 2023]!")
         #ProbLayerExecutionDevice <- '/GPU:0' # currently unavailable with tensorflow 2.15
         ProbLayerExecutionDevice <- '/CPU:0'
         ProbConvType <- tfp$layers$Convolution2DFlipout # more efficient, must wrap execution in with(tf$device('/CPU:0'),{...})
@@ -613,16 +617,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
       BNLayer_Axis1_ProjY1 <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = BN_MOM, epsilon = BN_EP,
                                                                  dtype = float_dtype,
                                                                  beta_initializer = tf$constant_initializer( Y1_mean_init),
-                                                                 gamma_initializer = tf$constant_initializer( Y1_sd_init ) )
+                                                                 gamma_initializer = tf$constant_initializer( Y1_sd_raw ) )
       if(heterogeneityModelType == "tarnet"){
         Y0Proj = tf$keras$layers$Dense(as.integer(1L), activation='linear', dtype = float_dtype)
         Y1Proj = tf$keras$layers$Dense(as.integer(1L), activation='linear', dtype = float_dtype)
       }
-      SD_scaling <- 1
       Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
       Tau_means_init <- Tau_mean_init + .01*seq(-1,1,length.out=kClust_est)*max(0.01,abs(Tau_mean_init))
-      Y0_sds_prior_mean <- tfp$math$softplus_inverse(cnst(SD_scaling*(Y0_sd_init)))#<-SD_scaling*sd(obsY[obsW==0])))
-      Y1_sds_prior_mean <- tfp$math$softplus_inverse(cnst(SD_scaling*(Y1_sd_init)))#<-SD_scaling*sd(obsY[obsW==1])))
 
       print("Initializing cluster centers...")
       base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
@@ -632,19 +633,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # set this to a small number so network starts off as nearly deterministic
         sd_init_trainableParams <- as.numeric(tfp$math$softplus_inverse(tf$constant(0.001, float_dtype)))
 
+        # tau's
         MeanDist_tau[k_,"Mean"][[1]] <- list( tf$Variable(cnst(Tau_means_init[k_]),trainable=T,name=sprintf("MeanTau%s_mean",k_) ) )
         MeanDist_tau[k_,"SD"][[1]] <- list( tf$Variable(cnst(sd_init_trainableParams),trainable=T,name = sprintf("MeanTau%s_sd",k_) ) )
         MeanDist_tau[k_,"Prior"][[1]] <- list( tfd$Normal(cnst(Tau_mean_init_prior), cnst(2*sd(tau_vec) )))
 
         # Y0
-        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(cnst(1*as.numeric(Y0_sds_prior_mean)), trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
+        SDDist_Y0[k_,"Mean"][[1]] <- list( tf$Variable(cnst(as.numeric(Y0_sd_initMean)), trainable=T,name=sprintf("SDY0%s_mean",k_) ) )
         SDDist_Y0[k_,"SD"][[1]] <- list( tf$Variable(cnst(sd_init_trainableParams), trainable=T,name=sprintf("SDY0%s_sd",k_)) )
-        SDDist_Y0[k_,"Prior"][[1]] <- list( tfd$Normal(cnst(as.numeric(Y0_sd_init_prior)), cnst(10*sd(Y0_sd_vec))))
+        SDDist_Y0[k_,"Prior"][[1]] <- list( tfd$Normal(cnst(as.numeric(Y0_sd_priorMean)), cnst(2*sd(Y0_sd_vec))))
 
         # Y0
-        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(cnst(1*Y1_sds_prior_mean), trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
+        SDDist_Y1[k_,"Mean"][[1]] <- list( tf$Variable(cnst(Y1_sd_initMean), trainable=T,name=sprintf("SDY1%s_mean",k_) ) )
         SDDist_Y1[k_,"SD"][[1]] <- list( tf$Variable(cnst(sd_init_trainableParams), trainable=T,name=sprintf("SDY1%s_sd",k_)) )
-        SDDist_Y1[k_,"Prior"][[1]] <- list( tfd$Normal(cnst(Y1_sd_init_prior),cnst(10*sd(Y1_sd_vec))))
+        SDDist_Y1[k_,"Prior"][[1]] <- list( tfd$Normal(cnst(Y1_sd_priorMean),cnst(2*sd(Y1_sd_vec))))
 
         # SD posterior checks
         #hist(as.numeric(tf$nn$softplus(rnorm(1000,as.numeric((SDDist_Y0[k_,"Mean"][[1]])), sd=as.numeric(tf$nn$softplus(SDDist_Y0[k_,"SD"][[1]]))))))
@@ -681,8 +683,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
             file = file,
             dataType = dataType,
             strides = strides,
-            doBatchNorm = T, # set to TRUE
+            doBatchNorm = optimizeEmbeddings, # set to TRUE
             momentum = BN_MOM,
+            epsilon = BN_EP,
             InitImageProcess = NULL, # make sure this is null, otherwise processing happens TWICE
             nEmbedDim = nEmbedDim,
             kernelSize = kernelSize,
@@ -1140,7 +1143,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(T == T){  for(l_i in 1:length(my_grads)){
         param_norm <- tf$norm( trainable_variables[[l_i]] )
         my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
-                                  clip_norm = tf$maximum(cnst(0.001),cnst(0.1)*param_norm))
+                                  clip_norm = tf$maximum(cnst(0.01),cnst(0.05)*param_norm))
       } }
 
       # apply gradients and apply adaptive clipping
@@ -1177,7 +1180,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     print("Done initializing forward pass...")
 
-    if(modelClass == "embeddings" & T == F){
+    if(modelClass == "embeddings" & !optimizeEmbeddings){
       # if used -- don't train conv in embeddings approach
       # if not used, the embedding output gets very small variance
       trainable_variables <- trainable_variables[!grepl(unlist(lapply(trainable_variables,function(zer){ zer$name })),
@@ -1190,13 +1193,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
     #optimizer_tf <- tf$optimizers$legacy$SGD(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(1))
     #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(.1))
     #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$Variable(LEARNING_RATE_BASE, dtype = float_dtype)) #$,clipnorm=1e1)
-    #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE),
-    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = (LEARNING_RATE_BASE),
-                                              beta_1 = (0.9),
-                                              beta_2 = (0.999),
-                                              epsilon = (1e-5),
+    #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE)
+    #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = (LEARNING_RATE_BASE),
+    #optimizer_tf <- tfa$optimizers$AdaBelief(learning_rate = (LEARNING_RATE_BASE),
+    optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE),
                                               clipvalue = (1),
-                                              decay = (0))
+                                              beta_1 = (0.9),
+                                              beta_2 = (0.999))
     if( scaleLoss <- T ){
       optimizer_tf <- tf$keras$mixed_precision$LossScaleOptimizer( optimizer_tf )
     }
@@ -1354,7 +1357,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       y1_ <- tf$concat(y1_,0L); y1_ <- tf$reduce_mean(y1_,0L)
 
       # get predictions
-      ClusterProbs_est_ <- tf$concat(replicate(nMonte_predictive,getClusterProb(m_,training = F)),0L)
+      ClusterProbs_est_ <- tf$concat(replicate(nMonte_predictive,
+                                               tf$expand_dims(getClusterProb(m_,training = F), 0L)),0L)
       ClusterProbs_std_ <- (tf$math$reduce_std(ClusterProbs_est_,0L))
       ClusterProbs_est_ <- (tf$reduce_mean(ClusterProbs_est_,0L))
       ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
@@ -1365,10 +1369,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   ClusterProbs_std_))
     })
 
+    inference_counter <- 0
     nUniqueKeys <- length(unique(imageKeysOfUnits))
-    Results_by_keys <- replicate(nUniqueKeys,list());
-    passedIterator <- NULL; for(zer in 1:nUniqueKeys){
-      # zer <- 1
+    KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.25) ))
+    #passedIterator <- NULL; Results_by_keys <- replicate(nUniqueKeys,list());for(zer in 1:nUniqueKeys){ # use when incorporating X's
+    passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());for(cut_ in unique(KeyQuantCuts)){ # use when not incorporating X's
+      zer <- which(cut_ == KeyQuantCuts)
+      inference_counter <- inference_counter + 1
       gc(); py_gc$collect()
       atP <- max(zer)/nUniqueKeys
       if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("[%s] Proportion done: %.3f",
@@ -1378,8 +1385,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         if(acquireImageMethod == "tf_record"){
           setwd(orig_wd)
-          ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in%
-                                                                              unique(imageKeysOfUnits)[zer]),
+          ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
                                                          filename = file,
                                                          iterator = passedIterator,
                                                          readVideo = useVideo,
@@ -1387,9 +1393,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                          nObs = length(unique(imageKeysOfUnits)),
                                                          return_iterator = T )
           passedIterator <- ds_next_in[[2]]
-          key_ <- as.character( ds_next_in[[1]][[3]]$numpy() )
+          key_ <- unlist(  lapply( ds_next_in[[1]][[3]]$numpy() , as.character) )
           ds_next_in <- ds_next_in[[1]]
           setwd(new_wd)
+
+          # deal with batch 1 case here
           if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           ds_next_in <- ds_next_in[[1]]
@@ -1397,28 +1405,34 @@ AnalyzeImageHeterogeneity <- function(obsW,
       im_zer <- InitImageProcess(ds_next_in, training = F)
 
       # get summaries and save
-      if(zer==1){GetSummaries(im_zer)} # initialize but don't save (unknown bug in first iteration)
+      if(any(zer==1)){GetSummaries(im_zer)} # initialize but don't save (unknown bug in first iteration)
       GottenSummaries <- GetSummaries(im_zer)
       ret_list <- list("y0_" = as.matrix(GottenSummaries[[1]]),
                        "y1_" = as.matrix(GottenSummaries[[2]]),
-                       "ClusterProbs_est_"=as.numeric(GottenSummaries[[3]]),
-                       "ClusterProbs_lower_conf_"=as.numeric(GottenSummaries[[4]]),
-                       "ClusterProbs_std_"=as.numeric(GottenSummaries[[5]]),
-                       "key" = key_)
-      print(as.numeric(GottenSummaries[[3]]))
-      Results_by_keys[[zer]] <- ret_list
+                       "ClusterProbs_est_"=as.matrix(GottenSummaries[[3]]),
+                       "ClusterProbs_lower_conf_"=as.matrix(GottenSummaries[[4]]),
+                       "ClusterProbs_std_"=as.matrix(GottenSummaries[[5]]),
+                       "key" = as.matrix( key_) )
+      #ret_list <- lapply(ret_list,as.data.frame)
+      print(GottenSummaries[[3]])
+      Results_by_keys[[inference_counter]] <- ret_list
+      # Results_by_keys <- c(list(), list()); Results_by_keys[[1]] <-ret_list; Results_by_keys[[2]] <-ret_list
     }
     Results_by_keys_list <- Results_by_keys
-    Results_by_keys <- as.data.frame(  do.call(rbind,Results_by_keys_list) )
+    Results_by_keys <- ( do.call(rbind, Results_by_keys_list) )
+    Results_by_keys <- apply(Results_by_keys,2,function(zer){(do.call(rbind,zer))})
 
     # checks
-    #unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)[1:10]
-    #mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
-    #mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
+    # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
+    # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
+    # mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
 
     # re-order data
-    Results_by_keys <- Results_by_keys[match(imageKeysOfUnits,
-                                             unlist(  Results_by_keys[["key"]] )),]
+    Results_by_keys <- lapply(Results_by_keys, function(zer){
+                                    zer[match(imageKeysOfUnits, unlist(  Results_by_keys[["key"]] )),]})
+
+    # checks
+    # unlist(Results_by_keys[["key"]]) == (imageKeysOfUnits)
 
     # process all outcomes
     Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T)
@@ -1454,9 +1468,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     rm( Results_by_keys_list )
 
     # process cluster data
-    ClusterProbs_lower_conf <- do.call(rbind, Results_by_keys$ClusterProbs_lower_conf_)
-    ClusterProbs_std <- do.call(rbind, Results_by_keys$ClusterProbs_std_)
-    ClusterProbs_est_full <- do.call(rbind, Results_by_keys$ClusterProbs_est_)
+    ClusterProbs_lower_conf <- Results_by_keys$ClusterProbs_lower_conf_
+    ClusterProbs_std <- Results_by_keys$ClusterProbs_std_
+    ClusterProbs_est_full <-  Results_by_keys$ClusterProbs_est_
     ClusterProbs_est <- ClusterProbs_est_full[,2]
     Clust_probs_marginal_final <- colMeans( ClusterProbs_est_full )
 
@@ -1655,7 +1669,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     par(mfrow=c(1,1))
     gc(); py_gc$collect()
     try(hist(ClusterProbs_est),T)
-    plot(Yobs_est, obsY); abline(a=0,b=1)
+    plot(Yobs_est, obsY_orig); abline(a=0,b=1)
     plotting_coordinates_list <- list(); typePlot_counter <- 0
     ep_LabelSmooth <- tf$constant(0.01)
     if(dataType == "image"){

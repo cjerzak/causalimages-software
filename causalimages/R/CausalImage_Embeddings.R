@@ -58,7 +58,7 @@ GetImageEmbeddings <- function(
     kernelSize = 3L,
     TfRecords_BufferScaler = 10L,
     doBatchNorm = F,
-    momentum = 0.9,
+    momentum = 0.9, epsilon = 0.01,
     dataType = "image",
     image_dtype = "float16",
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
@@ -217,7 +217,7 @@ GetImageEmbeddings <- function(
                                                  strides = c(1L, strides, strides), #strides = c(1L, 1L, 1L),
                                                  padding = "valid")
         BNLayer_conv4_embed <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
-                                        dtype = float_dtype, momentum = momentum, epsilon = 0.001,
+                                        dtype = float_dtype, momentum = momentum, epsilon = epsilon,
                                         name = "BNLayer_conv4_embed", synchronized = T)
         # m <- batch_inference[[1]]
         # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
@@ -228,7 +228,7 @@ GetImageEmbeddings <- function(
 
         #GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
         GlobalMaxPoolLayer <- function(m){
-          #m_ <- tf$reduce_mean(m, 1L ) # average across the time dimension
+          #m_ <- tf$reduce_mean(m, 1L ) # average across the time dimension -> bad with masked areas
           m_ <- tf$reduce_max(m, 1L ) # max across the time dimension confirmed to work
           m_ <- tf$reduce_max(m_, 1L:2L ) # max across the space dimension
         }
