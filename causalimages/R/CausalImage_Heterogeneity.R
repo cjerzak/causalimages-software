@@ -592,13 +592,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
         eval(parse(text = sprintf("BNLayer_Axis1_Clust_%s_b <- %s",dense_,DenseNormText())))
         eval(parse(text = sprintf("BNLayer_Axis1_Y0_%s_a <- %s",dense_,DenseNormText())))
         eval(parse(text = sprintf("BNLayer_Axis1_Y0_%s_b <- %s",dense_,DenseNormText())))
-        eval(parse(text = sprintf("DenseProj_Clust_%s <- ProbDenseType(as.integer(nDenseWidth),
+        eval(parse(text = sprintf("DenseProj_Clust_%s_a <- ProbDenseType(as.integer(nDenseWidth),
                                 dtype = float_dtype,
-                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Clust_%s'),
+                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Clust_%s_a'),
                                 activation = 'linear')",dense_,dense_)))
-        eval(parse(text = sprintf("DenseProj_Y0_%s <- ProbDenseType(as.integer(nDenseWidth),
+        eval(parse(text = sprintf("DenseProj_Clust_%s_b <- ProbDenseType(as.integer(nDenseWidth),
                                 dtype = float_dtype,
-                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Y0_%s'),
+                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Clust_%s_b'),
+                                activation = 'linear')",dense_,dense_)))
+        eval(parse(text = sprintf("DenseProj_Y0_%s_a <- ProbDenseType(as.integer(nDenseWidth),
+                                dtype = float_dtype,
+                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Y0_%s_a'),
+                                activation = 'linear')",dense_,dense_)))
+        eval(parse(text = sprintf("DenseProj_Y0_%s_b <- ProbDenseType(as.integer(nDenseWidth),
+                                dtype = float_dtype,
+                                kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Y0_%s_b'),
                                 activation = 'linear')",dense_,dense_)))
 
       }
@@ -743,11 +751,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(nDepthHidden_dense > 0){
         m_tminus1 <- m
         for(dense_ in 1:nDepthHidden_dense){
-          eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Clust_%s(m)})",dense_)))
+          eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Clust_%s_a(m)})",dense_)))
           eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s_a(m,training = training)",dense_)))
           m <- ActFxn(  m   )
+          eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Clust_%s_b(m)})",dense_)))
           eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s_b(m,training = training)",dense_)))
-          m_tminus1 <- m <- tf$add(m, m_tminus1)
+          m <- tf$add(m, m_tminus1)
+          #m <- ActFxn(  m   )
+          m_tminus1 <- m
         }
         }
       }
@@ -856,11 +867,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
             #as.matrix( DenseProj_Y0_1(m))
             #DenseProj_Y0_1$variables[[1]]
             #  plot( as.numeric(BNLayer_Axis1_Y0_1$moving_mean))
-            eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Y0_%s(m) } ) ",dense_)))
+            eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Y0_%s_a(m) } ) ",dense_)))
             eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s_a(m,training = training)",dense_)))
             m <- ActFxn(  m   )
+            eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Y0_%s_b(m) } ) ",dense_)))
             eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s_b(m,training = training)",dense_)))
-            m_tminus1 <- m <- m + m_tminus1
+            m <- tf$add(m, m_tminus1)
+            #m <- ActFxn(  m   )
+            m_tminus1 <- m
           }
           }
         }
@@ -1055,8 +1069,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
           } }
 
         if(nDepthHidden_dense > 0){ for(dense_ in 1:nDepthHidden_dense){
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s$kernel_posterior,DenseProj_Y0_%s$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s$kernel_posterior,DenseProj_Clust_%s$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
+          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_a$kernel_posterior,DenseProj_Y0_%s_a$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
+          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_a$kernel_posterior,DenseProj_Clust_%s_a$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
+
+          # comment if not using _b
+          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_b$kernel_posterior,DenseProj_Y0_%s_b$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
+          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_b$kernel_posterior,DenseProj_Clust_%s_b$kernel_prior)",nDepthHidden_dense, nDepthHidden_dense)))
         }}
       }
       KLterm <- KLterm + tfd$kl_divergence(ClusterProj$kernel_posterior,ClusterProj$kernel_prior)
@@ -1082,7 +1100,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     CombineLikelihoodWithKL <- tf_function_fxn( function(lik_, kl_){
       #lik_ = tf$where(tf$math$is_nan(lik_), tf$zeros_like(lik_), lik_) # remove NAs
-      minThis <- tf$negative(tf$reduce_sum( lik_ )) + KL_wt * kl_ # combine likelihood with prior
+      minThis <- tf$negative(tf$reduce_sum( lik_ ))
+      if(BAYES_STEP == 2){
+        minThis <- minThis + KL_wt * kl_ # combine likelihood with prior
+      }
       minThis <- minThis / cnst(batchSize) # normalize
     })
 
@@ -1107,13 +1128,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
         #optional ATE penalty: + tf$reduce_mean(tf$multiply(marginal_lambda, tf$square(marginal_tau - impliedATE)))
         # minimize negative log likelihood and positive KL term
         # equivalently SSEs and positive KL term
-        minThis <- CombineLikelihoodWithKL( likelihood_distribution_expectation, getKL() )
-
+        if(BAYES_STEP == 1){ klContrib <- KL_wt }
+        if(BAYES_STEP == 2){ klContrib <- getKL() }
+        minThis <- CombineLikelihoodWithKL( likelihood_distribution_expectation, klContrib)
         }
-      return( tf$cast(minThis, float_dtype) )
+      return( minThis )
     })
 
-    #trainStep <-  (function(dat, y, treat){
     trainStep <-  tf_function_fxn( trainStep_R <- function(dat, y ,treat){
       # note: compiling this also involves compiling thru the nMonte part (may cause issues!)
       with(tf$GradientTape(watch_accessed_variables = F) %as% tape, {
@@ -1132,10 +1153,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(scaleLoss){  my_grads <- optimizer_tf$get_unscaled_gradients( tape$gradient( scaledLoss_forGrad, trainable_variables ) ) }
 
       # apply adaptive update clipping
-      if(T == F){  for(l_i in 1:length(my_grads)){
+      if(T == T){  for(l_i in 1:length(my_grads)){
         param_norm <- tf$norm( trainable_variables[[l_i]] )
-        my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
-                                  clip_norm = tf$maximum(cnst(0.01),cnst(0.02)*param_norm))
+        if(!is.null(my_grads[[l_i]])){
+          my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
+                                  clip_norm = tf$maximum(cnst(0.01),cnst(0.1)*param_norm))
+        }
       } }
 
       # apply gradients and apply adaptive clipping
@@ -1326,12 +1349,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
           }
           #eval(parse(text = sprintf("SZ_%s <- z + SZ_%s", z_name_, z_name_)))
           #eval(parse(text = sprintf("SZ2_%s <- tf$square(z) + SZ2_%s", z_name_, z_name_)))
-          eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_)))
-          eval(parse(text = sprintf("SZ2_%s <- tf$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_)))
+          try(eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_))), T)
+          try(eval(parse(text = sprintf("SZ2_%s <- tf$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_))), T)
           if(i == n_sgd_iters){
             #eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
             #eval(parse(text = sprintf("RollVar_%s <- tf$maximum(0.0001,SZ2_%s/nWindow - RollMean_%s^2)", z_name_,z_name_,z_name_,z_name_)))
-            eval(parse(text = sprintf("RollVar_%s <- tf$cast(1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow),dtype=float_dtype)", z_name_,z_name_)))
+            try(eval(parse(text = sprintf("RollVar_%s <- tf$cast(1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow),dtype=float_dtype)", z_name_,z_name_))), T)
           }
       }
       }
@@ -1435,10 +1458,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tau_vec_kmeans <- c(  kmeans(tau_i_est, centers=2)$centers)
 
     # check results
+    plot(Yobs_est,obsY_orig); abline(a=0,b=1)
+    print(  summary(lm(obsY_orig~Yobs_est)) )
     if(T == F){
         dev.off();
-       plot(Yobs_est,obsY_orig); abline(a=0,b=1)
-       summary(lm(obsY_orig~Yobs_est))
        # m = InitImageProcess(ds_next_train, training = T); training = F; getEY0
        tf$reduce_mean(getTrainingLikelihoodDraw(dat = InitImageProcess(ds_next_train, training = T),
                                  y = tf$constant(obsY[batch_indices], otherData_dtypes),
@@ -1516,6 +1539,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if(!is.null(transportabilityMat)){
     print2("Getting posterior predictive mean probabilities for transportability analysis...")
     {
+      if(!TRUE %in% transportabilityMat){
       GetProbAndExpand <- tf_function_fxn(function(m){tf$expand_dims(getClusterProb(m,training = F),0L) })
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
@@ -1548,6 +1572,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
       cluster_prob_transport_var <- do.call(rbind, cluster_prob_transport_info[,2])
       colnames(cluster_prob_transport_means) <- paste('mean_k',1:ncol(cluster_prob_transport_means), sep = "")
       colnames(cluster_prob_transport_var) <- paste('var_k',1:ncol(cluster_prob_transport_means), sep = "")
+      }
+      if(TRUE %in% transportabilityMat){
+        transportabilityMat <- as.data.frame(cbind(
+                                     "key"=imageKeysOfUnits,
+                                     "long"=long,
+                                     "lat"=lat))
+        cluster_prob_transport_means <- Results_by_keys$ClusterProbs_est_
+        cluster_prob_transport_var <-  Results_by_keys$ClusterProbs_std_^2
+      }
       transportabilityMat <- try(cbind(transportabilityMat,
                                    cluster_prob_transport_means,
                                    cluster_prob_transport_var),T)

@@ -196,34 +196,78 @@ GetImageEmbeddings <- function(
     {
         #myConv_spatial_fxn <- tf$keras$layers$Conv3D(filters = nFilters, kernel_size = c(1L, kernelSize, kernelSize),
                                          #activation = "linear", strides = c(1L, strides, strides), padding = "valid", trainable = F)
-        myConv_spatial <- tf$keras$layers$SeparableConv2D(filters = nFilters,
-                                                 kernel_size = c(kernelSize, kernelSize),
-                                                 activation = "linear",
-                                                 dtype = float_dtype,
-                                                 strides = c(strides, strides), padding = "valid")
-        myConv_spatial_fxn <- (function(m){
-          m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
-          m_ <- tf$vectorized_map(myConv_spatial, m_) # vectorized_map only seems to work across axis 0L
-          m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
-          return( m_ )
-        })
-        myConv_temporal <- tf$keras$layers$Conv3D(filters = nFilters,
-                                                 kernel_size = c(temporalKernelSize, 1L, 1L),
-                                                 activation = "linear",
-                                                 groups = 1L,
-                                                 dtype = float_dtype,
-                                                 strides = c(1L, strides, strides), #strides = c(1L, 1L, 1L),
-                                                 padding = "valid")
-        BNLayer_conv4_embed <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
-                                        dtype = float_dtype, momentum = momentum, epsilon = epsilon,
-                                        name = "BNLayer_conv4_embed", synchronized = T)
+
+       for(d__ in 1:(EmbedDepth <- 2L)){
+          ## a
+          myConv_spatial_a <- tf$keras$layers$SeparableConv2D(filters = nFilters,
+                                                   kernel_size = c(kernelSize, kernelSize),
+                                                   activation = "linear", dtype = float_dtype,
+                                                   strides = c(strides, strides), padding = "valid")
+          myConv_temporal_a <- tf$keras$layers$Conv3D(filters = nFilters,
+                                                   kernel_size = c(temporalKernelSize, 1L, 1L),
+                                                   activation = "linear", dtype = float_dtype,
+                                                   strides = c(1L, strides, strides),
+                                                   padding = "same")
+
+          ## B
+          myConv_spatial_b <- tf$keras$layers$SeparableConv2D(filters = nFilters,
+                                                            kernel_size = c(kernelSize, kernelSize),
+                                                            activation = "linear", dtype = float_dtype,
+                                                            strides = c(strides, strides), padding = "valid")
+          myConv_temporal_b <- tf$keras$layers$Conv3D(filters = nFilters,
+                                                    kernel_size = c(temporalKernelSize, 1L, 1L),
+                                                    activation = "linear", dtype = float_dtype,
+                                                    strides = c(1L, strides, strides),
+                                                    padding = "same")
+
+          # BNs
+          BNLayer_conv4_embed_a <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
+                                          dtype = float_dtype, momentum = momentum, epsilon = epsilon,
+                                          name = "BNLayer_conv4_embed_a", synchronized = T)
+          BNLayer_conv4_embed_b <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
+                                                                      dtype = float_dtype, momentum = momentum, epsilon = epsilon,
+                                                                      name = "BNLayer_conv4_embed_b", synchronized = T)
+          eval(parse(text = sprintf("myConv_spatial_a_%s <- myConv_spatial_a",d__)))
+          eval(parse(text = sprintf("myConv_temporal_a_%s <- myConv_temporal_a",d__)))
+          eval(parse(text = sprintf("BNLayer_conv4_embed_a_%s <- BNLayer_conv4_embed_a",d__)))
+
+          if(T == T){
+          eval(parse(text = sprintf("myConv_spatial_b_%s <- myConv_spatial_b",d__)))
+          eval(parse(text = sprintf("myConv_temporal_b_%s <- myConv_temporal_b",d__)))
+          eval(parse(text = sprintf("BNLayer_conv4_embed_b_%s <- BNLayer_conv4_embed_b",d__)))
+          eval(parse(text = sprintf("myConv_spatial_fxn_a_%s <- (function(m){
+            m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
+            m_ <- tf$vectorized_map(myConv_spatial_a_%s, m_) # vectorized_map only seems to work across axis 0L
+            m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
+            return( m_ ) })", d__,d__)))
+          eval(parse(text = sprintf("myConv_spatial_fxn_b_%s <- (function(m){
+            m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
+            m_ <- tf$vectorized_map(myConv_spatial_b_%s, m_) # vectorized_map only seems to work across axis 0L
+            m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
+            return( m_ ) })", d__,d__)))
+          }
+       }
         # m <- batch_inference[[1]]
-        # myConv_spatial ( tf$gather(m,1L,axis = 1L) )
-        # myConv_spatial ( m );  myConv(m)
+        # myConv_spatial_a_1 ( tf$gather(m,1L,axis = 1L) )
         if(!doBatchNorm){ myConv <- ( function(m, training){ myConv_temporal( myConv_spatial_fxn( m ) ) }) }
-        if(doBatchNorm){ myConv <- ( function(m, training){
-                                            tf$nn$swish( BNLayer_conv4_embed(
-                                                    myConv_temporal( myConv_spatial_fxn( m ) ), training) ) }) }
+        if(doBatchNorm){
+          myConv <- ( function(m, training){
+            # d__ <- 1
+            # d__ <- 2
+           for(d__ in 1:EmbedDepth){
+             m_minus1 <- m
+             eval(parse(text = sprintf("m <- myConv_temporal_a_%s( myConv_spatial_fxn_a_%s( m ) )", d__, d__)))
+             eval(parse(text = sprintf("m <- BNLayer_conv4_embed_a_%s(m, training)", d__)))
+             m <- tf$nn$swish( m  )
+             #eval(parse(text = sprintf("m <- myConv_temporal_b_%s( myConv_spatial_fxn_b_%s( m ) )", d__, d__)))
+             #eval(parse(text = sprintf("m <- BNLayer_conv4_embed_b_%s(m, training)", d__)))
+             #m <- tf$cast(m, image_dtype)
+             # m_minus1 <- m <- tf$cast(m,image_dtype) + m_minus1
+             #m <- tf$nn$swish( m  )
+           }
+            return( m )
+        })
+      }
 
         #GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
         GlobalMaxPoolLayer <- function(m){
@@ -256,22 +300,20 @@ GetImageEmbeddings <- function(
       return( im  )
     })
   }
-  getEmbedding <- tf_function(function(im_, training = F ){
-      im_ <- GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training),
+  getEmbedding <- tf_function(function(m, training = F ){
+      m <- GlobalPoolLayer( myConv( InitImageProcess( m , training = training),
                                               training = training  ) )
-      if(doBatchNorm){
-        im_ <- BNLayer_conv1_embed(im_, training= training)
-      }
+      #if(doBatchNorm){ m <- BNLayer_conv1_embed(m, training= training) }
 
-      return( im_ )
+      return( m )
 
     # problem: variance of the output is too small
-    # tmp <- myConv( InitImageProcess( im_ , training = training), training = training  )
-    # tm_m <- GlobalMaxPoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
-    # tm_v <- GlobalAvePoolLayer(myConv( InitImageProcess( im_ , training = training), training = training  ))
-     #tm_a <- tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = training  ), 1L:3L)
-    # plot( tf$math$reduce_std(myConv( InitImageProcess( im_ , training = training), training = T  ),0L:3L) )
-    # plot( tf$math$reduce_std(GlobalPoolLayer( myConv( InitImageProcess( im_ , training = training), training = training  ) ),0L))
+    # tmp <- myConv( InitImageProcess( m , training = training), training = training  )
+    # tm_m <- GlobalMaxPoolLayer(myConv( InitImageProcess( m , training = training), training = training  ))
+    # tm_v <- GlobalAvePoolLayer(myConv( InitImageProcess( m , training = training), training = training  ))
+     #tm_a <- tf$math$reduce_std(myConv( InitImageProcess( m , training = training), training = training  ), 1L:3L)
+    # plot( tf$math$reduce_std(myConv( InitImageProcess( m , training = training), training = T  ),0L:3L) )
+    # plot( tf$math$reduce_std(GlobalPoolLayer( myConv( InitImageProcess( m , training = training), training = training  ) ),0L))
     # plot(apply(as.matrix( tm_v), 2, sd),   apply(as.matrix( tm_m), 2, sd))
   } )
   # getEmbedding(m)
@@ -319,7 +361,8 @@ GetImageEmbeddings <- function(
       }
 
       # getEmbedding(batch_inference[[1]])
-      embed_ <- try(as.matrix(  getEmbedding( batch_inference[[1]], training = F)  ), T)
+      embed_ <- try(as.matrix(  getEmbedding( m = batch_inference[[1]],
+                                              training = F )  ), T)
       if("try-error" %in% class(embed_)){ browser() }
       if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices,] <- embed_
