@@ -147,7 +147,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
     tf$config$set_soft_device_placement( T )
     tfd <- (tfp <- tf_probability())$distributions
-    tfa <- reticulate::import("tensorflow_addons")
 
     tf$random$set_seed(  c( 1000L ) )
     tf$keras$utils$set_random_seed( 4L )
@@ -190,7 +189,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd)
   }
 
-  BN_EP <- (0.001); BN_MOM <- (.90)
+  BN_EP <- (0.01); BN_MOM <- (.90)
   if(grepl(heterogeneityModelType,pattern = "variational")){ BN_MOM <- BN_MOM^cnst(1/nMonte_variational) }
 
   acquireImageMethod <- "functional";
@@ -589,8 +588,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       if(nDepthHidden_dense > 0){
       for(dense_ in 1:nDepthHidden_dense){
-        eval(parse(text = sprintf("BNLayer_Axis1_Clust_%s <- %s",dense_,DenseNormText())))
-        eval(parse(text = sprintf("BNLayer_Axis1_Y0_%s <- %s",dense_,DenseNormText())))
+        eval(parse(text = sprintf("BNLayer_Axis1_Clust_%s_a <- %s",dense_,DenseNormText())))
+        eval(parse(text = sprintf("BNLayer_Axis1_Clust_%s_b <- %s",dense_,DenseNormText())))
+        eval(parse(text = sprintf("BNLayer_Axis1_Y0_%s_a <- %s",dense_,DenseNormText())))
+        eval(parse(text = sprintf("BNLayer_Axis1_Y0_%s_b <- %s",dense_,DenseNormText())))
         eval(parse(text = sprintf("DenseProj_Clust_%s <- ProbDenseType(as.integer(nDenseWidth),
                                 dtype = float_dtype,
                                 kernel_prior_fn = PRIOR_MODEL_FXN('DenseProj_Clust_%s'),
@@ -740,17 +741,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
         # dense part
         if(nDepthHidden_dense > 0){
+        m_tminus1 <- m
         for(dense_ in 1:nDepthHidden_dense){
-          m_tminus1 <- m
-
           eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Clust_%s(m)})",dense_)))
-          if(BNPrePreOutput){
-            eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s(m,training = training)",dense_)))
-          }
-          #m_tminus1 <- m <- tf$add(m, m_tminus1)
+          eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s_a(m,training = training)",dense_)))
           m <- ActFxn(  m   )
-          #if(dense_ > 1 & dense_ < nDepthHidden_dense){
-
+          eval(parse(text = sprintf("m <- BNLayer_Axis1_Clust_%s_b(m,training = training)",dense_)))
+          m_tminus1 <- m <- tf$add(m, m_tminus1)
         }
         }
       }
@@ -821,7 +818,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       getEY0 <- tf_function_fxn(getEY0_R <- function(  m , training  ){
         if(! heterogeneityModelType %in% "variational_minimal_visualizer"){
 
-
           # convolution model
           if(modelClass == "cnn"){
             for(conv__ in 1:nDepthHidden_conv){
@@ -855,25 +851,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
           # dense part
           if(nDepthHidden_dense > 0){
+          m_tminus1 <- m
           for(dense_ in 1:nDepthHidden_dense){
-            m_tminus1 <- m
-            eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Y0_%s(m) } ) ",dense_)))
-            #as.matrix( m )
             #as.matrix( DenseProj_Y0_1(m))
             #DenseProj_Y0_1$variables[[1]]
-            #DenseProj_Y0_1$variables[[3]]
             #  plot( as.numeric(BNLayer_Axis1_Y0_1$moving_mean))
-            # plot( as.numeric(BNLayer_Axis1_Y0_1$moving_variance))
-            # apply(as.matrix(m),2,sd)
-            if(BNPrePreOutput){
-              eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s(m,training = training)",dense_)))
-            }
-            #m_tminus1 <- m <- m + m_tminus1
+            eval(parse(text = sprintf("m <- with(tf$device( ProbLayerExecutionDevice ), { DenseProj_Y0_%s(m) } ) ",dense_)))
+            eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s_a(m,training = training)",dense_)))
             m <- ActFxn(  m   )
-            #if(dense_ > 1 & dense_ < nDepthHidden_dense){
+            eval(parse(text = sprintf("m <- BNLayer_Axis1_Y0_%s_b(m,training = training)",dense_)))
+            m_tminus1 <- m <- m + m_tminus1
           }
           }
         }
+        # apply(as.matrix(m),2,sd)
+        # tf$matmul( m, Y0Proj$variables[[1]])
         m <- with(tf$device( ProbLayerExecutionDevice ), { Y0Proj(m) } )
         if(BNPreOutput){m <- BNLayer_Axis1_ProjY0(m, training = training)}
         return( m  )
@@ -964,8 +956,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
 
     #getTrainingLikelihoodDraw <- (function(dat, treat, y, training){
+    nMonte_internal <- 1L
     getTrainingLikelihoodDraw <- tf_function_fxn(function(dat, treat, y, training){
-      nMonte_internal <- 1L
 
       # cluster probabilities
       Clust_logits <- replicate(nMonte_internal,
@@ -1024,8 +1016,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       likelihood_distribution_draw <- tf$reduce_mean(likelihood_distribution_draws$log_prob( tf$expand_dims(y, 0L) ),0L)
 
-      # zzz simplify by uncommenting
-      #likelihood_distribution_draw <- tf$negative(  tf$reduce_mean((Y_Mean - y)^2) )
+      #  simplify by uncommenting
+      likelihood_distribution_draw <- tf$negative(  tf$reduce_mean((Y_Mean - y)^2) )
       # plot(as.numeric(Y_Mean), as.numeric(y)); abline(a=0,b=1)
 
       return( likelihood_distribution_draw )
@@ -1140,10 +1132,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(scaleLoss){  my_grads <- optimizer_tf$get_unscaled_gradients( tape$gradient( scaledLoss_forGrad, trainable_variables ) ) }
 
       # apply adaptive update clipping
-      if(T == T){  for(l_i in 1:length(my_grads)){
+      if(T == F){  for(l_i in 1:length(my_grads)){
         param_norm <- tf$norm( trainable_variables[[l_i]] )
         my_grads[[l_i]] <- tf$clip_by_norm(my_grads[[l_i]],
-                                  clip_norm = tf$maximum(cnst(0.01),cnst(0.05)*param_norm))
+                                  clip_norm = tf$maximum(cnst(0.01),cnst(0.02)*param_norm))
       } }
 
       # apply gradients and apply adaptive clipping
@@ -1194,9 +1186,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$constant(LEARNING_RATE_BASE, dtype = float_dtype))#,clipvalue=cnst(.1))
     #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = tf$Variable(LEARNING_RATE_BASE, dtype = float_dtype)) #$,clipnorm=1e1)
     #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE)
-    #optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = (LEARNING_RATE_BASE),
     #optimizer_tf <- tfa$optimizers$AdaBelief(learning_rate = (LEARNING_RATE_BASE),
-    optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE),
+    optimizer_tf <- tf$optimizers$legacy$Nadam(learning_rate = (LEARNING_RATE_BASE),
+    #optimizer_tf <- tf$optimizers$legacy$Adam(learning_rate = (LEARNING_RATE_BASE),
                                               clipvalue = (1),
                                               beta_1 = (0.9),
                                               beta_2 = (0.999))
@@ -1285,12 +1277,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       #table(YandW_mat$geo_long_lat_key[batch_indices_reffed])
       # checks via e1 and e2 for embeddings case
-      # e1 <- EmbeddingsFxn(InitImageProcess(acquireImageFxn( imageKeysOfUnits[batch_indices_reffed], training = F ),F)
+      #  e1 <- EmbeddingsFxn(InitImageProcess(ds_next_train, training = T ), training = T)
+      # plot(apply(as.matrix(e1),2,sd))
       myLoss_forGrad <- trainStep(
                 dat = InitImageProcess(ds_next_train, training = T),
                 y = tf$constant(obsY[batch_indices], otherData_dtypes),
                 treat = tf$constant(obsW[batch_indices], otherData_dtypes) )
-      my_grads <- myLoss_forGrad[[2]]
+      my_grads <- myLoss_forGrad[[2]]  # trainable_variables
       scaled_myLoss_forGrad <- myLoss_forGrad[[3]]
       myLoss_forGrad <- myLoss_forGrad[[1]]
 
