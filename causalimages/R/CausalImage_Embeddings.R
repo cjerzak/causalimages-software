@@ -12,7 +12,7 @@
 #' @param imageKeysOfUnits A vector of length `length(imageKeysOfUnits)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into `acquireImageFxn` to call images into memory.
 #' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
-#' @param kernelSize (default = `5L`) Dimensions used in the convolution kernels.
+#' @param kernelSize (default = `5L`) Dimensif(ions used in the convolution kernels.
 #' @param doBatchNorm (default = `FALSE`)
 #' @param momentum
 #' @param temporalKernelSize (default = `2L`) Dimensions used in the temporal part of the convolution kernels if using image sequences.
@@ -60,7 +60,7 @@ GetImageEmbeddings <- function(
     doBatchNorm = F,
     momentum = 0.9, epsilon = 0.01,
     dataType = "image",
-    image_dtype = "float16",
+    image_dtype = "bfloat16",
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL,
     quiet = F){
@@ -93,7 +93,9 @@ GetImageEmbeddings <- function(
   if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
   #float_dtype <- image_dtype
-  float_dtype <- tf$float32
+  #float_dtype <- tf$float32
+  #float_dtype <- tf$bfloat16
+  float_dtype <- NULL
 
   if( batchSize > length(imageKeysOfUnits) ){
     batchSize <- length( imageKeysOfUnits  )
@@ -118,12 +120,12 @@ GetImageEmbeddings <- function(
     # helper functions
     useVideo <- (dataType == "video")
     getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype)} ) # return
       return( dataset <- dataset$batch( as.integer(max(2L, round(batchSize/2L)  ))) )
     }
 
     getParsed_tf_dataset_train <- function(tf_dataset){
-      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo)} ) # return
+      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype)} ) # return
       dataset <- dataset$shuffle(tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=tf$int64),
                                  reshuffle_each_iteration = T)
       dataset <- dataset$batch(as.integer(batchSize))
@@ -180,10 +182,12 @@ GetImageEmbeddings <- function(
     if(inputAvePoolingSize > 1){
       AvePoolingDownshift <- tf$keras$layers$AveragePooling2D(pool_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))
     }
-    myConv <- tf$keras$layers$Conv2D(filters=nFilters,
+    myConv <- tf$keras$layers$Conv2D(filters=nFilters, dtype = float_dtype,
                           kernel_size = c(kernelSize,kernelSize),
                           activation = "linear",
-                          strides = c(strides,strides),
+                          strides = c(strides, strides),
+                          name = "conv2d",
+                          name = "conv2d_embed",
                           padding = "valid")
     GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool2D(data_format="channels_last",name="GlobalMax")
     if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling2D(data_format="channels_last",name="GlobalAve") }
@@ -194,50 +198,88 @@ GetImageEmbeddings <- function(
     }
     # 3D conv method
     {
-        #myConv_spatial_fxn <- tf$keras$layers$Conv3D(filters = nFilters, kernel_size = c(1L, kernelSize, kernelSize),
-                                         #activation = "linear", strides = c(1L, strides, strides), padding = "valid", trainable = F)
-
-       for(d__ in 1:(EmbedDepth <- 2L)){
+      EmbedDepth <- ifelse(doBatchNorm, yes = 2L, no = 1L)
+       for(d__ in 1:EmbedDepth){
+          if(d__ > 1){ strides <- 1L }
           ## a
+          stepA_padding <- "same" # valid failed tests
           myConv_spatial_a <- tf$keras$layers$SeparableConv2D(filters = nFilters,
                                                    kernel_size = c(kernelSize, kernelSize),
                                                    activation = "linear", dtype = float_dtype,
-                                                   strides = c(strides, strides), padding = "valid")
+                                                   name = sprintf("conv4d_spatial_a_%s",d__),
+                                                   strides = c(strides, strides), padding = stepA_padding)
+          myConv_spatial_resid_a <- tf$keras$layers$SeparableConv2D(filters = nFilters,
+                                                          kernel_size = c(kernelSize, kernelSize),
+                                                          activation = "linear", dtype = float_dtype,
+                                                          strides = c(strides, strides),
+                                                          name = sprintf("myConv_spatial_resid_a_%s",d__),
+                                                          padding = stepA_padding)
           myConv_temporal_a <- tf$keras$layers$Conv3D(filters = nFilters,
                                                    kernel_size = c(temporalKernelSize, 1L, 1L),
                                                    activation = "linear", dtype = float_dtype,
-                                                   strides = c(1L, strides, strides),
-                                                   padding = "same")
+                                                   strides = c(1L, 1L, 1L),
+                                                   name = sprintf("conv4d_temporal_a_%s",d__),
+                                                   padding = stepA_padding)
+          myConv_temporal_resid_a <- tf$keras$layers$Conv3D(filters = nFilters,
+                                                      kernel_size = c(temporalKernelSize, 1L, 1L),
+                                                      activation = "linear", dtype = float_dtype,
+                                                      name = sprintf("conv4d_temporal_resid_a_%s",d__),
+                                                      strides = c(1L, 1L, 1L),
+                                                      padding = stepA_padding)
+          myConv_FF_resid_a <- tf$keras$layers$Conv3D(filters = nFilters,
+                                                kernel_size = c(1L, 1L, 1L),
+                                                activation = "linear", dtype = float_dtype,
+                                                name = sprintf("myConv_FF_resid_a_%s",d__),
+                                                strides = c(1L, strides, strides),
+                                                padding = stepA_padding)
 
           ## B
           myConv_spatial_b <- tf$keras$layers$SeparableConv2D(filters = nFilters,
                                                             kernel_size = c(kernelSize, kernelSize),
                                                             activation = "linear", dtype = float_dtype,
-                                                            strides = c(strides, strides), padding = "valid")
+                                                            name = sprintf("conv4d_spatial_b_%s",d__),
+                                                            strides = c(1L, 1L), padding = "same")
           myConv_temporal_b <- tf$keras$layers$Conv3D(filters = nFilters,
                                                     kernel_size = c(temporalKernelSize, 1L, 1L),
                                                     activation = "linear", dtype = float_dtype,
-                                                    strides = c(1L, strides, strides),
+                                                    name = sprintf("conv4d_temporal_b_%s",d__),
+                                                    strides = c(1L, 1L, 1L),
                                                     padding = "same")
+          myConv_FF_b <- tf$keras$layers$Conv3D(filters = nFilters,
+                                                kernel_size = c(1L, 1L, 1L),
+                                                activation = "linear", dtype = float_dtype,
+                                                name = sprintf("conv4d_FF_b_%s",d__),
+                                                strides = c(1L, 1L, 1L),
+                                                padding = "same")
 
           # BNs
-          BNLayer_conv4_embed_a <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
+          BNLayer_conv4d_embed_a <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
                                           dtype = float_dtype, momentum = momentum, epsilon = epsilon,
-                                          name = "BNLayer_conv4_embed_a", synchronized = T)
-          BNLayer_conv4_embed_b <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
-                                                                      dtype = float_dtype, momentum = momentum, epsilon = epsilon,
-                                                                      name = "BNLayer_conv4_embed_b", synchronized = T)
+                                          name = sprintf("BNLayer_conv4d_embed_a_%s",d__),
+                                          synchronized = T)
+          BNLayer_conv4d_embed_b <- tf$keras$layers$BatchNormalization(axis = 4L, center = T, scale = T,
+                                          dtype = float_dtype, momentum = momentum, epsilon = epsilon,
+                                          name = sprintf("BNLayer_conv4d_embed_b_%s",d__),
+                                          synchronized = T)
           eval(parse(text = sprintf("myConv_spatial_a_%s <- myConv_spatial_a",d__)))
+          eval(parse(text = sprintf("myConv_spatial_resid_a_%s <- myConv_spatial_resid_a",d__)))
           eval(parse(text = sprintf("myConv_temporal_a_%s <- myConv_temporal_a",d__)))
-          eval(parse(text = sprintf("BNLayer_conv4_embed_a_%s <- BNLayer_conv4_embed_a",d__)))
+          eval(parse(text = sprintf("myConv_temporal_resid_a_%s <- myConv_temporal_resid_a",d__)))
+          eval(parse(text = sprintf("myConv_FF_resid_a_%s <- myConv_FF_resid_a",d__)))
+          eval(parse(text = sprintf("BNLayer_conv4d_embed_a_%s <- BNLayer_conv4d_embed_a",d__)))
 
-          if(T == T){
           eval(parse(text = sprintf("myConv_spatial_b_%s <- myConv_spatial_b",d__)))
           eval(parse(text = sprintf("myConv_temporal_b_%s <- myConv_temporal_b",d__)))
-          eval(parse(text = sprintf("BNLayer_conv4_embed_b_%s <- BNLayer_conv4_embed_b",d__)))
+          eval(parse(text = sprintf("myConv_FF_b_%s <- myConv_FF_b",d__)))
+          eval(parse(text = sprintf("BNLayer_conv4d_embed_b_%s <- BNLayer_conv4d_embed_b",d__)))
           eval(parse(text = sprintf("myConv_spatial_fxn_a_%s <- (function(m){
             m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
             m_ <- tf$vectorized_map(myConv_spatial_a_%s, m_) # vectorized_map only seems to work across axis 0L
+            m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
+            return( m_ ) })", d__,d__)))
+          eval(parse(text = sprintf("myConv_spatial_resid_fxn_a_%s <- (function(m){
+            m_ <- tf$transpose(m, c(1L,0L,2L,3L,4L)) # swap for vmap
+            m_ <- tf$vectorized_map(myConv_spatial_resid_a_%s, m_) # vectorized_map only seems to work across axis 0L
             m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
             return( m_ ) })", d__,d__)))
           eval(parse(text = sprintf("myConv_spatial_fxn_b_%s <- (function(m){
@@ -245,25 +287,40 @@ GetImageEmbeddings <- function(
             m_ <- tf$vectorized_map(myConv_spatial_b_%s, m_) # vectorized_map only seems to work across axis 0L
             m_ <- tf$transpose(m_, c(1L,0L,2L,3L,4L)) # swap back for rest of analysis
             return( m_ ) })", d__,d__)))
-          }
        }
-        # m <- batch_inference[[1]]
+        LocalPool <- tf$keras$layers$MaxPool3D(pool_size = c(1L,2L,2L), dtype = tf$bfloat16, padding = "same")
+        ActFxn <- tf$nn$swish
         # myConv_spatial_a_1 ( tf$gather(m,1L,axis = 1L) )
-        if(!doBatchNorm){ myConv <- ( function(m, training){ myConv_temporal( myConv_spatial_fxn( m ) ) }) }
+        if(!doBatchNorm){
+            myConv <- tf_function( function(m, training){
+                  m <- myConv_spatial_fxn_a_1( m )
+                  m <- myConv_temporal_a_1( m )
+             })
+         }
         if(doBatchNorm){
-          myConv <- ( function(m, training){
+          myConv <- tf_function( function(m, training){
+            # m_minus1 <- m <- (batch_inference[[1]]-tf$reduce_mean(batch_inference[[1]],axis=0L:3L,keepdims=T))/tf$math$reduce_std(batch_inference[[1]],axis=0L:3L,keepdims=T); training = T
             # d__ <- 1
             # d__ <- 2
+            m_minus1 <- m
            for(d__ in 1:EmbedDepth){
-             m_minus1 <- m
              eval(parse(text = sprintf("m <- myConv_temporal_a_%s( myConv_spatial_fxn_a_%s( m ) )", d__, d__)))
-             eval(parse(text = sprintf("m <- BNLayer_conv4_embed_a_%s(m, training)", d__)))
-             m <- tf$nn$swish( m  )
-             #eval(parse(text = sprintf("m <- myConv_temporal_b_%s( myConv_spatial_fxn_b_%s( m ) )", d__, d__)))
-             #eval(parse(text = sprintf("m <- BNLayer_conv4_embed_b_%s(m, training)", d__)))
-             #m <- tf$cast(m, image_dtype)
-             # m_minus1 <- m <- tf$cast(m,image_dtype) + m_minus1
-             #m <- tf$nn$swish( m  )
+             eval(parse(text = sprintf("m <- BNLayer_conv4d_embed_a_%s(m, training)", d__)))
+             m <- ActFxn( m  )
+
+             if(T == T){
+               # eval(parse(text = sprintf("m <- myConv_temporal_b_%s( myConv_spatial_fxn_b_%s( m ) )", d__, d__)))
+               eval(parse(text = sprintf("m <- myConv_FF_b_%s( m )", d__)))
+               eval(parse(text = sprintf("m <- BNLayer_conv4d_embed_b_%s(m, training = training)", d__)))
+               #eval(parse(text = sprintf("m_minus1 <- myConv_temporal_resid_a_%s(myConv_spatial_resid_fxn_a_%s(m_minus1))", d__, d__) ))
+               eval(parse(text = sprintf("m_minus1 <- myConv_FF_resid_a_%s(m_minus1)", d__) ))
+               # m_minus1 <- tf$cast(LocalPool( tf$cast(m_minus1,tf$bfloat16)  ), image_dtype)
+               # hist(  as.numeric(tf$cast(m,tf$float32)) )
+               # hist(  as.numeric(tf$cast(m_minus1,tf$float32)) )
+               m <- m +  m_minus1
+               #m <- ActFxn( m  )
+               m_minus1 <- m
+             }
            }
             return( m )
         })
@@ -271,14 +328,14 @@ GetImageEmbeddings <- function(
 
         #GlobalMaxPoolLayer <- tf$keras$layers$GlobalMaxPool3D(data_format="channels_last", name="GlobalMax")
         GlobalMaxPoolLayer <- function(m){
-          #m_ <- tf$reduce_mean(m, 1L ) # average across the time dimension -> bad with masked areas
-          m_ <- tf$reduce_max(m, 1L ) # max across the time dimension confirmed to work
-          m_ <- tf$reduce_max(m_, 1L:2L ) # max across the space dimension
+          #m <- tf$reduce_mean(m, 1L ) # average across the time dimension; bad with masked areas
+          m <- tf$reduce_max(m, 1L ) # max across the time dimension; confirmed to work
+          m <- tf$reduce_max(m, 1L:2L ) # max across the space dimension
         }
         if(useAvePooling){ GlobalAvePoolLayer <- tf$keras$layers$GlobalAveragePooling3D(data_format="channels_last", name="GlobalAve") }
     }
   }
-  BNLayer_conv1_embed <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T,
+  BNLayer_conv1d_embed <- tf$keras$layers$BatchNormalization(axis = 1L, center = T, scale = T,
                                                             dtype = float_dtype, momentum = momentum, epsilon = epsilon,
                                                             name = "BNLayer_conv1_embed")
   GlobalPoolLayer <- (function(z){
@@ -300,11 +357,16 @@ GetImageEmbeddings <- function(
       return( im  )
     })
   }
-  getEmbedding <- tf_function(function(m, training = F ){
-      m <- GlobalPoolLayer( myConv( InitImageProcess( m , training = training),
-                                              training = training  ) )
-      #if(doBatchNorm){ m <- BNLayer_conv1_embed(m, training= training) }
 
+  GlobalPoolProj_conv1d <- tf$keras$layers$Dense(units=nFilters,
+                                                 name = 'GlobalPoolProj_conv1d',
+                                                 dtype = float_dtype,
+                                                 activation = "linear")
+  getEmbedding <- tf_function(function(m, training = F ){
+      m <- myConv( InitImageProcess( m , training = training), training = training  )
+      m <- GlobalPoolLayer(  m  )
+       if(doBatchNorm){ m <- BNLayer_conv1d_embed(m, training = training) }
+      m <- GlobalPoolProj_conv1d( m  ) # project to return to -inf, inf range
       return( m )
 
     # problem: variance of the output is too small
@@ -360,16 +422,17 @@ GetImageEmbeddings <- function(
         # batch_inference[[2]]; batch_indices
       }
 
+      gc(); try(py_gc$collect(), T) # collect memory
       # getEmbedding(batch_inference[[1]])
-      embed_ <- try(as.matrix(  getEmbedding( m = batch_inference[[1]],
-                                              training = F )  ), T)
+      embed_ <- try(as.matrix(  tf$cast(getEmbedding(
+                                              m = batch_inference[[1]],
+                                              training = F ),tf$float32)  ), T)
+      # hist(as.matrix(embed_))
       if("try-error" %in% class(embed_)){ browser() }
       if(batchSizeOneCorrection){ batch_indices <- batch_indices[-1]; embed_ <- embed_[1,] }
       embeddings[batch_indices,] <- embed_
 
       print(sprintf("[%s] %.2f%% done getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), 100*last_i / length(imageKeysOfUnits)))
-
-    gc(); try(py_gc$collect(), T)
   }
   print(sprintf("[%s] done with getting image/video embeddings", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
 

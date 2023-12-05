@@ -30,7 +30,7 @@ WriteTfRecord <- function(file,
                           imageKeysOfUnits,
                           acquireImageFxn,
                           writeVideo = F,
-                          image_dtype = "float16",
+                          image_dtype = "bfloat16",
                           attemptRestart = F,
                           conda_env = NULL,
                           conda_env_required = F){
@@ -123,8 +123,9 @@ WriteTfRecord <- function(file,
                                                  key = imageKeysOfUnits[irz] )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
   }
-  print("Done! Finalizing tfrecords....")
+  print("Finalizing tfrecords....")
   tf_record_writer$close()
+  print("Done writing tfrecord!!")
 }
 
 #!/usr/bin/env Rscript
@@ -151,7 +152,7 @@ WriteTfRecord <- function(file,
 #' @export
 #' @md
 GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo = F,
-                                            conda_env = NULL, conda_env_required = F, image_dtype = "float16",
+                                            conda_env = NULL, conda_env_required = F, image_dtype = "bfloat16",
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
   #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
@@ -271,7 +272,7 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
 }
 
 # parse tf elements
-parse_tfr_element <- function(element, readVideo = F, image_dtype = "float16"){
+parse_tfr_element <- function(element, readVideo = F, image_dtype){
   #use the same structure as above; it's kinda an outline of the structure we now want to create
   image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
   if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
@@ -304,12 +305,13 @@ parse_tfr_element <- function(element, readVideo = F, image_dtype = "float16"){
   # parse tf record
   content <- tf$io$parse_single_example(element, im_feature_description)
 
-  # get our 'feature' (our image)...
-  feature <- tf$io$parse_tensor( content[['raw_image']], out_type = image_dtype )
+  # get 'feature' (e.g., image/image sequence)
+  feature <- tf$io$parse_tensor( content[['raw_image']],
+                                 out_type = image_dtype )
 
   # get the key
-  key <- tf$io$parse_tensor( content[['key']], out_type = tf$string )
-
+  key <- tf$io$parse_tensor( content[['key']],
+                             out_type = tf$string )
 
   #  and reshape it appropriately
   if(!readVideo){
