@@ -9,8 +9,6 @@ WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required
 \arguments{
 \item{file}{A character string naming a file for writing.}
 
-\item{imageKeysOfUnits}{A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)}
-
 \item{acquireImageFxn}{A function whose input is an observation index and whose output is an image.}
 
 \item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
@@ -18,6 +16,8 @@ WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required
 \item{conda_env}{A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
 
 \item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
+
+\item{imageKeysOfUnits}{A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)}
 }
 \value{
 Writes an key- and index-referenced \code{.tfrecord} from an image corpus for use in image-based causal inference training.
