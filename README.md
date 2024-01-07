@@ -20,7 +20,7 @@ _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-so
 
 _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://github.com/cjerzak/causalimages-software)
 
-_January 2024 update:_ `causalimages` now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance! 
+_January 2024 update:_ `causalimages` now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance. 
 
 # What is causalimages?<a id="description"></a>
 
