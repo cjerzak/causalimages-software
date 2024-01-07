@@ -1,6 +1,6 @@
-# CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+# `causalimages`: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 
-[**What is `CausalImages`?**](#description)
+[**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
 | [**Image Heterogeneity Tutorial**](#tutorial)
 | [**Other Package Functions**](#otherfunctions)
@@ -20,9 +20,9 @@ _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-so
 
 _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://github.com/cjerzak/causalimages-software)
 
-_January 2024 update:_ CausalImages now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance! 
+_January 2024 update:_ causalimages now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance! 
 
-# What is CausalImages?<a id="description"></a>
+# What is causalimages?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
 
@@ -46,7 +46,7 @@ library(   causalimages  )
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
-data(  CausalImagesTutorialData )
+data(  causalimagesTutorialData )
 ```
 Once we've read in the data, we can explore its structure: 
 ```
