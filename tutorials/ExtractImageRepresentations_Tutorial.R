@@ -10,6 +10,9 @@
 # local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
+# build backend you haven't ready:
+# causalimages::BuildBackend()
+
 # load in package
 library( causalimages  )
 
@@ -61,16 +64,13 @@ take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 50
 TfRecord_name <- "~/Downloads/CausalImagesTutorialDat.tfrecord"
 causalimages::WriteTfRecord(  file =  TfRecord_name,
                 uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
-                acquireImageFxn = acquireImageFromMemory,
-                conda_env = "tensorflow_m1"  )
+                acquireImageFxn = acquireImageFromMemory  )
 
 # obtain image representation
 MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  nWidth_ImageRep = 128L,
-  conda_env = "tensorflow_m1",
-  conda_env_required = T )
+  nWidth_ImageRep = 128L )
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location

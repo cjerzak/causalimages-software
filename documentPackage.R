@@ -14,3 +14,5 @@ log(sort( sapply(ls(),function(l_){object.size(eval(parse(text=l_)))})))
 
 # Check package to ensure it meets CRAN standards.
 devtools::check( package_path )
+
+# see https://github.com/RConsortium/S7

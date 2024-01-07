@@ -25,6 +25,9 @@ if( reDownloadRawData <- F  ){
 # local install for development team
 # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
+# build backend you haven't ready:
+# causalimages::BuildBackend()
+
 # low rank decomposition decomposing time and space
 # offer more points of comparison
 # aggregate across time
@@ -135,8 +138,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
   if( reSaveTfRecords ){
     causalimages::WriteTfRecord(  file = tfrecord_loc,
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
-                    acquireImageFxn = acquireImageRep,
-                    conda_env = "tensorflow_m1" , conda_env_required = T )
+                    acquireImageFxn = acquireImageRep )
   }
 
   # perform image heterogeneity analysis (toy example)
@@ -148,8 +150,6 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
     file = tfrecord_loc, # location of tf record (use absolute file paths)
     lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
     long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
-    conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment contain package backends
-    conda_env_required = T,
 
     # inputs to control where visual results are saved as PDF or PNGs
     # (these image grids are large and difficult to display in RStudio's interactive mode)
@@ -198,8 +198,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
   if(reSaveTfRecords){
     causalimages::WriteTfRecord(  file = tfrecord_loc_imSeq,
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
-                    acquireImageFxn = acquireVideoRep, writeVideo = T,
-                    conda_env = "tensorflow_m1"  )
+                    acquireImageFxn = acquireVideoRep, writeVideo = T )
   }
   VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
     # data inputs
@@ -210,8 +209,6 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
     dataType = "video",
     lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
     long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
-    conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability,
-    conda_env_required = T,
 
     # inputs to control where visual results are saved as PDF or PNGs
     # (these image grids are large and difficult to display in RStudio's interactive mode)

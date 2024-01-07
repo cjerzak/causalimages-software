@@ -25,9 +25,9 @@ AnalyzeImageConfounding(obsW, obsY, imageKeysOfUnits, file, ...)
 
 \item{long, lat}{(optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
 
-\item{conda_env}{(default = \code{NULL}) A string specifying a conda environment wherein \code{tensorflow}, \code{tensorflow_probability}, and \code{gc} are installed.}
+\item{conda_env}{(default = \code{"CausalImagesEnv"}) A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}}
 
-\item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
+\item{conda_env_required}{(default = \code{T}) A Boolean stating whether use of the specified conda environment is required.}
 
 \item{figuresTag}{(default = \code{""}) A string specifying an identifier that is appended to all figure names.}
 

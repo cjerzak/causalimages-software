@@ -11,11 +11,13 @@
   # local install for development team
   # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
+  # build backend you haven't ready:
+  # causalimages::BuildBackend()
+
   # load in package
   library( causalimages  )
 
-  # specify a conda environment
-  conda_env <- "jax_gpu_py3.11"
+  # resave TfRecords?
   reSaveTFRecord <- T
 
   # load in tutorial data
@@ -52,9 +54,7 @@
     causalimages::WriteTfRecord(
       file = TFRecordName_im,
       uniqueImageKeys = unique(KeysOfObservations[ take_indices ]),
-      acquireImageFxn = acquireImageFxn,
-      conda_env = conda_env,
-      conda_env_required = T)
+      acquireImageFxn = acquireImageFxn)
   }
 
   if(T == F){
@@ -76,9 +76,7 @@
     strides = 2L,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "TutorialExample",
-    figuresPath = "~/Downloads/ImageTutorial", # figures saved here
-    conda_env = conda_env, # conda env to activate where a version of tensorflow lives
-    conda_env_required = T)
+    figuresPath = "~/Downloads/ImageTutorial")
   }
 
   # ATE estimate (image confounder adjusted)
@@ -130,8 +128,7 @@
         file = TFRecordName_imSeq,
         uniqueImageKeys = unique(KeysOfObservations[ take_indices ]),
         acquireImageFxn = acquireVideoRep,
-        writeVideo = T,
-        conda_env = conda_env, conda_env_required = T)
+        writeVideo = T)
   }
 
   for(optimizeImageRep in c(F,T)){
@@ -154,9 +151,7 @@
       nBoot = 10L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "TutorialExample",
-      figuresPath = "~/Downloads/ImageTutorial", # figures saved here
-      conda_env = conda_env, # conda env to activate where a version of tensorflow lives
-      conda_env_required = T)
+      figuresPath = "~/Downloads/ImageTutorial") # figures saved here
   }
 
   # ATE estimate (image confounder adjusted)

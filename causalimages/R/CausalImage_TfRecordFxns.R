@@ -11,8 +11,8 @@
 #' @param imageKeysOfUnits A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)
 #' @param acquireImageFxn A function whose input is an observation index and whose output is an image.
 #' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
-#' @param conda_env A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
-#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
+#' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
+#' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
 #'
 #' @return Writes an key- and index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
 #'
@@ -21,8 +21,7 @@
 #' #WriteTfRecord(
 #' #  file = "./NigeriaConfoundApp.tfrecord",
 #' #  keys = 1:n,
-#' #  acquireImageFxn = acquireImageFxn,
-#' #  conda_env = "tensorflow_m1")
+#' #  acquireImageFxn = acquireImageFxn)
 #'
 #' @export
 #' @md
@@ -32,12 +31,11 @@ WriteTfRecord <- function(file,
                           writeVideo = F,
                           image_dtype = "float16",
                           attemptRestart = F,
-                          conda_env = NULL,
+                          conda_env = "CausalImagesEnv",
                           conda_env_required = T){
   {
-    print("Loading Python environment (requires tensorflow)")
-    # conda_env <- 'tensorflow_m1'; conda_env_required <- T
-    library(tensorflow) ;
+    print2("Establishing connection to computational environment built via causalimages::BuildBackend()")
+    library(tensorflow);
     if(!is.null(conda_env)){ try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T) }
 
     # import python garbage collectors

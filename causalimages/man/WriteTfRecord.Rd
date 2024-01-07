@@ -13,9 +13,9 @@ WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required
 
 \item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
 
-\item{conda_env}{A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
+\item{conda_env}{(default = \code{"CausalImagesEnv"}) A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}}
 
-\item{conda_env_required}{(default = \code{F}) A Boolean stating whether use of the specified conda environment is required.}
+\item{conda_env_required}{(default = \code{T}) A Boolean stating whether use of the specified conda environment is required.}
 
 \item{imageKeysOfUnits}{A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)}
 }
@@ -30,7 +30,6 @@ Writes an image corpus to a \code{.tfrecord} file for rapid reading of images in
 #WriteTfRecord(
 #  file = "./NigeriaConfoundApp.tfrecord",
 #  keys = 1:n,
-#  acquireImageFxn = acquireImageFxn,
-#  conda_env = "tensorflow_m1")
+#  acquireImageFxn = acquireImageFxn)
 
 }

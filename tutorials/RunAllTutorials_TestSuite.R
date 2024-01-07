@@ -10,17 +10,25 @@
     # local install for development team
     # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
-    print("Starting image confounding tutorial..."); setwd("~");
-    source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R")
+    print("Starting backend setup..."); setwd("~");
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/BuildBackend_Tutorial.R"), T)
+    if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
+
+    print("Starting image TfRecords tutorial..."); setwd("~");
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R"),T)
+    if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
 
     print("Starting image representations tutorial..."); setwd("~");
-    source("~/Documents/causalimages-software/tutorials/ExtractImageRepresentations_Tutorial.R")
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/ExtractImageRepresentations_Tutorial.R"),T)
+    if("try-error" %in% class(t_)){ stop("Failed at image representations tutorial...") }
 
     print("Starting image heterogeneity tutorial...");  setwd("~");
-    source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R")
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R"),T)
+    if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }
 
     print("Starting image confounding tutorial..."); setwd("~");
-    source("~/Documents/causalimages-software/tutorials/AnalyzeImageConfounding_Tutorial.R")
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageConfounding_Tutorial.R"),T)
+    if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed...") }

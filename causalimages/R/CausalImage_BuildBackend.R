@@ -1,0 +1,63 @@
+#!/usr/bin/env Rscript
+#' Perform causal estimation under image confounding
+#'
+#' @usage
+#'
+#' BuildBackend()
+#'
+#' @param conda_env (default = `"CausalImagesEnv"`) Name of the conda environment in which to place the backends.
+#' @param conda (default = `auto`) The path to a conda executable. Using `"auto"` allows reticulate to attempt to automatically find an appropriate conda binary.
+
+#' @return Builds the computational environment for `causalimages`. This function requires an Internet connection.
+#' You may find out a list of conda Python paths via: `system("'which python'")`
+#'
+#' @examples
+#' # For a tutorial, see
+#' # github.com/cjerzak/causalimages-software/
+#'
+#' @export
+#' @md
+
+BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
+  # Create a new conda environment
+  reticulate::conda_create(envname = conda_env,
+                           conda = conda, python_version = "3.11")
+
+  # Install Python packages within the environment
+  reticulate::py_install(c("tensorflow", "optax", "equinox", "jmp", "tensorflow-probability"),
+                           conda = conda, pip = TRUE,
+                           envname = conda_env)
+  if(Sys.info()["sysname"] == "Darwin"){
+    try_ <- try(reticulate::py_install("jax-metal", conda = conda, pip = TRUE,
+                                       envname = conda_env), T)
+    if("try-error" %in% class(try_)){
+      print("Failed to establish connection with jax-metal, falling back to jax...")
+      try_ <- try(reticulate::py_install("jax", conda = conda, pip = TRUE,
+                                         envname = conda_env), T)
+    }
+    try_ <- try(reticulate::py_install("tensorflow-metal", conda = conda, pip = TRUE,
+                                       envname = conda_env), T)
+    if("try-error" %in% class(try_)){
+      print("Failed to establish connection with tensorflow-metal, falling back to tensorflow...")
+      try_ <- try(reticulate::py_install("tensorflow", conda = conda, pip = TRUE,
+                                         envname = conda_env), T)
+    }
+  }
+  if(Sys.info()["sysname"] == "Windows"){
+    reticulate::py_install("jax", conda = conda, pip = TRUE,
+                           envname = conda_env)
+  }
+  if(Sys.info()["sysname"] == "Linux"){
+    # pip install --upgrade jax jaxlib==0.1.69+cuda111 -f https://storage.googleapis.com/jax-releases/jax_releases.html
+    try_ <- try(system(sprintf("'%s' -m pip install --upgrade --no-user %s",
+           gsub(conda, pattern = "bin/python", replace = sprintf("envs/%s/bin/python",conda_env)),
+           "'jax[cuda12_pip]' -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html" )), T)
+    if("try-error" %in% class(try_)){
+      print("Failed to establish connection with jax[cuda12_pip], falling back to jax...")
+      try_ <- try(reticulate::py_install("jax", conda = conda, pip = TRUE,
+                                         envname = conda_env), T)
+    }
+  }
+  print("Done building causalimages backend!")
+}
+

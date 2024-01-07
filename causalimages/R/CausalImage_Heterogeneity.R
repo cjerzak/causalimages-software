@@ -18,8 +18,8 @@
 #' @param imageKeysOfUnits (default = `1:length(obsY)`) A vector of length `length(obsY)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into the package to call images into memory.
 #' @param long,lat (optional) Vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
 #' @param X (optional) A numeric matrix containing tabular information used if `orthogonalize = T`.
-#' @param conda_env (default = `NULL`) A string specifying a conda environment wherein `tensorflow`, `tensorflow_probability`, and `gc` are installed.
-#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
+#' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
+#' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
 #' @param orthogonalize (default = `F`) A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in `X`.
 #' @param nMonte_variational (default = `5L`) An integer specifying how many Monte Carlo iterations to use in the
 #' calculation of the expected likelihood in each training step.
@@ -78,8 +78,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       transportabilityMat = NULL ,
                                       lat = NULL,
                                       long = NULL,
-                                      conda_env = NULL,
-                                      conda_env_required = F,
+                                      conda_env = "CausalImagesEnv",
+                                      conda_env_required = T,
 
                                       figuresTag = "",
                                       figuresPath = "./",
@@ -123,14 +123,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
   {
-    # conda_env <- "tensorflow_m1"; conda_env_required <- T # jit_compile doesn't work with this
-    # conda_env <- "jax_gpu"; conda_env_required <- T # jit_compile works with this
-    # conda_env <- "jax_gpu2"; conda_env_required <- T # jit_compile works with this
-
+    print2("Establishing connection to computational environment built via causalimages::BuildBackend()")
     # notes on jax-gpu: use python 3.10 or above
     # jax$nn$softplus creates segfault with float16
     # random sampling creates a segfault with float16
-    # sample parametesr only with seeds not vseeds
+    # sample parameters with seeds not vseeds. tf$function(jit_compile=T) works with jax-metal
     library(tensorflow); if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
@@ -140,7 +137,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     tf$random$set_seed(  c( 1000L ) )
     tf$keras$utils$set_random_seed( 4L )
-    # python3 -m pip install tensorflow optax equinox jmp tensorflow_probability
+    # python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_probability
     # python3 -m pip install jax-metal
     py_gc <- reticulate::import("gc")
     jax <<- reticulate::import("jax")

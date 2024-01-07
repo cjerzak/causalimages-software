@@ -14,6 +14,9 @@
   # local install for development team
   # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
+  # build backend you haven't ready:
+  # causalimages::BuildBackend()
+
   # load in package
   library( causalimages  )
 
@@ -79,8 +82,7 @@
   # write a tf records repository
   causalimages::WriteTfRecord(  file = tfrecord_loc,
                   uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
-                  acquireImageFxn = acquireImageFromMemory,
-                  conda_env = "tensorflow_m1"  )
+                  acquireImageFxn = acquireImageFromMemory )
 
   # perform causal inference with image and tabular confounding -- toy example for illustration purposes
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
@@ -95,9 +97,7 @@
     nSGD = 200L,
     plotBands = c(1,2,3),
     figuresTag = "TutorialExample",
-    figuresPath = "~/Downloads/CausalImagesTest", # figures saved here (use absolute file paths)
-    conda_env = "tensorflow_m1", # conda env to activate where a version of tensorflow lives
-    conda_env_required = T
+    figuresPath = "~/Downloads/CausalImagesTest" # figures saved here (use absolute file paths)
   )
 
   # ATE estimate (image confounder adjusted)
