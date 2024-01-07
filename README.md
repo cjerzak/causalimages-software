@@ -1,6 +1,6 @@
-# `causalimages`: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+# CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
 
-[**What is `causalimages`?**](#description)
+[**What is `CausalImages`?**](#description)
 | [**Installation**](#installation)
 | [**Image Heterogeneity Tutorial**](#tutorial)
 | [**Other Package Functions**](#otherfunctions)
@@ -22,7 +22,7 @@ _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://git
 
 _January 2024 update:_ CausalImages now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance! 
 
-# What is `causalimages`?<a id="description"></a>
+# What is CausalImages?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
 
