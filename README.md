@@ -20,6 +20,8 @@ _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-so
 
 _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://github.com/cjerzak/causalimages-software)
 
+_January 2024 update:_ CausalImages now uses and end-to-end JAX backend for improved causal image and image-sequence model performance! 
+
 # What is `causalimages`?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 

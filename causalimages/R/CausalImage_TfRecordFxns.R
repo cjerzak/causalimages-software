@@ -27,26 +27,27 @@
 #' @export
 #' @md
 WriteTfRecord <- function(file,
-                          imageKeysOfUnits,
+                          uniqueImageKeys,
                           acquireImageFxn,
                           writeVideo = F,
-                          image_dtype = "bfloat16",
+                          image_dtype = "float16",
                           attemptRestart = F,
                           conda_env = NULL,
-                          conda_env_required = F){
-  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){ # note: calling tf$sqrt here induces downstream errors (i think a wrong version of python gets initialized)
+                          conda_env_required = T){
   {
     print("Loading Python environment (requires tensorflow)")
     # conda_env <- 'tensorflow_m1'; conda_env_required <- T
-    library(tensorflow) ; # library(keras)
-    if(!is.null(conda_env)){
-      try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
-    }
-     try(tf$square(1.),T);
+    library(tensorflow) ;
+    if(!is.null(conda_env)){ try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T) }
 
     # import python garbage collectors
     py_gc <- reticulate::import("gc")
     gc(); py_gc$collect()
+  }
+
+  if(length(uniqueImageKeys) != length(unique(uniqueImageKeys))){
+    stop("Stopping because length(uniqueImageKeys) != length(unique(uniqueImageKeys)) \n
+         Remember: Input to WriteTFRecord is uniqueImageKeys")
   }
 
   # helper fxns
@@ -113,14 +114,14 @@ WriteTfRecord <- function(file,
   setwd( new_wd )
   tf_record_writer = tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
-  for(irz in 1:length(imageKeysOfUnits)){
+  for(irz in 1:length(uniqueImageKeys)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s",
                                                   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-                                                  irz, length(imageKeysOfUnits) ) ) }
-    tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( imageKeysOfUnits[irz]  ),
+                                                  irz, length(uniqueImageKeys) ) ) }
+    tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( uniqueImageKeys[irz]  ),
                                                           eval(parse(text = sprintf("tf$%s",image_dtype)))),
                                                  index = irz,
-                                                 key = imageKeysOfUnits[irz] )
+                                                 key = as.character(uniqueImageKeys[irz] ) )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
   }
   print("Finalizing tfrecords....")
@@ -152,24 +153,9 @@ WriteTfRecord <- function(file,
 #' @export
 #' @md
 GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo = F,
-                                            conda_env = NULL, conda_env_required = F, image_dtype = "bfloat16",
+                                            conda_env = NULL, conda_env_required = F, image_dtype = "float16",
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
-  #if(! (try(as.numeric(tf$sqrt(1.)),T) == 1)){
-  if(T == F){  # function assumes tensorflow initialized
-    print("Loading Python environment (requires tensorflow)")
-    library(tensorflow); library(keras)
-    if(!is.null(conda_env)){
-      try(tensorflow::use_condaenv(conda_env, required = T),T)
-    }
-    try(tf$config$experimental$set_memory_growth(tf$config$list_physical_devices('GPU')[[1]],T),T)
-    tf$config$set_soft_device_placement( T )
-    # tf$random$set_seed(  c(1000L ) ); tf$keras$utils$set_random_seed( 4L )
-
-    # import python garbage collectors
-    py_gc <- reticulate::import("gc")
-    gc(); py_gc$collect()
-  }
   image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
   if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
@@ -188,18 +174,10 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
     dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
     # Parse the tf.Example messages
-    #dataset <- dataset$map(   parse_tfr_element   )
-    dataset <- dataset$map( function(x){parse_tfr_element(x, readVideo = readVideo, image_dtype = image_dtype)} ) # return
-
-    if(T == F){
-      dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
-      dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
-      element <- reticulate::iter_next( dataset_iterator )
-    }
+    dataset <- dataset$map( function(x){ parse_tfr_element(x, readVideo = readVideo, image_dtype = image_dtype) }) # return
 
     index_counter <- last_in_ <- 0L
-    return_list <- replicate(length( dataset$element_spec),
-                             {list(replicate(length(indices), list()))})
+    return_list <- replicate(length( dataset$element_spec), {list(replicate(length(indices), list()))})
   }
 
   if(!is.null(iterator)){
@@ -217,25 +195,20 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
     index_counter <- index_counter + 1
 
     # Skip the first `indices` elements, shifted by current loc thru data set
-    #dataset <- dataset$skip(  as.integer( in_   - last_in_)  )#$prefetch(buffer_size = 5L)
-    if(index_counter == 1 & is.null(iterator)){
+    if( index_counter == 1 & is.null(iterator) ){
       dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
       dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
-      element <- reticulate::iter_next( dataset_iterator )
+      element <- dataset_iterator$`next`()
     }
-    #tmp <- tmp$skip(2L)
-    #tmp2 <- reticulate::as_iterator( tmp )
-    #system.time( reticulate::iter_next( dataset_iterator  ) )
 
     # Take the next element, then
     # Get the only element in the dataset (as a tuple of features)
-    #element <- reticulate::iter_next( reticulate::as_iterator( dataset$take( 1L  ) ) )
     if(index_counter > 1 | !is.null(iterator)){
       needThisManyUnsavedIters <- (in_ - last_in_ - 1L)
       if(length(needThisManyUnsavedIters) > 0){ if(needThisManyUnsavedIters > 0){
-          for(fari in 1:needThisManyUnsavedIters){ reticulate::iter_next( dataset_iterator ) }
+        for(fari in 1:needThisManyUnsavedIters){ dataset_iterator$`next`() }
       } }
-      element <- reticulate::iter_next( dataset_iterator )
+      element <- dataset_iterator$`next`()
     }
     last_in_ <- in_
 
@@ -253,7 +226,6 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
     return_list[[li_]] <- eval(parse(text =
                       paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(indices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
     if(  any(diff(indices)<0)  ){ # re-order if needed
-      #indices_sorted; indices
       #indices_sorted[ match(indices,indices_sorted) ]
       return_list[[li_]] <- tf$gather(return_list[[li_]],
                                       indices = as.integer(match(indices,indices_sorted)-1L),
@@ -261,7 +233,6 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
     }
   }}
 
-  #for(li_ in 1:length(element)){ return_list[[li_]] <- tf$concat( list(return_list[[li_]], element[[li_]]), 0L) }
   if(is.null(iterator)){ setwd(  orig_wd  ) }
 
   if(return_iterator == T){

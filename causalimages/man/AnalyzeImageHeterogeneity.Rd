@@ -42,6 +42,8 @@ First argument should be image key values and second argument have be \code{trai
 
 \item{plotResults}{(default = \code{T}) Should analysis results be plotted?}
 
+\item{optimizeEmbeddings}{(default = \code{TRUE})}
+
 \item{nDepthHidden_conv}{(default = \code{3L}) Hidden depth of convolutional layer.}
 
 \item{nDepthHidden_dense}{(default = \code{0L}) Hidden depth of dense layers. Default of \code{0L} means a single projection layer is performed after the convolutional layer (i.e., no hidden layers are used).}
@@ -69,7 +71,7 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 
 \item{nDenseWidth}{(default = \code{32L}) Width of dense projection layers post-convolutions.}
 
-\item{reparameterizationType}{(default = \code{"Flipout"}) Either \code{"Flipout"}, or \code{"Reparameterization"}. Specifies the estimator used in the Bayesian neural components. With \code{"Flipout"}, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.}
+\item{reparameterizationType}{(default = \code{"Reparameterization"}) Either \code{"Flipout"}, or \code{"Reparameterization"}. Specifies the estimator used in the Bayesian neural components. With \code{"Flipout"}, convolutions are performed via CPU; with `"Reparameterization", they are performed by GPU if available.}
 
 \item{doConvLowerDimProj}{(default = \code{T}) Should we project the \code{nFilters} convolutional feature dimensions down to \code{nDimLowerDimConv} to reduce the number of required parameters.}
 
@@ -86,13 +88,14 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 \item{TfRecords_BufferScaler}{(default = \code{4L}) The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{quiet}{(default = \code{F}) Should we suppress information about progress?}
+
+\item{dilationRate}{(default = \code{NULL}) Dilation rate.}
 }
 \value{
 Returns a list consiting of \itemize{
 \item \code{clusterTaus_mean} default
-\item \code{clusterTaus_sd} Estimated image effect cluster standard deviations.
 \item \code{clusterProbs_mean}. Estimated mean image effect cluster probabilities.
-\item \code{clusterTaus_sd}. Estimated image effect cluster probability standard deviations.
+\item \code{clusterTaus_sigma}. Estimated cluster standard deviations.
 \item \code{clusterProbs_lowerConf}. Estimated lower confidence for effect cluster probabilities.
 \item \code{impliedATE}. Implied ATE.
 \item \code{individualTau_est}. Estimated individual-level image-based treatment effects.

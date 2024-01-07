@@ -76,3 +76,149 @@ r2const <- function(x, dtype){
   if(!"tensorflow.tensor" %in% class( x )){ x <- tf$constant(  x, dtype = dtype  ) }
   return( x )
 }
+
+print2 <- function(text, quiet = F){
+  if(!quiet){
+  print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) )
+  }
+}
+
+# LE <- function(l_, name_){ return( unlist(l_)[[name_]] ) }
+# l_ <- DenseList;name <-"Tau_d1"
+LE <- function(l_, key) {
+  # Recursive helper function
+  search_recursive <- function(list_element, key) {
+    # Check if the current element is a list
+    if (is.list(list_element)) {
+      # If it's a list, check if the key exists in this list
+      if (key %in% names(list_element)) {
+        return(list_element[[key]])
+      }
+      # Otherwise, iterate over its elements
+      for (item in list_element) {
+        found <- search_recursive(item, key)
+        if (!is.null(found)) {
+          return(found)
+        }
+      }
+    }
+    return(NULL)
+  }
+
+  # Start the recursive search
+  return(search_recursive(l_, key))
+}
+
+# l_ <- StateList
+# list_element <- l_ <- StateList; key <- 'BNState_ImRep_d1'; path <- NULL
+# LE_index(StateList, sprintf("BNState_ImRep_d%s",d__))
+# StateList[[2]]
+LE_index <- function(l_, key) {
+  # Recursive helper function
+  search_recursive <- function(list_element, key, path) {
+    # Check if the current element is a list
+    if(is.list(list_element)){
+
+      # If it's a list, check if the key exists in this list
+      if(key %in% names(list_element) & (length(names(list_element)) == 1)){
+        return( c(path,
+                  ifelse("list" %in% class(list_element), yes = 1, no = NULL)) )
+      }
+      if(key %in% names(list_element) & (length(names(list_element)) > 1)){
+        return( c(path,
+                  which(names(list_element) == key),
+                  ifelse("list" %in% class(list_element), yes = 1, no = NULL) ) )
+      }
+
+      # Otherwise, iterate over its elements
+      for (i in seq_along(list_element)) {
+        new_path <- c(path, i)
+        found <- search_recursive(list_element[[i]], key, new_path)
+        if (!is.null(found)) { return( found ) }
+      }
+    }
+    return(NULL)
+  }
+
+  # Start the recursive search
+  return(search_recursive(l_, key, c()))
+}
+
+GlobalPartition <- function(zer, eq_fxn){
+  yes_branches <- rrapply::rrapply(zer,f=function(zerr){
+    unlist(ifelse(eq_fxn(zerr),yes = list(zerr), no = list(NULL))[[1]])
+  },how="list")
+  no_branches <- rrapply::rrapply(zer,f=function(zerrr){
+    unlist(ifelse(eq_fxn(zerrr),yes = list(NULL), no = list(zerrr))[[1]])
+  },how="list")
+  list(yes_branches,no_branches)
+}
+PartFxn <- function(zerz){ !"first_time_index" %in% names(zerz)}
+
+AddQuotes <- function(text) { gsub("\\[\\[([A-Za-z]\\w*)", "\\[\\['\\1'", text) }
+LinearizeNestedList <- function (NList,
+                                 LinearizeDataFrames = FALSE,
+                                 NameSep = "/",
+                                 ForceNames = FALSE){
+  stopifnot(is.character(NameSep), length(NameSep) == 1)
+  stopifnot(is.logical(LinearizeDataFrames), length(LinearizeDataFrames) == 1)
+  stopifnot(is.logical(ForceNames), length(ForceNames) == 1)
+  if (!is.list(NList))
+    return(NList)
+  if (is.null(names(NList)) | ForceNames == TRUE)
+    names(NList) <- as.character(1:length(NList))
+  if (is.data.frame(NList) & LinearizeDataFrames == FALSE)
+    return(NList)
+  if (is.data.frame(NList) & LinearizeDataFrames == TRUE)
+    return(as.list(NList))
+  A <- 1
+  B <- length(NList)
+  while (A <= B) {
+    Element <- NList[[A]]
+    EName <- names(NList)[A]
+    if (is.list(Element)) {
+      Before <- if (A == 1)
+        NULL
+      else NList[1:(A - 1)]
+      After <- if (A == B)
+        NULL
+      else NList[(A + 1):B]
+      if (is.data.frame(Element)) {
+        if (LinearizeDataFrames == TRUE) {
+          Jump <- length(Element)
+          NList[[A]] <- NULL
+          if(is.null(names(Element)) | ForceNames == TRUE)
+            names(Element) <- as.character(1:length(Element))
+          Element <- as.list(Element)
+          names(Element) <- paste(EName, names(Element),
+                                  sep = NameSep)
+          NList <- c(Before, Element, After)
+        }
+        Jump <- 1
+      }
+      else {
+        NList[[A]] <- NULL
+        if (is.null(names(Element)) | ForceNames == TRUE)
+          names(Element) <- as.character(1:length(Element))
+        Element <- LinearizeNestedList(Element, LinearizeDataFrames,
+                                       NameSep, ForceNames)
+        names(Element) <- AddQuotes( paste(EName,
+                                           names(Element),
+                                           sep = NameSep) )
+        Jump <- length(Element)
+        NList <- c(Before, Element, After)
+      }
+    }
+    else {
+      Jump <- 1
+    }
+    A <- A + Jump
+    B <- length(NList)
+  }
+  return(NList)
+}
+
+
+ai <- as.integer
+
+se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
