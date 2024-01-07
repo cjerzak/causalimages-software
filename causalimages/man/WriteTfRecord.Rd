@@ -4,7 +4,7 @@
 \alias{WriteTfRecord}
 \title{Write an image corpus as a .tfrecord file}
 \usage{
-WriteTfRecord(file, imageKeysOfUnits, acquireImageFxn,
+WriteTfRecord(file, uniqueImageKeys, acquireImageFxn,
 conda_env, conda_env_required, writeVideo)
 }
 \arguments{

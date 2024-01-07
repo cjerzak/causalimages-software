@@ -97,7 +97,7 @@
     nSGD = 200L,
     plotBands = c(1,2,3),
     figuresTag = "TutorialExample",
-    figuresPath = "~/Downloads/CausalImagesTest" # figures saved here (use absolute file paths)
+    figuresPath = "~/Downloads/TFRecordTutorial" # figures saved here (use absolute file paths)
   )
 
   # ATE estimate (image confounder adjusted)

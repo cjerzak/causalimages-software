@@ -137,7 +137,7 @@ WriteTfRecord <- function(file,
 #' GetElementFromTfRecordAtIndices(uniqueKeyIndices, file,
 #'     conda_env, conda_env_required)
 #'
-#' @param uniqueKeyIndices (integer vector) Observation indices to be retrieved from a `.tfrecord`
+#' @param uniqueKeyIndices (integer vector) Unique image indices to be retrieved from a `.tfrecord`
 #' @param file (character string) A character string stating the path to a `.tfrecord`
 #' @param conda_env (Default = `NULL`) A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
@@ -177,7 +177,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     dataset <- dataset$map( function(x){ parse_tfr_element(x, readVideo = readVideo, image_dtype = image_dtype) }) # return
 
     index_counter <- last_in_ <- 0L
-    return_list <- replicate(length( dataset$element_spec), {list(replicate(length(indices), list()))})
+    return_list <- replicate(length( dataset$element_spec), {list(replicate(length(uniqueKeyIndices), list()))})
   }
 
   if(!is.null(iterator)){
@@ -185,7 +185,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     last_in_ <- iterator[[2]] # note: last_in_ is 0 indexed
     index_counter <- 0L
     return_list <- replicate(length( dataset_iterator$element_spec),
-                             {list(replicate(length(indices), list()))})
+                             {list(replicate(length(uniqueKeyIndices), list()))})
   }
 
   # uniqueKeyIndices made 0 indexed
@@ -194,7 +194,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
   for(in_ in (indices_sorted <- sort(uniqueKeyIndices))){
     index_counter <- index_counter + 1
 
-    # Skip the first `indices` elements, shifted by current loc thru data set
+    # Skip the first `uniqueKeyIndices` elements, shifted by current loc thru data set
     if( index_counter == 1 & is.null(iterator) ){
       dataset <- dataset$skip(  as.integer(in_)  )#$prefetch(buffer_size = 5L)
       dataset_iterator <- reticulate::as_iterator( dataset$take( as.integer(nObs - as.integer(in_)  ) ))
@@ -213,8 +213,8 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     last_in_ <- in_
 
     # form final output
-    if(length(indices) == 1){ return_list <- element }
-    if(length(indices) > 1){
+    if(length(uniqueKeyIndices) == 1){ return_list <- element }
+    if(length(uniqueKeyIndices) > 1){
       for(li_ in 1:length(element)){
         return_list[[li_]][[index_counter]] <- tf$expand_dims(element[[li_]],0L)
       }

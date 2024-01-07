@@ -23,7 +23,7 @@
     if("try-error" %in% class(t_)){ stop("Failed at image representations tutorial...") }
 
     print("Starting image heterogeneity tutorial...");  setwd("~");
-    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R"),T)
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_Tutorial.R"),T)
     if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }
 
     print("Starting image confounding tutorial..."); setwd("~");

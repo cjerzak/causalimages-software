@@ -208,14 +208,10 @@ AnalyzeImageConfounding <- function(
     print2("Calibrating first moments for input data normalization...")
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
       ds_next_train <- ds_iterator_train$`next`()
-      batch_indices <- as.array(ds_next_train[[2]])
-
 
       # setup normalizations
       ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
-      if(is.null(NORM_MEAN)){
-        NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),ApplyAxis,sd); NORM_MEAN[] <- NORM_SD[] <- 0
-      }
+      if(is.null(NORM_MEAN)){ NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),ApplyAxis,sd); NORM_MEAN[] <- NORM_SD[] <- 0 }
 
       # update normalizations
       NORM_SD <- NORM_SD + apply(as.array(ds_next_train[[1]]),ApplyAxis,sd) / momentCalIters

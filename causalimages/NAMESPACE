@@ -2,7 +2,6 @@
 
 export(AnalyzeImageConfounding)
 export(AnalyzeImageHeterogeneity)
-export(AnalyzeImageMediation)
 export(BuildBackend)
 export(GetAndSaveGeolocatedImages)
 export(GetElementFromTfRecordAtIndices)
