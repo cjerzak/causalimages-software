@@ -2,12 +2,13 @@
 % Please edit documentation in R/CausalImage_TfRecordFxns.R
 \name{GetElementFromTfRecordAtIndices}
 \alias{GetElementFromTfRecordAtIndices}
-\title{Reads indices from a \code{.tfrecord} file.}
+\title{Reads unique key indices from a \code{.tfrecord} file.}
 \usage{
-GetElementFromTfRecordAtIndices(indices, file)
+GetElementFromTfRecordAtIndices(uniqueKeyIndices, file,
+    conda_env, conda_env_required)
 }
 \arguments{
-\item{indices}{(integer vector) Observation indices to be retrieved from a \code{.tfrecord}}
+\item{uniqueKeyIndices}{(integer vector) Observation indices to be retrieved from a \code{.tfrecord}}
 
 \item{conda_env}{(Default = \code{NULL}) A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
 
@@ -16,15 +17,15 @@ GetElementFromTfRecordAtIndices(indices, file)
 \item{file}{(character string) A character string stating the path to a \code{.tfrecord}}
 }
 \value{
-Returns content from a \code{.tfrecord} associated with \code{indices}
+Returns content from a \code{.tfrecord} associated with \code{uniqueKeyIndices}
 }
 \description{
-Reads indices from a \code{.tfrecord} file saved via a call to \code{causalimages::WriteTfRecord}. Assumes a tensorflow environment has been activated in R.
+Reads unique key indices from a \code{.tfrecord} file saved via a call to \code{causalimages::WriteTfRecord}.
 }
 \examples{
 # Example usage (not run):
 #GetElementFromTfRecordAtIndices(
-  #indices = 1:10,
+  #uniqueKeyIndices = 1:10,
   #file = "./NigeriaConfoundApp.tfrecord")
 
 }

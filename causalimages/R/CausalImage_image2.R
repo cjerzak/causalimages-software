@@ -5,7 +5,10 @@
 #'
 #' @usage
 #'
-#' image2( x )
+#' image2( x
+#' xaxt, yaxt, xlab, ylab,
+#' main, cex.main, col.lab,
+#' col.main, cex.lab, box)
 #'
 #' @param x (required) The numeric matrix to be visualized.
 #' @param xlab (default = `""`) The x-axis labels.
@@ -14,8 +17,11 @@
 #' @param yaxt (default = `""`) The y-axis tick labels.
 #' @param main (default = `""`) The main figure label.
 #' @param cex.main (default = `1.`) The main figure label sizing factor.
-#' @param box (default = `F`) Should a box be plotted around the image?
-#'
+#' @param col.lab (default = `"black"`) Axis label color.
+#' @param col.main (default = `"black"`) Main label color.
+#' @param cex.lab (default = `1.5`) Cex for the labels.
+#' @param box (default = `FALSE`) Draw a box around the image?
+
 #' @return Returns a heatmap representation of the matrix, `x`, with correct north/south/east/west orientation.
 #'
 #' @examples
@@ -31,11 +37,18 @@
 #'
 #' @export
 #' @md
-#'
-image2 = function(x,xaxt=NULL,yaxt = NULL,xlab = "", ylab = "",
-                  main=NULL,cex.main = NULL,
-                  col.lab = "black", col.main = "black",
-                  cex.lab = 1.5, box=F){
+
+image2 = function(x,
+                  xaxt=NULL,
+                  yaxt = NULL,
+                  xlab = "",
+                  ylab = "",
+                  main=NULL,
+                  cex.main = NULL,
+                  col.lab = "black",
+                  col.main = "black",
+                  cex.lab = 1.5,
+                  box=F){
   image((t(x)[,nrow(x):1]),
         axes = F,
         main = main,

@@ -1,12 +1,19 @@
 Package: causalimages
 Title: causalimages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
-Version: 0.1
-Author: 'Connor Jerzak <connor.jerzak@gmail.com> [aut, cre], Fredrik Johansson <fredrik.johansson@chalmers.se> [aut], Adel Daoud <adel.daoud@liu.se> [aut]'
-Description: R Package for causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos)
+Version: 0.0.1
+Authors@R: c(person(given = "Connor", family = "Jerzak", 
+		    role = c("aut", "cre"),
+                    email = "connor.jerzak@gmail.com", 
+	            comment = c(ORCID = "0000-0003-1914-8905")),
+             person(given = "Fredrik", family = "Johansson", role = "aut", 
+	           comment = c(ORCID = "0000-0001-9858-2050")),
+             person(given = "Adel", family = "Daoud", role = "aut", 
+		    comment = c(ORCID = "0000-0001-9372-1090")) )
+Description: A system for performing causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos). The causal AI models use a JAX backend; the package provides functions for establishing the backend in a conda environment with GPU acceleration when possible. 
 Depends: R (>= 3.3.3)
-License: Creative Commons Attribution-Noncommercial-No Derivative Works 4.0, for academic use only.
+License: GPL-3
 Encoding: UTF-8
 LazyData: false
 Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
-Imports: tensorflow, keras, latex2exp, keras, reticulate, viridis, geosphere, raster, animation
+Imports: tensorflow, latex2exp, keras, reticulate, viridis, geosphere, raster, animation
 RoxygenNote: 7.2.3

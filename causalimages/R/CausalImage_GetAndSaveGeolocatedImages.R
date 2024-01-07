@@ -4,14 +4,15 @@
 #'
 #' @usage
 #'
-#' GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder)
+#' GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder,
+#' image_pixel_width, save_as, lyrs)
 #'
 #' @param long Vector of numeric longitudes.
 #' @param lat Vector of numeric latitudes.
 #' @param keys The image keys associated with the long/lat coordinates.
 #' @param tif_pool A character vector specifying the fully qualified path to a corpus of .tif files.
-#' @param image_pixel_width An even integer specifying the pixel width (and height) of the saved images.
 #' @param save_folder (default = `"."`) What folder should be used to save the output? Example: `"~/Downloads"`
+#' @param image_pixel_width An even integer specifying the pixel width (and height) of the saved images.
 #' @param save_as (default = `".csv"`) What format should the output be saved as? Only one option currently (`.csv`)
 #' @param lyrs (default = NULL) Integer (vector) specifying the layers to be extracted. Default is for all layers to be extracted.
 #'
@@ -59,8 +60,6 @@ GetAndSaveGeolocatedImages <- function(
     counter_b <- counter_b + 1
     if(counter_b %% 10 == 0){print(sprintf("Iter %s of %s",counter_b,length(observation_indices)))}
     SpatialTarget_longlat <- c(long[i],lat[i])
-    # SpatialTarget_longlat <- c(32.821752, 1.827300)
-    # rev(SpatialTarget_longlat)
 
     found_<-F;counter_ <- 0; while(found_ == F){
       counter_ <- counter_ + 1
@@ -71,22 +70,7 @@ GetAndSaveGeolocatedImages <- function(
           long = SpatialTarget_longlat[1],
           lat = SpatialTarget_longlat[2],
           CRS_ref = raster::crs(MASTER_IMAGE_))
-        # check inverse of LongLat2CRS
-        # SpatialTarget_longlat
-        # SpatialPoints(spTransform(SpatialTarget_utm, CRS_longlat),CRS_longlat)
 
-        # exact spatial target - alternative extraction method for pseudo rgb plotting
-        if(T == F){
-          my_extent <- LongLat2CRS_extent(SpatialTarget_longlat,raster::crs(MASTER_IMAGE_))
-
-          cropped_raster <- raster::crop(MASTER_IMAGE_, y = my_extent)
-          #raster::plotRGB(cropped_raster)
-          matrix(getValuesBlock(cropped_raster[[band_]],
-                                row = 1, nrows = nrow(cropped_raster),
-                                col = 1, ncols = ncol(cropped_raster),
-                                format = "matrix", lyrs = 1L),
-                 ncol = nrow(cropped_raster), byrow=T)
-        }
         SpatialTargetCellLoc <- raster::cellFromXY(
           object = MASTER_IMAGE_,
           xy = SpatialTarget_utm)
@@ -135,13 +119,9 @@ GetAndSaveGeolocatedImages <- function(
                                                 row = start_row, nrows = DIAMETER_CELLS,
                                                 col = start_col, ncols = DIAMETER_CELLS,
                                                 format = "matrix", lyrs = 1L)
-          #SpatialTargetImage_ <- matrix(SpatialTargetImage_,ncol = DIAMETER_CELLS, byrow = T)
           if(length(unique(c(SpatialTargetImage_)))<5){ bad_indices <- c(bad_indices,i) }
           check_ <- dim(SpatialTargetImage_) - c(DIAMETER_CELLS,DIAMETER_CELLS)
           if(any(check_ < 0)){print("WARNING: CHECKS FAILED"); browser()}
-          # Tests:
-          #pdf("~/Downloads/test.pdf");image2(SpatialTargetImage_, main = paste(round(SpatialTarget_longlat,4L),collapse = ",") );dev.off()
-          # SpatialTarget_longlat
           if(grepl(x = save_as, pattern ="tif")){
             # in progress
           }
@@ -151,10 +131,6 @@ GetAndSaveGeolocatedImages <- function(
                                                 save_folder, keys[i], band_),
                                  data.table::as.data.table(SpatialTargetImage_))
             }
-            #if(iof > 0){
-            #data.table::fwrite(file = sprintf("./Data/Uganda2000_processed_comparisons/Key%s_%s_BAND%s.csv",
-            #row.names(GeoKeyMat)[i],iof,band_),
-            #data.table::as.data.table(SpatialTargetImage_)) }
           }
         }
       }

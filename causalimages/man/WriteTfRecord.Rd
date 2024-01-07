@@ -4,10 +4,13 @@
 \alias{WriteTfRecord}
 \title{Write an image corpus as a .tfrecord file}
 \usage{
-WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required)
+WriteTfRecord(file, imageKeysOfUnits, acquireImageFxn,
+conda_env, conda_env_required, writeVideo)
 }
 \arguments{
 \item{file}{A character string naming a file for writing.}
+
+\item{uniqueImageKeys}{A vector specifying the unique image keys of the corpus. A key grabs an image/video array via acquireImageFxn(key)}
 
 \item{acquireImageFxn}{A function whose input is an observation index and whose output is an image.}
 
@@ -16,11 +19,9 @@ WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required
 \item{conda_env}{(default = \code{"CausalImagesEnv"}) A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}}
 
 \item{conda_env_required}{(default = \code{T}) A Boolean stating whether use of the specified conda environment is required.}
-
-\item{imageKeysOfUnits}{A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)}
 }
 \value{
-Writes an key- and index-referenced \code{.tfrecord} from an image corpus for use in image-based causal inference training.
+Writes a unique key-referenced \code{.tfrecord} from an image/video corpus for use in image-based causal inference training.
 }
 \description{
 Writes an image corpus to a \code{.tfrecord} file for rapid reading of images into memory for fast ML training.
@@ -29,7 +30,7 @@ Writes an image corpus to a \code{.tfrecord} file for rapid reading of images in
 # Example usage (not run):
 #WriteTfRecord(
 #  file = "./NigeriaConfoundApp.tfrecord",
-#  keys = 1:n,
+#  uniqueImageKeys = 1:n,
 #  acquireImageFxn = acquireImageFxn)
 
 }

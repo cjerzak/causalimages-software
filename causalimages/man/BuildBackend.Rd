@@ -4,7 +4,7 @@
 \alias{BuildBackend}
 \title{Perform causal estimation under image confounding}
 \usage{
-BuildBackend()
+BuildBackend(conda_env, conda)
 }
 \arguments{
 \item{conda_env}{(default = \code{"CausalImagesEnv"}) Name of the conda environment in which to place the backends.}
@@ -13,7 +13,7 @@ BuildBackend()
 }
 \value{
 Builds the computational environment for \code{causalimages}. This function requires an Internet connection.
-You may find out a list of conda Python paths via: \code{system("'which python'")}
+You may find out a list of conda Python paths via: \code{system("which python")}
 }
 \description{
 Perform causal estimation under image confounding

@@ -4,7 +4,11 @@
 \alias{GetImageRepresentations}
 \title{Generates image and video representations useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).}
 \usage{
-GetImageRepresentations(imageKeysOfUnits, file, nWidth_ImageRep, ...)
+GetImageRepresentations(imageKeysOfUnits, file, nWidth_ImageRep,
+ conda_env, conda_env_required, kernelSize,
+ temporalKernelSize, nWidth_ImageRep,
+ strides, InitImageProcess, batchSize,
+ TfRecords_BufferScaler, seed, dataType)
 }
 \arguments{
 \item{imageKeysOfUnits}{A vector of length \code{length(imageKeysOfUnits)} specifying the unique image ID associated with each unit. Samples of \code{imageKeysOfUnits} are fed into the package to call images into memory.}
@@ -29,15 +33,16 @@ GetImageRepresentations(imageKeysOfUnits, file, nWidth_ImageRep, ...)
 
 \item{TfRecords_BufferScaler}{(default = \code{10L}) The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
-\item{seed}{(default = \code{NULL}) Integer specifying the seed.}
+\item{dataType}{(default = \code{"image"}) String specifying whether to assume \code{"image"} or \code{"video"} data types.}
 
-\item{outputType}{(default = \code{"R"}) Either \code{"R"} or \code{"tensorflow"} indicating whether to output R or tensorflow arrays.}
+\item{seed}{(default = \code{NULL}) Integer specifying the seed for pseudo random number generation.}
 }
 \value{
 A list containing two items:
 \itemize{
-\item \code{Representations} (matrix) A matrix containingimage/video Representations, with rows corresponding to observations.
-\item \code{representations_fxn} (function) The functioning performing the embedding, returned for re-use.
+\item \code{Representations} (matrix) A matrix containing image/video representations, with rows corresponding to observations.
+\item \verb{ImageRepArm_OneObs,ImageRepArm_batch_R, ImageRepArm_batch} (functions) Image modeling functions.
+\item \code{ImageModel_And_State_And_MPPolicy_List} List containing image model parameters fed into functions.
 }
 }
 \description{

@@ -5,22 +5,23 @@
 #'
 #' @usage
 #'
-#' WriteTfRecord(file,imageKeysOfUnits,acquireImageFxn,conda_env,conda_env_required)
+#' WriteTfRecord(file, uniqueImageKeys, acquireImageFxn,
+#' conda_env, conda_env_required, writeVideo)
 #'
 #' @param file A character string naming a file for writing.
-#' @param imageKeysOfUnits A vector specifying the image keys of the corpus. A key grabs an image via acquireImageFxn(key)
+#' @param uniqueImageKeys A vector specifying the unique image keys of the corpus. A key grabs an image/video array via acquireImageFxn(key)
 #' @param acquireImageFxn A function whose input is an observation index and whose output is an image.
-#' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
 #' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
 #' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
+#' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
 #'
-#' @return Writes an key- and index-referenced `.tfrecord` from an image corpus for use in image-based causal inference training.
+#' @return Writes a unique key-referenced `.tfrecord` from an image/video corpus for use in image-based causal inference training.
 #'
 #' @examples
 #' # Example usage (not run):
 #' #WriteTfRecord(
 #' #  file = "./NigeriaConfoundApp.tfrecord",
-#' #  keys = 1:n,
+#' #  uniqueImageKeys = 1:n,
 #' #  acquireImageFxn = acquireImageFxn)
 #'
 #' @export
@@ -30,7 +31,6 @@ WriteTfRecord <- function(file,
                           acquireImageFxn,
                           writeVideo = F,
                           image_dtype = "float16",
-                          attemptRestart = F,
                           conda_env = "CausalImagesEnv",
                           conda_env_required = T){
   {
@@ -45,7 +45,7 @@ WriteTfRecord <- function(file,
 
   if(length(uniqueImageKeys) != length(unique(uniqueImageKeys))){
     stop("Stopping because length(uniqueImageKeys) != length(unique(uniqueImageKeys)) \n
-         Remember: Input to WriteTFRecord is uniqueImageKeys")
+         Remember: Input to WriteTFRecord is uniqueImageKeys, not imageKeysOfUnits where redundancies may live")
   }
 
   # helper fxns
@@ -128,29 +128,31 @@ WriteTfRecord <- function(file,
 }
 
 #!/usr/bin/env Rscript
-#' Reads indices from a `.tfrecord` file.
+#' Reads unique key indices from a `.tfrecord` file.
 #'
-#' Reads indices from a `.tfrecord` file saved via a call to `causalimages::WriteTfRecord`. Assumes a tensorflow environment has been activated in R.
+#' Reads unique key indices from a `.tfrecord` file saved via a call to `causalimages::WriteTfRecord`.
 #'
 #' @usage
 #'
-#' GetElementFromTfRecordAtIndices(indices, file)
-#' @param indices (integer vector) Observation indices to be retrieved from a `.tfrecord`
+#' GetElementFromTfRecordAtIndices(uniqueKeyIndices, file,
+#'     conda_env, conda_env_required)
+#'
+#' @param uniqueKeyIndices (integer vector) Observation indices to be retrieved from a `.tfrecord`
 #' @param file (character string) A character string stating the path to a `.tfrecord`
 #' @param conda_env (Default = `NULL`) A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
 #' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
 #'
-#' @return Returns content from a `.tfrecord` associated with `indices`
+#' @return Returns content from a `.tfrecord` associated with `uniqueKeyIndices`
 #'
 #' @examples
 #' # Example usage (not run):
 #' #GetElementFromTfRecordAtIndices(
-#'   #indices = 1:10,
+#'   #uniqueKeyIndices = 1:10,
 #'   #file = "./NigeriaConfoundApp.tfrecord")
 #'
 #' @export
 #' @md
-GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo = F,
+GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, readVideo = F,
                                             conda_env = NULL, conda_env_required = F, image_dtype = "float16",
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
@@ -186,10 +188,10 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
                              {list(replicate(length(indices), list()))})
   }
 
-  # indices is 0 indexed
-  indices <- as.integer( indices - 1L )
+  # uniqueKeyIndices made 0 indexed
+  uniqueKeyIndices <- as.integer( uniqueKeyIndices - 1L )
 
-  for(in_ in (indices_sorted <- sort(indices))){
+  for(in_ in (indices_sorted <- sort(uniqueKeyIndices))){
     index_counter <- index_counter + 1
 
     # Skip the first `indices` elements, shifted by current loc thru data set
@@ -222,11 +224,11 @@ GetElementFromTfRecordAtIndices <- function(indices, filename, nObs, readVideo =
 
   if(index_counter > 1){ for(li_ in 1:length(element)){
     return_list[[li_]] <- eval(parse(text =
-                      paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(indices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
-    if(  any(diff(indices)<0)  ){ # re-order if needed
-      #indices_sorted[ match(indices,indices_sorted) ]
+                      paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
+    if(  any(diff(uniqueKeyIndices)<0)  ){ # re-order if needed
+      #indices_sorted[ match(uniqueKeyIndices,indices_sorted) ]
       return_list[[li_]] <- tf$gather(return_list[[li_]],
-                                      indices = as.integer(match(indices,indices_sorted)-1L),
+                                      indices = as.integer(match(uniqueKeyIndices,indices_sorted)-1L),
                                       axis = 0L)
     }
   }}

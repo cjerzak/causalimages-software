@@ -175,7 +175,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # make all directory logic explicit
   orig_wd <- getwd()
   cond1 <- substr(figuresPath, start = 0, stop = 1) == "."
-  if(cond1){ figuresPath <- gsub(figuresPath, pattern = '\\.', replace = orig_wd) }
+  if(cond1){ figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd) }
   if(!dir.exists(figuresPath)){ dir.create(figuresPath) }
 
   BN_EP <- (0.001); bn_momentum <- (.90)
@@ -409,8 +409,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         if( !ZERO_LEN_IN){
           z_name_ref <- eval(parse(text = sprintf("%s$variables[[1]]$name",name_)))
-          z_name_ref <- gsub(z_name_ref, pattern = ":",replace = "XCOLX")
-          z_name_ref <- gsub(z_name_ref, pattern = "/",replace = "XDASHX")
+          z_name_ref <- gsub(z_name_ref, pattern = ":",replacement = "XCOLX")
+          z_name_ref <- gsub(z_name_ref, pattern = "/",replacement = "XDASHX")
 
           # set mean
           eval.parent(parse(text = sprintf("%s <- jnp$array(%s$variables[[1]],variable_dtype)",prior_loc_name,name_)))
@@ -866,7 +866,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                  jax$random$PRNGKey( 123L+i ), # seed
                                                  MPList # MPlist
                                                  )
-        if(class(v_and_grad_loss_jax) != "try-error"){
+        if(!"try-error" %in% class(v_and_grad_loss_jax)){
           # get updated state
           StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
 
@@ -934,7 +934,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             # setup updates
             NULLS_MAT <- rrapply::rrapply(ModelParams_GlobalPartitioned[[1]],f = function(zer){
               cond_ <- try(is.null(zer),T)
-              if(class(cond_) == "try-error"){cond_<-T}
+              if("try-error" %in% class(cond_)){cond_<-T}
               if(!cond_){ret_<-F};if(cond_){ret_ <- T};
               return(ret_) },how="list")
             NULLS_MAT <- (NULLS_MAT <- LinearizeNestedList(NULLS_MAT,NameSep = "]][["))[unlist(NULLS_MAT)]
@@ -950,7 +950,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             StateList <- StateList_tmp
             rm(ModelParams_GlobalPartitioned, StateList_tmp)
           }
-       } # end if(class(v_and_grad_loss_jax) != "try-error"){
+       } #
 
       # print diagnostics
       i_ <- i ; if(i %% 10 == 0 | i < 10 ){
@@ -970,15 +970,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
         for(z in trainable_variables){
           z_counter <- z_counter + 1
           z_name_orig <- z_name_ <- z$name
-          z_name_ <- gsub(z_name_, pattern = ":",replace = "XCOLX")
-          z_name_ <- gsub(z_name_, pattern = "/",replace = "XDASHX")
-          #https://monolix.lixoft.com/tasks/standard-error-using-the-fisher-information-matrix/
+          z_name_ <- gsub(z_name_, pattern = ":",replacement = "XCOLX")
+          z_name_ <- gsub(z_name_, pattern = "/",replacement = "XDASHX")
           if(windowCounter == 1){
             eval(parse(text = sprintf("SZ_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
             eval(parse(text = sprintf("SZ2_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
           }
-          #eval(parse(text = sprintf("SZ_%s <- z + SZ_%s", z_name_, z_name_)))
-          #eval(parse(text = sprintf("SZ2_%s <- tf$square(z) + SZ2_%s", z_name_, z_name_)))
           try(eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_))), T)
           try(eval(parse(text = sprintf("SZ2_%s <- jnp$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_))), T)
           if(i == n_sgd_iters){
@@ -1041,7 +1038,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done: %.3f", atP)) }
         {
           setwd(orig_wd)
-          ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
+          ds_next_in <- GetElementFromTfRecordAtIndices( uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
                                                          filename = file,
                                                          iterator = passedIterator,
                                                          readVideo = useVideo,
@@ -1180,7 +1177,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
 
         {
-          setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),
+          setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+                                                         uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),
                                                          filename = file,
                                                          readVideo = useVideo,
                                                          image_dtype = image_dtype_tf,
@@ -1437,7 +1435,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                           "lat" = coordinate_i[2]))
 
               # load in video
-              setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices( indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
+              setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+                                                               uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
                                                                filename = file,
                                                                readVideo = useVideo,
                                                                image_dtype = image_dtype_tf,
@@ -1628,7 +1627,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                  long[im_i], lat[im_i]))
               # load in image
               setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                               indices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
+                                                               uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
                                                                filename = file,
                                                                readVideo = useVideo,
                                                                image_dtype = image_dtype_tf,

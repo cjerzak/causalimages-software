@@ -4,7 +4,10 @@
 \alias{image2}
 \title{Visualizing matrices as heatmaps with correct north-south-east-west orientation}
 \usage{
-image2( x )
+image2( x
+xaxt, yaxt, xlab, ylab,
+main, cex.main, col.lab,
+col.main, cex.lab, box)
 }
 \arguments{
 \item{x}{(required) The numeric matrix to be visualized.}
@@ -21,7 +24,13 @@ image2( x )
 
 \item{cex.main}{(default = \code{1.}) The main figure label sizing factor.}
 
-\item{box}{(default = \code{F}) Should a box be plotted around the image?}
+\item{col.lab}{(default = \code{"black"}) Axis label color.}
+
+\item{col.main}{(default = \code{"black"}) Main label color.}
+
+\item{cex.lab}{(default = \code{1.5}) Cex for the labels.}
+
+\item{box}{(default = \code{FALSE}) Draw a box around the image?}
 }
 \value{
 Returns a heatmap representation of the matrix, \code{x}, with correct north/south/east/west orientation.

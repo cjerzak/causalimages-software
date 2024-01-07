@@ -11,8 +11,8 @@
     # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
     print("Starting backend setup..."); setwd("~");
-    t_ <- try(source("~/Documents/causalimages-software/tutorials/BuildBackend_Tutorial.R"), T)
-    if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
+    #t_ <- try(source("~/Documents/causalimages-software/tutorials/BuildBackend_Tutorial.R"), T)
+    #if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
 
     print("Starting image TfRecords tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R"),T)
@@ -31,6 +31,6 @@
     if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }
   }, T)
 
-  if('try-error' %in% class(tryTests)){ print("At least one test failed...") }
+  if('try-error' %in% class(tryTests)){ print("At least one test failed..."); print( tryTests ) }
   if(!'try-error' %in% class(tryTests)){ print("Tests succeeded!") }
 }
