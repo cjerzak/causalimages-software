@@ -71,6 +71,8 @@ causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
 ``` 
 
 # Image Heterogeneity Tutorial<a id="tutorial"></a>
+The most up-to-date tutorials are found in the [`tutorials`](https://github.com/cjerzak/causalimages-software/tree/main/tutorials) folder of this GitHub. Here, we also provide an abbreviated tutorial using an image heterogeneity analysis. 
+
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
 ```
