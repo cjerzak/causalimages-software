@@ -141,9 +141,6 @@ image2( ImageSample[3,,,1] )
 ### When Reading in Images from Disk 
 For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
 
-### Alternatives to `acquireImageFxn` by Specifying Disk Location of Image/Video Data 
-In general, specifying a function to read images from disk will depend on your operating system and file system. Usually, reading in raster files and converting them to arrays is one way to go, or reading in image dimensions via `data.table::fread`. The fastest option is to use the `tfrecord` format. For that option, see [this dedicated tutorial](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R) on `tfrecord` use. 
-
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
 
@@ -155,44 +152,22 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           obsW =  obsW,
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
-          acquireImageFxn = acquireImageFromMemory,
-          conda_env = "tensorflow_m1", # change "tensorflow_m1" to the location of your conda environment containing tensorflow v2 and tensorflow_probability, 
           X = X, 
           
           # inputs to control where visual results are saved as PDF or PNGs 
           # (these image grids are large and difficult to display in RStudio's interactive mode)
           plotResults = T,
-          figuresPath = "~/Downloads",
-          printDiagnostics = T,
+          figuresPath = "~/Downloads/CausalImagesTutorial",
           figuresTag = "CausalImagesTutorial",
-          
-          # optional arguments for generating transportability maps 
-          # here, we leave those NULL 
-          transportabilityMat = NULL, # 
-          lat =  NULL, # required only if transportabilityMat specified 
-          long =  NULL, # # required only if transportabilityMat specified 
 
           # other modeling options
-          orthogonalize = F,
-          modelType = "variational_minimal",
           kClust_est = 2,
-          nMonte_variational = 10L,
           nSGD = 400L, # make this larger for real applications
-          batchSize = 22L,
-          channelNormalize = T,
-          compile = T,
-          yDensity = "normal",
-          kernelSize = 3L, maxPoolSize = 2L, strides = 1L,
-          nDepthHidden_conv = 2L, # in practice, nDepthHidden_conv would be more like 4L 
-          nFilters = 64L,
-          nDepthHidden_dense = 0L, nDenseWidth = 32L,
-          nDimLowerDimConv = 3L,
-          reparameterizationType = "Flipout")
+          batchSize = 16L)
 ```
 ## Visual Results 
 Upon completion, `AnalyzeImageHeterogeneity` will save several images from the analysis to the location `figuresPath`. The `figuresTag` will be appended to these images to keep track of results from different analyses. Currently, these images include the following: 
 - The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_uncertainty`, which plots the images having great uncertainty in the cluster probabilities. 
-- The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean_upperConf`: these plots display the images having the highest and lowest lower confidence bound for the different cluster probabilities. Some images may be present multiple times if many observations map to the same image (the computation of the confidence bounds is itself stochastic, so things may not be ordered precisely from run to run). 
 - The image results with .pdf name starting, `VisualizeHeteroReal_variational_minimal_mean`; these plots display the images having the highest probabilities for each associated cluster. 
 - Finally, one output .pdf has name starting  `HeteroSimTauDensityRealDataFig`, and plots the estimated distributions over image-level treatment effects for the various clusters. Overlap of these distributions is to be expected, since the quantity is computed at the image (not some aggregate) level.
 
@@ -215,22 +190,10 @@ ImageHeterogeneityResults$clusterProbs_sd
 ## Pointers 
 Here are a few tips for using the `AnalyzeImageHeterogeneity` function: 
 - If the cluster probabilities are very extreme (all 0 or 1), try increasing `nSGD`, simplifying the model structure (e.g., making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller), or increasing the number of Monte Carlo interations in the Variational Inference training (increase `nMonte_variational`).
-- If the treatment effect cluster distributions look very similar, make sure the input to `acquireImageFxn` is correctly yielding the images associated with each observation via `imageKeysOfUnits`. You could also try increasing or decreasing model complexity (e.g., by making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller or larger). It's also always possible that the image information is not particularly informative regarding treatment effect heterogeneity. 
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
-- For information on setting up a `conda` environment in which `tensorflow`, `tensorflow_probability`, and `py_gc` live, see [`caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706`](https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706). We're also working on ways to make this step easier for users. 
-
-# Other Package Functions <a id="otherfunctions"></a>
-The package contains other useful functions for image and video analysis (see the [documentation](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf) for details): 
-- `GetImageEmbeddings` generates image and video embeddings useful in earth observation tasks for casual inference, in a generalization of the approach in [Rolf, Esther, et al.  (2021)](https://www.nature.com/articles/s41467-021-24638-z).
-- `image2` plots a matrix as a heatmap with the correct north/south/east/west spatial orientation. 
-
-# Development Plan
-We now have in beta release code for interpretably decomposing treatment effect heterogeneity by image. In the next stage, we will implement two more functionalities: (1) confounder adjustment via image and (2) causal image system simulation. Core machine learning modules are written in `tensorflow+tensorflow_probability`; subsequent versions may be transfered over to `equinox+oryx+jax`. 
-
-We are committed to the long-term development of this repository and welcome community involvement. 
 
 # Acknowledgements
-We thank [James Bailie](https://jameshbailie.github.io/), [Cindy Conlin](https://www.linkedin.com/in/cindy-conlin-540197/), [Devdatt Dubhashi](https://sites.google.com/view/devdattdubhashi/home), [Felipe Jordan](http://www.felipejordanc.com/), [Mohammad Kakooei](https://www.chalmers.se/en/persons/kakooei/), [Eagon Meng](https://independent.academia.edu/EagonMeng), [Xiao-Li Meng](https://statistics.fas.harvard.edu/people/xiao-li-meng), and [Markus Pettersson](https://www.chalmers.se/en/persons/markpett/) for valuable feedback on this project. We also thank [Xiaolong Yang](https://xiaolong-yang.com/) for excellent research assistance.
+We welcome community involvement. We thank [James Bailie](https://jameshbailie.github.io/), [Cindy Conlin](https://www.linkedin.com/in/cindy-conlin-540197/), [Devdatt Dubhashi](https://sites.google.com/view/devdattdubhashi/home), [Felipe Jordan](http://www.felipejordanc.com/), [Mohammad Kakooei](https://www.chalmers.se/en/persons/kakooei/), [Eagon Meng](https://independent.academia.edu/EagonMeng), [Xiao-Li Meng](https://statistics.fas.harvard.edu/people/xiao-li-meng), and [Markus Pettersson](https://www.chalmers.se/en/persons/markpett/) for valuable feedback on this project. We also thank [Xiaolong Yang](https://xiaolong-yang.com/) for excellent research assistance.
 
 # References<a id="references"></a>
 [1.] Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 213: 531-552, 2023. [\[Article PDF\]](https://proceedings.mlr.press/v213/jerzak23a/jerzak23a.pdf) [\[Summary PDF\]](https://connorjerzak.com/wp-content/uploads/2023/04/ImageHeterogeneitySummary.pdf)  [\[Replication Data\]](https://www.dropbox.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0) [\[Replication Data Tutorial\]](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R) [\[Dataverse\]](https://doi.org/10.7910/DVN/O8XOSF)
