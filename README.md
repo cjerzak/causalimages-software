@@ -50,17 +50,20 @@ Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 wi
 ```
 causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
 ``` 
-- Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/CausalImage_TfRecordFxns.R`](https://github.com/cjerzak/causalimages-software/blob/main/causalimages/R/CausalImage_TfRecordFxns.R)
+
+*2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/CausalImage_TfRecordFxns.R`](https://github.com/cjerzak/causalimages-software/blob/main/causalimages/R/CausalImage_TfRecordFxns.R)
 ```
 # see: 
 ?causalimages::WriteTfRecord
 ```
-- You sometimes will only want to extract representations of your image or image sequence corpus. In that case, you'll use `GetImageRepresentations()`. For tutorial, see [`tutorials/ExtractImageRepresentations_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R). 
+
+*3. Generate image representations for downstream tasks.* You sometimes will only want to extract representations of your image or image sequence corpus. In that case, you'll use `GetImageRepresentations()`. For tutorial, see [`tutorials/ExtractImageRepresentations_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R). 
 ```
 # for help, see:  
 ?causalimages::GetImageRepresentations
 ``` 
-- Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R). 
+
+*4. Perform causal image analysis.* Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R). 
 ```
 # for help, see also: 
 ?causalimages::AnalyzeImageHeterogeneity
