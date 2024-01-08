@@ -42,6 +42,14 @@ Then, to load the software, use
 library(   causalimages  ) 
 ```
 
+# Pipeline<a id="Pipeline"></a>
+Use of `causalimages` generally follows the following pipeline: 
+- Build package backend. This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. 
+```
+causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
+```
+You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
+
 # Image Heterogeneity Tutorial<a id="tutorial"></a>
 ## Load in Tutorial Data
 After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
