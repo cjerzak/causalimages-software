@@ -4,6 +4,15 @@
 # Image heterogeneity tutorial using causalimages
 ################################
 
+# remote install latest version of the package
+# devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
+
+# local install for development team
+# install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
+
+# build backend you haven't ready:
+# causalimages::BuildBackend()
+
 # run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
 reSaveTfRecords <- F
@@ -18,19 +27,6 @@ if( reDownloadRawData <- F  ){
   # unzip and list files
   unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
 }
-
-# remote install latest version of the package
-# devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
-
-# local install for development team
-# install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
-
-# build backend you haven't ready:
-# causalimages::BuildBackend()
-
-# low rank decomposition decomposing time and space
-# offer more points of comparison
-# aggregate across time
 
 # load in package
 library( causalimages  )

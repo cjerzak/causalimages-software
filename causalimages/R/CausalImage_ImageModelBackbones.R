@@ -196,9 +196,6 @@ GetImageRepresentations <- function(
                                 "SeperableTemporal_jax_d%s" = SeperableTemporal_jax,
                                 "BN_ImRep_d%s" = LayerBN)', d_, d_, d_, d_ )))
     }
-    MaxPool2D <- eq$nn$MaxPool2d(kernel_size = c(2L, 2L), stride = c(2L, 2L))
-    MaxPool3D <- eq$nn$MaxPool3d(kernel_size = c(1L, 2L, 2L), stride = c(1L, 2L, 2L))
-    MaxPool3D_cpu <- jax$jit(function(m){MaxPool3D(m)}, device = jax$devices("cpu")[[1]])
     if(dataType == "video"){
       ModelList[[nDepth_ImageRep+1]] <- list("MultiheadAttn"=  eq$nn$MultiheadAttention(
                                                                query_size = nWidth_ImageRep,
@@ -208,7 +205,7 @@ GetImageRepresentations <- function(
                                                                key = jax$random$PRNGKey( 23453355L + seed) ) )
     }
 
-    # jax_array5d <- jnp$array( batch_inference[[1]])
+    # zzz
     # m <- jax_array4d <- jnp$array( tf$gather(batch_inference[[1]],0L,0L));  d__ <- 1L
     ImageRepArm_OneObs <- ( function(ModelList, m, StateList, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
@@ -231,7 +228,7 @@ GetImageRepresentations <- function(
           }, in_axes = list(NULL, 1L), out_axes = 1L)( ModelList, m )
 
           # temporal block
-          ## fails on GPU
+          ## fails on METAL backend
           # m <- LE(ModelList, sprintf("SeperableTemporal_jax_d%s", d__))( m )
 
           ## succeeds on GPU
@@ -243,7 +240,7 @@ GetImageRepresentations <- function(
         }
 
         # batchnorm block
-        if( nDepth_ImageRep > 1){
+        if( nDepth_ImageRep > 1 ){
           m <- LE(ModelList, sprintf("BN_ImRep_d%s",d__))(m, state = LE(StateList, sprintf("BNState_ImRep_d%s",d__)), inference = inference)
           StateIndex <- LE_index( StateList, sprintf("BNState_ImRep_d%s",d__) )
           StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
@@ -253,21 +250,17 @@ GetImageRepresentations <- function(
           m <- jax$nn$swish( m )
         }
 
-        # max pooling block - naive way fails on GPU
-        # m <- MaxPool3D( m )
-        # m <- MaxPool3D_cpu( m )
-        # m <- jax$vmap(function(zer){print(zer$shape);MaxPool2D(zer)},in_axes = c(1L)(m)
-
-        # succeeds on GPU, fails when vmapped across batch axis
-        #m_orig <- m$shape
-        #m <- jnp$reshape(m, c(-1L, m$shape[3:4]))
-        #m <- MaxPool2D(  m )
-        #m <- jnp$reshape(m, c(m_orig[1:2],m$shape[2:3]))
-
-        # m_ <- tmp <- m[,0,,]
-        # MaxPool2D_NoLax2( tmp ) - MaxPool2D( tmp)
-        # jax$vmap(function(m){ MaxPool2D(  m )  }, 1L)( m ) # fails
-        #jax$vmap(function(m){ MaxPool2d_NoLax(  m )  }, 1L)( m ) # fails
+        if(dataType == "image"){
+          m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]/2), ai(m$shape[[3]]/2)))( m ) # succeeds on METAL backend
+        }
+        # note: MaxPool3D and vmapped MaxPool2D( m ) fail on METAL backend; MaxPool2D fails on Metal backend
+        if(dataType == "video"){
+            m_orig <- m$shape
+            m <- jnp$reshape(m, c(-1L, m$shape[3:4]))
+            # m <- MaxPool2D(  m ) fails with METAL backend
+            m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]/2), ai(m$shape[[3]]/2)))( m )
+            m <- jnp$reshape(m, c(m_orig[1:2],m$shape[2:3]))
+        }
       }
 
       if(dataType == "image"){ m <- jnp$max(m, c(1L:2L))  } # # spatial pooling only
@@ -293,7 +286,6 @@ GetImageRepresentations <- function(
         }
         m <- jnp$mean( m, 0L)
       }
-
       return( list(m, StateList) )
     })
     ImageRepArm_batch <- eq$filter_jit( ImageRepArm_batch_R <- jax$vmap(
@@ -343,7 +335,6 @@ GetImageRepresentations <- function(
       batch_keys <- unlist(  lapply( batch_inference[[3]]$numpy(), as.character) )
 
       gc(); try(py_gc$collect(), T) # collect memory
-      browser()
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess( jnp$array( batch_inference[[1]]) ),
                                                           StateList, MPList, T)[[1]]  ), T)
