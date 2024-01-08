@@ -72,22 +72,18 @@ causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
 The most up-to-date tutorials are found in the [`tutorials`](https://github.com/cjerzak/causalimages-software/tree/main/tutorials) folder of this GitHub. Here, we also provide an abbreviated tutorial using an image heterogeneity analysis. 
 
 ## Load in Tutorial Data
-After we've loaded in the package, we can get started running an analysis. We'll start by loading in tutorial data: 
-```
-data(  causalimagesTutorialData )
-```
-Once we've read in the data, we can explore its structure: 
+After we've loaded in the package, we can get started running an analysis. Let's read in the tutorial data so we can explore its structure: 
 ```
 # outcome, treatment, and covariate information: 
-summary( obsW ) # treatment vector 
-summary( obsY ) # outcome vector 
-summary( LongLat ) # long-lat coordinates for each unit
-summary( X ) # other covariates 
+summary( obsW <- causalimages::obsW ) # treatment vector 
+summary( obsY <- causalimages::obsY ) # outcome vector 
+summary( LongLat <- causalimages::LongLat ) # long-lat coordinates for each unit
+summary( X <- causalimages::X ) # other covariates 
 
 # image information: 
-dim( FullImageArray ) # dimensions of the full image array in memory 
-head( KeysOfImages ) # image keys associated with the images in FullImageArray
-head( KeysOfObservations ) # image keys of observations to be associated to images via KeysOfImages
+dim( FullImageArray <- causalimages::FullImageArray ) # dimensions of the full image array in memory 
+head( KeysOfImages <- causalimages::KeysOfImages ) # unique image keys associated with the images in FullImageArray
+head( KeysOfObservations <- causalimages::KeysOfObservations ) # image keys of observations to be associated to images via KeysOfImages
 ```
 We can also analyze the images that we'll use in this analysis. 
 ```
@@ -99,17 +95,17 @@ causalimages::image2(FullImageArray[1,,,1])
 ```
 We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
 
-## Writing the `acquireImageFxn`
-One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
+## Writing image corpus to `tfrecord`
+One important part of the image analysis pipeline is writing the image corpus `tfrecord` file for efficient model training. You will use the xxx function, which takes as an input another function, `acquireImageFxn`, as an argument. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed while generating the `tfrecord`. The second option will be more common for large images. 
 
-You will write your `acquireImageFxn` to take in a single argument: `keys`.
+You must write your `acquireImageFxn` to take in a single argument: `keys`.
 - `keys` (a positional argument) is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `imageKeysOfUnits = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
 
 
 ### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 
 ```
-acquireImageFromMemory <- function(keys, training = F){
+acquireImageFromMemory <- function(keys){
   # here, the function input keys
   # refers to the unit-associated image keys
   m_ <- FullImageArray[match(keys, KeysOfImages),,,]
@@ -133,7 +129,15 @@ dim( ImageSample )
 # to check the images through extensive sanity checks
 # such as your comparing satellite image representation
 # against those from OpenStreetMaps or Google Earth. 
-image2( ImageSample[3,,,1] )
+causalimages::image2( ImageSample[3,,,1] )
+```
+
+Now, let's write the `tfrecord`:
+```
+causalimages::WriteTfRecord(  file = "~/Downloads/CausalIm.tfrecord",
+                  uniqueImageKeys = unique( KeysOfObservations ),
+                  acquireImageFxn = acquireImageFromMemory )
+# Note: You first may need to call causalimages::BuildBackend() to build the backend. 
 ```
 
 ### When Reading in Images from Disk 
@@ -150,13 +154,13 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
           obsW =  obsW,
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
+          file = "~/Downloads/CausalIm.tfrecord", this points to the tfrecord
           X = X, 
           
           # inputs to control where visual results are saved as PDF or PNGs 
           # (these image grids are large and difficult to display in RStudio's interactive mode)
           plotResults = T,
           figuresPath = "~/Downloads/CausalImagesTutorial",
-          figuresTag = "CausalImagesTutorial",
 
           # other modeling options
           kClust_est = 2,
