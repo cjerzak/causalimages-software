@@ -265,7 +265,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # set environment of image sampling functions
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
-  nDimLowerDimConv <- as.integer( nDimLowerDimConv )
   windowCounter <- 0
 
   # orthogonalize if specified

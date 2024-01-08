@@ -149,12 +149,12 @@ Now that we've established some understanding of the data and written the `acqui
 *Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training rapid too. The function output here should therefore not be interpreted too seriously.* 
 
 ```
-ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
+ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
           # data inputs
           obsW =  obsW,
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
-          file = "~/Downloads/CausalIm.tfrecord", this points to the tfrecord
+          file = "~/Downloads/CausalIm.tfrecord", # this points to the tfrecord
           X = X, 
           
           # inputs to control where visual results are saved as PDF or PNGs 
@@ -164,7 +164,7 @@ ImageHeterogeneityResults <- AnalyzeImageHeterogeneity(
 
           # other modeling options
           kClust_est = 2,
-          nSGD = 400L, # make this larger for real applications
+          nSGD = 400L, # make this larger for full applications
           batchSize = 16L)
 ```
 ## Visual Results 
