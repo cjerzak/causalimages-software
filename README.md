@@ -2,6 +2,7 @@
 
 [**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
+| [**Pipeline**](#pipeline)
 | [**Image Heterogeneity Tutorial**](#tutorial)
 | [**Other Package Functions**](#otherfunctions)
 | [**Data**](https://connorjerzak.com/data/)
@@ -42,7 +43,7 @@ Then, to load the software, use
 library(   causalimages  ) 
 ```
 
-# Pipeline<a id="Pipeline"></a>
+# Pipeline<a id="pipeline"></a>
 Use of `causalimages` generally follows the following pipeline: 
 - Build package backend. This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. 
 ```
