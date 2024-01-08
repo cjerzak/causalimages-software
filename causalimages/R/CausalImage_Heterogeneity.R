@@ -253,10 +253,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(T == T){
         row.names(ImageRepresentations$ImageRepresentations) <- UsedKeys
         tmp <- as.data.frame(ImageRepresentations$ImageRepresentations)[imageKeysOfUnits,]
-        hist(c(unlist(tmp)))
-        hist(cor(ImageRepresentations$ImageRepresentations))
-        plot( ImageRepresentations$ImageRepresentations[,sample(1:20,2)] )
-        print( summary( lm(obsY~ as.matrix(tmp) ) ) )
+        try(hist(c(unlist(tmp))),T)
+        try(hist(cor(ImageRepresentations$ImageRepresentations)),T)
+        try(plot( ImageRepresentations$ImageRepresentations[,sample(1:20,2)] ),T)
+        try(print( summary( lm(obsY~ as.matrix(tmp) ) ) ),T)
       }
 
       print2("Done initializing image representation function...")
@@ -654,7 +654,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # likelihood and state updates
         Elik <- GetExpectedLikelihood(ModelList, ModelList_fixed,
                                       m, treat, y, vseed,
-                                      StateList, seed, MPList, F) # inference = F
+                                      StateList, seed, MPList, F) # note: inference = F
         StateList <- Elik[[2]]; Elik <- Elik[[1]]
 
         # minimize negative log likelihood and positive KL term
@@ -1731,3 +1731,4 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "plottedCoordinatesList" = plotting_coordinates_list,
                  "whichNA_dropped" = whichNA_dropped) )
 }
+
