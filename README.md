@@ -96,7 +96,7 @@ causalimages::image2(FullImageArray[1,,,1])
 We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
 
 ## Writing image corpus to `tfrecord`
-One important part of the image analysis pipeline is writing the image corpus `tfrecord` file for efficient model training. You will use the xxx function, which takes as an input another function, `acquireImageFxn`, as an argument. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed while generating the `tfrecord`. The second option will be more common for large images. 
+One important part of the image analysis pipeline is writing the image corpus `tfrecord` file for efficient model training. You will use the `causalimages::WriteTfRecord` function, which takes as an input another function, `acquireImageFxn`, as an argument which we use for extracting all the images and writing them to the `tfrecord`. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed while generating the `tfrecord`. The second option will be more common for large images. 
 
 You must write your `acquireImageFxn` to take in a single argument: `keys`.
 - `keys` (a positional argument) is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `imageKeysOfUnits = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
@@ -115,7 +115,6 @@ acquireImageFromMemory <- function(keys){
   if(length(keys) == 1){
     m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
   }
-  
   return( m_ )
 }
 
@@ -137,7 +136,7 @@ Now, let's write the `tfrecord`:
 causalimages::WriteTfRecord(  file = "~/Downloads/CausalIm.tfrecord",
                   uniqueImageKeys = unique( KeysOfObservations ),
                   acquireImageFxn = acquireImageFromMemory )
-# Note: You first may need to call causalimages::BuildBackend() to build the backend. 
+# Note: You first may need to call causalimages::BuildBackend() to build the backend (done only once)
 ```
 
 ### When Reading in Images from Disk 

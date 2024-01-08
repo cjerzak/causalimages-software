@@ -315,14 +315,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # normalize outcomes for stability (estimates are re-normalized after training)
   obsY_orig <- obsY
-  if( yDensity == "normal"){
-    Y_mean <- mean(obsY); Y_sd <- sd(obsY)
-    obsY <- (obsY - Y_mean)  /  Y_sd
-  }
-  if( yDensity == "lognormal"){
-    Y_mean <- -abs(min(obsY))-0.1; Y_sd <- sd(obsY)
-    obsY <- (obsY - Y_mean)  /  Y_sd
-  }
+  Y_mean <- mean(obsY); Y_sd <- sd(obsY)
+  obsY <- (obsY - Y_mean)  /  Y_sd
   Rescale <- function(x,doMean = F){ return( x*Y_sd + ifelse(doMean, yes = Y_mean, no = 0) ) }
   Tau_mean_init_prior <- Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
   Tau_sd_init <- sqrt( var(obsY[obsW==1]) + var( obsY[obsW==0]) )
