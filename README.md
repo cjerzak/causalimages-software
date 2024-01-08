@@ -45,7 +45,7 @@ library(   causalimages  )
 
 # Pipeline<a id="pipeline"></a>
 Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 will be necessary for all downstream tasks. 
-- Build package backend. This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
+*1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
 ```
 causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
 ``` 
