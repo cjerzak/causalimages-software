@@ -4,33 +4,42 @@
 \alias{image2}
 \title{Visualizing matrices as heatmaps with correct north-south-east-west orientation}
 \usage{
-image2( x
-xaxt, yaxt, xlab, ylab,
-main, cex.main, col.lab,
-col.main, cex.lab, box)
+image2(
+  x,
+  xaxt = NULL,
+  yaxt = NULL,
+  xlab = "",
+  ylab = "",
+  main = NULL,
+  cex.main = NULL,
+  col.lab = "black",
+  col.main = "black",
+  cex.lab = 1.5,
+  box = F
+)
 }
 \arguments{
-\item{x}{(required) The numeric matrix to be visualized.}
+\item{x}{The numeric matrix to be visualized.}
 
-\item{xaxt}{(default = \code{""}) The x-axis tick labels.}
+\item{xaxt}{The x-axis tick labels.}
 
-\item{yaxt}{(default = \code{""}) The y-axis tick labels.}
+\item{yaxt}{The y-axis tick labels.}
 
-\item{xlab}{(default = \code{""}) The x-axis labels.}
+\item{xlab}{The x-axis labels.}
 
-\item{ylab}{(default = \code{""}) The y-axis labels.}
+\item{ylab}{The y-axis labels.}
 
-\item{main}{(default = \code{""}) The main figure label.}
+\item{main}{The main figure label.}
 
-\item{cex.main}{(default = \code{1.}) The main figure label sizing factor.}
+\item{cex.main}{The main figure label sizing factor.}
 
-\item{col.lab}{(default = \code{"black"}) Axis label color.}
+\item{col.lab}{Axis label color.}
 
-\item{col.main}{(default = \code{"black"}) Main label color.}
+\item{col.main}{Main label color.}
 
-\item{cex.lab}{(default = \code{1.5}) Cex for the labels.}
+\item{cex.lab}{Cex for the labels.}
 
-\item{box}{(default = \code{FALSE}) Draw a box around the image?}
+\item{box}{Draw a box around the image?}
 }
 \value{
 Returns a heatmap representation of the matrix, \code{x}, with correct north/south/east/west orientation.

@@ -3,11 +3,6 @@
 #'
 #' Writes an image corpus to a `.tfrecord` file for rapid reading of images into memory for fast ML training.
 #'
-#' @usage
-#'
-#' WriteTfRecord(file, uniqueImageKeys, acquireImageFxn,
-#' conda_env, conda_env_required, writeVideo)
-#'
 #' @param file A character string naming a file for writing.
 #' @param uniqueImageKeys A vector specifying the unique image keys of the corpus. A key grabs an image/video array via acquireImageFxn(key)
 #' @param acquireImageFxn A function whose input is an observation index and whose output is an image.

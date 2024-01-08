@@ -1,0 +1,11 @@
+# notes on jax-gpu: use python 3.10 or above
+# jax$nn$softplus creates segfault with float16
+# random sampling creates a segfault with float16
+# sample parameters with seeds not vseeds. tf$function(jit_compile=T) works with jax-metal
+
+
+# Conda environment setup on M1+ Mac:
+conda create -n CausalImagesEnv python==3.11
+conda activate CausalImagesEnv
+python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_probability
+python3 -m pip install jax-metal

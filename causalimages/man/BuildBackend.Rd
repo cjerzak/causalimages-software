@@ -4,7 +4,7 @@
 \alias{BuildBackend}
 \title{Perform causal estimation under image confounding}
 \usage{
-BuildBackend(conda_env, conda)
+BuildBackend(conda_env = "CausalImagesEnv", conda = "auto")
 }
 \arguments{
 \item{conda_env}{(default = \code{"CausalImagesEnv"}) Name of the conda environment in which to place the backends.}

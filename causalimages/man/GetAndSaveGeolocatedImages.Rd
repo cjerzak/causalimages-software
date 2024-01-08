@@ -4,8 +4,16 @@
 \alias{GetAndSaveGeolocatedImages}
 \title{Getting and saving geo-located images from a pool of .tif's}
 \usage{
-GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder,
-image_pixel_width, save_as, lyrs)
+GetAndSaveGeolocatedImages(
+  long,
+  lat,
+  keys,
+  tif_pool,
+  image_pixel_width = 250L,
+  save_folder = ".",
+  save_as = "csv",
+  lyrs = NULL
+)
 }
 \arguments{
 \item{long}{Vector of numeric longitudes.}

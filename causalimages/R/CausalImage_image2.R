@@ -3,24 +3,17 @@
 #'
 #' A function for generating a heatmap representation of a matrix with correct spatial orientation.
 #'
-#' @usage
-#'
-#' image2( x
-#' xaxt, yaxt, xlab, ylab,
-#' main, cex.main, col.lab,
-#' col.main, cex.lab, box)
-#'
-#' @param x (required) The numeric matrix to be visualized.
-#' @param xlab (default = `""`) The x-axis labels.
-#' @param ylab (default = `""`) The y-axis labels.
-#' @param xaxt (default = `""`) The x-axis tick labels.
-#' @param yaxt (default = `""`) The y-axis tick labels.
-#' @param main (default = `""`) The main figure label.
-#' @param cex.main (default = `1.`) The main figure label sizing factor.
-#' @param col.lab (default = `"black"`) Axis label color.
-#' @param col.main (default = `"black"`) Main label color.
-#' @param cex.lab (default = `1.5`) Cex for the labels.
-#' @param box (default = `FALSE`) Draw a box around the image?
+#' @param x The numeric matrix to be visualized.
+#' @param xlab The x-axis labels.
+#' @param ylab The y-axis labels.
+#' @param xaxt The x-axis tick labels.
+#' @param yaxt The y-axis tick labels.
+#' @param main The main figure label.
+#' @param cex.main The main figure label sizing factor.
+#' @param col.lab Axis label color.
+#' @param col.main Main label color.
+#' @param cex.lab Cex for the labels.
+#' @param box Draw a box around the image?
 
 #' @return Returns a heatmap representation of the matrix, `x`, with correct north/south/east/west orientation.
 #'

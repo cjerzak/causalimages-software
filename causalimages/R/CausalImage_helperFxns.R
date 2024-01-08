@@ -2,10 +2,6 @@
 #'
 #' A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
 #'
-#' @usage
-#'
-#' LongLat2CRS(long, lat, CRS_ref)
-#'
 #' @param long Vector of numeric longitudes.
 #' @param lat Vector of numeric latitudes.
 #' @param CRS_ref A CRS into which the long-lat point should be projected.
@@ -109,10 +105,6 @@ LE <- function(l_, key) {
   return(search_recursive(l_, key))
 }
 
-# l_ <- StateList
-# list_element <- l_ <- StateList; key <- 'BNState_ImRep_d1'; path <- NULL
-# LE_index(StateList, sprintf("BNState_ImRep_d%s",d__))
-# StateList[[2]]
 LE_index <- function(l_, key) {
   # Recursive helper function
   search_recursive <- function(list_element, key, path) {

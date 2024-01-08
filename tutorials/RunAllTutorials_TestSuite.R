@@ -32,5 +32,5 @@
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed..."); print( tryTests ) }
-  if(!'try-error' %in% class(tryTests)){ print("Tests succeeded!") }
+  if(!'try-error' %in% class(tryTests)){ print("All tests succeeded!") }
 }

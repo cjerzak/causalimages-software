@@ -8,7 +8,7 @@ GetElementFromTfRecordAtIndices(uniqueKeyIndices, file,
     conda_env, conda_env_required)
 }
 \arguments{
-\item{uniqueKeyIndices}{(integer vector) Observation indices to be retrieved from a \code{.tfrecord}}
+\item{uniqueKeyIndices}{(integer vector) Unique image indices to be retrieved from a \code{.tfrecord}}
 
 \item{conda_env}{(Default = \code{NULL}) A \code{conda} environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.}
 

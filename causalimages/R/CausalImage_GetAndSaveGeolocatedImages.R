@@ -2,11 +2,6 @@
 #'
 #' A function that finds the image slice associated with the `long` and `lat` values, saves images by band (if `save_as = "csv"`) in save_folder.
 #'
-#' @usage
-#'
-#' GetAndSaveGeolocatedImages(long, lat, keys, tif_pool, save_folder,
-#' image_pixel_width, save_as, lyrs)
-#'
 #' @param long Vector of numeric longitudes.
 #' @param lat Vector of numeric latitudes.
 #' @param keys The image keys associated with the long/lat coordinates.

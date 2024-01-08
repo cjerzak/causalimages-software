@@ -1,9 +1,6 @@
 #!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
-#' @usage
-#'
-#' BuildBackend(conda_env, conda)
 #'
 #' @param conda_env (default = `"CausalImagesEnv"`) Name of the conda environment in which to place the backends.
 #' @param conda (default = `auto`) The path to a conda executable. Using `"auto"` allows reticulate to attempt to automatically find an appropriate conda binary.
