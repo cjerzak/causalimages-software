@@ -343,6 +343,7 @@ GetImageRepresentations <- function(
       batch_keys <- unlist(  lapply( batch_inference[[3]]$numpy(), as.character) )
 
       gc(); try(py_gc$collect(), T) # collect memory
+      browser()
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess( jnp$array( batch_inference[[1]]) ),
                                                           StateList, MPList, T)[[1]]  ), T)

@@ -32,13 +32,11 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
       try_ <- try(reticulate::py_install("jax", conda = conda, pip = TRUE,
                                          envname = conda_env), T)
     }
-    try_ <- try(reticulate::py_install("tensorflow-metal", conda = conda, pip = TRUE,
-                                       envname = conda_env), T)
-    if("try-error" %in% class(try_)){
-      print("Failed to establish connection with tensorflow-metal, falling back to tensorflow...")
-      try_ <- try(reticulate::py_install("tensorflow", conda = conda, pip = TRUE,
-                                         envname = conda_env), T)
-    }
+    #try_ <- try(reticulate::py_install("tensorflow-metal", conda = conda, pip = TRUE,envname = conda_env), T)
+    #if("try-error" %in% class(try_)){
+      #print("Failed to establish connection with tensorflow-metal, falling back to tensorflow...")
+      #try_ <- try(reticulate::py_install("tensorflow", conda = conda, pip = TRUE, envname = conda_env), T)
+    #}
   }
   if(Sys.info()["sysname"] == "Windows"){
     reticulate::py_install("jax", conda = conda, pip = TRUE,
