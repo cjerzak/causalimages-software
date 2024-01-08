@@ -44,12 +44,27 @@ library(   causalimages  )
 ```
 
 # Pipeline<a id="pipeline"></a>
-Use of `causalimages` generally follows the following pipeline: 
-1. Build package backend. This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. 
-  ```
-  causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
-  ``` 
-  You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
+Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 will be necessary for all downstream tasks. 
+- Build package backend. This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
+```
+causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
+``` 
+- Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/CausalImage_TfRecordFxns.R`](https://github.com/cjerzak/causalimages-software/blob/main/causalimages/R/CausalImage_TfRecordFxns.R)
+```
+# see: 
+?causalimages::WriteTfRecord
+```
+- You sometimes will only want to extract representations of your image or image sequence corpus. In that case, you'll use `GetImageRepresentations()`. For tutorial, see [`tutorials/ExtractImageRepresentations_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R). 
+```
+# for help, see:  
+?causalimages::GetImageRepresentations
+``` 
+- Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R). 
+```
+# for help, see also: 
+?causalimages::AnalyzeImageHeterogeneity
+?causalimages::AnalyzeImageConfounding
+``` 
 
 # Image Heterogeneity Tutorial<a id="tutorial"></a>
 ## Load in Tutorial Data
@@ -83,10 +98,9 @@ We're using rather small image bricks around each long/lat coordinate so that th
 ## Writing the `acquireImageFxn`
 One important part of the image analysis pipeline is writing a function that acquires the appropriate image data for each observation. This function will be fed into the `acquireImageFxn` argument of the package functions. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed. The second option will be more common for large images. 
 
-You will write your `acquireImageFxn` to take in two arguments: `keys` and `training` 
+You will write your `acquireImageFxn` to take in a single argument: `keys`.
 - `keys` (a positional argument) is a character or numeric vector. Each value of `keys` refers to a unique image object that will be read in. If each observation has a unique image associated with it, perhaps `imageKeysOfUnits = 1:nObs`. In the example we'll use, multiple observations map to the same image. 
-- `training` specifies whether to treat the images as in training mode or inference mode. This would be relevant if you want to randomly flip images around their left-right axis during training mode to prevent overfitting (these pertubations are handled by the package). 
-Make sure that `acquireImageFxn` returns tensors with the same number of dimensions (i.e. batch by height by width by channels in the case of images and batch by time by height by width by channels in the case of image sequences/videos).
+
 
 ### When Loading All Images in Memory 
 In this tutorial, we have all the images in memory in the `FullImageArray` array. We can write an `acquireImageFxn` function like so: 
@@ -119,40 +133,8 @@ image2( ImageSample[3,,,1] )
 ```
 
 ### When Reading in Images from Disk 
-For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. Here's an example of an `acquireImageFxn` that reads images from disk: 
-```
-acquireImageFromDisk <- function(keys,training = F){
-  ## IMPORTANT! This is illustration code only; it is not designed to run on your local computer 
-  
-  # initialize an array shell to hold image slices
-  array_shell <- array(NA,dim = c(1L,imageHeight,imageWidth,NBANDS))
+For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
 
-  # iterate over keys:
-  # -- images are referenced to keys
-  # -- keys are referenced to units (to allow for duplicate images uses)
-  array_ <- sapply(keys,function(key_){
-    # iterate over all image bands (NBANDS = 3 for RBG images)
-    for(band_ in 1:NBANDS){
-      # place the image in the correct place in the array
-      array_shell[,,,band_] <-
-        (as.matrix(data.table::fread( # note the use of data.table::fread to speed up reading in image to memory
-          input = sprintf("./Data/Uganda2000_processed/Key%s_BAND%s.csv",
-                          key_,
-                          band_),header = F)[-1,] ))
-    }
-    return( array_shell )
-  },
-  simplify="array")  #using simplify = "array" combines images slices together
-
-  # convert images to tensorflow array for further processing
-  # note: your acquireImageFxn need not return tensorflow arrays. 
-  # R arrays are fine (with dimensions c(nBatch, imageWidth, imageHeight,nChannels)
-  # (R arrays will be detected converted and converted internally)
-  array_ <- tf$squeeze(tf$constant(array_,dtype=tf$float32),0L)
-  array_ <- tf$transpose(array_,c(3L,0L,1L,2L))
-  return( array_ )
-}
-```
 ### Alternatives to `acquireImageFxn` by Specifying Disk Location of Image/Video Data 
 In general, specifying a function to read images from disk will depend on your operating system and file system. Usually, reading in raster files and converting them to arrays is one way to go, or reading in image dimensions via `data.table::fread`. The fastest option is to use the `tfrecord` format. For that option, see [this dedicated tutorial](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R) on `tfrecord` use. 
 
