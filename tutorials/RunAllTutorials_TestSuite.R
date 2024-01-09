@@ -10,9 +10,9 @@
     # local install for development team
     # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
-    print("Starting backend setup..."); setwd("~");
-    #t_ <- try(source("~/Documents/causalimages-software/tutorials/BuildBackend_Tutorial.R"), T)
-    #if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
+    # before running tests, it may be necessary to (re)build the backend:
+    # causalimages::BuildBackend()
+    # see ?causalimages::BuildBackend for help. Re-start your R session after building!
 
     print("Starting image TfRecords tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R"),T)
