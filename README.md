@@ -11,7 +11,7 @@
 
 Additional tutorials: 
 [**Image-based De-confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
-| [**Image/Video Embeddings**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/GetImageEmbeddings_Tutorial.R) | [**Building tfrecord corpus**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
+| [**Image/Video Representations**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R) | [**Building tfrecord corpus**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 
 Replication data: 
 [**Heterogeneity Paper**](https://doi.org/10.7910/DVN/O8XOSF) | 
