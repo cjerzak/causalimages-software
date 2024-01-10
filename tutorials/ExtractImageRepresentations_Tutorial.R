@@ -70,6 +70,7 @@ causalimages::WriteTfRecord(  file =  TfRecord_name,
 MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
+  nDepth_ImageRep = 1L,
   nWidth_ImageRep = 128L )
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
