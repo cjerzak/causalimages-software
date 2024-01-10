@@ -110,7 +110,7 @@ AnalyzeImageConfounding <- function(
     if(is.null(seed)){seed <- ai(runif(1,1,10000))}
   }
 
-  if(optimizeImageRep == T & nDepth_imageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_imageRep must be 1L") }
+  if(!optimizeImageRep & nDepth_imageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_imageRep must be 1L") }
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
