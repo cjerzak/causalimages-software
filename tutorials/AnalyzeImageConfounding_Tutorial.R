@@ -57,7 +57,6 @@
       acquireImageFxn = acquireImageFxn)
   }
 
-  if(T == F){
   for(optimizeImageRep in c(F,T)){
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
@@ -87,7 +86,6 @@
 
   # some out-of-sample evaluation metrics
   ImageConfoundingAnalysis$ModelEvaluationMetrics
-  }
 }
 
   # perform causal inference with image *sequence*  and tabular confounding
