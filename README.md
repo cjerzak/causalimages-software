@@ -19,7 +19,7 @@ Replication data:
 
 _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://github.com/cjerzak/causalimages-software)
 
-_January 2024 update:_ `causalimages` now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance. In addition, `causalimages` has been successfully tested on CPU, CUDA, and METAL frameworks. 
+_January 2024 update:_ `causalimages` now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance. In addition, `causalimages` has been successfully tested on CPU, [CUDA](https://en.wikipedia.org/wiki/CUDA), and [METAL](https://en.wikipedia.org/wiki/Metal_(API)) frameworks. 
 
 # What is causalimages?<a id="description"></a>
 
