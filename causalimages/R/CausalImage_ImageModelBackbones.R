@@ -75,7 +75,6 @@ GetImageRepresentations <- function(
     jnp <<- reticulate::import("jax.numpy")
     jmp <<- reticulate::import("jmp")
     optax <<- reticulate::import("optax")
-    oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
   }
@@ -158,15 +157,15 @@ GetImageRepresentations <- function(
 
       # reset weights with Xavier/Glorot
       SeperableSpatial_jax <- eq$tree_at(function(l){l$weight}, SeperableSpatial_jax,
-                                           oryx$distributions$Uniform(low = -sqrt(6/(dimsSpatial+dimsSpatial)),
-                                                                      high = sqrt(6/(dimsSpatial+dimsSpatial)))$sample(
-                                                                        jax$tree_util$tree_leaves(SeperableSpatial_jax)[[1]]$shape,
-                                                                        seed = jax$random$PRNGKey(5L+d_+seed)))
+                                         jax$random$uniform(key=jax$random$PRNGKey(5L+d_+seed),
+                                                            minval = -sqrt(6/(dimsSpatial+dimsSpatial)),
+                                                            maxval = sqrt(6/(dimsSpatial+dimsSpatial)),
+                                                            shape = jax$tree_util$tree_leaves(SeperableSpatial_jax)[[1]]$shape) )
       SeperableFeature_jax <- eq$tree_at(function(l){l$weight}, SeperableFeature_jax,
-                                           oryx$distributions$Uniform(low = -sqrt(6/(dimsSpatial+nWidth_ImageRep)),
-                                                                      high = sqrt(6/(dimsSpatial+nWidth_ImageRep)))$sample(
-                                                                        jax$tree_util$tree_leaves(SeperableFeature_jax)[[1]]$shape,
-                                                                        seed = jax$random$PRNGKey(45L+d_+seed)))
+                                         jax$random$uniform(key=jax$random$PRNGKey(45L+d_+seed),
+                                                            minval = -sqrt(6/(dimsSpatial+nWidth_ImageRep)),
+                                                            maxval = sqrt(6/(dimsSpatial+nWidth_ImageRep)),
+                                                            shape = jax$tree_util$tree_leaves(SeperableFeature_jax)[[1]]$shape))
       SeperableTemporal_jax <- jnp$array(0.); if(dataType == "video"){
         if(T == F){
           SeperableTemporal_jax <- eq$nn$Conv(out_channels = nWidth_ImageRep, num_spatial_dims = 3L,
@@ -181,8 +180,10 @@ GetImageRepresentations <- function(
                                             in_channels = nWidth_ImageRep,
                                             key = jax$random$PRNGKey(43L+d_+seed) )
         SeperableTemporal_jax <- eq$tree_at(function(l){l$weight}, SeperableTemporal_jax,
-                                           oryx$distributions$Uniform(low = -sqrt(6/(nWidth_ImageRep+nWidth_ImageRep)),
-                                                                      high = sqrt(6/(nWidth_ImageRep+nWidth_ImageRep)))$sample(jax$tree_util$tree_leaves(SeperableTemporal_jax)[[1]]$shape, seed = jax$random$PRNGKey(62L+d_+seed)))
+                                            jax$random$uniform(key=jax$random$PRNGKey(62L+d_+seed),
+                                                               minval = -sqrt(6/(nWidth_ImageRep+nWidth_ImageRep)),
+                                                               maxval = sqrt(6/(nWidth_ImageRep+nWidth_ImageRep)),
+                                                               shape = jax$tree_util$tree_leaves(SeperableTemporal_jax)[[1]]$shape))
       }
 
       # setup bn

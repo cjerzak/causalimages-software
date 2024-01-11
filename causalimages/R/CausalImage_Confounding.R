@@ -101,7 +101,6 @@ AnalyzeImageConfounding <- function(
     jnp <<- reticulate::import("jax.numpy")
     jmp <<- reticulate::import("jmp")
     optax <<- reticulate::import("optax")
-    oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
 
@@ -110,7 +109,7 @@ AnalyzeImageConfounding <- function(
     if(is.null(seed)){seed <- ai(runif(1,1,10000))}
   }
 
-  if(!optimizeImageRep & nDepth_imageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_imageRep must be 1L") }
+  if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_ImageRep must be 1L") }
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
@@ -180,11 +179,11 @@ AnalyzeImageConfounding <- function(
 
     if(useTrainingPertubations){
       trainingPertubations <- function(im_, key){
-         which_path <- oryx$distributions$Multinomial(1L, probs = rep(1/4, times = 4))$sample(seed = key)
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-         im_ <- jax$lax$cond(jnp$take(which_path,1L), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$take(which_path,2L), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$take(which_path,3L), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+         which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(1L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
           return( im_ )
       }
     }

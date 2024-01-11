@@ -141,7 +141,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     cnst <- function( ar ){ jnp$array(ar, jnp$float16) }
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
   }
-  if(!optimizeImageRep & nDepth_imageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_imageRep must be 1L") }
+  if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
 
   # make all directory logic explicit
   orig_wd <- getwd()
