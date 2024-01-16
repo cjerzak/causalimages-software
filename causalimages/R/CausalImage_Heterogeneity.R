@@ -61,7 +61,7 @@
 #' # For a tutorial, see
 #' # github.com/cjerzak/causalimages-software/
 #'
-#' @import tensorflow
+#' @import tensorflow rrapply
 #' @export
 #' @md
 AnalyzeImageHeterogeneity <- function(obsW,
