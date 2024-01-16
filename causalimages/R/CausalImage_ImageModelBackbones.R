@@ -61,7 +61,7 @@ GetImageRepresentations <- function(
 
   # initialize tensorflow if not already initialized
   if(   !"logical" %in% class(try(as.numeric(np$array(jnp$square(1.)))==1,T))  | !all(c("gc", "jax", "numpy", "numpy", "jax.numpy", "jmp", "optax", "equinox") %in% ls()) ){
-    print2("Establishing connection to computational environment built via causalimages::BuildBackend()")
+    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(tensorflow);
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)

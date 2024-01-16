@@ -106,7 +106,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
   {
-    print2("Establishing connection to computational environment built via causalimages::BuildBackend()")
+    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(tensorflow); if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
