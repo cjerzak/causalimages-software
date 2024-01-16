@@ -133,6 +133,7 @@ GetImageRepresentations <- function(
                                                              nObs = length(unique(imageKeysOfUnits)))[[1]],0L); setwd(new_wd)
   }
   imageDims <- length( dim(test_) ) - 2L
+  RawChannelDims <- dim(test_)[length(dim(test_))]
 
   # setup jax model
   {
@@ -147,7 +148,7 @@ GetImageRepresentations <- function(
       if(d_ > 1){ strides <- 1L }
       SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
                                          num_spatial_dims = 2L,stride = c(strides,strides),
-                                         out_channels = (dimsSpatial <- ifelse(d_ == 1, yes = 3L, no = nWidth_ImageRep)),
+                                         out_channels = (dimsSpatial <- ifelse(d_ == 1, yes = RawChannelDims, no = nWidth_ImageRep)),
                                          groups = dimsSpatial,
                                          in_channels = dimsSpatial,
                                          key = jax$random$PRNGKey(4L+d_+seed))
