@@ -58,11 +58,6 @@ WriteTfRecord <- function(file,
       return( tf$train$Feature(bytes_list = tf$train$BytesList(value = list(value$numpy()))) )
     }
 
-    my_float_feature <- function(value){
-      #"""Returns a floast_list from a float / double."""
-      return( tf$train$Feature(float_list=tf$train$FloatList(value=list(value)) ))
-    }
-
     my_int_feature <- function(value){
       #"""Returns an int64_list from a bool / enum / int / uint."""
       return( tf$train$Feature(int64_list=tf$train$Int64List(value=list(value))) )

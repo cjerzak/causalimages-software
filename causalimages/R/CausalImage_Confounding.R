@@ -207,7 +207,6 @@ AnalyzeImageConfounding <- function(
 
     # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
-    browser()
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
       ds_next_train <- ds_iterator_train$`next`()
 

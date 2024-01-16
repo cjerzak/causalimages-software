@@ -68,7 +68,7 @@ fixZeroEndings <- function(zr,roundAt=2){
   }) ) }
 
 r2const <- function(x, dtype){
-  if("tensorflow.tensor" %in% class( x )){ }
+  if("tensorflow.tensor" %in% class( x )){ x <- tf$cast(  x, dtype = dtype  ) }
   if(!"tensorflow.tensor" %in% class( x )){ x <- tf$constant(  x, dtype = dtype  ) }
   return( x )
 }
