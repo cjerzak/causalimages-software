@@ -15,7 +15,7 @@
 
 # run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
-reSaveTfRecords <- F
+reSaveTfRecords <- T
 if( reDownloadRawData <- F  ){
   # specify uganda data URL
   uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
