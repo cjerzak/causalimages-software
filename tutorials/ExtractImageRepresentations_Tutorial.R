@@ -47,7 +47,6 @@ X <- apply(X,2,function(zer){
 # select observation subset to make tutorial analyses run faster
 take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 50) }) )
 
-browser()
 # write tf record
 TfRecord_name <- "~/Downloads/CausalImagesTutorialDat.tfrecord"
 causalimages::WriteTfRecord(  file =  TfRecord_name,
