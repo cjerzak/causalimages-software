@@ -132,8 +132,8 @@ GetImageRepresentations <- function(
                                                              image_dtype = image_dtype_tf,
                                                              nObs = length(unique(imageKeysOfUnits)))[[1]],0L); setwd(new_wd)
   }
-  imageDims <- length( dim(test_) ) - 2L
-  RawChannelDims <- dim(test_)[length(dim(test_))]
+  imageDims <- ai( length( dim(test_) ) - 2L )
+  RawChannelDims <- ai( dim(test_)[length(dim(test_))] )
 
   # setup jax model
   {

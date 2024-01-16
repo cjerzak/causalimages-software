@@ -39,7 +39,8 @@
   acquireImageFxn <- function(keys){
       # here, the function input keys
       # refers to the unit-associated image keys
-      m_ <- FullImageArray[match(keys, KeysOfImages),,,1:2] # use first two channels for testing purposes
+      #m_ <- FullImageArray[match(keys, KeysOfImages),,,1:2] # use first two channels for testing purposes
+      m_ <- FullImageArray[match(keys, KeysOfImages),,,c(1:3,1:2)] # test with five channels
 
       # if keys == 1, add the batch dimension so output dims are always consistent
       # (here in image case, dims are batch by height by width by channel)
