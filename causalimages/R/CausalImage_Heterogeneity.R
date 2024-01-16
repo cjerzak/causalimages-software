@@ -1407,7 +1407,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
               orig_scale_im_raster <-  as.array( ds_next_in[1,,,,plotBands[1]] )
               nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
               for (t_ in 1:nTimeSteps) {
-              if(length(plotBands) < 3){
+              plotRBG <- !(length(plotBands) < 3 | dim(ds_next_in)[length(dim(ds_next_in))] < 3)
+              if(!plotRBG){
                     causalimages::image2(
                       as.matrix2( orig_scale_im_raster[t_,,] ),
                       main = main_, cex.main = 4,
@@ -1419,7 +1420,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                     no = ""))
                     animation::ani.pause()  # Pause to make sure it gets rendered
                   }
-              if(length(plotBands) >= 3){
+              if(plotRBG){
                 orig_scale_im_raster <- raster::brick(
                       0.0001 + (as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32) )) +
                         0*runif(length(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32 ))),

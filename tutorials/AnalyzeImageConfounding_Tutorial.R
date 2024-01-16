@@ -39,7 +39,7 @@
   acquireImageFxn <- function(keys){
       # here, the function input keys
       # refers to the unit-associated image keys
-      m_ <- FullImageArray[match(keys, KeysOfImages),,,]
+      m_ <- FullImageArray[match(keys, KeysOfImages),,,1:2] # use first two channels for testing purposes
 
       # if keys == 1, add the batch dimension so output dims are always consistent
       # (here in image case, dims are batch by height by width by channel)
@@ -68,7 +68,7 @@
     file = TFRecordName_im,
 
     batchSize = 16L,
-    nBoot = 10L,
+    nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
     LEARNING_RATE_BASE = 0.005, nSGD = 100, #
     nWidth_ImageRep = as.integer(2L^7),
@@ -146,7 +146,7 @@
       LEARNING_RATE_BASE = 0.005, nSGD = 100, #
       nWidth_ImageRep = as.integer(2L^7),
       strides = 2L,
-      nBoot = 10L,
+      nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "TutorialExample",
       figuresPath = "~/Downloads/ImageTutorial") # figures saved here

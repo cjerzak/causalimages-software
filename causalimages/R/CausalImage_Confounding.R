@@ -857,7 +857,8 @@ AnalyzeImageConfounding <- function(
             # plot results
             par(mar = (mar_vec <- c(2,1,3,1)))
             if(dataType == "image"){
-              if(length(plotBands) < 3){
+              plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
+              if(!plotRBG){
                 causalimages::image2(
                   as.matrix( orig_scale_im_[,,plotBands[1]] ),
                   main = long_lat_in_, cex.main = 2.5, col.main =  col_,
@@ -866,7 +867,7 @@ AnalyzeImageConfounding <- function(
                                  no = "")
                 )
               }
-              if(length(plotBands) >= 3){
+              if(plotRBG){
                  plot(0, main = long_lat_in_, col.main = col_,
                       ylab = "", xlab = "",
                       cex.main = 4, ylim = c(0,1), xlim = c(0,1),
@@ -895,7 +896,8 @@ AnalyzeImageConfounding <- function(
               nTimeSteps <- dim(salience_map)[1]
               animation::saveGIF({
               for (t_ in 1:nTimeSteps) {
-              if(length(plotBands) < 3){
+              plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
+              if(!plotRBG){
                 causalimages::image2(
                   as.matrix( orig_scale_im_[t_,,,plotBands[1]] ),
                   main = long_lat_in_, cex.main = 2.5, col.main =  col_,
@@ -904,7 +906,7 @@ AnalyzeImageConfounding <- function(
                                  no = "")
                 )
               }
-              if(length(plotBands) >= 3){
+              if(plotRBG){
                 plot(0, main = long_lat_in_, col.main = col_,
                      ylab = "", xlab = "",
                      cex.main = 4, ylim = c(0,1), xlim = c(0,1),
