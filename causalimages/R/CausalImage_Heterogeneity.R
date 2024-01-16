@@ -31,7 +31,6 @@
 #' @param strides Integer specifying the strides used in the convolutional layers.=
 #' @param plotResults Should analysis results be plotted?
 #' @param plotBands An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
-#' @param channelNormalize default = `T`) Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types.
 #' @param nWidth_ImageRep Integer specifying width of image model representation.
 #' @param nDepth_ImageRep Integer specifying depth of image model representation.
@@ -92,7 +91,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       temporalKernelSize = 2L,
-                                      channelNormalize = T,
                                       LEARNING_RATE_BASE = 0.005,
                                       nSGD  = 500L,
                                       batchSize = 32L,
@@ -200,9 +198,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   # normalize
-  if(channelNormalize == T){
-    print2("Getting channel normalization parameters...")
-    tmp <- replicate(30, {
+  print2("Getting channel normalization parameters...")
+  tmp <- replicate(30, {
         tmp <- jnp$array( ds_iterator_train$`next`()[[1]]  )
         if(length(tmp$shape) == 4){
           l_ <- list("NORM_MEAN" = as.array(tf$cast(jnp$mean(tmp, 0L:2L),tf$float32)),
@@ -226,7 +223,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       m <- (m - NORM_MEAN) / NORM_SD
     } )
     rm(  tmp  )
-  }
+
 
   # obtain image representation function
   {

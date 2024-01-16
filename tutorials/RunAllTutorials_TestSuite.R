@@ -12,7 +12,7 @@
 
     # before running tests, it may be necessary to (re)build the backend:
     # causalimages::BuildBackend()
-    # see ?causalimages::BuildBackend for help. Re-start your R session after building!
+    # see ?causalimages::BuildBackend for help. Remember to re-start your R session after re-building
 
     print("Starting image TfRecords tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R"),T)

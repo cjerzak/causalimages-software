@@ -35,7 +35,6 @@ AnalyzeImageConfounding(
   temporalKernelSize = 2L,
   nSGD = 400L,
   testFrac = 0.05,
-  channelNormalize = T,
   TfRecords_BufferScaler = 4L,
   LEARNING_RATE_BASE = 0.005,
   dataType = "image",
@@ -96,8 +95,6 @@ AnalyzeImageConfounding(
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations. Default = \code{400L}}
 
 \item{testFrac}{Default = \code{0.1}. Fraction of observations held out as a test set to evaluate out-of-sample loss values.}
-
-\item{channelNormalize}{Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
 
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 

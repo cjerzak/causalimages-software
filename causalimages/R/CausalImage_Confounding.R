@@ -22,7 +22,6 @@
 #' @param testFrac Default = `0.1`. Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
-#' @param channelNormalize Should channelwise image feature normalization be attempted? Default is `T`, as this improves training.
 #' @param dataType (default = `"image"`) String specifying whether to assume `"image"` or `"video"` data types.
 #' @param nWidth_ImageRep Integer specifying width of image model representation.
 #' @param nDepth_ImageRep Integer specifying depth of image model representation.
@@ -84,13 +83,12 @@ AnalyzeImageConfounding <- function(
                                    temporalKernelSize = 2L,
                                    nSGD  = 400L,
                                    testFrac = 0.05,
-                                   channelNormalize = T,
                                    TfRecords_BufferScaler = 4L,
                                    LEARNING_RATE_BASE = 0.005,
                                    dataType = "image",
                                    seed = NULL){
   {
-    print2("Establishing connection to computational environment built via causalimages::BuildBackend()")
+    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(tensorflow); if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }

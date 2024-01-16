@@ -31,7 +31,6 @@ AnalyzeImageHeterogeneity(
   testFrac = 0.1,
   kernelSize = 5L,
   temporalKernelSize = 2L,
-  channelNormalize = T,
   LEARNING_RATE_BASE = 0.005,
   nSGD = 500L,
   batchSize = 32L,
@@ -90,8 +89,6 @@ AnalyzeImageHeterogeneity(
 \item{kernelSize}{Dimensions used in spatial convolutions.}
 
 \item{temporalKernelSize}{imensions used in temporal convolutions (if `dataType = "video"``)}
-
-\item{channelNormalize}{default = \code{T}) Should channelwise image feature normalization be attempted? Default is \code{T}, as this improves training.}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations.}
 
