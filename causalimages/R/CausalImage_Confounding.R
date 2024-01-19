@@ -86,6 +86,7 @@ AnalyzeImageConfounding <- function(
                                    TfRecords_BufferScaler = 4L,
                                    LEARNING_RATE_BASE = 0.005,
                                    dataType = "image",
+                                   atError = "stop", # stop or debug
                                    seed = NULL){
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
@@ -107,7 +108,10 @@ AnalyzeImageConfounding <- function(
     if(is.null(seed)){seed <- ai(runif(1,1,10000))}
   }
 
-  if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When optimizeImageRep = T, nDepth_ImageRep must be 1L") }
+  if(!optimizeImageRep & nDepth_ImageRep > 1){
+    if(atError == "stop"){ stop("Stopping: When optimizeImageRep = T, nDepth_ImageRep must be 1L") }
+    if(atError == "debug"){ browser() }
+  }
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
@@ -402,6 +406,12 @@ AnalyzeImageConfounding <- function(
                               m, x, vseed,
                               StateList, seed, MPList, inference )
           StateList <- treatProb[[2]]; treatProb <- jnp$squeeze( treatProb[[1]] )
+
+          # label smoothing to prevent underflow (log(0) generates NAs)
+          treatProb <- jnp$add(jnp$multiply(jnp$subtract(1., ep_LabelSmooth <- jnp$array(0.01)),treatProb),
+                                      jnp$divide(ep_LabelSmooth, 2.))
+
+          # compute negative log-likelihood loss
           NegLL <- jnp$mean( jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(treatProb)),
                                            jnp$multiply(1-treat, jnp$log(1-treatProb)) )) )
           print2("Returning loss + state...")
@@ -941,7 +951,11 @@ AnalyzeImageConfounding <- function(
         }
         eval(parse(text = ifelse(dataType == "image", yes = "dev.off()", no = "NULL") ))
         },T)
-        if('try-error' %in% class(salience_try)){ browser() }
+        if('try-error' %in% class(salience_try)){
+          print(salience_try);
+          if(atError == "stop"){ stop("Problem in salience map computation!")  }
+          if(atError == "debug"){ browser() }
+        }
 
         if(optimizeImageRep){
           pdf(sprintf("%s/Loss_%s.pdf", figuresPath,FigNameAppend))
