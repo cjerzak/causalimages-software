@@ -897,6 +897,7 @@ AnalyzeImageConfounding <- function(
 
               # plot salience map
               par(mar = mar_vec)
+              browser()
               salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
               salience_map <- sign(salience_map)*log(abs(salience_map)+1)
               image2( salience_map, xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
