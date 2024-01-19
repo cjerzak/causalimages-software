@@ -94,6 +94,7 @@ AnalyzeImageConfounding <- function(
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
     Sys.sleep(.5); try(tf$square(1.),T); Sys.sleep(.5)
+    # note: for balanced training, generate two tf records
 
     jax <<- reticulate::import("jax")
     np <<- reticulate::import("numpy")
