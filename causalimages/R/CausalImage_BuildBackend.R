@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
-#' Perform causal estimation under image confounding
-#'
+#' Build the environment for CausalImages models. Builds a conda environment in which jax, tensorflow, tensorflow-probability optax, equinox, and jmp are installed.
 #'
 #' @param conda_env (default = `"CausalImagesEnv"`) Name of the conda environment in which to place the backends.
 #' @param conda (default = `auto`) The path to a conda executable. Using `"auto"` allows reticulate to attempt to automatically find an appropriate conda binary.
