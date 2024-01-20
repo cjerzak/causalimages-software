@@ -228,7 +228,6 @@ GetImageRepresentations <- function(
       if(dataType == "image"){  m <- jnp$transpose(m, c(2L, 0L, 1L)) }
       if(dataType == "video"){  m <- jnp$transpose(m, c(3L, 0L, 1L, 2L)) }
       for(d__ in 1:nDepth_ImageRep){
-        print(d__); print(m$shape); print(m$dtype)
         if(dataType == "image"){ # spatial block
           # m <- LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) # spatial conv; fails in METAL with nDepth > 2
           m  <- jnp$concatenate(jax$tree_util$tree_map(

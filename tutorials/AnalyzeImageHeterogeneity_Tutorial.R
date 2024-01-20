@@ -159,7 +159,7 @@ for(optimizeImageRep in c(T, F)){
     transportabilityMat = NULL, #
 
     # other modeling options
-    nSGD = 10L, # make this larger for real applications (e.g., 2000L)
+    nSGD = 50L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
     optimizeImageRep = optimizeImageRep,
@@ -196,7 +196,6 @@ for(optimizeImageRep in c(T, F)){
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
                     acquireImageFxn = acquireVideoRep, writeVideo = T )
   }
-  browser()
   for(optimizeImageRep in c(T,F)){
   # Note: optimizeImageRep = T breaks with video
   VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
@@ -220,7 +219,7 @@ for(optimizeImageRep in c(T, F)){
     transportabilityMat = NULL, #
 
     # other modeling options
-    nSGD = 10L, # make this larger for real applications (e.g., 2000L)
+    nSGD = 50L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^5),
     optimizeImageRep = optimizeImageRep,
