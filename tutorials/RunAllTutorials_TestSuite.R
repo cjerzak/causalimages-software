@@ -2,6 +2,7 @@
 {
   ##########################################
   # code for testing most functionalities of CausalImage on your hardware
+  # current tests failing: optimizing video representation on METAL framework. Other tests succeed.
   ##########################################
   tryTests <- try({
     # remote install latest version of the package
