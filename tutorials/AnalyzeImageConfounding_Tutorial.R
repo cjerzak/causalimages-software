@@ -61,6 +61,7 @@
   }
 
   for(optimizeImageRep in c(T,F)){
+  print(sprintf("Image confounding analysis & optimizeImageRep: %s",optimizeImageRep))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
@@ -126,7 +127,8 @@
         writeVideo = T)
   }
 
-  for(optimizeImageRep in c(T,F)){
+  for(optimizeImageRep in c(F)){
+    print(sprintf("Image seq confounding analysis & optimizeImageRep: %s",optimizeImageRep))
     ImageSeqConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
       obsW = obsW[ take_indices ],
       obsY = obsY[ take_indices ],
@@ -139,7 +141,7 @@
       # model specifics
       batchSize = 16L,
       optimizeImageRep = optimizeImageRep,
-      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
       LEARNING_RATE_BASE = 0.005, nSGD = 100, #
       nWidth_ImageRep = as.integer(2L^7),
       nBoot = 5L,

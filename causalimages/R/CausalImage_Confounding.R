@@ -784,7 +784,7 @@ AnalyzeImageConfounding <- function(
 
     # do some analysis with examples
     processedDims <- NULL; if( plotResults ){
-      print2("Plotting the image confounding results...")
+      print2("Plotting image confounding results...")
       indices_t <- (1:length(obsW))[which(obsW==1)]
       indices_c <- (1:length(obsW))[which(obsW==0)]
 

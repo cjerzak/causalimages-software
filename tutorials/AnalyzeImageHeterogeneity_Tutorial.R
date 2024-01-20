@@ -127,6 +127,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 
 # Image heterogeneity example with tfrecords
 for(optimizeImageRep in c(T, F)){
+  print(sprintf("Image hetero analysis & optimizeImageRep: %s",optimizeImageRep))
   # write a tf records repository
   # whenever changes are made to the input data to AnalyzeImageHeterogeneity, WriteTfRecord() should be re-run
   # to ensure correct ordering of data
@@ -197,6 +198,7 @@ for(optimizeImageRep in c(T, F)){
                     acquireImageFxn = acquireVideoRep, writeVideo = T )
   }
   for(optimizeImageRep in c(F)){
+  print(sprintf("Image seq hetero analysis & optimizeImageRep: %s",optimizeImageRep))
   # Note: optimizeImageRep = T breaks with video
   VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
     # data inputs
@@ -221,7 +223,7 @@ for(optimizeImageRep in c(T, F)){
     # other modeling options
     nSGD = 50L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-    nWidth_ImageRep = as.integer(2L^6),
+    nWidth_ImageRep = as.integer(2L^5),
     optimizeImageRep = optimizeImageRep,
     kClust_est = 2, # vary depending on problem. Usually < 5
     batchSize = 8L, # make this larger for real application (e.g., 50L)
