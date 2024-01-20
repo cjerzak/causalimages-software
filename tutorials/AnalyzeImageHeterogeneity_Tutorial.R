@@ -196,7 +196,7 @@ for(optimizeImageRep in c(T, F)){
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
                     acquireImageFxn = acquireVideoRep, writeVideo = T )
   }
-  for(optimizeImageRep in c(T,F)){
+  for(optimizeImageRep in c(F)){
   # Note: optimizeImageRep = T breaks with video
   VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
     # data inputs

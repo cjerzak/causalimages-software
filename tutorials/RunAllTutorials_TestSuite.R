@@ -29,7 +29,6 @@
     Sys.sleep(1L); print("Starting image heterogeneity tutorial...");  setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_Tutorial.R"),T)
     if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }
-
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed..."); print( tryTests ) }
