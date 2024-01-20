@@ -22,13 +22,14 @@
     t_ <- try(source("~/Documents/causalimages-software/tutorials/ExtractImageRepresentations_Tutorial.R"),T)
     if("try-error" %in% class(t_)){ stop("Failed at image representations tutorial...") }
 
+    Sys.sleep(1L); print("Starting image confounding tutorial..."); setwd("~");
+    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageConfounding_Tutorial.R"),T)
+    if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }
+
     Sys.sleep(1L); print("Starting image heterogeneity tutorial...");  setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_Tutorial.R"),T)
     if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }
 
-    Sys.sleep(1L); print("Starting image confounding tutorial..."); setwd("~");
-    t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageConfounding_Tutorial.R"),T)
-    if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed..."); print( tryTests ) }

@@ -83,17 +83,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       heterogeneityModelType = "variational_minimal",
                                       plotResults = F,
                                       optimizeImageRep = T,
-                                      nWidth_ImageRep = 64L,
-                                      nDepth_ImageRep = 1L,
-                                      nWidth_Dense = 64L,
-                                      nDepth_Dense = 1L,
+                                      nWidth_ImageRep = 64L, nDepth_ImageRep = 1L,
+                                      nWidth_Dense = 64L, nDepth_Dense = 1L,
+                                      useTrainingPertubations = T,
                                       strides = 2L,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       temporalKernelSize = 2L,
                                       LEARNING_RATE_BASE = 0.005,
                                       nSGD  = 500L,
-                                      batchSize = 32L,
+                                      batchSize = 16L,
                                       seed = NULL,
 
                                       nMonte_predictive = 10L,
@@ -101,6 +100,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nMonte_variational = 2L,
                                       TfRecords_BufferScaler = 4L,
                                       temperature = 1,
+                                      inputAvePoolingSize  = 1L,
                                       dataType = "image"){
   # create directory if needed
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
@@ -216,16 +216,43 @@ AnalyzeImageHeterogeneity <- function(obsW,
       NORM_MEAN <- jnp$expand_dims( NORM_MEAN, 0L)
       NORM_SD <- jnp$expand_dims( NORM_SD, 0L)
     }
-    InitImageProcess <- jax$jit(  function(m, training){
-      m <- (m - NORM_MEAN) / NORM_SD
-    } )
+
+    if(useTrainingPertubations){
+      trainingPertubations <- function(im_, key){
+        AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
+        which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(1L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+        return( im_ )
+      }
+    }
+    InitImageProcessFn <- jax$jit(function(im, key, inference){
+      # expand dims if needed
+      if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
+
+      # normalize
+      im <- jnp$divide(jnp$subtract(im, NORM_MEAN), NORM_SD)
+
+      # training pertubations
+      if(useTrainingPertubations){
+        im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+      }
+
+      # downshift resolution if desired
+      if(inputAvePoolingSize > 1){ im <- jax$vmap(function(im){ AvePoolingDownshift(im)}, 0L) }
+
+      # return normalized (& pertubed if inference = F) image/image seq
+      return( im  )
+    })
+
     rm(  tmp  )
 
 
   # obtain image representation function
   {
     print2("Initializing image representation functions...")
-    SharedImageRepresentation <- T; FixImageRepresentation <- T
+    SharedImageRepresentation <- T;
     setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
         file = file, conda_env = conda_env,
         dataType = dataType,
@@ -241,11 +268,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
         returnContents = T,
         bn_momentum = bn_momentum,
         bn_epsilon = BN_EP,
-        seed = seed,
-        InitImageProcess = InitImageProcess ); setwd(new_wd)
+        InitImageProcess = function(im, inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
+        seed = seed); setwd(new_wd)
       attach( list2env( ImageRepresentations[2:5] ) )
 
-      if(T == T){
+      if(T == F){
         row.names(ImageRepresentations$ImageRepresentations) <- UsedKeys
         tmp <- as.data.frame(ImageRepresentations$ImageRepresentations)[imageKeysOfUnits,]
         try(hist(c(unlist(tmp))),T)
@@ -455,7 +482,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                             vseed, StateList, seed, MPList, inference, type){
         # image representation model
         if(!SharedImageRepresentation){
-          m <- ImageRepresentations_fxn_OneObs(ifelse(FixImageRepresentation, yes = list(ModelList_fixed), no = list(ModelList))[[1]],
+          m <- ImageRepresentations_fxn_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                                  m, StateList, MPList, inference)
           StateList <- m[[2]] ; m <- m[[1]]
         }
@@ -529,11 +556,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                            ModelList, ModelList_fixed,
                                            m, treat, y, vseed,
                                            StateList, seed, MPList, inference){
-
       # image representation model
       if(SharedImageRepresentation){
         print2("Getting image representation...")
-        m <- ImageRepArm_OneObs(ifelse(FixImageRepresentation, yes = list(ModelList_fixed), no = list(ModelList))[[1]],
+        m <- ImageRepArm_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                 m, StateList, MPList, inference)
         StateList <- m[[2]] ; m <- m[[1]]
       }
@@ -546,7 +572,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       print2("Getting baseline outcome...")
       EY0_i <- GetEY0(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
       StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
-
 
       print2("Setting up Bayesian model...")
       ETau_draw <- oryx$distributions$Normal(
@@ -585,8 +610,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # simplify by uncommenting
       lik_dist_draw <- jnp$negative(  jnp$mean((Y_Mean - y)^2) )
 
-      #return(list(jnp$mean(m), StateList)); #return(list(jnp$array(1),StateList));
-      #return(list(EY0_i, StateList));
+      # return
       return(list(lik_dist_draw, StateList));
     },
     in_axes = list(NULL, NULL,
@@ -644,6 +668,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                         m, treat, y, vseed,
                         StateList, seed, MPList){
         ModelList <- MPList[[1]]$cast_to_compute( ModelList )
+        ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
         StateList <- MPList[[1]]$cast_to_compute( StateList )
 
         # likelihood and state updates
@@ -659,6 +684,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         print2("Returning loss + state...")
         minThis <- MPList[[1]]$cast_to_output( minThis ) # compute to output dtype
         minThis <- MPList[[2]]$scale( minThis ) # scale loss
+
+        StateList <- MPList[[1]]$cast_to_param( StateList ) # cast to param dtype
         return( list(minThis, StateList)  )
     }
 
@@ -673,19 +700,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # set state and model lists
     gc(); py_gc$collect()
     GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-    if(FixImageRepresentation){
+    if(!optimizeImageRep){
       ModelList <- list(DenseList, CausalList)
       ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
     }
-    if(!FixImageRepresentation){
+    if(optimizeImageRep){
       ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]],
                         DenseList, CausalList)
       ModelList_fixed <- NULL
     }
     StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
-    MPList <- list(jmp$Policy(compute_dtype="float16",
-                              param_dtype="float32",
-                              output_dtype="float16"),
+    MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
                    jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float16),
                                         min_loss_scale = jnp$array(1.,dtype = jnp$float16),
                                         period = 20L))
@@ -794,7 +819,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
         # debugging
         if(T == F){
-          m <- InitImageProcess(jnp$array(ds_next_train), training = T)
+          m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L), inference = F)
           treat <- jnp$array(obsW[batch_indices], jnp$float16)
           y <- jnp$array(obsY[batch_indices], jnp$float16)
           vseed <- jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize)
@@ -803,7 +828,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           #myLoss_forGrad <- GetLoss(
           myLoss_forGrad <- GetLoss_jit(
                                     ModelList, ModelList_fixed,
-                                    InitImageProcess(jnp$array(ds_next_train), training = T),  # m
+                                    InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F),  # m
                                     jnp$array((obsW[batch_indices]), jnp$float16), # treat
                                     jnp$array((obsY[batch_indices]), jnp$float16), # y
                                     vseed,
@@ -816,7 +841,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
         v_and_grad_loss_jax <- GradAndLossAndAux(
                                                  MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                                                 InitImageProcess(jnp$array(ds_next_train), training = T), # m
+                                                 InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
                                                  jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
                                                  jnp$array(obsY[batch_indices],dtype = jnp$float16), # y
                                                  jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
@@ -854,22 +879,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if( DoUpdate ){
             DoneUpdates <- DoneUpdates + 1
             if(DoneUpdates == 1){
-              CostAnalysis <- GradAndLossAndAux$lower(
-                                                 #ModelList, ModelList_fixed,
-                                                 MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                                                 InitImageProcess(jnp$array(ds_next_train), training = T), # m
-                                                 jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
-                                                 jnp$array(obsY[batch_indices],dtype = jnp$float16), # y
-                                                 jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                                                 StateList, # StateList
-                                                 jax$random$PRNGKey( 123L+i ), # seed
-                                                 MPList # MPlist
-                                                 )
-              CostAnalysis <- CostAnalysis$lowered$cost_analysis()
-              TotalFlops <- CostAnalysis$flops
-              try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
-              #TotalUtilization <- sum(unlist( CostAnalysis)[grepl(names(CostAnalysis), pattern = "utilization")])
-              #BytesAccessed <- sum(unlist( CostAnalysis)[grepl(names(CostAnalysis), pattern = "bytes accessed")])
+              #CostAnalysis <- GradAndLossAndAux$lower(
+                                                 #MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
+                                                 #InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
+                                                 #jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
+                                                 #jnp$array(obsY[batch_indices],dtype = jnp$float16), # y
+                                                 #jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
+                                                 #StateList, # StateList
+                                                 #jax$random$PRNGKey( 123L+i ), # seed
+                                                 #MPList) # MPlist
+              #CostAnalysis <- CostAnalysis$lowered$cost_analysis()
+              #TotalFlops <- CostAnalysis$flops
+              #try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
             }
 
             # get updates
@@ -952,7 +973,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                            StateList, seed, MPList){
       # image representation model
       if(SharedImageRepresentation){
-        m <- ImageRepArm_batch_R(ifelse(FixImageRepresentation, yes = list(ModelList_fixed), no = list(ModelList))[[1]],
+        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                           m, StateList, MPList, T)
         StateList <- m[[2]] ; m <- m[[1]]
       }
@@ -1014,7 +1035,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # get summaries and save
       GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
-                                      InitImageProcess(jnp$array(ds_next_in), training = F),
+                                      InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T),
                                       jax$random$split(jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                       StateList, jax$random$PRNGKey(as.integer(runif(1,0,100000))), MPList)
       ret_list <- list("y0_" = as.matrix2(GottenSummaries[[1]]),
@@ -1099,24 +1120,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Tau_sd_vec <- sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
       Tau_sd_vec <- Tau_sd_vec * Y_sd
     }
-
-    # obtaining the neg log likelihood if desired
-    if(T == F){
-      # obtaining the negative LL
-      KL_wt_orig <- KL_wt
-      if(! "function" %in% class(GetLoss)){print2("GetLoss must be R function for this part to work!")}
-      KL_wt <- 0
-      batch_indices_tab <- sort( 1:length(obsY)%%round(length(obsY)/max(1,ceiling(batchFracOut*batchSize))))
-      negELL <- tapply(1:length(batch_indices_tab),batch_indices_tab, function(indi_){
-        ret_ <- as.numeric2(GetLoss(m = InitImageProcess(acquireImageFxn(   imageKeysOfUnits[indi_]  , training = F),training = F),
-                                    treat = jnp$array(obsW[indi_],jnp$float16),
-                                    y = jnp$array(obsY[indi_],jnp$float16),
-                                    training = F ))
-        return( ret_ )
-      })
-      negELL <- sum(negELL)
-      KL_wt <- KL_wt_orig
-    }
   }
 
   # transportability analysis
@@ -1125,7 +1128,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     print2("Getting posterior predictive mean probabilities for transportability analysis...")
     {
       {
-      GetProbAndExpand <- function(m){jnp$expand_dims( jax$nn$softmax(GetTau(m,training = F)),0L) }
+      GetProbAndExpand <- function(m){jnp$expand_dims( jax$nn$softmax(GetTau(m,inference = T)),0L) }
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
         gc(); py_gc$collect()
@@ -1143,7 +1146,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
           ds_next_in <- ds_next_in[[1]]
         }
-        im_keys <- InitImageProcess(ds_next_in, training = F)
+        im_keys <-  InitImageProcessFn( jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T)
         pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
@@ -1285,18 +1288,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
     plotting_coordinates_list <- list(); typePlot_counter <- 0
     ep_LabelSmooth <- jnp$array(0.01)
 
-    # m <- jnp$array(InitImageProcess(jnp$array(ds_next_in), training = F))
-    # vseed <- jax$random$PRNGKey(400L); seed <- jax$random$PRNGKey(430L)
     dLogProb_dImage <- jax$grad(LogProb_Image <- function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
       if(SharedImageRepresentation){
-        #m <- ImageRepArm_batch_R(ifelse(FixImageRepresentation, yes = list(ModelList_fixed), no = list(ModelList))[[1]],
-        m <- ImageRepArm_OneObs(ifelse(FixImageRepresentation, yes = list(ModelList_fixed), no = list(ModelList))[[1]],
+        m <- ImageRepArm_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                           m, StateList, MPList, T)[[1]]
       }
 
-      #GetTau_batch(ModelList,ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
       PROBS_ <- sapply(1L:nMonte_salience, function(itr){
-        #jnp$expand_dims(GetTau_batch(ModelList, ModelList_fixed,
         jnp$expand_dims(GetTau(ModelList, ModelList_fixed,
                                m, jnp$add(jnp$expand_dims(vseed,0L),itr),
                                StateList, jnp$add(seed,itr), MPList, T)[[1]],0L)
@@ -1458,7 +1456,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 {
                   IG <- np$array(  ImGrad_fxn(ModelList,
                                               ModelList_fixed,
-                                              jnp$array(InitImageProcess(jnp$array(ds_next_in), training = F))[0,,,],  # m
+                                              InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
                                               jax$random$PRNGKey(400L),
                                               StateList,
                                               jax$random$PRNGKey(430L),
@@ -1634,7 +1632,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                 {
                   gc(); py_gc$collect()
                   IG <- ImGrad_fxn(ModelList, ModelList_fixed,
-                                   jnp$array(InitImageProcess(jnp$array(ds_next_in), training = F))[0,,,],  # m
+                                   InitImageProcessFn(jnp$array(ds_next_in), jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
                                    jax$random$PRNGKey(400L),
                                    StateList,
                                    jax$random$PRNGKey(430L),

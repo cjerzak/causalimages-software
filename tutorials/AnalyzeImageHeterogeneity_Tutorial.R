@@ -15,7 +15,7 @@
 
 # run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
-reSaveTfRecords <- T
+reSaveTfRecords <- F
 if( reDownloadRawData <- F  ){
   # specify uganda data URL
   uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
@@ -126,7 +126,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 }
 
 # Image heterogeneity example with tfrecords
-{
+for(optimizeImageRep in c(T, F)){
   # write a tf records repository
   # whenever changes are made to the input data to AnalyzeImageHeterogeneity, WriteTfRecord() should be re-run
   # to ensure correct ordering of data
@@ -142,6 +142,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
     # data inputs
     obsW =  UgandaDataProcessed$Wobs,
     obsY = UgandaDataProcessed$Yobs,
+    X = matrix(rnorm(length(UgandaDataProcessed$Yobs)*10),ncol=10),
     imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
     file = tfrecord_loc, # location of tf record (use absolute file paths)
     lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
@@ -159,9 +160,12 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 
     # other modeling options
     nSGD = 10L, # make this larger for real applications (e.g., 2000L)
-    kClust_est = 2, # vary depending on problem. Usually < 5
-    batchSize = 16L, # make this larger for real application (e.g., 50L)
-    strides = 2L )
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+    nWidth_ImageRep = as.integer(2L^6),
+    optimizeImageRep = optimizeImageRep,
+    batchSize = 8L, # make this larger for real application (e.g., 50L)
+    kClust_est = 2 # vary depending on problem. Usually < 5
+    )
 }
 
 # video heterogeneity example
@@ -180,11 +184,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
     tmp_ <- aperm(tmp, c(1, 2, 4, 3, 5))
 
     # Concatenate along the second axis
-    if (requireNamespace("abind", quietly = TRUE)) {
-      tmp <- abind::abind(tmp, tmp_, along = 2)
-    } else {
-      stop("The 'abind' package is required for this function to work!")
-    }
+    tmp <- abind::abind(tmp, tmp_, along = 2)
 
     return(tmp)
   }
@@ -196,6 +196,9 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
                     acquireImageFxn = acquireVideoRep, writeVideo = T )
   }
+  browser()
+  for(optimizeImageRep in c(T,F)){
+  # Note: optimizeImageRep = T breaks with video
   VideoHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
     # data inputs
     obsW =  UgandaDataProcessed$Wobs,
@@ -217,10 +220,14 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
     transportabilityMat = NULL, #
 
     # other modeling options
-    nSGD = 100L, # make this larger for real applications (e.g., 2000L)
+    nSGD = 10L, # make this larger for real applications (e.g., 2000L)
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+    nWidth_ImageRep = as.integer(2L^5),
+    optimizeImageRep = optimizeImageRep,
     kClust_est = 2, # vary depending on problem. Usually < 5
-    batchSize = 16L, # make this larger for real application (e.g., 50L)
+    batchSize = 8L, # make this larger for real application (e.g., 50L)
     strides = 2L )
+  }
 }
 
 print("Done with image heterogeneity tutorial!")

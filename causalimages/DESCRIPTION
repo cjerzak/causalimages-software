@@ -9,7 +9,7 @@ Authors@R: c(person(given = "Connor", family = "Jerzak",
 	           comment = c(ORCID = "0000-0002-4323-3715")),
              person(given = "Adel", family = "Daoud", role = "aut", 
 		    comment = c(ORCID = "0000-0001-7478-8345")) )
-Description: A system for performing causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos). The causal AI models use a JAX backend; the package provides functions for establishing the backend in a conda environment with GPU acceleration when possible. 
+Description: A system for performing causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos). The causal AI models use a JAX backend; the package provides functions for establishing the backend in a conda environment with GPU or TPU acceleration when possible. 
 Depends: R (>= 3.3.3)
 License: GPL-3
 Encoding: UTF-8

@@ -73,14 +73,12 @@ AnalyzeImageConfounding <- function(
                                    plotResults = T,
 
                                    optimizeImageRep = T,
-                                   nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L,
-                                   nWidth_Dense = 32L,  nDepth_Dense = 1L,
+                                   nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, temporalKernelSize = 2L, kernelSize = 5L,
+                                   nWidth_Dense = 64L,  nDepth_Dense = 1L,
 
                                    strides = 2L,
                                    dropoutRate = 0.1,
-                                   batchSize = 50L,
-                                   kernelSize = 3L,
-                                   temporalKernelSize = 2L,
+                                   batchSize = 16L,
                                    nSGD  = 400L,
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
@@ -130,6 +128,7 @@ AnalyzeImageConfounding <- function(
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
+  XIsNull <- is.null( X  )
   if(!is.null(X)){ if(!"matrix" %in% class(X)){
     print2("Coercing X to matrix class..."); X <- as.matrix(  X )
   } }
@@ -162,12 +161,12 @@ AnalyzeImageConfounding <- function(
         return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
       }
       getParsed_tf_dataset_train <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype_tf)} )
-                                   #num_parallel_calls = tf$data$AUTOTUNE)
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype_tf)},
+                                   num_parallel_calls = tf$data$AUTOTUNE)
         dataset <- dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
         dataset <- dataset$batch(  ai(batchSize)   )
-        #dataset <- dataset$prefetch(tf$data$AUTOTUNE)
+        dataset <- dataset$prefetch(tf$data$AUTOTUNE)
         return( dataset  )
       }
 
@@ -200,7 +199,9 @@ AnalyzeImageConfounding <- function(
         im <- jnp$divide(jnp$subtract(im, NORM_MEAN_array), NORM_SD_array)
 
         # training pertubations
-        im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+        if(useTrainingPertubations){
+          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+        }
 
         # downshift resolution if desired
         if(inputAvePoolingSize > 1){ im <- jax$vmap(function(im){ AvePoolingDownshift(im)}, 0L) }
@@ -255,7 +256,7 @@ AnalyzeImageConfounding <- function(
           setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
             file = file,
             dataType = dataType,
-            InitImageProcess = function(im){InitImageProcessFn(im,jax$random$PRNGKey(2L), T)},
+            InitImageProcess = function(im, inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
             strides = strides,
@@ -297,7 +298,7 @@ AnalyzeImageConfounding <- function(
           tauHat_propensity <- tauHat_propensity_
           myGlmnet_coefs <- myGlmnet_coefs_
           prW_est <- prW_est_
-          getTreatProb_batch <- function( ModelList, ModelList_fixed,
+          GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                           m, x, vseed,
                                           StateList, seed, MPList, inference){
             ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, StateList, MPList, inference)
@@ -324,7 +325,7 @@ AnalyzeImageConfounding <- function(
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
         file = file,
         dataType = dataType,
-        InitImageProcess = function(im){InitImageProcessFn(im,jax$random$PRNGKey(2L), T)},
+        InitImageProcess = function(im,inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
         nWidth_ImageRep = nWidth_ImageRep,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
@@ -337,10 +338,11 @@ AnalyzeImageConfounding <- function(
         bn_momentum = 0.9,
         bn_epsilon = BN_EP,
         seed = ai(4003L)  ); setwd(new_wd)
-        ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
-        ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
-        ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
-        rm( ImageRepresentations )
+        attach( list2env( ImageRepresentations[2:5] ) )
+        #ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
+        #ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
+        #ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+        #rm( ImageRepresentations )
 
         batch_axis_name <- "batch"
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
@@ -361,9 +363,9 @@ AnalyzeImageConfounding <- function(
         }
 
         # ModelList <- DenseList; StateList <- DenseStateList
-        GetDenseNet <- function(ModelList, ModelList_fixed, m, x,
+        GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
                                 vseed, StateList, seed, MPList, inference, type){
-          m <- jnp$concatenate(list(m,x))
+          if(!XIsNull){  m <- jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
             m <-  LE(ModelList, sprintf("DenseProj_d%s",d__))(  m  )
@@ -383,46 +385,80 @@ AnalyzeImageConfounding <- function(
           return( list(m, StateList)  )
         }
         GetDense_batch <- jax$vmap(  function(
-                  ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference){
-                  GetDenseNet(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference, type = '%s')
+                  ModelList, ModelList_fixed,
+                  m, x, vseed,
+                  StateList, seed, MPList, inference){
+                    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference, type = '%s')
                 },
                 in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
-        getTreatProb_batch <- function( ModelList, ModelList_fixed,
+        GetTreatProb_batch <- jax$vmap(GetTreatProb_OneObs <- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
-          m <- ImageRepArm_batch_R(ModelList, m, StateList, MPList, inference)
+          # image model
+          m <- ImageRepArm_OneObs(ModelList, m, StateList, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
-          m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
-          StateList <- m[[2]]; m <- m[[1]]
-          m <- jax$nn$sigmoid( m )
-          return( list(m, StateList) )
-        }
 
-        GetLoss <- function( ModelList, ModelList_fixed,
-                            m, x, treat, vseed,
-                            StateList, seed, MPList, inference){
-          treatProb <- getTreatProb_batch( ModelList, ModelList_fixed,
-                              m, x, vseed,
-                              StateList, seed, MPList, inference )
-          StateList <- treatProb[[2]]; treatProb <- jnp$squeeze( treatProb[[1]] )
+          # dense model
+          m <- GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+          StateList <- m[[2]]; m <- m[[1]]
 
           # label smoothing to prevent underflow (log(0) generates NAs)
-          treatProb <- jnp$add(jnp$multiply(jnp$subtract(1., ep_LabelSmooth <- jnp$array(0.01)),treatProb),
-                                      jnp$divide(ep_LabelSmooth, 2.))
+          m <- jax$nn$sigmoid( m )
+          m <- jnp$add(jnp$multiply(jnp$subtract(1., ep_LabelSmooth <- jnp$array(0.01)), m),
+                               jnp$divide(ep_LabelSmooth, 2.))
+
+          # return contents
+          return( list(m, StateList) )
+        },
+        in_axes = list(NULL,NULL,0L,0L,0L,NULL,NULL,NULL,NULL),
+        axis_name = batch_axis_name,
+        out_axes = list(0L,NULL))
+
+        GetLoss_batch <- jax$vmap(GetLoss_OneObs <- function( ModelList, ModelList_fixed,
+                            m, x, treat, vseed,
+                            StateList, seed, MPList, inference){
+          m <- GetTreatProb_OneObs( ModelList, ModelList_fixed,
+                              m, x, vseed,
+                              StateList, seed, MPList, inference )
+          StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
 
           # compute negative log-likelihood loss
-          NegLL <- jnp$mean( jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(treatProb)),
-                                           jnp$multiply(1-treat, jnp$log(1-treatProb)) )) )
+          NegLL <-  jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(m)),
+                                           jnp$multiply(1-treat, jnp$log(1-m)) ))
+
+          # return
+          return( list(NegLL, StateList)  )
+        },
+        in_axes = list(NULL,NULL,0L,0L,0L,0L,NULL,NULL,NULL,NULL),
+        axis_name = batch_axis_name,
+        out_axes = list(0L,NULL))
+
+        GetLoss <-  function( ModelList, ModelList_fixed,
+                              m, x, treat, vseed,
+                              StateList, seed, MPList, inference ){
+          ModelList <- MPList[[1]]$cast_to_compute( ModelList ) # compute to output dtype
+          ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) # compute to output dtype
+          StateList <- MPList[[1]]$cast_to_compute( StateList ) # compute to output dtype
+
+          NegLL <- GetLoss_batch( ModelList, ModelList_fixed,
+                         m, x, treat, vseed,
+                         StateList, seed, MPList, inference )
+          StateList <- NegLL[[2]]; NegLL <- jnp$mean( NegLL[[1]] )
+
           print2("Returning loss + state...")
           NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
           NegLL <- MPList[[2]]$scale( NegLL ) # scale loss
+          StateList <- MPList[[1]]$cast_to_param( StateList ) # compute to param dtype
+
+          # return
           return( list(NegLL, StateList)  )
         }
-        GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
 
-        # define final lists
+        gc(); py_gc$collect()
+        # set state and model lists
+        GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]], DenseList)
         StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
         ModelList_fixed <- jnp$array(0.)
@@ -536,14 +572,16 @@ AnalyzeImageConfounding <- function(
           # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
           v_and_grad_loss_jax <- try(GradAndLossAndAux(
             MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
+            #ModelList, ModelList_fixed,
             InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-            jnp$array(X[batch_indices,],dtype = jnp$float16), # x
-            jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
+            jnp$array(X[batch_indices,], dtype = jnp$float16), # x
+            jnp$array(obsW[batch_indices], dtype = jnp$float16), # treat
             jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
             StateList, # StateList
             jax$random$PRNGKey( 123L+i ), # seed
             MPList, # MPlist
             F), T) # inference
+          if("try-error" %in% class(v_and_grad_loss_jax)){ print( v_and_grad_loss_jax ) }
           if(!"try-error" %in% class(v_and_grad_loss_jax)){
             # get updated state
             StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
@@ -572,19 +610,19 @@ AnalyzeImageConfounding <- function(
             if( DoUpdate ){
               DoneUpdates <- DoneUpdates + 1
               if(DoneUpdates == 1){
-                CostAnalysis <- GradAndLossAndAux$lower(
-                  MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                  InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-                  jnp$array(X[batch_indices,],dtype = jnp$float16), # x
-                  jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
-                  jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                  StateList, # StateList
-                  jax$random$PRNGKey( 123L+i ), # seed
-                  MPList, # MPlist
-                  F ) # inference
-                CostAnalysis <- CostAnalysis$lowered$cost_analysis()
-                TotalFlops <- CostAnalysis$flops
-                try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
+                #CostAnalysis <- GradAndLossAndAux$lower(
+                  #MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
+                  #InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
+                  #jnp$array(X[batch_indices,],dtype = jnp$float16), # x
+                  #jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
+                  #jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
+                  #StateList, # StateList
+                  #jax$random$PRNGKey( 123L+i ), # seed
+                  #MPList, # MPlist
+                  #F ) # inference
+                #CostAnalysis <- CostAnalysis$lowered$cost_analysis()
+                #TotalFlops <- CostAnalysis$flops
+                #try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
               }
 
               # get updates
@@ -775,7 +813,7 @@ AnalyzeImageConfounding <- function(
                     StateList <- MPList[[1]]$cast_to_param( StateList )
                     m <- MPList[[1]]$cast_to_param( m ); x <- MPList[[1]]$cast_to_param( x )
                     m <- jax$device_put(m, jax$devices('cpu')[[1]])
-                    out_ <-  getTreatProb_batch(ModelList, ModelList_fixed,
+                    out_ <-  GetTreatProb_batch(ModelList, ModelList_fixed,
                                            m, x, vseed,
                                            StateList, seed, MPList, T)[[1]]  # scaling for non-zero gradients
                     out_ <- jnp$log(out_ / (1-out_))
@@ -897,6 +935,8 @@ AnalyzeImageConfounding <- function(
 
               # plot salience map
               par(mar = mar_vec)
+              #optax$global_norm( eq$filter(ModelList, eq$is_array)[[1]] )
+              #optax$global_norm( eq$filter(StateList, eq$is_array)[[1]] )
               try_salience <- try({salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))},T)
               if("try-error" %in% class(try_salience)){ browser() }
               salience_map <- sign(salience_map)*log(abs(salience_map)+1)

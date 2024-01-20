@@ -141,40 +141,51 @@ GetImageRepresentations <- function(
     MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float32"),
                    jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
 
+
+    # coerce to integer for safety
+    kernelSize <- ai(kernelSize); strides <- ai(strides)
+    RawChannelDims <- ai(RawChannelDims); nWidth_ImageRep <- ai(nWidth_ImageRep)
+
+    # set batch name
     batch_axis_name <- "batch";
     if(!"bn_momentum" %in% ls()){ bn_momentum <- 0.90 }
+
+    # set up model
     StateList <- ModelList <- replicate(nDepth_ImageRep, list())
     for(d_ in 1L:nDepth_ImageRep){
       if(d_ > 1){ strides <- 1L }
-      SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
-                                         num_spatial_dims = 2L,stride = c(strides,strides),
-                                         out_channels = (dimsSpatial <- ifelse(d_ == 1, yes = RawChannelDims, no = nWidth_ImageRep)),
-                                         groups = dimsSpatial,
-                                         in_channels = dimsSpatial,
-                                         key = jax$random$PRNGKey(4L+d_+seed))
+      if(T == F){ # fails on metal backend with nDepth > 1
+        SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
+                                           num_spatial_dims = 2L, stride = c(strides,strides),
+                                           in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = RawChannelDims, no = nWidth_ImageRep)),
+                                           out_channels = dimsSpatial,
+                                           groups = dimsSpatial,
+                                           key = jax$random$PRNGKey(4L+d_+seed))
+      }
+      if(T == T){ # fails on metal backend with nDepth > 1
+        dimsSpatial <- ai(ifelse(d_ == 1L, yes = RawChannelDims, no = nWidth_ImageRep))
+        SeperableSpatial_jax <- sapply(1:dimsSpatial, function(zer){ eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
+                                           num_spatial_dims = 2L, stride = c(strides,strides),
+                                           in_channels = 1L,
+                                           out_channels = 1L,
+                                           key = jax$random$PRNGKey(40L+d_+seed+zer))})
+      }
       SeperableFeature_jax <- eq$nn$Conv(out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          num_spatial_dims = 2L,stride = c(1L,1L),
-                                         in_channels = dimsSpatial, key = jax$random$PRNGKey(5L+d_+seed))
+                                         in_channels = dimsSpatial, key = jax$random$PRNGKey(50L+d_+seed))
 
       # reset weights with Xavier/Glorot
-      SeperableSpatial_jax <- eq$tree_at(function(l){l$weight}, SeperableSpatial_jax,
+      SeperableSpatial_jax <- lapply(SeperableSpatial_jax, function(tmp){ eq$tree_at(function(l){l$weight}, tmp,
                                          jax$random$uniform(key=jax$random$PRNGKey(5L+d_+seed),
                                                             minval = -sqrt(6/(dimsSpatial+dimsSpatial)),
                                                             maxval = sqrt(6/(dimsSpatial+dimsSpatial)),
-                                                            shape = jax$tree_util$tree_leaves(SeperableSpatial_jax)[[1]]$shape) )
+                                                            shape = jax$tree_util$tree_leaves(tmp)[[1]]$shape) )})
       SeperableFeature_jax <- eq$tree_at(function(l){l$weight}, SeperableFeature_jax,
                                          jax$random$uniform(key=jax$random$PRNGKey(45L+d_+seed),
                                                             minval = -sqrt(6/(dimsSpatial+nWidth_ImageRep)),
                                                             maxval = sqrt(6/(dimsSpatial+nWidth_ImageRep)),
                                                             shape = jax$tree_util$tree_leaves(SeperableFeature_jax)[[1]]$shape))
       SeperableTemporal_jax <- jnp$array(0.); if(dataType == "video"){
-        if(T == F){
-          SeperableTemporal_jax <- eq$nn$Conv(out_channels = nWidth_ImageRep, num_spatial_dims = 3L,
-                                                  kernel_size = c(temporalKernelSize,1L,1L),
-                                                  stride = c(1L,1L,1L),
-                                                  in_channels = nWidth_ImageRep,
-                                                  key = jax$random$PRNGKey(43L+d_+seed) )
-        }
         SeperableTemporal_jax <- eq$nn$Conv(out_channels = nWidth_ImageRep, # only num_spatial_dims = 2L supported on GPU
                                             kernel_size = c(temporalKernelSize,1L),
                                             num_spatial_dims = 2L, stride = c(1L, 1L),
@@ -191,7 +202,7 @@ GetImageRepresentations <- function(
       LayerBN <- eq$nn$BatchNorm(
         input_size = nWidth_ImageRep,
         axis_name = batch_axis_name,
-        momentum = bn_momentum, eps = 0.001, channelwise_affine = T)
+        momentum = bn_momentum, eps = 0.01^2, channelwise_affine = T)
       StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
       ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                 "SeperableFeature_jax_d%s" = SeperableFeature_jax,
@@ -199,16 +210,16 @@ GetImageRepresentations <- function(
                                 "BN_ImRep_d%s" = LayerBN)', d_, d_, d_, d_ )))
     }
     if(dataType == "video"){
-      ModelList[[nDepth_ImageRep+1]] <- list("MultiheadAttn"=  eq$nn$MultiheadAttention(
-                                                               query_size = nWidth_ImageRep,
-                                                               output_size = nWidth_ImageRep,
-                                                               num_heads = 3L,
-                                                               use_output_bias = F,
-                                                               key = jax$random$PRNGKey( 23453355L + seed) ) )
+      ModelList[[nDepth_ImageRep+1]] <- list("MultiheadAttn" =  eq$nn$MultiheadAttention(
+                                                                query_size = nWidth_ImageRep,
+                                                                output_size = nWidth_ImageRep,
+                                                                num_heads = 3L,
+                                                                use_output_bias = F,
+                                                                key = jax$random$PRNGKey( 23453355L + seed) ) )
     }
 
     # zzz
-    # m <- jax_array4d <- jnp$array( tf$gather(batch_inference[[1]],0L,0L));  d__ <- 1L
+    # m <- jax_array4d <- jnp$array( tf$gather(InitImageProcess( jnp$array( batch_inference[[1]]), T),0L,0L));  d__ <- 1L
     ImageRepArm_OneObs <- ( function(ModelList, m, StateList, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
@@ -217,16 +228,26 @@ GetImageRepresentations <- function(
       if(dataType == "image"){  m <- jnp$transpose(m, c(2L, 0L, 1L)) }
       if(dataType == "video"){  m <- jnp$transpose(m, c(3L, 0L, 1L, 2L)) }
       for(d__ in 1:nDepth_ImageRep){
+        print(d__); print(m$shape); print(m$dtype)
         if(dataType == "image"){ # spatial block
-          m <-  LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__)) (
-                    LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) )
+          # m <- LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) # spatial conv; fails in METAL with nDepth > 2
+          m  <- jnp$concatenate(jax$tree_util$tree_map(
+                      function(array, func){ return(func(array) ) },
+                      jnp$split(m, m$shape[[1]], axis = 0L),
+                      LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))), 0L)
+          m <-  LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(m)
         }
 
         if(dataType == "video"){
           # spatial block
           m <- jax$vmap(function(ModelList, m){
-            LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__)) (
-              LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) )
+            #m <- LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) # spatial conv; fails in METAL with nDepth > 2
+            m  <- jnp$concatenate(jax$tree_util$tree_map(
+                    function(array, func){ return(func(array) ) },
+                    jnp$split(m, m$shape[[1]], axis = 0L),
+                    LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))), 0L)
+            m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(m)
+            return( m )
           }, in_axes = list(NULL, 1L), out_axes = 1L)( ModelList, m )
 
           # temporal block
@@ -252,15 +273,17 @@ GetImageRepresentations <- function(
           m <- jax$nn$swish( m )
         }
 
+        SpatialShrinkRate <- 0.75
         if(dataType == "image"){
-          m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]/2), ai(m$shape[[3]]/2)))( m ) # succeeds on METAL backend
+          m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*SpatialShrinkRate), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) # succeeds on METAL backend
         }
+
         # note: MaxPool3D and vmapped MaxPool2D( m ) fail on METAL backend; MaxPool2D fails on Metal backend
         if(dataType == "video"){
             m_orig <- m$shape
             m <- jnp$reshape(m, c(-1L, m$shape[3:4]))
             # m <- MaxPool2D(  m ) fails with METAL backend
-            m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]/2), ai(m$shape[[3]]/2)))( m )
+            m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*SpatialShrinkRate), ai(m$shape[[3]]*SpatialShrinkRate)))( m )
             m <- jnp$reshape(m, c(m_orig[1:2],m$shape[2:3]))
         }
       }
@@ -299,7 +322,7 @@ GetImageRepresentations <- function(
   }
 
   if(is.null(InitImageProcess)){
-    InitImageProcess <- (function(im, training = F){
+    InitImageProcess <- (function(im, inference =  F){
       if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) }
       return( im  )
     })
@@ -338,7 +361,7 @@ GetImageRepresentations <- function(
 
       gc(); try(py_gc$collect(), T) # collect memory
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
-                                                          InitImageProcess( jnp$array( batch_inference[[1]]) ),
+                                                          InitImageProcess(jnp$array(batch_inference[[1]]), inference = T),
                                                           StateList, MPList, T)[[1]]  ), T)
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }

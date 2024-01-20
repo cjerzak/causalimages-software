@@ -39,9 +39,10 @@
   acquireImageFxn <- function(keys){
       # here, the function input keys
       # refers to the unit-associated image keys
-      #m_ <- FullImageArray[match(keys, KeysOfImages),,,1:2] # test with two channels
-      #m_ <- FullImageArray[match(keys, KeysOfImages),,,] # test with three channels
-      m_ <- FullImageArray[match(keys, KeysOfImages),,,c(1:3,1:2)] # test with five channels
+      # we also tweak the image dimensions for testing purposes
+      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),1:2] # test with two channels
+      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),] # test with three channels
+      m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),c(1:3,1:2)] # test with five channels
 
       # if keys == 1, add the batch dimension so output dims are always consistent
       # (here in image case, dims are batch by height by width by channel)
@@ -59,7 +60,7 @@
       acquireImageFxn = acquireImageFxn)
   }
 
-  for(optimizeImageRep in c(F,T)){
+  for(optimizeImageRep in c(T,F)){
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
@@ -72,9 +73,9 @@
     batchSize = 16L,
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+    nWidth_ImageRep = as.integer(2L^6),
     LEARNING_RATE_BASE = 0.005, nSGD = 100, #
-    nWidth_ImageRep = as.integer(2L^7),
-    strides = 2L,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "TutorialExample",
     figuresPath = "~/Downloads/ImageTutorial")
@@ -93,30 +94,24 @@
   # perform causal inference with image *sequence*  and tabular confounding
   {
   acquireVideoRep <- function(keys) {
+      # Note: this is a toy function generating image representations
+      # that simply reuse a single temporal slice. In practice, we will
+      # weant to read in images of different time periods.
+
       # Get image data as an array from disk
       tmp <- acquireImageFxn(keys)
 
       # Expand dimensions: we create a new dimension at the start
       tmp <- array(tmp, dim = c(1, dim(tmp)))
 
-      # Transpose dimensions to get the required order
-      # Original: tf$transpose(tmp, c(1L, 0L, 2L, 3L, 4L))
-      # R equivalent: aperm with the new order of dimensions
+      # Transpose dimensions to get the target order
       tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
 
       # Swap image dimensions to see variability across time
-      # Original: tf$transpose(tmp, c(0L, 1L, 3L, 2L, 4L))
-      # R equivalent: aperm with the new order of dimensions
       tmp_ <- aperm(tmp, c(1, 2, 4, 3, 5))
 
       # Concatenate along the second axis
-      # Note: R does not have a direct equivalent of tf$concat,
-      # so we use abind from the 'abind' package
-      if (requireNamespace("abind", quietly = TRUE)) {
-        tmp <- abind::abind(tmp, tmp_, along = 2)
-      } else {
-        stop("The 'abind' package is required for this function to work.")
-      }
+      tmp <- abind::abind(tmp, tmp, tmp_, tmp_, along = 2)
 
       return(tmp)
     }
@@ -131,8 +126,7 @@
         writeVideo = T)
   }
 
-  for(optimizeImageRep in c(F,T)){
-    optimizeImageRep <- F
+  for(optimizeImageRep in c(T,F)){
     ImageSeqConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
       obsW = obsW[ take_indices ],
       obsY = obsY[ take_indices ],
@@ -145,9 +139,9 @@
       # model specifics
       batchSize = 16L,
       optimizeImageRep = optimizeImageRep,
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
       LEARNING_RATE_BASE = 0.005, nSGD = 100, #
       nWidth_ImageRep = as.integer(2L^7),
-      strides = 2L,
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "TutorialExample",
