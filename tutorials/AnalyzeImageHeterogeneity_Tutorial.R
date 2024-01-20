@@ -15,7 +15,7 @@
 
 # run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
-reSaveTfRecords <- F
+reSaveTfRecords <- T
 if( reDownloadRawData <- F  ){
   # specify uganda data URL
   uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
@@ -221,7 +221,7 @@ for(optimizeImageRep in c(T, F)){
     # other modeling options
     nSGD = 50L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-    nWidth_ImageRep = as.integer(2L^5),
+    nWidth_ImageRep = as.integer(2L^6),
     optimizeImageRep = optimizeImageRep,
     kClust_est = 2, # vary depending on problem. Usually < 5
     batchSize = 8L, # make this larger for real application (e.g., 50L)
