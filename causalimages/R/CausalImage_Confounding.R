@@ -942,14 +942,16 @@ AnalyzeImageConfounding <- function(
               # plot raw image
               nTimeSteps <- dim(salience_map)[1]
               animation::saveGIF({
-              par(mar = c(1,2))
-              # GIF part 1
-              for (t_ in 1:nTimeSteps) {
+              # GIF part 1 --- all in outer time step loop
+              for (t_ in 1:nTimeSteps){
+              par(mfrow = c(1,2));
               plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
+              par(mar = margins_gif <- c(5,5,2,1))
               if(!plotRBG){
+                par(mar = margins_gif)
                 causalimages::image2(
                   as.matrix( orig_scale_im_[t_,,,plotBands[1]] ),
-                  main = long_lat_in_, cex.main = 2.5, col.main =  col_,
+                  main = long_lat_in_, cex.main = 1.5, col.main =  col_,
                   xlab = ifelse( plot_index_counter == 1,
                                  yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
                                  no = "")
@@ -958,7 +960,7 @@ AnalyzeImageConfounding <- function(
               if(plotRBG){
                 plot(0, main = long_lat_in_, col.main = col_,
                      ylab = "", xlab = "",
-                     cex.main = 4, ylim = c(0,1), xlim = c(0,1),
+                     cex.main = 1.5, ylim = c(0,1), xlim = c(0,1),
                      cex = 0, xaxt = "n",yaxt = "n",bty = "n")
                 mtext(side = 1, ifelse( plot_index_counter == 1,
                                         yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
@@ -971,20 +973,23 @@ AnalyzeImageConfounding <- function(
                                               add = T, main = long_lat_in_), T)
                 }
               }
-              }}
 
               # GIF part 2
-              for (t_ in 1:nTimeSteps) {
-                salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
-                salience_map <- sign(salience_map)*log(abs(salience_map)+1)
-                image2( salience_map[t_,,], xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
-              }, movie.name = sprintf("%s/CSM_%s_%s.gif", figuresPath, FigNameAppend, plot_index_counter), autobrowse = F, autoplay = F)
+              salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
+              salience_map <- sign(salience_map)*log(abs(salience_map)+1)
+              par(mar = margins_gif)
+              image2( salience_map[t_,,],
+                      main = long_lat_in_, cex.main = 1.5, col.main = "white",
+                      #xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),
+                      cex.lab = 1)
+              }}, movie.name = sprintf("%s/CSM_%s_%s.gif", figuresPath, FigNameAppend, plot_index_counter),
+                  autobrowse = F, autoplay = F,
+                  ani.height = 480*1, ani.width = 480*(1+1))
           }
         }
-          }
         }
         eval(parse(text = ifelse(dataType == "image", yes = "dev.off()", no = "NULL") ))
-        },T)
+        }},T)
         if('try-error' %in% class(salience_try)){
           print(salience_try);
           if(atError == "stop"){ stop("Problem in salience map computation!")  }

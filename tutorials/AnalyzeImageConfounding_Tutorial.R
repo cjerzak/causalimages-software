@@ -78,10 +78,11 @@
     ImageModelClass = ImageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
-    LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
+    LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
     plotBands = c(1,2,3),
-    plotResults = T, figuresTag = "TutorialExample",
+    plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "~/Downloads/ImageTutorial")
+    try(dev.off(), T)
   }
   }
 
@@ -131,7 +132,6 @@
         writeVideo = T)
   }
 
-
   for(ImageModelClass in c("VisionTransformer","CNN")){
   for(optimizeImageRep in c(T, F)){
     print(sprintf("Image seq confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
@@ -149,12 +149,13 @@
       optimizeImageRep = optimizeImageRep,
       ImageModelClass = ImageModelClass,
       nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-      LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
+      LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
       nWidth_ImageRep = as.integer(2L^7),
       nBoot = 5L,
       plotBands = c(1,2,3),
-      plotResults = T, figuresTag = "TutorialExample",
+      plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
       figuresPath = "~/Downloads/ImageTutorial") # figures saved here
+      try(dev.off(), T)
   }
   }
 

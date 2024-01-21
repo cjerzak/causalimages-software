@@ -17,19 +17,19 @@
 
     print("Starting image TfRecords tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/UsingTFRecords_Tutorial.R"),T)
-    if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }
+    if("try-error" %in% class(t_)){ stop("Failed at TfRecords tutorial...") }; try(dev.off(), T)
 
     Sys.sleep(1L); print("Starting image representations tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/ExtractImageRepresentations_Tutorial.R"),T)
-    if("try-error" %in% class(t_)){ stop("Failed at image representations tutorial...") }
+    if("try-error" %in% class(t_)){ stop("Failed at image representations tutorial...") }; try(dev.off(), T)
 
     Sys.sleep(1L); print("Starting image confounding tutorial..."); setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageConfounding_Tutorial.R"),T)
-    if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }
+    if("try-error" %in% class(t_)){ stop("Failed at confounding tutorial...") }; try(dev.off(), T)
 
     Sys.sleep(1L); print("Starting image heterogeneity tutorial...");  setwd("~");
     t_ <- try(source("~/Documents/causalimages-software/tutorials/AnalyzeImageHeterogeneity_Tutorial.R"),T)
-    if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }
+    if("try-error" %in% class(t_)){ stop("Failed at heterogeneity tutorial...") }; try(dev.off(), T)
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed..."); print( tryTests ) }

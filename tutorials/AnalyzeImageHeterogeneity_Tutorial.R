@@ -154,7 +154,7 @@ for(optimizeImageRep in c(T, F)){
     # (these image grids are large and difficult to display in RStudio's interactive mode)
     plotResults = T,
     figuresPath = "~/Downloads/HeteroTutorial", # where to write analysis figures
-    figuresTag = "causalimagesTutorial",plotBands = 1L:3L,
+    figuresTag = "HeterogeneityImTutorial",plotBands = 1L:3L,
 
     # optional arguments for generating transportability maps
     # here, we leave those NULL for simplicity
@@ -169,6 +169,7 @@ for(optimizeImageRep in c(T, F)){
     batchSize = 8L, # make this larger for real application (e.g., 50L)
     kClust_est = 2 # vary depending on problem. Usually < 5
     )
+    try(dev.off(), T)
 }
 }
 
@@ -219,7 +220,7 @@ for(optimizeImageRep in c(T, F)){
     # (these image grids are large and difficult to display in RStudio's interactive mode)
     plotResults = T,
     figuresPath = "~/Downloads/HeteroTutorial",
-    plotBands = 1L:3L, figuresTag = "causalimagesTutorial",
+    plotBands = 1L:3L, figuresTag = "HeterogeneityImSeqTutorial",
 
     # optional arguments for generating transportability maps
     # here, we leave those NULL for simplicity
@@ -234,6 +235,7 @@ for(optimizeImageRep in c(T, F)){
     kClust_est = 2, # vary depending on problem. Usually < 5
     batchSize = 8L, # make this larger for real application (e.g., 50L)
     strides = 2L )
+    try(dev.off(), T)
   }
   }
 }
