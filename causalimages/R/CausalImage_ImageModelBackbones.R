@@ -262,7 +262,7 @@ GetImageRepresentations <- function(
           # residual connection to previous state
           mtm1 <- m <- jnp$add(mtm1, m)
       }
-      print2(sprintf("Done with Transformer block [depth %s, %s]...", nDepth_ImageRep, type))
+      print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
       # final transformations
       m <- jnp$multiply( RMS_norm( m ), LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  )

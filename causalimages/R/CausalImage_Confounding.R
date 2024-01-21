@@ -660,8 +660,8 @@ AnalyzeImageConfounding <- function(
           i_ <- i ; if(i %% 10 == 0 | i < 10 ){
             print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
                            i, n_sgd_iters,
-                           loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T)),
-                           (Sys.time() - t0)[1], (Sys.time() - t1)[1] )
+                           loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
+                           (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
             loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
             try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
             if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
