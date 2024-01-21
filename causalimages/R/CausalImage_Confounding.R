@@ -852,7 +852,7 @@ AnalyzeImageConfounding <- function(
             if(dataType == "image"){
               par(mar=c(0,0,0,0));
               plot(0, main = "", ylab = "",cex = 0, xlab = "", ylim = c(0,1), xlim = c(0,1), xaxt = "n",yaxt = "n",bty = "n")
-              text(0.5,0.5,labels = "Raw Image", srt=90,cex=3)
+              text(0.5,0.5,labels = text_, srt=90,cex=3)
             }
         }
 
