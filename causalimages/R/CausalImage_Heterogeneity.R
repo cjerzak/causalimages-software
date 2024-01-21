@@ -95,6 +95,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       batchSize = 16L,
                                       seed = NULL,
 
+                                      ImageModelClass = "VisionTransformer",
                                       nMonte_predictive = 10L,
                                       nMonte_salience = 10L,
                                       nMonte_variational = 2L,
@@ -120,6 +121,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
+    tf$config$get_visible_devices() # confirm CPU only
+    tf$config$experimental$set_visible_devices(list(), "GPU")
     gc(); py_gc$collect()
 
     c2f <- jmp$cast_to_full
@@ -260,29 +263,22 @@ AnalyzeImageHeterogeneity <- function(obsW,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
         batchSize = batchSize,
+        ImageModelClass = ImageModelClass,
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         TfRecords_BufferScaler = 3L,
-        #imageKeysOfUnits = (UsedKeys <- unique(imageKeysOfUnits)), getRepresentations = T,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
         bn_momentum = bn_momentum,
         bn_epsilon = BN_EP,
         InitImageProcess = function(im, inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
         seed = seed); setwd(new_wd)
-      attach( list2env( ImageRepresentations[2:5] ) )
+        ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
+        ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
+        ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
 
-      if(T == F){
-        row.names(ImageRepresentations$ImageRepresentations) <- UsedKeys
-        tmp <- as.data.frame(ImageRepresentations$ImageRepresentations)[imageKeysOfUnits,]
-        try(hist(c(unlist(tmp))),T)
-        try(hist(cor(ImageRepresentations$ImageRepresentations)),T)
-        try(plot( ImageRepresentations$ImageRepresentations[,sample(1:20,2)] ),T)
-        try(print( summary( lm(obsY~ as.matrix(tmp) ) ) ),T)
-      }
-
-      print2("Done initializing image representation function...")
-      rm(ImageRepresentations); gc(); py_gc$collect()
+        print2("Done initializing image representation function...")
+        rm(ImageRepresentations); gc(); py_gc$collect()
   }
 
   # set environment of image sampling functions
@@ -312,10 +308,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     plot(obsY,Yobs_ortho)
     obsY <- Yobs_ortho
-    #YandW_mat[f2n(names(my_resid)),]$Yobs_ortho <- as.numeric2(YandW_mat[f2n(names(my_resid)),]$Yobs_ortho)
-    #YandW_mat[["Yobs_ortho"]][f2n(names(my_resid))] <- my_resid
-    #try({plot(YandW_mat$Yobs_ortho,YandW_mat$Yobs);abline(a=0,b=1)},T)
-    #YandW_mat$Yobs_ortho[is.na(YandW_mat$Yobs_ortho)] <- mean(YandW_mat$Yobs_ortho,na.rm=T)
   }
 
   # setup tf record
@@ -480,17 +472,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     GetDenseNet <- function(ModelList, ModelList_fixed, m,
                             vseed, StateList, seed, MPList, inference, type){
-        # image representation model
-        if(!SharedImageRepresentation){
-          m <- ImageRepresentations_fxn_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                                 m, StateList, MPList, inference)
-          StateList <- m[[2]] ; m <- m[[1]]
-        }
         m <- jnp$expand_dims(m, 0L)
 
         # dense part
         # m_tminus1 <- m
-        for(d__ in 1:nDepth_Dense){
+        for(d__ in 1L:nDepth_Dense){
           # projection
           Wts <- oryx$distributions$Normal( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
                             jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) ) )$sample(seed = jnp$add(40L, seed) )
@@ -519,17 +505,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     for(type_ in c("EY0","Tau")){
       eval(parse(text =  sprintf("Get%s_batch <- jax$vmap( Get%s <- function(
-        ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
+        ModelList, ModelList_fixed,
+        m, vseed,
+        StateList, seed, MPList, inference){
         GetDenseNet(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference, type = '%s')
-      }, in_axes = list(NULL, NULL, 0L, 0L, NULL, NULL, NULL, NULL),
+      }, in_axes = list(NULL, NULL,
+                        0L, 0L,
+                        NULL, NULL, NULL, NULL),
          axis_name = batch_axis_name,
          out_axes = list(0L, NULL))", type_, type_ , type_)))
     }
 
     if(grepl(heterogeneityModelType, pattern = "variational")){
       getClusterSamp_logitInput <- function(logits_, seed_){
-        return( oryx$distributions$RelaxedOneHotCategorical(temperature = temperature,
-                  logits = logits_)$sample(seed = jnp$add(452L, seed_)) )
+        return( oryx$distributions$RelaxedOneHotCategorical(temperature = c2f(temperature),
+                  logits =  logits_ )$sample(seed = jnp$add(452L, seed_)) )
       }
       if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
         GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
@@ -552,43 +542,44 @@ AnalyzeImageHeterogeneity <- function(obsW,
                        LE(ModelList, sprintf("%s_%s2", qname, pname)) )) ) }
     }
 
-    GetLikelihoodDraw <- jax$vmap(GetLikelihoodDraw_raw <- function(
-                                           ModelList, ModelList_fixed,
-                                           m, treat, y, vseed,
-                                           StateList, seed, MPList, inference){
+    GetLikelihoodDraw_batch <- function(
+                                        ModelList, ModelList_fixed,
+                                        m, treat, y, vseed,
+                                        StateList, seed, MPList, inference){
       # image representation model
       if(SharedImageRepresentation){
         print2("Getting image representation...")
-        m <- ImageRepArm_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
+        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                 m, StateList, MPList, inference)
-        StateList <- m[[2]] ; m <- m[[1]]
+        StateList <- m[[2]]; m <- m[[1]]
       }
 
       print2("Getting cluster logits...")
-      clustT <- GetTau(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
-      clustT[[1]] <- getClusterSamp_logitInput(clustT[[1]], jnp$add(3004L, seed))
+      clustT <- GetTau_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
       StateList <- clustT[[2]]; clustT <- clustT[[1]]
+      clustT <- MPList[[1]]$cast_to_compute( getClusterSamp_logitInput(c2f(clustT), seed) )
 
       print2("Getting baseline outcome...")
-      EY0_i <- GetEY0(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
+      EY0_i <- GetEY0_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
       StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
 
       print2("Setting up Bayesian model...")
+      # note: use vseed if vmapping and seed if pre-batched
       ETau_draw <- oryx$distributions$Normal(
         c2f(getTau_means( ModelList )),
-        jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = jnp$add(vseed,111L) )
+        jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = jnp$add(seed,111L) )
       ETau_draw <- MPList[[1]]$cast_to_compute( ETau_draw )
 
       # get SD draws
       EY0Uncert_draw <- oryx$distributions$Normal(
                       c2f( getSDY_params(ModelList,"Y0", "Mean") ),
-                     jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = jnp$add(vseed,324L) )
+                     jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = jnp$add(seed,324L) )
       EY0Uncert_draw <- jax$nn$softplus( EY0Uncert_draw )
       EY0Uncert_draw <- MPList[[1]]$cast_to_compute( EY0Uncert_draw )
 
       EY1Uncert_draw <- oryx$distributions$Normal(
                       c2f( getSDY_params(ModelList, "Y1", "Mean")) ,
-        jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = jnp$add(vseed,3234L))
+        jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = jnp$add(seed,3234L))
       EY1Uncert_draw <- jax$nn$softplus( EY1Uncert_draw )
       EY1Uncert_draw <- MPList[[1]]$cast_to_compute( EY1Uncert_draw )
 
@@ -605,19 +596,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
                      jnp$multiply( treat, EY0_i + Etau_i)
 
       # some commented analyses to triple-check code correctness re: initialization
-      lik_dist_draw <- oryx$distributions$Normal(loc = Y_Mean, scale = Y_Sigma)$log_prob(y)
+      #lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = Y_Mean, scale = Y_Sigma)$log_prob(y) )
+      lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = c2f(Y_Mean), scale = c2f(Y_Sigma) )$log_prob(c2f(y)) )
 
       # simplify by uncommenting
-      lik_dist_draw <- jnp$negative(  jnp$mean((Y_Mean - y)^2) )
+      #lik_dist_draw <- jnp$negative(  jnp$mean((Y_Mean - y)^2) ) # later we - to min the sum of squares
 
       # return
       return(list(lik_dist_draw, StateList));
-    },
-    in_axes = list(NULL, NULL,
-                   0L, 0L, 0L, 0L,
-                   NULL, NULL, NULL, NULL),
-    out_axes = list(0L, NULL),
-    axis_name = batch_axis_name)
+    }
 
     # get KL terms
     getKL <- (function(ModelList){
@@ -653,15 +640,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                         m, treat, y, vseed,
                                         StateList, seed, MPList, inference){
       Elik <- jnp$zeros(list(), dtype = jnp$float16)
-      for(d_ in 1L:nMonte_variational){
-        LikContrib <-  GetLikelihoodDraw(ModelList, ModelList_fixed,
-                                                 m, treat, y, vseed,
-                                                 StateList, seed, MPList, inference)
+      for(mi_ in 1L:nMonte_variational){
+        LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
+                                                m, treat, y, jnp$add(vseed, mi_),
+                                                StateList, jnp$add(seed, mi_), MPList, inference)
         StateList <- LikContrib[[2]]; LikContrib <- LikContrib[[1]]
         Elik <- Elik + LikContrib / jnp$array(f2n(nMonte_variational), jnp$float16)
       }
       return( list(Elik, StateList) )
-
     }
 
     GetLoss <- function(ModelList, ModelList_fixed,
@@ -678,7 +664,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         StateList <- Elik[[2]]; Elik <- Elik[[1]]
 
         # minimize negative log likelihood and positive KL term
-        if(BAYES_STEP == 1){ minThis <- jnp$negative(jnp$mean( Elik )) }
+        if(BAYES_STEP == 1){ minThis <- jnp$negative( Elik ) }
         if(BAYES_STEP == 2){ minThis <- CombineLikelihoodWithKL( Elik, klContrib ) }
 
         print2("Returning loss + state...")
@@ -707,12 +693,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(optimizeImageRep){
       ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]],
                         DenseList, CausalList)
-      ModelList_fixed <- NULL
+      ModelList_fixed <- jnp$array(0.)
     }
     StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
     MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
-                   jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float16),
-                                        min_loss_scale = jnp$array(1.,dtype = jnp$float16),
+                   jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float32),
+                                        min_loss_scale = jnp$array(1.,dtype = jnp$float32),
                                         period = 20L))
     ModelList <- MPList[[1]]$cast_to_param( ModelList )
     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
@@ -820,20 +806,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # debugging
         if(T == F){
           m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L), inference = F)
-          treat <- jnp$array(obsW[batch_indices], jnp$float16)
-          y <- jnp$array(obsY[batch_indices], jnp$float16)
+          treat <- jnp$array(as.matrix(obsW[batch_indices]), jnp$float16)
+          y <- jnp$array(as.matrix(obsY[batch_indices]), jnp$float16); inference = F
           vseed <- jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize)
+          seed <-  jax$random$PRNGKey( 500L+i )
           # GetLikelihoodDraw;
           GetLoss_jit <- eq$filter_jit( GetLoss )
-          #myLoss_forGrad <- GetLoss(
-          myLoss_forGrad <- GetLoss_jit(
+          myLoss_forGrad <- GetLoss(
+          #myLoss_forGrad <- GetLoss_jit(
                                     ModelList, ModelList_fixed,
                                     InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F),  # m
-                                    jnp$array((obsW[batch_indices]), jnp$float16), # treat
-                                    jnp$array((obsY[batch_indices]), jnp$float16), # y
+                                    jnp$array(as.matrix(obsW[batch_indices]), jnp$float16), # treat
+                                    jnp$array(as.matrix(obsY[batch_indices]), jnp$float16), # y
                                     vseed,
                                     StateList,
-                                    ax$random$PRNGKey( 123L+i ), # seed
+                                    jax$random$PRNGKey( 123L+i ), # seed
                                     MPList)
         }
 
@@ -867,15 +854,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
             AllFinite <- jax$jit( jmp$all_finite )
           }
           myGrad_jax <- Map2Zero( MPList[[2]]$unscale( myGrad_jax ) )
-          AllFinite <- jmp$all_finite( myGrad_jax )
-          MPList[[2]] <- MPList[[2]]$adjust( AllFinite  )
+          AllFinite_DontAdjust <- AllFinite( myGrad_jax )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_forGrad)))
+          MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
           # print( MPList[[2]] )
           # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
           # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
 
           # update parameters if finite gradients
-          DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite) & !is.infinite(myLoss_forGrad)
-          if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients...") }
+          DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_forGrad)
+          if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients in mixed-precision training...") }
           if( DoUpdate ){
             DoneUpdates <- DoneUpdates + 1
             if(DoneUpdates == 1){

@@ -75,6 +75,7 @@ AnalyzeImageConfounding <- function(
                                    optimizeImageRep = T,
                                    nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, temporalKernelSize = 2L, kernelSize = 5L,
                                    nWidth_Dense = 64L,  nDepth_Dense = 1L,
+                                   ImageModelClass = "VisionTransformer",
 
                                    strides = 2L,
                                    dropoutRate = 0.1,
@@ -82,12 +83,13 @@ AnalyzeImageConfounding <- function(
                                    nSGD  = 400L,
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
-                                   LEARNING_RATE_BASE = 0.005,
+                                   LEARNING_RATE_BASE = 0.001,
                                    dataType = "image",
                                    atError = "stop", # stop or debug
                                    seed = NULL){
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
+    Sys.setenv(XLA_PYTHON_CLIENT_MEM_FRACTION = ".90")
     library(tensorflow); if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
@@ -101,6 +103,8 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
+    tf$config$get_visible_devices() # confirm CPU only
+    tf$config$experimental$set_visible_devices(list(), "GPU")
 
     image_dtype_tf <- tf$float16
     image_dtype <- jnp$float16
@@ -262,6 +266,7 @@ AnalyzeImageConfounding <- function(
             strides = strides,
             batchSize = batchSize,
             temporalKernelSize = temporalKernelSize,
+            ImageModelClass = ImageModelClass,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             imageKeysOfUnits = unique(imageKeysOfUnits), getRepresentations = T,
@@ -316,7 +321,6 @@ AnalyzeImageConfounding <- function(
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
           ImageRepArm_batch_R <- ImageRepresentations$ImageRepArm_batch_R
-          ImageRepArm_batch <- ImageRepresentations$ImageRepArm_batch
         }
       }
     }
@@ -330,6 +334,7 @@ AnalyzeImageConfounding <- function(
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
         batchSize = batchSize,
+        ImageModelClass = ImageModelClass,
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         TfRecords_BufferScaler = 3L,
@@ -338,11 +343,9 @@ AnalyzeImageConfounding <- function(
         bn_momentum = 0.9,
         bn_epsilon = BN_EP,
         seed = ai(4003L)  ); setwd(new_wd)
-        attach( list2env( ImageRepresentations[2:5] ) )
-        #ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
-        #ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
-        #ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
-        #rm( ImageRepresentations )
+        ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
+        ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+        rm( ImageRepresentations )
 
         batch_axis_name <- "batch"
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
@@ -393,15 +396,15 @@ AnalyzeImageConfounding <- function(
                 in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
-        GetTreatProb_batch <- jax$vmap(GetTreatProb_OneObs <- function( ModelList, ModelList_fixed,
+        GetTreatProb_batch<- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
           # image model
-          m <- ImageRepArm_OneObs(ModelList, m, StateList, MPList, inference)
+          m <- ImageRepArm_batch_R(ModelList, m, StateList, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
           # dense model
-          m <- GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+          m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
           # label smoothing to prevent underflow (log(0) generates NAs)
@@ -411,29 +414,7 @@ AnalyzeImageConfounding <- function(
 
           # return contents
           return( list(m, StateList) )
-        },
-        in_axes = list(NULL,NULL,0L,0L,0L,NULL,NULL,NULL,NULL),
-        axis_name = batch_axis_name,
-        out_axes = list(0L,NULL))
-
-        GetLoss_batch <- jax$vmap(GetLoss_OneObs <- function( ModelList, ModelList_fixed,
-                            m, x, treat, vseed,
-                            StateList, seed, MPList, inference){
-          m <- GetTreatProb_OneObs( ModelList, ModelList_fixed,
-                              m, x, vseed,
-                              StateList, seed, MPList, inference )
-          StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
-
-          # compute negative log-likelihood loss
-          NegLL <-  jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(m)),
-                                           jnp$multiply(1-treat, jnp$log(1-m)) ))
-
-          # return
-          return( list(NegLL, StateList)  )
-        },
-        in_axes = list(NULL,NULL,0L,0L,0L,0L,NULL,NULL,NULL,NULL),
-        axis_name = batch_axis_name,
-        out_axes = list(0L,NULL))
+        }
 
         GetLoss <-  function( ModelList, ModelList_fixed,
                               m, x, treat, vseed,
@@ -442,9 +423,14 @@ AnalyzeImageConfounding <- function(
           ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) # compute to output dtype
           StateList <- MPList[[1]]$cast_to_compute( StateList ) # compute to output dtype
 
-          NegLL <- GetLoss_batch( ModelList, ModelList_fixed,
-                         m, x, treat, vseed,
-                         StateList, seed, MPList, inference )
+          m <- GetTreatProb_batch( ModelList, ModelList_fixed,
+                                   m, x, vseed,
+                                   StateList, seed, MPList, inference )
+          StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
+
+          # compute negative log-likelihood loss
+          NegLL <-  jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(m)),
+                                            jnp$multiply(1-treat, jnp$log(1-m)) ))
           StateList <- NegLL[[2]]; NegLL <- jnp$mean( NegLL[[1]] )
 
           print2("Returning loss + state...")
@@ -599,14 +585,14 @@ AnalyzeImageConfounding <- function(
               AllFinite <- jax$jit( jmp$all_finite )
             }
             myGrad_jax <- Map2Zero( MPList[[2]]$unscale( myGrad_jax ) )
-            AllFinite <- jmp$all_finite( myGrad_jax )
-            MPList[[2]] <- MPList[[2]]$adjust( AllFinite  )
+            AllFinite_DontAdjust <- AllFinite( myGrad_jax )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_forGrad)))
+            MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
             # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
 
             # update parameters if finite gradients
-            DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite) & !is.infinite(myLoss_forGrad)
-            if(! DoUpdate ){ print2("Warning: Not updating parameters due to non-finite gradients...") }
+            DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_forGrad)
+            if(! DoUpdate ){ print2("Warning: Not updating parameters due to non-finite gradients in mixed-precision training...") }
             if( DoUpdate ){
               DoneUpdates <- DoneUpdates + 1
               if(DoneUpdates == 1){
@@ -819,7 +805,7 @@ AnalyzeImageConfounding <- function(
                     out_ <- jnp$log(out_ / (1-out_))
                     return(  jnp$squeeze(out_)  ) }, pos_)
         if(pos_ == 2L){ dLogProb_dImage <- dLogProb_d }
-        if(pos_ == 3L){ dLogProb_dX <- dLogProb_d }
+        if(pos_ == 3L){ dLogProb_dX <- eq$filter_jit( dLogProb_d ) }
       }
       ImGrad_fxn <- eq$filter_jit( function(ModelList, ModelList_fixed,
                                             m, x, vseed,

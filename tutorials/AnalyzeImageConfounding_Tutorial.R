@@ -18,7 +18,7 @@
   library( causalimages  )
 
   # resave TfRecords?
-  reSaveTFRecord <- T
+  reSaveTFRecord <- F
 
   # load in tutorial data
   data(  CausalImagesTutorialData )
@@ -60,8 +60,9 @@
       acquireImageFxn = acquireImageFxn)
   }
 
+  for(ImageModelClass in rev(c("VisionTransformer","CNN"))){
   for(optimizeImageRep in c(T,F)){
-  print(sprintf("Image confounding analysis & optimizeImageRep: %s",optimizeImageRep))
+  print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
@@ -74,12 +75,14 @@
     batchSize = 16L,
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
+    ImageModelClass = ImageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
-    LEARNING_RATE_BASE = 0.005, nSGD = 100, #
+    LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "TutorialExample",
     figuresPath = "~/Downloads/ImageTutorial")
+  }
   }
 
   # ATE estimate (image confounder adjusted)
@@ -90,6 +93,7 @@
 
   # some out-of-sample evaluation metrics
   ImageConfoundingAnalysis$ModelEvaluationMetrics
+
 }
 
   # perform causal inference with image *sequence*  and tabular confounding
@@ -127,8 +131,10 @@
         writeVideo = T)
   }
 
-  for(optimizeImageRep in c(F)){
-    print(sprintf("Image seq confounding analysis & optimizeImageRep: %s",optimizeImageRep))
+
+  for(ImageModelClass in c("VisionTransformer","CNN")){
+  for(optimizeImageRep in c(T, F)){
+    print(sprintf("Image seq confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
     ImageSeqConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
       obsW = obsW[ take_indices ],
       obsY = obsY[ take_indices ],
@@ -141,13 +147,15 @@
       # model specifics
       batchSize = 16L,
       optimizeImageRep = optimizeImageRep,
-      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-      LEARNING_RATE_BASE = 0.005, nSGD = 100, #
+      ImageModelClass = ImageModelClass,
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+      LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
       nWidth_ImageRep = as.integer(2L^7),
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "TutorialExample",
       figuresPath = "~/Downloads/ImageTutorial") # figures saved here
+  }
   }
 
   # ATE estimate (image confounder adjusted)
