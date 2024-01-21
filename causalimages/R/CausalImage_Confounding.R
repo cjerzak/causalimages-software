@@ -78,7 +78,7 @@ AnalyzeImageConfounding <- function(
                                    ImageModelClass = "VisionTransformer",
 
                                    strides = 2L,
-                                   nDepth_TemporalRep = 1L,
+                                   nDepth_TemporalRep = 3L,
                                    patchEmbedDim = 16L,
                                    dropoutRate = 0.1,
                                    batchSize = 16L,
