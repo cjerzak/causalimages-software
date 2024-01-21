@@ -124,7 +124,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
     tf$config$get_visible_devices() # confirm CPU only
-    tf$config$experimental$set_visible_devices(list(), "GPU")
+    # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
     gc(); py_gc$collect()
 
     c2f <- jmp$cast_to_full
@@ -1320,8 +1320,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           return( list(ImageGrad_L2,  # salience magnitude
                        ImageGrad_mean) ) # salience direction
 
-    },
-                                  device = jax$devices('cpu')[[1]])
+    }, device = jax$devices('cpu')[[1]])
     if(plotResults){
     video_plotting_fxn <- function(){
           plotting_coordinates_mat <- c()
@@ -1394,6 +1393,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
               if(length(ds_next_in$shape) == 4){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
 
             animation::saveGIF({
+              # panel 1 of GIF
+              doMean < grepl(typePlot,pattern = "mean")
+              par(mar=c(1,1+1*doMean))
+              {
               orig_scale_im_raster <-  as.array( ds_next_in[1,,,,plotBands[1]] )
               nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
               for (t_ in 1:nTimeSteps) {
@@ -1432,13 +1435,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                     no = ""),
                                       col.main = k_, cex.main=4,  stretch = stretch)
                   }
-              } }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_Type%s_Ortho%s_k%s_i%s.gif",
-                                        figuresPath, pdf_name_key, figuresTag,
-                                        typePlot, orthogonalize, k_, i), autobrowse = F, autoplay = F)
+              } }
               gc(); py_gc$collect()
 
               # salience plotting routine
-              if(grepl(typePlot,pattern = "mean")){
+              if(doMean){
                 ylab_ <- ""; if(i==1){
                   tauk <- np$array(Tau_mean_vec)[k_]
                   ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
@@ -1467,8 +1468,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
                       }}
                   }
 
+                  # panel 2
                   # magnitude - check for changes in salings
-                  animation::saveGIF({
+                  #animation::saveGIF({
                     for (t_ in 1:nTimeSteps){
                       par(mar = c(1,5,1,1))
                       image(t(IG[t_,,,1])[,nrow(IG[t_,,,1]):1L],
@@ -1477,17 +1479,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
                             cex.axis = (cex_tile_axis <- 4), col.axis=k_,
                             breaks = gradMag_breaks, axes = F)
                       animation::ani.pause()  # Pause to make sure it gets rendered
-                    }},movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s_SalienceMag_%s.gif",
-                                            figuresPath, pdf_name_key, figuresTag, k_, i, typePlot),
-                    autobrowse = F, autoplay = F)
-                }
+                    }}
+                #movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_k%s_i%s_SalienceMag_%s.gif", figuresPath, pdf_name_key, figuresTag, k_, i, typePlot), autobrowse = F, autoplay = F)
               }
-            }
-            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat,
-                                                  used_coordinates ),T)
+              }, movie.name = sprintf("%s/HeteroSimClusterEx%s_ExternalFigureKey%s_Type%s_Ortho%s_k%s_i%s.gif",
+                                     figuresPath, pdf_name_key, figuresTag,
+                                     typePlot, orthogonalize, k_, i), autobrowse = F, autoplay = F)
+              }
+            plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates ),T)
           }
           return( plotting_coordinates_mat )
         }
+      }
     image_plotting_fxn <- function(){
         pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf", figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
             height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),

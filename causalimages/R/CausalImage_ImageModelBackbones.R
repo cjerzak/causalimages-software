@@ -182,7 +182,7 @@ GetImageRepresentations <- function(
         SpatialMultihead_d <- eq$nn$MultiheadAttention(
                             query_size = nWidth_ImageRep,
                             output_size = nWidth_ImageRep,
-                            num_heads = 3L,
+                            num_heads = 8L,
                             use_output_bias = F,
                             key = jax$random$PRNGKey( 23453355L + seed + d_) )
         SpatialFF_d <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
@@ -314,7 +314,7 @@ GetImageRepresentations <- function(
         TemporalMultihead_d <- eq$nn$MultiheadAttention(
                                     query_size = nWidth_ImageRep,
                                     output_size = nWidth_ImageRep,
-                                    num_heads = 3L,
+                                    num_heads = 8L,
                                     use_output_bias = F,
                                     key = jax$random$PRNGKey( 23453355L + seed+dt_) )
         TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_ImageRep,

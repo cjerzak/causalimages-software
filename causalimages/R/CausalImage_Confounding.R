@@ -106,7 +106,7 @@ AnalyzeImageConfounding <- function(
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
     tf$config$get_visible_devices() # confirm CPU only
-    tf$config$experimental$set_visible_devices(list(), "GPU")
+    # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
 
     image_dtype_tf <- tf$float16
     image_dtype <- jnp$float16
@@ -942,6 +942,8 @@ AnalyzeImageConfounding <- function(
               # plot raw image
               nTimeSteps <- dim(salience_map)[1]
               animation::saveGIF({
+              par(mar = c(1,2))
+              # GIF part 1
               for (t_ in 1:nTimeSteps) {
               plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
               if(!plotRBG){
@@ -969,19 +971,14 @@ AnalyzeImageConfounding <- function(
                                               add = T, main = long_lat_in_), T)
                 }
               }
-              }},
-              movie.name = sprintf("%s/CSM_%s_%s.gif", figuresPath, FigNameAppend, plot_index_counter),
-              autobrowse = F, autoplay = F)
+              }}
 
-              # plot salience map
-              par(mar = mar_vec)
-              animation::saveGIF({
-                for (t_ in 1:nTimeSteps) {
+              # GIF part 2
+              for (t_ in 1:nTimeSteps) {
                 salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))
                 salience_map <- sign(salience_map)*log(abs(salience_map)+1)
                 image2( salience_map[t_,,], xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
-                }}, movie.name = sprintf("%s/SalienceMap_%s_%s.gif", figuresPath, FigNameAppend, plot_index_counter), autobrowse = F, autoplay = F)
-              par(mar = mar_vec)
+              }, movie.name = sprintf("%s/CSM_%s_%s.gif", figuresPath, FigNameAppend, plot_index_counter), autobrowse = F, autoplay = F)
           }
         }
           }
