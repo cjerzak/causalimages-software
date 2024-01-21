@@ -839,20 +839,24 @@ AnalyzeImageConfounding <- function(
         salience_try <- try({
         print2("Plotting salience maps...")
         nrows_im <- 2
-        pdf(sprintf("%s/CSM_%s.pdf", figuresPath, FigNameAppend),
-            width = length(plot_indices)*5+2,height = nrows_im*5)
+        eval(parse(text = ifelse(dataType == "image", yes = 'pdf(sprintf("%s/CSM_%s.pdf", figuresPath, FigNameAppend),
+            width = length(plot_indices)*5+2,height = nrows_im*5)', no = "NULL") ))
         {
           layout(matrix(1:(nrows_im*(1+length(plot_indices))),
                         ncol = 1+length(plot_indices)),
                  width = c(0.5,rep(5,length(plot_indices))),
                  height = rep(5,times=nrows_im)); in_counter <- 0
-          for(text_ in c("Raw Image","Salience Map")){
+
+        # create axis labels in plot positions 1 and 2
+        for(text_ in c("Raw Image","Salience Map")){
             if(dataType == "image"){
-              par(mar=c(0,0,0,0)); plot(0, main = "", ylab = "",cex = 0,
-                   xlab = "", ylim = c(0,1), xlim = c(0,1),
-                   xaxt = "n",yaxt = "n",bty = "n")
-              text(0.5,0.5,labels = text_, srt=90,cex=3)
+              par(mar=c(0,0,0,0));
+              plot(0, main = "", ylab = "",cex = 0, xlab = "", ylim = c(0,1), xlim = c(0,1), xaxt = "n",yaxt = "n",bty = "n")
+              text(0.5,0.5,labels = "Raw Image", srt=90,cex=3)
             }
+        }
+
+        # generate rest of plot
           plot_index_counter <- 0; for(in_ in plot_indices){
             print(c(text_, in_))
             gc(); py_gc$collect()
@@ -922,21 +926,15 @@ AnalyzeImageConfounding <- function(
                  orig_scale_im_raster <- raster::brick(orig_scale_im_[,,plotBands[1:3]])
                  try_ <- try(raster::plotRGB(orig_scale_im_raster, r = 1, g = 2, b = 3,
                                  add = T, main = long_lat_in_, stretch = "lin"), T)
-                 if("try-error" %in% class(try_)){
-                   try_ <- try(raster::plotRGB(orig_scale_im_raster, r = 1, g = 2, b = 3,
-                                               add = T, main = long_lat_in_), T)
-                 }
+                 if("try-error" %in% class(try_)){ try_ <- try(raster::plotRGB(orig_scale_im_raster, r = 1, g = 2, b = 3, add = T, main = long_lat_in_), T) }
               }
 
               # plot salience map
-              par(mar = mar_vec)
               #optax$global_norm( eq$filter(ModelList, eq$is_array)[[1]] )
-              #optax$global_norm( eq$filter(StateList, eq$is_array)[[1]] )
               try_salience <- try({salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))},T)
               if("try-error" %in% class(try_salience)){ browser() }
               salience_map <- sign(salience_map)*log(abs(salience_map)+1)
               image2( salience_map, xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
-              par(mar = mar_vec)
             }
             if(dataType == "video"){
               # plot raw image
@@ -987,7 +985,7 @@ AnalyzeImageConfounding <- function(
                   ani.height = 480*1, ani.width = 480*(1+1))
           }
         }
-        }
+
         eval(parse(text = ifelse(dataType == "image", yes = "dev.off()", no = "NULL") ))
         }},T)
         if('try-error' %in% class(salience_try)){

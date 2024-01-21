@@ -82,6 +82,9 @@
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "~/Downloads/ImageTutorial")
+  browser()
+  stop()
+  stop()
     try(dev.off(), T)
   }
   }
