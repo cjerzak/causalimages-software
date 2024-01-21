@@ -1277,8 +1277,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     dLogProb_dImage <- jax$grad(LogProb_Image <- function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
       if(SharedImageRepresentation){
-        m <- ImageRepArm_OneObs(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                          m, StateList, MPList, T)[[1]]
+        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
+                               jnp$expand_dims(m,0L),
+                               StateList, MPList, T)[[1]]
+        m <- jnp$squeeze(m)
       }
 
       PROBS_ <- sapply(1L:nMonte_salience, function(itr){

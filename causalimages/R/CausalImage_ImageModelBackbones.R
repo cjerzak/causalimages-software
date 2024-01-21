@@ -327,7 +327,7 @@ GetImageRepresentations <- function(
                           out_features = nWidth_ImageRep,
                           use_bias = F, # final bias
                           key = jax$random$PRNGKey(ai(333324L + 1L+dt_))))
-        ModelList[[nDepth_ImageRep + 1 + dt_]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
+        ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_)))
       }

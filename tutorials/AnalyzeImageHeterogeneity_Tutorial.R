@@ -162,8 +162,8 @@ for(optimizeImageRep in c(T, F)){
 
     # other modeling options
     ImageModelClass  = ImageModelClass,
-    nSGD = 50L, # make this larger for real applications (e.g., 2000L)
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+    nSGD = 5L, # make this larger for real applications (e.g., 2000L)
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
     optimizeImageRep = optimizeImageRep,
     batchSize = 8L, # make this larger for real application (e.g., 50L)
@@ -227,8 +227,8 @@ for(optimizeImageRep in c(T, F)){
 
     # other modeling options
     ImageModelClass = ImageModelClass,
-    nSGD = 50L, # make this larger for real applications (e.g., 2000L)
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+    nSGD = 5L, # make this larger for real applications (e.g., 2000L)
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^5),
     optimizeImageRep = optimizeImageRep,
     kClust_est = 2, # vary depending on problem. Usually < 5
