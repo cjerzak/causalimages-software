@@ -54,6 +54,7 @@ GetImageRepresentations <- function(
     strides = 1L,
     temporalKernelSize = 2L,
     kernelSize = 3L,
+    patchEmbedDim = 16L,
     TfRecords_BufferScaler = 10L,
     dataType = "image",
     bn_momentum = 0.9,
@@ -133,8 +134,8 @@ GetImageRepresentations <- function(
                                                              image_dtype = image_dtype_tf,
                                                              nObs = length(unique(imageKeysOfUnits)))[[1]],0L); setwd(new_wd)
   imageDims <- ai( length( dim(test_) ) - 2L )
-  RawChannelDims <- ai( dim(test_)[length(dim(test_))] )
-  RawSpatialDims <- ai( dim(test_)[length(dim(test_))-1] )
+  rawChannelDims <- ai( dim(test_)[length(dim(test_))] )
+  rawSpatialDims <- ai( dim(test_)[length(dim(test_))-1] )
 
   # setup jax model
   {
@@ -145,7 +146,7 @@ GetImageRepresentations <- function(
 
     # coerce to integer for safety
     kernelSize <- ai(kernelSize); strides <- ai(strides)
-    RawChannelDims <- ai(RawChannelDims); nWidth_ImageRep <- ai(nWidth_ImageRep)
+    rawChannelDims <- ai(rawChannelDims); nWidth_ImageRep <- ai(nWidth_ImageRep)
 
     # set batch name
     batch_axis_name <- "batch";
@@ -156,20 +157,19 @@ GetImageRepresentations <- function(
     RMS_norm <- function(x_){ jnp$divide( x_, jnp$sqrt(0.001+jnp$mean(jnp$square(x_), -1L, keepdims=T))) }
 
     # Calculate number of patches
-    patch_size <- 10L
-    n_patches_side = ai(RawSpatialDims / patch_size)
-    n_patches = ai(n_patches_side^2)
-    InitialPatchDims <- ai( (n_patches_side*patch_size*n_patches_side*patch_size)/n_patches * RawChannelDims )
+    nPatches_side = ai(rawSpatialDims / patchEmbedDim)
+    nPatches = ai(nPatches_side^2)
+    InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
 
     # rotary embedding setup
     theta_vals_spatial <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
     theta_vals_spatial <- c(sapply(theta_vals_spatial,function(z){c(z,z)}))
     theta_vals_spatial <- jnp$expand_dims(jnp$array(theta_vals_spatial), 0L)
-    nTimeSteps_spatial <- ai(n_patches_side^2)
+    nTimeSteps_spatial <- ai(nPatches_side^2)
     position_spatial <- jnp$expand_dims(jnp$arange(1L, nTimeSteps_spatial+3L), 1L)  # + 3L for stop, start
     cos_terms_spatial <- jnp$cos( pos_times_theta_spatial <- (position_spatial *  theta_vals_spatial) ) # p. 7
     sin_terms_spatial <- jnp$sin( pos_times_theta_spatial )
-    WideMultiplicationFactor <- 3.5
+    WideMultiplicationFactor <- 3
     nTransformerOutputWidth <- nWidth_ImageRep
 
     # set up model
@@ -206,9 +206,9 @@ GetImageRepresentations <- function(
         jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
         jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Stop
         jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
-        eq$nn$Conv(kernel_size = c(patch_size, patch_size),
-                   num_spatial_dims = 2L, stride = c(patch_size,patch_size),
-                   in_channels = RawChannelDims,
+        eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
+                   num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
+                   in_channels = rawChannelDims,
                    out_channels = nWidth_ImageRep, key = jax$random$PRNGKey(4L+100L+seed)), # patch embed
         eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
                       use_bias = F, key = jax$random$PRNGKey(999L+d_ )) # final dense proj
@@ -216,8 +216,9 @@ GetImageRepresentations <- function(
     }
     TransformerBackbone <- function(ModelList, m, StateList, MPList, type){
       if(type == "Spatial"){ # patch embed
-          m <- LE(ModelList,sprintf("SpatialTransformerSupp"))[[4]](jnp$transpose(m, c(2L, 0L, 1L)))
+          m <- LE(ModelList,"SpatialTransformerSupp")[[4]](jnp$transpose(m, c(2L, 0L, 1L)))
           m <- jnp$transpose(jnp$reshape(m, list(m$shape[[1]],-1L)))
+          print2(sprintf("Implied transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
 
       # append start and stop condons
@@ -225,19 +226,20 @@ GetImageRepresentations <- function(
       m <- jnp$concatenate(list(m, LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
 
       # start neural block
-      print2(sprintf("Starting Transformer block [depth %s, %s]...", nDepth_ImageRep, type))
-      mtm1 <- m; for(d_ in 1L:ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)){
+      DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
+      print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
+      mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
           # standardize
           m <- jnp$multiply(RMS_norm(m), LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]])
 
           # rotary embeddings
-          swapped_m <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
+          m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
           for( IDX in seq(0L, nWidth_ImageRep, by = 2L)){
-            swapped_m <- swapped_m$at[,jnp$array(IDX)]$add(  jnp$negative(jnp$take(m, IDX+1L, axis = 1L) ) )
-            swapped_m <- swapped_m$at[,jnp$array(IDX+1L)]$add( jnp$take(m, IDX, axis = 1L) )
+            m_pos <- m_pos$at[,jnp$array(IDX)]$add(  jnp$negative(jnp$take(m, IDX+1L, axis = 1L) ) )
+            m_pos <- m_pos$at[,jnp$array(IDX+1L)]$add( jnp$take(m, IDX, axis = 1L) )
           }
           m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
-                  swapped_m*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
+                    m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
 
           # multihead attention block
           m <- LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
@@ -274,7 +276,7 @@ GetImageRepresentations <- function(
         if(d_ > 1){ strides <- 1L }
         SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
                                              num_spatial_dims = 2L, stride = c(strides,strides),
-                                             in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = RawChannelDims, no = nWidth_ImageRep)),
+                                             in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
                                              out_channels = dimsSpatial,
                                              groups = dimsSpatial,
                                              key = jax$random$PRNGKey(4L+d_+seed))
@@ -381,6 +383,7 @@ GetImageRepresentations <- function(
       if(dataType == "video"){ m <- jnp$reshape(m, c(-1L, (orig_shape_m <- jnp$shape(m))[3:5])) }
 
       # get spatial representation
+      # m <- m[1,,,]
       m <- jax$vmap(function(ModelList, m, StateList, MPList, inference){
             ImageRepArm_SpatialArm(ModelList, m, StateList, MPList, inference) },
                in_axes = list(NULL, 0L, NULL, NULL, NULL),
@@ -443,7 +446,7 @@ GetImageRepresentations <- function(
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]), inference = T),
                                                           StateList, MPList, T)[[1]]  ), T)
-      representation_
+      # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }
       if(batchSizeOneCorrection){

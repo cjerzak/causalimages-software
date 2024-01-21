@@ -76,7 +76,7 @@
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
     ImageModelClass = ImageModelClass,
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
     LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
     plotBands = c(1,2,3),
@@ -148,7 +148,7 @@
       batchSize = 16L,
       optimizeImageRep = optimizeImageRep,
       ImageModelClass = ImageModelClass,
-      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 2L, no = 1L),
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
       LEARNING_RATE_BASE = 0.001, nSGD = 100L, #
       nWidth_ImageRep = as.integer(2L^7),
       nBoot = 5L,

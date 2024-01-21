@@ -85,12 +85,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       optimizeImageRep = T,
                                       nWidth_ImageRep = 64L, nDepth_ImageRep = 1L,
                                       nWidth_Dense = 64L, nDepth_Dense = 1L,
+                                      nDepth_TemporalRep = 1L,
                                       useTrainingPertubations = T,
                                       strides = 2L,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       temporalKernelSize = 2L,
                                       LEARNING_RATE_BASE = 0.005,
+                                      patchEmbedDim = 16L,
                                       nSGD  = 500L,
                                       batchSize = 16L,
                                       seed = NULL,
@@ -262,6 +264,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         nWidth_ImageRep = nWidth_ImageRep,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
+        nDepth_TemporalRep = nDepth_TemporalRep,
+        patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
         ImageModelClass = ImageModelClass,
         temporalKernelSize = temporalKernelSize,
@@ -778,7 +782,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
     keysUsedInTraining <- c()
     n_sgd_iters <- nSGD; tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
-        if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
+        t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
 
         ds_next_train <- ds_iterator_train$`next`()
 
@@ -825,6 +829,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
 
         # training step
+        t1 <- Sys.time();
         # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
         v_and_grad_loss_jax <- GradAndLossAndAux(
                                                  MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
@@ -920,9 +925,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # print diagnostics
       i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%)",
+        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - Total time (s): %.2f - Grad time (s): %.2f",
                        i, n_sgd_iters,
-                       loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T)))
+                       loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T))
+                       (Sys.time() - t0)[1], (Sys.time() - t1)[1] )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
         try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
         if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
