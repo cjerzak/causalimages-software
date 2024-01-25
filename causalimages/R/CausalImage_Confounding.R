@@ -548,7 +548,7 @@ AnalyzeImageConfounding <- function(
           }
 
           # select batch indices based on keys
-          batch_keys <- unlist(  lapply( ds_next_train[[3]]$numpy(), as.character) )
+          batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
           batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
           ds_next_train <- ds_next_train[[1]]
           if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
@@ -704,7 +704,7 @@ AnalyzeImageConfounding <- function(
                                                 nObs = length(unique(imageKeysOfUnits)),
                                                 return_iterator = T ); setwd(new_wd)
             passedIterator <- ds_next_in[[2]]
-            key_ <- unlist(  lapply( list(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+            key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
             ds_next_in <-  jnp$array( ds_next_in[[1]][[1]] )
 
             # deal with batch 1 case here
@@ -869,8 +869,8 @@ AnalyzeImageConfounding <- function(
                                                     readVideo = useVideo,
                                                     nObs = length(imageKeysOfUnits) ); setwd(new_wd)
             ds_next_in[[1]] <- jnp$array( ds_next_in[[1]] )
-            if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
-            if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
+            if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+            if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
 
             col_ <- ifelse(in_ %in% top_treated, yes = "black", no = "gray")
             in_counter <- in_counter + 1
@@ -1044,8 +1044,8 @@ AnalyzeImageConfounding <- function(
                                                            readVideo = useVideo,
                                                            nObs = length(unique(imageKeysOfUnits) ) ); setwd(new_wd)
           ds_next_in[[1]] <- jnp$array(ds_next_in[[1]])
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
 
           im_ <- InitImageProcessFn( jnp$array(ds_next_in[[1]]), jax$random$PRNGKey(432L), T)
           x_ <- jnp$array(t(X[sampIndex_,]), jnp$float16)

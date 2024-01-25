@@ -73,10 +73,10 @@
     file = TFRecordName_im,
 
     batchSize = 16L,
-    nBoot = 5L,
+    nBoot = 1000L,
     optimizeImageRep = optimizeImageRep,
     ImageModelClass = ImageModelClass,
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 8L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
     LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
     plotBands = c(1,2,3),

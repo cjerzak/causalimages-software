@@ -169,7 +169,7 @@ GetImageRepresentations <- function(
     position_spatial <- jnp$expand_dims(jnp$arange(1L, nTimeSteps_spatial+3L), 1L)  # + 3L for stop, start
     cos_terms_spatial <- jnp$cos( pos_times_theta_spatial <- (position_spatial *  theta_vals_spatial) ) # p. 7
     sin_terms_spatial <- jnp$sin( pos_times_theta_spatial )
-    WideMultiplicationFactor <- 3
+    WideMultiplicationFactor <- 3.5
     nTransformerOutputWidth <- nWidth_ImageRep
 
     # set up model
@@ -208,7 +208,7 @@ GetImageRepresentations <- function(
         jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
         eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
                    num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
-                   in_channels = rawChannelDims,
+                   in_channels = rawChannelDims, use_bias = F,
                    out_channels = nWidth_ImageRep, key = jax$random$PRNGKey(4L+100L+seed)), # patch embed
         eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
                       use_bias = F, key = jax$random$PRNGKey(999L+d_ )) # final dense proj
@@ -218,19 +218,22 @@ GetImageRepresentations <- function(
       if(type == "Spatial"){ # patch embed
           m <- LE(ModelList,"SpatialTransformerSupp")[[4]](jnp$transpose(m, c(2L, 0L, 1L)))
           m <- jnp$transpose(jnp$reshape(m, list(m$shape[[1]],-1L)))
-          print2(sprintf("Implied transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
+          print2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
 
       # append start and stop condons
-      m <- jnp$concatenate(list(LE(ModelList,sprintf("%sTransformerSupp",type))[[1]], m), 0L)
-      m <- jnp$concatenate(list(m, LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
+      m <- jnp$concatenate(list(LE(ModelList,sprintf("%sTransformerSupp",type))[[1]],
+                                m), 0L)
+      m <- jnp$concatenate(list(m,
+                                LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
       print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
           # standardize
-          m <- jnp$multiply(RMS_norm(m), LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]])
+          m <- jnp$multiply(RMS_norm(m),
+                            LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]])
 
           # rotary embeddings
           m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
@@ -243,15 +246,16 @@ GetImageRepresentations <- function(
 
           # multihead attention block
           m <- LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
-            query = m_pos,
-            key_  = m_pos,
-            value = m )
+                      query = m_pos,
+                      key_  = m_pos,
+                      value = m )
 
           # residual connection
           mtm1 <- m <- jnp$add(mtm1, m)
 
           # normalize
-          m <- jnp$multiply(RMS_norm(m), LE(ModelList,sprintf("%sTransformerRenormer_d%s",type,d_))[[2]])
+          m <- jnp$multiply(RMS_norm(m),
+                            LE(ModelList,sprintf("%sTransformerRenormer_d%s",type,d_))[[2]])
 
           # feed forward
           m <- jnp$multiply(
@@ -264,10 +268,20 @@ GetImageRepresentations <- function(
       }
       print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
-      # final transformations
-      m <- jnp$multiply( RMS_norm( m ), LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  )
+
+      TransformerOutputPathControl <- (dataType == "image" & type == "Spatial") | (dataType == "video" & type == "Temporal")
+
+      # take CLS embedding
       m <- jnp$take(m, indices = 0L, axis = 0L)
-      m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )
+
+      if( TransformerOutputPathControl ){
+        # final norm
+        m <- jnp$add(m, jnp$squeeze( jnp$multiply( RMS_norm( jnp$expand_dims(m,0L) ),
+                    LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  ) ))
+
+        # linear proj
+        m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )
+      }
     return( list(m, StateList) )
     }
     if(ImageModelClass == "CNN"){
@@ -382,6 +396,8 @@ GetImageRepresentations <- function(
       # squeeze temporal dim if needed
       if(dataType == "video"){ m <- jnp$reshape(m, c(-1L, (orig_shape_m <- jnp$shape(m))[3:5])) }
 
+      print2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
+
       # get spatial representation
       # m <- m[1,,,]
       m <- jax$vmap(function(ModelList, m, StateList, MPList, inference){
@@ -390,6 +406,7 @@ GetImageRepresentations <- function(
                axis_name = batch_axis_name,
                out_axes = list(0L,NULL))(ModelList, m, StateList, MPList, inference)
       StateList <- m[[2]]; m <- m[[1]]
+      print(sprintf("Image model output dtype: [%s]", as.character( m$dtype) ))
 
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
@@ -399,6 +416,7 @@ GetImageRepresentations <- function(
                       axis_name = batch_axis_name,
                       out_axes = list(0L,NULL))(ModelList, m)
         StateList <- m[[2]]; m <- m[[1]]
+        print(sprintf("Temporal model output dtype: [%s]", as.character( m$dtype) ))
       }
       return( list(m, StateList) )
     })
@@ -440,7 +458,7 @@ GetImageRepresentations <- function(
       }
       saved_iterator <- batch_inference[[2]]
       batch_inference <- batch_inference[[1]]
-      batch_keys <- unlist(  lapply( batch_inference[[3]]$numpy(), as.character) )
+      batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
 
       gc(); try(py_gc$collect(), T) # collect memory
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,

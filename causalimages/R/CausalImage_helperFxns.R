@@ -48,6 +48,12 @@ LongLat2CRS_extent <- function(point_longlat,
   return( raster::extent(point_longlat_mat_ref) )
 }
 
+# converts python builtin to list
+p2l <- function(zer){
+  if("python.builtin.bytes" %in% class(zer)){ zer <- list(zer) }
+  return( zer )
+}
+
 # zips two lists
 rzip<-function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
 

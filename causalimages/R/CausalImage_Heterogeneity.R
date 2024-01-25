@@ -735,7 +735,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         return( jnp$broadcast_to(jnp$sqrt(squared_norm), x$shape) )
       }
       MyAdaptiveGradClip <- eq$filter_jit( function(updates, params){
-        eps <- jnp$array(0.001); clipping <- jnp$array( 0.1 )
+        eps <- jnp$array(0.001); clipping <- jnp$array( 0.05 )
         g_norm <- jax$tree_util$tree_map(unitwise_norm, list(updates, params))
         p_norm <- g_norm[[2]]; g_norm <- g_norm[[1]]
 
@@ -801,7 +801,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         } }
 
         # select batch indices based on keys
-        batch_keys <- unlist(  lapply( ds_next_train[[3]]$numpy(), as.character) )
+        batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
         batch_indices <- sapply(batch_keys, function(key_){
           f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
         ds_next_train <- ds_next_train[[1]]
@@ -841,6 +841,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                  jax$random$PRNGKey( 123L+i ), # seed
                                                  MPList # MPlist
                                                  )
+        # jax$tree_util$tree_structure(StateList) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[1]][[2]] )
+        # jax$tree_util$tree_structure(ModelList[[1]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[1]])
+        # jax$tree_util$tree_structure(ModelList[[2]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[2]])
+        # jax$tree_util$tree_structure(ModelList[[3]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[3]])
+
         if(!"try-error" %in% class(v_and_grad_loss_jax)){
           # get updated state
           StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
@@ -1007,22 +1012,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
       atP <- max(zer)/nUniqueKeys
       if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done: %.3f", atP)) }
         {
-          setwd(orig_wd)
-          ds_next_in <- GetElementFromTfRecordAtIndices( uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
+          setwd(orig_wd);ds_next_in <- GetElementFromTfRecordAtIndices(
+                                                         uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
                                                          filename = file,
                                                          iterator = passedIterator,
                                                          readVideo = useVideo,
                                                          image_dtype = image_dtype_tf,
                                                          nObs = length(unique(imageKeysOfUnits)),
-                                                         return_iterator = T )
+                                                         return_iterator = T );setwd(new_wd)
           passedIterator <- ds_next_in[[2]]
-          key_ <- unlist(  lapply( ds_next_in[[1]][[3]]$numpy() , as.character) )
+          key_ <- try(unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy()) , as.character) ), T)
           ds_next_in <- ds_next_in[[1]]
-          setwd(new_wd)
 
           # deal with batch 1 case here
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           ds_next_in <- ds_next_in[[1]]
       }
 
@@ -1135,8 +1139,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                          readVideo = useVideo,
                                                          image_dtype = image_dtype_tf,
                                                          nObs = nrow(transportabilityMat) ); setwd(new_wd)
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- jnp$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
           ds_next_in <- ds_next_in[[1]]
         }
         im_keys <-  InitImageProcessFn( jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T)
