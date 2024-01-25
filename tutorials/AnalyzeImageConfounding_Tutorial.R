@@ -60,7 +60,7 @@
       acquireImageFxn = acquireImageFxn)
   }
 
-  for(ImageModelClass in rev(c("VisionTransformer","CNN"))){
+  for(ImageModelClass in (c("VisionTransformer","CNN"))){
   for(optimizeImageRep in c(T,F)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
@@ -73,7 +73,7 @@
     file = TFRecordName_im,
 
     batchSize = 16L,
-    nBoot = 1000L,
+    nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
     ImageModelClass = ImageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 8L, no = 1L),

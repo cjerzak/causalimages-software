@@ -574,7 +574,10 @@ AnalyzeImageConfounding <- function(
             jax$random$PRNGKey( 123L+i ), # seed
             MPList, # MPlist
             F), T) # inference
-          if("try-error" %in% class(v_and_grad_loss_jax)){ print( v_and_grad_loss_jax ) }
+          if("try-error" %in% class(v_and_grad_loss_jax)){
+            browser()
+            print( v_and_grad_loss_jax )
+          }
           if(!"try-error" %in% class(v_and_grad_loss_jax)){
             # get updated state
             StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
