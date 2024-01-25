@@ -15,7 +15,7 @@
   # causalimages::BuildBackend()
 
   # load in package
-  library( causalimages  )
+  library( causalimages )
 
   # resave TfRecords?
   reSaveTFRecord <- F
@@ -73,16 +73,18 @@
     file = TFRecordName_im,
 
     batchSize = 16L,
-    nBoot = 5L,
+    nBoot = 500L,
     optimizeImageRep = optimizeImageRep,
     ImageModelClass = ImageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 8L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
-    LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
+    LEARNING_RATE_BASE = 0.001, nSGD = 200L, #
+    dropoutRate = NULL, # 0.1,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "~/Downloads/ImageTutorial")
     try(dev.off(), T)
+  browser()
   }
   }
 

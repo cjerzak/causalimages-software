@@ -554,7 +554,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(SharedImageRepresentation){
         print2("Getting image representation...")
         m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                m, StateList, MPList, inference)
+                                m, StateList, seed, MPList, inference)
         StateList <- m[[2]]; m <- m[[1]]
       }
 
@@ -972,7 +972,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # image representation model
       if(SharedImageRepresentation){
         m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                          m, StateList, MPList, T)
+                                          m, StateList, seed, MPList, T)
         StateList <- m[[2]] ; m <- m[[1]]
       }
       y0_ <- sapply(1L:nMonte_predictive, function(iter){ list(jnp$expand_dims(
@@ -1286,7 +1286,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(SharedImageRepresentation){
         m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                jnp$expand_dims(m,0L),
-                               StateList, MPList, T)[[1]]
+                               StateList, seed, MPList, T)[[1]]
         m <- jnp$squeeze(m)
       }
 

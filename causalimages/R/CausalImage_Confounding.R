@@ -266,6 +266,7 @@ AnalyzeImageConfounding <- function(
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
             strides = strides,
+            dropoutRate = 0,# dropoutRate,
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
@@ -273,7 +274,7 @@ AnalyzeImageConfounding <- function(
             ImageModelClass = ImageModelClass,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
-            imageKeysOfUnits = unique(imageKeysOfUnits), getRepresentations = T,
+            imageKeysOfUnits = unique(imageKeysOfUnits),  getRepresentations = T,
             returnContents = T,
             bn_momentum = 0.9,
             bn_epsilon = BN_EP,
@@ -310,7 +311,7 @@ AnalyzeImageConfounding <- function(
           GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                           m, x, vseed,
                                           StateList, seed, MPList, inference){
-            ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, StateList, MPList, inference)
+            ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, StateList, seed, MPList, inference)
             if(!XisNull){
               x_m <- jnp$concatenate(list( jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
             }
@@ -337,6 +338,7 @@ AnalyzeImageConfounding <- function(
         nWidth_ImageRep = nWidth_ImageRep,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
+        dropoutRate = dropoutRate,
         nDepth_TemporalRep = nDepth_TemporalRep,
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
@@ -402,11 +404,11 @@ AnalyzeImageConfounding <- function(
                 in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
-        GetTreatProb_batch<- function( ModelList, ModelList_fixed,
+        GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
           # image model
-          m <- ImageRepArm_batch_R(ModelList, m, StateList, MPList, inference)
+          m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
           # dense model
@@ -436,8 +438,8 @@ AnalyzeImageConfounding <- function(
 
           # compute negative log-likelihood loss
           NegLL <-  jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(m)),
-                                            jnp$multiply(1-treat, jnp$log(1-m)) ))
-          StateList <- NegLL[[2]]; NegLL <- jnp$mean( NegLL[[1]] )
+                                            jnp$multiply(1-treat, jnp$log(1-m)) )  )
+          NegLL <- jnp$mean( NegLL )
 
           print2("Returning loss + state...")
           NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
@@ -584,6 +586,7 @@ AnalyzeImageConfounding <- function(
 
             # get loss + grad
             loss_vec[i] <- myLoss_forGrad <- np$array( MPList[[2]]$unscale( v_and_grad_loss_jax[[1]][[1]] ) )# value
+            if(myLoss_forGrad < 0.10){browser()}
             myGrad_jax <- v_and_grad_loss_jax[[2]] # grads
             myGrad_jax <- eq$partition(myGrad_jax, eq$is_inexact_array)
             myGrad_jax_aux <- myGrad_jax[[2]]; myGrad_jax <- myGrad_jax[[1]]
@@ -675,7 +678,7 @@ AnalyzeImageConfounding <- function(
                                                m, x, vseed,
                                                StateList, seed, MPList){
           # image representation model
-          m <- ImageRepArm_batch_R(ModelList, m, StateList, MPList, T)
+          m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, T)
           StateList <- m[[2]] ; m <- m[[1]]
           m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, T)
           StateList <- m[[2]]; m <- m[[1]]

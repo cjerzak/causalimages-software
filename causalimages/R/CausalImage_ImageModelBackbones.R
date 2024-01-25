@@ -56,6 +56,7 @@ GetImageRepresentations <- function(
     kernelSize = 3L,
     patchEmbedDim = 16L,
     TfRecords_BufferScaler = 10L,
+    dropoutRate,
     dataType = "image",
     bn_momentum = 0.9,
     bn_epsilon = 0.01,
@@ -174,7 +175,7 @@ GetImageRepresentations <- function(
 
     # set up model
     if(ImageModelClass == "VisionTransformer"){
-    StateList <- ModelList <- replicate(nDepth_ImageRep+1, list())
+    StateList <- ModelList <- replicate(nDepth_ImageRep+1, jnp$array(0.)) # initialize with 0's
     ModelList[nDepth_ImageRep+1]
     for(d_ in 1L:nDepth_ImageRep){
         SpatialTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
@@ -184,6 +185,7 @@ GetImageRepresentations <- function(
                             output_size = nWidth_ImageRep,
                             num_heads = 8L,
                             use_output_bias = F,
+                            #dropout_p = dropoutRate,
                             key = jax$random$PRNGKey( 23453355L + seed + d_) )
         SpatialFF_d <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
                                          out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
@@ -214,7 +216,7 @@ GetImageRepresentations <- function(
                       use_bias = F, key = jax$random$PRNGKey(999L+d_ )) # final dense proj
       ))
     }
-    TransformerBackbone <- function(ModelList, m, StateList, MPList, type){
+    TransformerBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
       if(type == "Spatial"){ # patch embed
           m <- LE(ModelList,"SpatialTransformerSupp")[[4]](jnp$transpose(m, c(2L, 0L, 1L)))
           m <- jnp$transpose(jnp$reshape(m, list(m$shape[[1]],-1L)))
@@ -245,10 +247,12 @@ GetImageRepresentations <- function(
                     m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
 
           # multihead attention block
-          m <- LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
+          m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
                       query = m_pos,
                       key_  = m_pos,
-                      value = m )
+                      value = m), T)
+          #key = seed, # breaks in GPU mode
+          #inference = inference
 
           # residual connection
           mtm1 <- m <- jnp$add(mtm1, m)
@@ -330,6 +334,7 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_ImageRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
+                                    # dropout_p = dropoutRate,
                                     key = jax$random$PRNGKey( 23453355L + seed+dt_) )
         TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
@@ -360,9 +365,9 @@ GetImageRepresentations <- function(
     # zzz
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
-    ImageRepArm_SpatialArm <- function(ModelList, m, StateList, MPList, inference){
+    ImageRepArm_SpatialArm <- function(ModelList, m, StateList, seed, MPList, inference){
       if(ImageModelClass == "VisionTransformer"){
-          m <- TransformerBackbone(ModelList, m, StateList, MPList, type = "Spatial")
+          m <- TransformerBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
           StateList <- m[[2]]; m <- m[[1]]
       }
       if(ImageModelClass == "CNN"){
@@ -389,7 +394,7 @@ GetImageRepresentations <- function(
       }
       return( list(m, StateList)  )
     }
-    ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, MPList, inference){
+    ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
@@ -400,21 +405,30 @@ GetImageRepresentations <- function(
 
       # get spatial representation
       # m <- m[1,,,]
-      m <- jax$vmap(function(ModelList, m, StateList, MPList, inference){
-            ImageRepArm_SpatialArm(ModelList, m, StateList, MPList, inference) },
-               in_axes = list(NULL, 0L, NULL, NULL, NULL),
+      m <- jax$vmap(function(ModelList, m,
+                             StateList, seed, MPList, inference){
+            ImageRepArm_SpatialArm(ModelList, m,
+                                   StateList, seed, MPList, inference) },
+               in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
                axis_name = batch_axis_name,
-               out_axes = list(0L,NULL))(ModelList, m, StateList, MPList, inference)
+               out_axes = list(0L,NULL))(ModelList, m, StateList, seed, MPList, inference)
       StateList <- m[[2]]; m <- m[[1]]
       print(sprintf("Image model output dtype: [%s]", as.character( m$dtype) ))
 
+
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
+        print("STATE IS BEING VMAPPED HEREE?")
+        browser()
         m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L))
-        m <- jax$vmap(function(ModelList,m){ TransformerBackbone(ModelList, m, StateList, MPList, type = "Temporal")},
+        m <- jax$vmap(function(ModelList, m,
+                               StateList, seed, MPList, inference){
+                    TransformerBackbone(ModelList, m,
+                                        StateList, seed, MPList, inference, type = "Temporal")
+                    },
                       in_axes = list(NULL, 0L),
                       axis_name = batch_axis_name,
-                      out_axes = list(0L,NULL))(ModelList, m)
+                      out_axes = list(0L,NULL))(ModelList, m, StateList, jnp$add(seed,9L), MPList, inference)
         StateList <- m[[2]]; m <- m[[1]]
         print(sprintf("Temporal model output dtype: [%s]", as.character( m$dtype) ))
       }
@@ -463,7 +477,9 @@ GetImageRepresentations <- function(
       gc(); try(py_gc$collect(), T) # collect memory
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]), inference = T),
-                                                          StateList, MPList, T)[[1]]  ), T)
+                                                          StateList,
+                                                          jax$random$PRNGKey(ai(last_i)),
+                                                          MPList, T)[[1]]  ), T)
       # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }
