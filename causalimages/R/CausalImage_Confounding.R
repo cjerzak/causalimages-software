@@ -937,7 +937,10 @@ AnalyzeImageConfounding <- function(
               # plot salience map
               #optax$global_norm( eq$filter(ModelList, eq$is_array)[[1]] )
               try_salience <- try({salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))},T)
-              if("try-error" %in% class(try_salience)){ browser() }
+              if("try-error" %in% class(try_salience)){
+                print( try_salience )
+                if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
+              }
               salience_map <- sign(salience_map)*log(abs(salience_map)+1)
               image2( salience_map, xlab = ifelse(tagInFigures, yes = imageKeysOfUnits[in_], no = ""),cex.lab = 1)
             }
