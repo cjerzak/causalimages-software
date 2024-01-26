@@ -418,17 +418,16 @@ GetImageRepresentations <- function(
 
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
-        print("STATE IS BEING VMAPPED HEREE?")
-        browser()
         m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L))
         m <- jax$vmap(function(ModelList, m,
                                StateList, seed, MPList, inference){
                     TransformerBackbone(ModelList, m,
                                         StateList, seed, MPList, inference, type = "Temporal")
                     },
-                      in_axes = list(NULL, 0L),
+                      in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
                       axis_name = batch_axis_name,
-                      out_axes = list(0L,NULL))(ModelList, m, StateList, jnp$add(seed,9L), MPList, inference)
+                      out_axes = list(0L,NULL))(ModelList, m,
+                                                StateList, jnp$add(seed,9L), MPList, inference)
         StateList <- m[[2]]; m <- m[[1]]
         print(sprintf("Temporal model output dtype: [%s]", as.character( m$dtype) ))
       }

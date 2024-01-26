@@ -73,18 +73,18 @@
     file = TFRecordName_im,
 
     batchSize = 16L,
-    nBoot = 500L,
+    nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
     ImageModelClass = ImageModelClass,
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 8L, no = 1L),
+    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
-    LEARNING_RATE_BASE = 0.001, nSGD = 200L, #
+    LEARNING_RATE_BASE = 0.001, nSGD = 10L, #
     dropoutRate = NULL, # 0.1,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "~/Downloads/ImageTutorial")
     try(dev.off(), T)
-  browser()
+  #ImageConfoundingAnalysis$ModelEvaluationMetrics
   }
   }
 

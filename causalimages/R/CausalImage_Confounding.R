@@ -577,8 +577,8 @@ AnalyzeImageConfounding <- function(
             MPList, # MPlist
             F), T) # inference
           if("try-error" %in% class(v_and_grad_loss_jax)){
-            browser()
             print( v_and_grad_loss_jax )
+            if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
           }
           if(!"try-error" %in% class(v_and_grad_loss_jax)){
             # get updated state
@@ -586,7 +586,6 @@ AnalyzeImageConfounding <- function(
 
             # get loss + grad
             loss_vec[i] <- myLoss_forGrad <- np$array( MPList[[2]]$unscale( v_and_grad_loss_jax[[1]][[1]] ) )# value
-            if(myLoss_forGrad < 0.10){browser()}
             myGrad_jax <- v_and_grad_loss_jax[[2]] # grads
             myGrad_jax <- eq$partition(myGrad_jax, eq$is_inexact_array)
             myGrad_jax_aux <- myGrad_jax[[2]]; myGrad_jax <- myGrad_jax[[1]]
