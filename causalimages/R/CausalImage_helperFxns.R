@@ -80,9 +80,7 @@ r2const <- function(x, dtype){
 }
 
 print2 <- function(text, quiet = F){
-  if(!quiet){
-  print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) )
-  }
+  if(!quiet){ print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) ) }
 }
 
 # LE <- function(l_, name_){ return( unlist(l_)[[name_]] ) }

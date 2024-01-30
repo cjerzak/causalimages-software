@@ -105,7 +105,7 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
-    tf$config$get_visible_devices() # confirm CPU only
+    # tf$config$get_visible_devices() # confirm CPU only
     # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
 
     image_dtype_tf <- tf$float16
@@ -141,10 +141,8 @@ AnalyzeImageConfounding <- function(
 
   if(!is.null(X)){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
   if(!is.null(X)){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
-  if(!is.null(X)){
-      X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.00001+(X_sd <- apply(X,2,sd))) )
-  }
-   if( XisNull <- is.null(X) ){ X <- as.matrix( rnorm(length(obsW), sd = 0.01 ) ) }
+  if( XisNull <- is.null(X) ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
+  X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.00001+(X_sd <- apply(X,2,sd))) )
 
   {
     if(is.null(file)){stop("No file specified for tfrecord!")}
@@ -375,7 +373,7 @@ AnalyzeImageConfounding <- function(
 
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
-                                vseed, StateList, seed, MPList, inference, type){
+                                vseed, StateList, seed, MPList, inference){
           if(!XIsNull){  m <- jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
@@ -399,11 +397,12 @@ AnalyzeImageConfounding <- function(
                   ModelList, ModelList_fixed,
                   m, x, vseed,
                   StateList, seed, MPList, inference){
-                    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference, type = '%s')
+                    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
                 },
                 in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
+        GetDense_batch_jit <- eq$filter_jit(   GetDense_batch  )
         GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
@@ -491,7 +490,7 @@ AnalyzeImageConfounding <- function(
             return( jnp$broadcast_to(jnp$sqrt(squared_norm), x$shape) )
           }
           MyAdaptiveGradClip <- eq$filter_jit( function(updates, params){
-            eps <- jnp$array(0.01); clipping <- jnp$array( 0.1 )
+            eps <- jnp$array(0.001); clipping <- jnp$array( 0.1 )
             g_norm <- jax$tree_util$tree_map(unitwise_norm, list(updates, params))
             p_norm <- g_norm[[2]]; g_norm <- g_norm[[1]]
 
@@ -513,10 +512,8 @@ AnalyzeImageConfounding <- function(
           )
 
           # model partition, setup state, perform parameter count
-          ModelParams <- eq$partition(ModelList, eq$is_array)[[1]]
-          ModelOther <-  eq$partition(ModelList, eq$is_array)[[2]]
-          opt_state <- optax_optimizer$init(  ModelParams)
-          print2(sprintf("Total trainable parameter count: %s", nTrainable <- sum(unlist(lapply(jax$tree_leaves(ModelParams), function(zer){zer$size})))))
+          opt_state <- optax_optimizer$init(   eq$partition(ModelList, eq$is_array)[[1]] )
+          print2(sprintf("Total trainable parameter count: %s", nTrainable <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
 
           # jit update fxns
           jit_apply_updates <- eq$filter_jit(optax$apply_updates)
@@ -534,8 +531,7 @@ AnalyzeImageConfounding <- function(
 
           # if we run out of observations, reset iterator
           RestartedIterator <- F; if( is.null(ds_next_train) ){
-              gc(); py_gc$collect()
-              print2("Re-setting iterator! (type 1)")
+              print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
               ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
               ds_next_train <-  ds_iterator_train$`next`(); gc();py_gc$collect()
           }
@@ -543,7 +539,7 @@ AnalyzeImageConfounding <- function(
           # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
           if(!RestartedIterator){
               if(dim(ds_next_train[[1]])[1] != batchSize){
-                print2("Re-setting iterator! (type 2)")
+                print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
                 ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
                 ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
               }
@@ -559,13 +555,12 @@ AnalyzeImageConfounding <- function(
           if(T == F){
             m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F)
             x <- jnp$array(X[batch_indices,],dtype = jnp$float16)
-            treat <- jnp$array(obsW[batch_indices],dtype = jnp$float16)
-            vseed <- jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize)
-            seed <- jax$random$PRNGKey( 123L+i ) ; inference <- F
+            treat <- jnp$array(obsW[batch_indices],dtype = jnp$float16); inference <- F
+            vseed <- jax$random$split( seed <- jax$random$PRNGKey( 500L+i ),batchSize)
           }
           # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
           t1 <- Sys.time()
-          v_and_grad_loss_jax <- try(GradAndLossAndAux(
+          GradientUpdatePackage <- try(GradAndLossAndAux(
             MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
             #ModelList, ModelList_fixed,
             InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
@@ -576,19 +571,19 @@ AnalyzeImageConfounding <- function(
             jax$random$PRNGKey( 123L+i ), # seed
             MPList, # MPlist
             F), T) # inference
-          if("try-error" %in% class(v_and_grad_loss_jax)){
-            print( v_and_grad_loss_jax )
+          if("try-error" %in% class(GradientUpdatePackage)){
+            print( GradientUpdatePackage )
             if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
           }
-          if(!"try-error" %in% class(v_and_grad_loss_jax)){
+          if(!"try-error" %in% class(GradientUpdatePackage)){
             # get updated state
-            StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
+            StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
 
             # get loss + grad
-            loss_vec[i] <- myLoss_forGrad <- np$array( MPList[[2]]$unscale( v_and_grad_loss_jax[[1]][[1]] ) )# value
-            myGrad_jax <- v_and_grad_loss_jax[[2]] # grads
-            myGrad_jax <- eq$partition(myGrad_jax, eq$is_inexact_array)
-            myGrad_jax_aux <- myGrad_jax[[2]]; myGrad_jax <- myGrad_jax[[1]]
+            loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+            GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
+            GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
+            GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
 
             # unscale + adjust loss scale is some non-finite or NA
             if(i == 1){
@@ -596,68 +591,37 @@ AnalyzeImageConfounding <- function(
                 jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
               AllFinite <- jax$jit( jmp$all_finite )
             }
-            myGrad_jax <- Map2Zero( MPList[[2]]$unscale( myGrad_jax ) )
-            AllFinite_DontAdjust <- AllFinite( myGrad_jax )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_forGrad)))
+            GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
+            AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
             MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
             # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
 
             # update parameters if finite gradients
-            DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_forGrad)
+            DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
             if(! DoUpdate ){ print2("Warning: Not updating parameters due to non-finite gradients in mixed-precision training...") }
             if( DoUpdate ){
               DoneUpdates <- DoneUpdates + 1
-              if(DoneUpdates == 1){
-                #CostAnalysis <- GradAndLossAndAux$lower(
-                  #MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                  #InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-                  #jnp$array(X[batch_indices,],dtype = jnp$float16), # x
-                  #jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
-                  #jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                  #StateList, # StateList
-                  #jax$random$PRNGKey( 123L+i ), # seed
-                  #MPList, # MPlist
-                  #F ) # inference
-                #CostAnalysis <- CostAnalysis$lowered$cost_analysis()
-                #TotalFlops <- CostAnalysis$flops
-                #try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
-              }
 
               # get updates
-              myGrad_jax <- MPList[[1]]$cast_to_param( myGrad_jax )
-              myGrad_jax <- MyAdaptiveGradClip( myGrad_jax, ModelParams )
-              updates_and_opt_state <- jit_get_update( updates = myGrad_jax,
+              GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
+              GradientUpdatePackage <- MyAdaptiveGradClip( GradientUpdatePackage,
+                                                           eq$partition(ModelList, eq$is_array)[[1]] )
+              GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
                                                        state = opt_state,
-                                                       params = ModelParams)
+                                                       params = eq$partition(ModelList, eq$is_array)[[1]])
 
               # separate updates from state
-              optax_updates <- eq$combine(updates_and_opt_state[[1]], myGrad_jax_aux)
-              opt_state <- updates_and_opt_state[[2]]
+              opt_state <- GradientUpdatePackage[[2]]
+              GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
 
               # perform update
-              ModelParams_GlobalPartitioned <- GlobalPartition(ModelParams,PartFxn)
-              ModelParams_GlobalPartitioned[[1]] <- jit_apply_updates(
-                params = ModelParams_GlobalPartitioned[[1]],
-                updates = GlobalPartition(optax_updates,PartFxn)[[1]])
-
-              # setup updates
-              NULLS_MAT <- rrapply::rrapply(ModelParams_GlobalPartitioned[[1]],f = function(zer){
-                cond_ <- try(is.null(zer),T)
-                if( "try-error" %in% class(cond_)){cond_<-T}
-                if(!cond_){ret_<-F};if(cond_){ret_ <- T};
-                return(ret_) },how="list")
-              NULLS_MAT <- (NULLS_MAT <- LinearizeNestedList(NULLS_MAT,NameSep = "]][["))[unlist(NULLS_MAT)]
-              for(entry_ in names(NULLS_MAT)){
-                eval(parse(text = sprintf(
-                  "ModelParams_GlobalPartitioned[[1]]%s <- ModelParams_GlobalPartitioned[[2]]%s",
-                  (entry_ <- paste("[[",entry_,"]]",sep="")), entry_)))
-              }
-              ModelParams <- ModelParams_GlobalPartitioned[[1]]
-
-              # feed in updates for state and model
-              ModelList <- eq$combine( ModelParams, ModelOther )
+              ModelList <- eq$combine( jit_apply_updates(
+                                          params = GlobalPartition(eq$partition(ModelList, eq$is_array)[[1]],PartFxn)[[1]],
+                                          updates = GradientUpdatePackage),
+                                  eq$partition(ModelList, eq$is_array)[[2]])
               StateList <- StateList_tmp
-              rm(ModelParams_GlobalPartitioned, StateList_tmp)
+              rm(StateList_tmp, GradientUpdatePackage)
             }
           }
 
@@ -673,24 +637,20 @@ AnalyzeImageConfounding <- function(
           }
         } # end for(i in i_:nSGD){
         print2("Getting predicted quantities...")
-        GetSummaries <- eq$filter_jit(jax$vmap( function(ModelList, ModelList_fixed,
-                                               m, x, vseed,
-                                               StateList, seed, MPList){
+        GetImageArm_OneX <- eq$filter_jit( function(ModelList, ModelList_fixed,
+                 m, vseed,
+                 StateList, seed, MPList){
           # image representation model
           m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, T)
           StateList <- m[[2]] ; m <- m[[1]]
-          m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, T)
-          StateList <- m[[2]]; m <- m[[1]]
-          m <- jax$nn$sigmoid( m )
-          return( list('ProbW' = m) )
-        }, in_axes = list(NULL, NULL,
-                          NULL, 0L, NULL,
-                          NULL, NULL, NULL ) ) )
+          return( m <- jax$nn$sigmoid( m ) )
+        })
 
         inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
         #KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.33) ))
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
+        ImageRepArm_batch_jit <- eq$filter_jit( ImageRepArm_batch_R )
         usedKeys <- c()
         for(cut_ in unique(KeyQuantCuts)){ # use when not incorporating X's
           # cut_ <- unique(KeyQuantCuts)[1]
@@ -723,12 +683,24 @@ AnalyzeImageConfounding <- function(
           x <- jnp$expand_dims(jnp$array(  ifelse(length(obs_with_key) == 1, yes = list(t(X[obs_with_key,])),
                                                               no = list(X[obs_with_key,]))[[1]],
                            dtype = jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
-          GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
+
+          m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = ModelList, no = ModelList_fixed),
                                           InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L+i), inference = T),
-                                          x,
-                                          jax$random$split(jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                          StateList, jax$random$PRNGKey(as.integer(runif(1,0,100000))), MPList)
-          ret_list <- list("ProbW" = as.matrix(np$array(GottenSummaries[[1]])[,,1]),
+                                          StateList, seed, MPList, T)[[1]]
+          GottenSummaries <- sapply(1L:ifelse(XIsNull, yes = 1L, no = x$shape[[1]]), function(r_){
+            m <- GetDense_batch_jit(ModelList, ModelList_fixed,
+                                m_ImageRep,
+                                x[r_-1L,],
+                                jax$random$split(jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                StateList,
+                                jax$random$PRNGKey(as.integer(runif(1,0,100000))),
+                                MPList, T)[[1]]
+            m <- jax$nn$sigmoid( m )
+            if(XIsNull){m <- list(replicate(m, n = x$shape[[1]]))}
+            return( m )
+          })
+          GottenSummaries <- as.matrix(np$array(jnp$concatenate(unlist(GottenSummaries),0L)))
+          ret_list <- list("ProbW" = GottenSummaries,
                            "obsIndex" = as.matrix(obs_with_key),
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
           Results_by_keys[[inference_counter]] <- ret_list

@@ -123,7 +123,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
-    tf$config$get_visible_devices() # confirm CPU only
+    # tf$config$get_visible_devices() # confirm CPU only
     # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
     gc(); py_gc$collect()
 
@@ -701,8 +701,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
     StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
     MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
-                   jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float32),
-                                        min_loss_scale = jnp$array(1.,dtype = jnp$float32),
+                   jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float16),
+                                        min_loss_scale = jnp$array(1.,dtype = jnp$float16),
                                         period = 20L))
     ModelList <- MPList[[1]]$cast_to_param( ModelList )
     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
@@ -758,11 +758,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
       )
 
       # model partition, setup state, perform parameter count
-      ModelParams <- eq$partition(ModelList, eq$is_array)[[1]]
-      ModelOther <-  eq$partition(ModelList, eq$is_array)[[2]]
-      opt_state <- optax_optimizer$init(ModelParams)
+      opt_state <- optax_optimizer$init( eq$partition(ModelList, eq$is_array)[[1]] )
       print2(sprintf("Total trainable parameter count: %s",
-                     nParams <- sum(unlist(lapply(jax$tree_leaves(ModelParams), function(zer){zer$size})))))
+                     nParams <- sum(unlist(lapply(jax$tree_leaves( eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
 
       # jit update fxns
       jit_apply_updates <- eq$filter_jit(optax$apply_updates)
@@ -816,8 +814,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           seed <-  jax$random$PRNGKey( 500L+i )
           # GetLikelihoodDraw;
           GetLoss_jit <- eq$filter_jit( GetLoss )
-          myLoss_forGrad <- GetLoss(
-          #myLoss_forGrad <- GetLoss_jit(
+          myLoss_fromGrad <- GetLoss(
+          #myLoss_fromGrad <- GetLoss_jit(
                                     ModelList, ModelList_fixed,
                                     InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F),  # m
                                     jnp$array(as.matrix(obsW[batch_indices]), jnp$float16), # treat
@@ -831,7 +829,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # training step
         t1 <- Sys.time();
         # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-        v_and_grad_loss_jax <- GradAndLossAndAux(
+        GradientUpdatePackage <- GradAndLossAndAux(
                                                  MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
                                                  InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
                                                  jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
@@ -841,20 +839,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                  jax$random$PRNGKey( 123L+i ), # seed
                                                  MPList # MPlist
                                                  )
-        # jax$tree_util$tree_structure(StateList) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[1]][[2]] )
-        # jax$tree_util$tree_structure(ModelList[[1]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[1]])
-        # jax$tree_util$tree_structure(ModelList[[2]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[2]])
-        # jax$tree_util$tree_structure(ModelList[[3]]) == jax$tree_util$tree_structure(v_and_grad_loss_jax[[2]][[3]])
 
-        if(!"try-error" %in% class(v_and_grad_loss_jax)){
+        if(!"try-error" %in% class(GradientUpdatePackage)){
           # get updated state
-          StateList_tmp <- v_and_grad_loss_jax[[1]][[2]] # state
+          StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
 
           # get loss + grad
-          loss_vec[i] <- myLoss_forGrad <- np$array( MPList[[2]]$unscale( v_and_grad_loss_jax[[1]][[1]] ) )# value
-          myGrad_jax <- v_and_grad_loss_jax[[2]] # grads
-          myGrad_jax <- eq$partition(myGrad_jax, eq$is_inexact_array)
-          myGrad_jax_aux <- myGrad_jax[[2]]; myGrad_jax <- myGrad_jax[[1]]
+          loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+          GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
+          GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
+          GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
 
           # unscale + adjust loss scale is some non-finite or NA
           if(i == 1){
@@ -863,68 +857,37 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                   jnp$array(0), x)}, input) })
             AllFinite <- jax$jit( jmp$all_finite )
           }
-          myGrad_jax <- Map2Zero( MPList[[2]]$unscale( myGrad_jax ) )
-          AllFinite_DontAdjust <- AllFinite( myGrad_jax )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_forGrad)))
+          GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
+          AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
           MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-          # print( MPList[[2]] )
-          # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
-          # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
 
           # update parameters if finite gradients
-          DoUpdate <- !is.na(myLoss_forGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_forGrad)
+          DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
           if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients in mixed-precision training...") }
           if( DoUpdate ){
             DoneUpdates <- DoneUpdates + 1
-            if(DoneUpdates == 1){
-              #CostAnalysis <- GradAndLossAndAux$lower(
-                                                 #MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                                                 #InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-                                                 #jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
-                                                 #jnp$array(obsY[batch_indices],dtype = jnp$float16), # y
-                                                 #jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                                                 #StateList, # StateList
-                                                 #jax$random$PRNGKey( 123L+i ), # seed
-                                                 #MPList) # MPlist
-              #CostAnalysis <- CostAnalysis$lowered$cost_analysis()
-              #TotalFlops <- CostAnalysis$flops
-              #try(print2( sprintf("log(FLOPS): %.3f",log(TotalFlops, base = 10) )),T)
-            }
 
             # get updates
-            myGrad_jax <- MPList[[1]]$cast_to_param( myGrad_jax )
-            myGrad_jax <- MyAdaptiveGradClip( myGrad_jax, ModelParams )
-            updates_and_opt_state <- jit_get_update( updates = myGrad_jax,
+            GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
+            GradientUpdatePackage <- MyAdaptiveGradClip( GradientUpdatePackage,
+                                                         eq$partition(ModelList, eq$is_array)[[1]] )
+            GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
                                                      state = opt_state,
-                                                     params = ModelParams)
+                                                     params =  eq$partition(ModelList, eq$is_array)[[1]] )
 
             # separate updates from state
-            optax_updates <- eq$combine(updates_and_opt_state[[1]], myGrad_jax_aux)
-            opt_state <- updates_and_opt_state[[2]]
+            opt_state <- GradientUpdatePackage[[2]]
+            GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
 
             # perform update
-            ModelParams_GlobalPartitioned <- GlobalPartition(ModelParams,PartFxn)
-            ModelParams_GlobalPartitioned[[1]] <- jit_apply_updates(
-              params = ModelParams_GlobalPartitioned[[1]],
-              updates = GlobalPartition(optax_updates,PartFxn)[[1]])
-
-            # setup updates
-            NULLS_MAT <- rrapply::rrapply(ModelParams_GlobalPartitioned[[1]],f = function(zer){
-              cond_ <- try(is.null(zer),T)
-              if("try-error" %in% class(cond_)){cond_<-T}
-              if(!cond_){ret_<-F};if(cond_){ret_ <- T};
-              return(ret_) },how="list")
-            NULLS_MAT <- (NULLS_MAT <- LinearizeNestedList(NULLS_MAT,NameSep = "]][["))[unlist(NULLS_MAT)]
-            for(entry_ in names(NULLS_MAT)){
-              eval(parse(text = sprintf(
-                "ModelParams_GlobalPartitioned[[1]]%s <- ModelParams_GlobalPartitioned[[2]]%s",
-                (entry_ <- paste("[[",entry_,"]]",sep="")), entry_)))
-            }
-            ModelParams <- ModelParams_GlobalPartitioned[[1]]
+            ModelList <- eq$combine( jit_apply_updates(
+                          params = GlobalPartition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
+                          updates = GlobalPartition(GradientUpdatePackage,PartFxn)[[1]] ),
+                      eq$partition(ModelList, eq$is_array)[[2]])
 
             # feed in updates for state and model
-            ModelList <- eq$combine( ModelParams, ModelOther )
             StateList <- StateList_tmp
-            rm(ModelParams_GlobalPartitioned, StateList_tmp)
+            rm(GradientUpdatePackage, StateList_tmp)
           }
        } #
 
