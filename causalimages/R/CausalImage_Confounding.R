@@ -134,14 +134,14 @@ AnalyzeImageConfounding <- function(
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
-  XIsNull <- is.null( X  )
-  if(!is.null(X)){ if(!"matrix" %in% class(X)){
+  XisNull <- is.null( X  )
+  if(!XisNull){ if(!"matrix" %in% class(X)){
     print2("Coercing X to matrix class..."); X <- as.matrix(  X )
   } }
 
-  if(!is.null(X)){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
-  if(!is.null(X)){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
-  if( XisNull <- is.null(X) ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
+  if( !XisNull ){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
+  if( !XisNull ){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
+  if( XisNull ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
   X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.00001+(X_sd <- apply(X,2,sd))) )
 
   {
@@ -156,7 +156,14 @@ AnalyzeImageConfounding <- function(
       new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
       print2( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
       changed_wd <- T; setwd( new_wd )
+
+      # define
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+
+      # shuffle (generating different train/test splits)
+      tf_dataset <- tf$data$Dataset$shuffle(  tf_dataset,
+                                              buffer_size = tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                              reshuffle_each_iteration = F )
 
       # helper functions
       useVideo <- dataType == "video"
@@ -245,11 +252,14 @@ AnalyzeImageConfounding <- function(
     sigmoid <- function(.){1/(1+exp(-.))}
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
-      # define train/test indices
-      testIndices <- sample(1:length(obsY), max(2,length(obsY)*testFrac))
-      trainIndices <- (1:length(obsY))[! 1:length(obsY) %in% testIndices]
+      # define train/test indices based on out of sample keys
+      outKeys <- sample(unique(imageKeysOfUnits), max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+      inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
+      testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
+      trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
-      myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1, ncol = nWidth_ImageRep + 1 + ifelse(!is.null(X), yes = ncol(X), no = 0))
+      myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
+                                   ncol = nWidth_ImageRep + 1 + ifelse(!XisNull, yes = ncol(X), no = 0))
       for(jr in 1L:(nBoot+1L)){
         print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) )
         if(jr != (nBoot+1L)){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
@@ -264,7 +274,7 @@ AnalyzeImageConfounding <- function(
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
             strides = strides,
-            dropoutRate = 0,# dropoutRate,
+            dropoutRate = 0,
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
@@ -290,8 +300,7 @@ AnalyzeImageConfounding <- function(
           y = as.matrix(obsW[indices_forTraining]),
           alpha = 0, # alpha = 0 is the ridge penalty
           family = "binomial")
-        obsW_ <- obsW[indices_]
-        obsY_ <- obsY[indices_]
+        obsW_ <- obsW[indices_]; obsY_ <- obsY[indices_]
 
         # compute QOIs
         myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
@@ -374,7 +383,7 @@ AnalyzeImageConfounding <- function(
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
                                 vseed, StateList, seed, MPList, inference){
-          if(!XIsNull){  m <- jnp$concatenate(list(m,x))  }
+          if(!XisNull){  m <- jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
             m <-  LE(ModelList, sprintf("DenseProj_d%s",d__))(  m  )
@@ -687,7 +696,7 @@ AnalyzeImageConfounding <- function(
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = ModelList, no = ModelList_fixed),
                                           InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L+i), inference = T),
                                           StateList, seed, MPList, T)[[1]]
-          GottenSummaries <- sapply(1L:ifelse(XIsNull, yes = 1L, no = x$shape[[1]]), function(r_){
+          GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
             m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                 m_ImageRep,
                                 x[r_-1L,],
@@ -696,7 +705,7 @@ AnalyzeImageConfounding <- function(
                                 jax$random$PRNGKey(as.integer(runif(1,0,100000))),
                                 MPList, T)[[1]]
             m <- jax$nn$sigmoid( m )
-            if(XIsNull){m <- list(replicate(m, n = x$shape[[1]]))}
+            if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
             return( m )
           })
           GottenSummaries <- as.matrix(np$array(jnp$concatenate(unlist(GottenSummaries),0L)))
@@ -1040,7 +1049,7 @@ AnalyzeImageConfounding <- function(
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
         SalienceX <- SalienceX*X_sd  +  X_mean
       }
-    if(!optimizeImageRep){
+    if( !optimizeImageRep ){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
         SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)]
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
@@ -1071,7 +1080,9 @@ AnalyzeImageConfounding <- function(
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat, "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
-      "nTrainableParameters" = nTrainable
+      "nTrainableParameters" = nTrainable,
+      "trainIndices" = trainIndices,
+      "testIndices" = testIndices
     ) )
   }
 }

@@ -70,7 +70,6 @@ GetImageRepresentations <- function(
     if(!is.null(conda_env)){
       try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
     }
-    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.);
 
     # import python garbage collectors
     py_gc <- reticulate::import("gc")
@@ -157,24 +156,27 @@ GetImageRepresentations <- function(
     ffmap <- jax$vmap(function(L_, x){ L_(x) }, in_axes = list(NULL,0L))
     RMS_norm <- function(x_){ jnp$divide( x_, jnp$sqrt(0.001+jnp$mean(jnp$square(x_), -1L, keepdims=T))) }
 
-    # Calculate number of patches
-    nPatches_side = ai(rawSpatialDims / patchEmbedDim)
-    nPatches = ai(nPatches_side^2)
-    InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
-
-    # rotary embedding setup
-    theta_vals_spatial <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
-    theta_vals_spatial <- c(sapply(theta_vals_spatial,function(z){c(z,z)}))
-    theta_vals_spatial <- jnp$expand_dims(jnp$array(theta_vals_spatial), 0L)
-    nTimeSteps_spatial <- ai(nPatches_side^2)
-    position_spatial <- jnp$expand_dims(jnp$arange(1L, nTimeSteps_spatial+3L), 1L)  # + 3L for stop, start
-    cos_terms_spatial <- jnp$cos( pos_times_theta_spatial <- (position_spatial *  theta_vals_spatial) ) # p. 7
-    sin_terms_spatial <- jnp$sin( pos_times_theta_spatial )
-    WideMultiplicationFactor <- 3.5
-    nTransformerOutputWidth <- nWidth_ImageRep
-
     # set up model
     if(ImageModelClass == "VisionTransformer"){
+      # Calculate number of patches
+      nPatches_side = ai(rawSpatialDims / patchEmbedDim)
+      nPatches = ai(nPatches_side^2)
+      InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
+
+      # rotary embedding setup
+      theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
+      theta_vals_patch <- c(sapply(theta_vals_patch,function(z){c(z,z)}))
+      theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
+      nTimeSteps_patch <- ai(nPatches_side^2)
+      position_patch <- jnp$expand_dims(jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
+      cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
+      sin_terms_patch <- jnp$sin( pos_times_theta_patch )
+
+      #sin_terms_withinPatch <- jnp$take(sin_terms_patch, jnp$array(0L:(patchEmbedDim^2-1L)), 0L)
+      #cos_terms_withinPatch <- jnp$take(cos_terms_patch, jnp$array(0L:(patchEmbedDim^2-1L)), 0L)
+      WideMultiplicationFactor <- 3.5
+      nTransformerOutputWidth <- nWidth_ImageRep
+
     StateList <- ModelList <- replicate(nDepth_ImageRep+1, jnp$array(0.)) # initialize with 0's
     ModelList[nDepth_ImageRep+1]
     for(d_ in 1L:nDepth_ImageRep){
@@ -200,9 +202,12 @@ GetImageRepresentations <- function(
                                          use_bias = F, # final bias
                                          key = jax$random$PRNGKey(ai(33324L + d_))))
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
+        InvSoftPlus <- function(.){ jnp$log(jnp$exp(.) - 1) }
+        #jax$nn$softplus( InvSoftPlus(jnp$array(4)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SpatialMultihead_d%s" = SpatialMultihead_d,
                                                           "SpatialFF_d%s" = SpatialFF_d,
-                                                          "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_ )))
+                                                          "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep )))),
+                                                          "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
     }
     ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
         jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
@@ -224,10 +229,8 @@ GetImageRepresentations <- function(
       }
 
       # append start and stop condons
-      m <- jnp$concatenate(list(LE(ModelList,sprintf("%sTransformerSupp",type))[[1]],
-                                m), 0L)
-      m <- jnp$concatenate(list(m,
-                                LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
+      m <- jnp$concatenate(list(LE(ModelList,sprintf("%sTransformerSupp",type))[[1]], m), 0L)
+      m <- jnp$concatenate(list(m, LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
@@ -243,35 +246,29 @@ GetImageRepresentations <- function(
             m_pos <- m_pos$at[,jnp$array(IDX)]$add(  jnp$negative(jnp$take(m, IDX+1L, axis = 1L) ) )
             m_pos <- m_pos$at[,jnp$array(IDX+1L)]$add( jnp$take(m, IDX, axis = 1L) )
           }
-          m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
-                    m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_spatial), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
+          m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
+                    m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
 
           # multihead attention block
           m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
-                      query = m_pos,
-                      key_  = m_pos,
-                      value = m), T)
-          #key = seed, # breaks in GPU mode
-          #inference = inference
+                      query = m_pos, key_  = m_pos, value = m), T) #key = seed, # breaks in GPU mode
 
           # residual connection
-          mtm1 <- m <- jnp$add(mtm1, m)
+          mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[1]]$astype(jnp$float32) )$astype(mtm1$dtype)
 
           # normalize
           m <- jnp$multiply(RMS_norm(m),
                             LE(ModelList,sprintf("%sTransformerRenormer_d%s",type,d_))[[2]])
 
           # feed forward
-          m <- jnp$multiply(
-            jax$nn$swish(ffmap(LE(ModelList,sprintf("%sFF_d%s",type,d_))[[1]], m)),
+          m <- jnp$multiply( jax$nn$swish(ffmap(LE(ModelList,sprintf("%sFF_d%s",type,d_))[[1]], m)),
             ffmap(LE(ModelList,sprintf("%sFF_d%s",type,d_))[[2]], m)) # swiglu proj
           m <- ffmap(LE(ModelList,sprintf("%sFF_d%s",type,d_))[[3]], m) # final proj
 
           # residual connection to previous state
-          mtm1 <- m <- jnp$add(mtm1, m)
+          mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[2]]$astype(jnp$float32) )$astype(mtm1$dtype)
       }
       print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
-
 
       TransformerOutputPathControl <- (dataType == "image" & type == "Spatial") | (dataType == "video" & type == "Temporal")
 
@@ -322,6 +319,7 @@ GetImageRepresentations <- function(
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,
+                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
                                   "BN_ImRep_d%s" = LayerBN)', d_, d_, d_ )))
       }
     }
@@ -350,6 +348,7 @@ GetImageRepresentations <- function(
                           key = jax$random$PRNGKey(ai(333324L + 1L+dt_))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
+                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep )))),
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
@@ -474,6 +473,7 @@ GetImageRepresentations <- function(
       batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
 
       gc(); try(py_gc$collect(), T) # collect memory
+      #representation_ <- try( np$array( ImageRepArm_batch_R(ModelList, # for debugging
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]), inference = T),
                                                           StateList,
@@ -482,11 +482,7 @@ GetImageRepresentations <- function(
       # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }
-      if(batchSizeOneCorrection){
-          batch_indices <- batch_indices[-1];
-          batch_keys <- batch_keys[-1];
-          representation_ <- representation_[1,]
-      }
+      if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
       print2(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
@@ -499,7 +495,7 @@ GetImageRepresentations <- function(
   setwd(  orig_wd  )
 
   ImageModel_And_State_And_MPPolicy_List = list(ModelList, StateList, MPList);
-  rm(ModelList,StateList,MPList)
+  rm(ModelList, StateList, MPList); gc()
 
   if(returnContents){
    return( list( "ImageRepresentations"= Representations,
