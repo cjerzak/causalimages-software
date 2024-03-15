@@ -315,12 +315,13 @@ GetImageRepresentations <- function(
         LayerBN <- eq$nn$BatchNorm(
           input_size = nWidth_ImageRep,
           axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = 0.01^2, channelwise_affine = T)
+          momentum = bn_momentum, eps = 0.01^2, channelwise_affine = F)
+        InvSoftPlus <- function(.){ jnp$log(jnp$exp(.) - 1) }
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,
                                   "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
-                                  "BN_ImRep_d%s" = LayerBN)', d_, d_, d_ )))
+                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=nWidth_ImageRep)) ))', d_, d_, d_, d_ )))
       }
     }
     if(dataType == "video"){
@@ -349,7 +350,7 @@ GetImageRepresentations <- function(
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
                                                "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep )))),
-                                               "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_)))
+                                               "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
                             jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
@@ -377,10 +378,12 @@ GetImageRepresentations <- function(
 
             # batchnorm block
             if( nDepth_ImageRep > 1 ){
-              m <- LE(ModelList, sprintf("BN_ImRep_d%s",d__))(m, state = LE(StateList, sprintf("BNState_ImRep_d%s",d__)), inference = inference)
+              m <- LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep_d%s",d__)), inference = inference)
               StateIndex <- LE_index( StateList, sprintf("BNState_ImRep_d%s",d__) )
               StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
               eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
+              if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L) }
+              if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L),1L) }
 
               # act fxn block
               m <- jax$nn$swish( m )

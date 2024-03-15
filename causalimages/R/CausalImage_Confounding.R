@@ -202,7 +202,7 @@ AnalyzeImageConfounding <- function(
     }
 
     binaryCrossLoss <- function(W,prW){ return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
-    InitImageProcessFn <- jax$jit(function(im, key, inference){
+    InitImageProcessFn <<- jax$jit(function(im, key, inference){
         # expand dims if needed
         if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
 
@@ -581,8 +581,7 @@ AnalyzeImageConfounding <- function(
             MPList, # MPlist
             F), T) # inference
           if("try-error" %in% class(GradientUpdatePackage)){
-            print( GradientUpdatePackage )
-            if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
+            print( GradientUpdatePackage ); if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
           }
           if(!"try-error" %in% class(GradientUpdatePackage)){
             # get updated state
@@ -624,9 +623,10 @@ AnalyzeImageConfounding <- function(
               opt_state <- GradientUpdatePackage[[2]]
               GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
 
-              # perform update
+              # perform updates
               ModelList <- eq$combine( jit_apply_updates(
-                                          params = GlobalPartition(eq$partition(ModelList, eq$is_array)[[1]],PartFxn)[[1]],
+                                          params = GlobalPartition(eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
+                                          #params = eq$partition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
                                           updates = GradientUpdatePackage),
                                   eq$partition(ModelList, eq$is_array)[[2]])
               StateList <- StateList_tmp

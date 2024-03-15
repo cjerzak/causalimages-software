@@ -151,8 +151,8 @@
       optimizeImageRep = optimizeImageRep,
       ImageModelClass = ImageModelClass,
       nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-      LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
       nWidth_ImageRep = as.integer(2L^7),
+      LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
