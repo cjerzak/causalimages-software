@@ -438,8 +438,8 @@ GetImageRepresentations <- function(
   }
 
   if(is.null(InitImageProcess)){
-    InitImageProcess <- (function(im, inference =  F){
-      if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) }
+    InitImageProcess <- (function(im, seed, inference =  F){
+      #if(inputAvePoolingSize > 1){ im <- AvePoolingDownshift(im) } # not implemented
       return( im  )
     })
   }
@@ -478,7 +478,8 @@ GetImageRepresentations <- function(
       gc(); try(py_gc$collect(), T) # collect memory
       #representation_ <- try( np$array( ImageRepArm_batch_R(ModelList, # for debugging
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
-                                                          InitImageProcess(jnp$array(batch_inference[[1]]), inference = T),
+                                                          InitImageProcess(jnp$array(batch_inference[[1]]),
+                                                                           jax$random$PRNGKey(ai(2L+ok_counter)), inference = T),
                                                           StateList,
                                                           jax$random$PRNGKey(ai(last_i)),
                                                           MPList, T)[[1]]  ), T)

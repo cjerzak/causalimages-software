@@ -202,7 +202,7 @@ AnalyzeImageConfounding <- function(
     }
 
     binaryCrossLoss <- function(W,prW){ return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
-    InitImageProcessFn <<- jax$jit(function(im, key, inference){
+    InitImageProcessFn <- jax$jit(function(im, key, inference){
         # expand dims if needed
         if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
 
@@ -215,7 +215,12 @@ AnalyzeImageConfounding <- function(
         }
 
         # downshift resolution if desired
-        if(inputAvePoolingSize > 1){ im <- jax$vmap(function(im){ AvePoolingDownshift(im)}, 0L) }
+        if(inputAvePoolingSize > 1 & dataType == "image"){
+          im <- jax$vmap(function(imm){
+            jnp$transpose(  eq$nn$AvgPool2d(kernel_size = ai(c(inputAvePoolingSize,inputAvePoolingSize)),
+                            stride = ai(c(inputAvePoolingSize,inputAvePoolingSize)))(  jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L))
+            }, 0L)(im)
+        }
         return( im  )
     })
 
@@ -243,9 +248,6 @@ AnalyzeImageConfounding <- function(
     }
     py_gc$collect()
 
-    # define image downshift for supplementary analyses
-    AvePoolingDownshift <- eq$nn$AvgPool2d(kernel_size = c(inputAvePoolingSize,inputAvePoolingSize), stride = c(inputAvePoolingSize,inputAvePoolingSize))
-
     # set up holders
     prW_est <- rep(NA,times = length(obsW))
 
@@ -270,7 +272,7 @@ AnalyzeImageConfounding <- function(
           setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
             file = file,
             dataType = dataType,
-            InitImageProcess = function(im, inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
+            InitImageProcess = InitImageProcessFn,
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
             strides = strides,
@@ -282,10 +284,13 @@ AnalyzeImageConfounding <- function(
             ImageModelClass = ImageModelClass,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
+            inputAvePoolingSize = inputAvePoolingSize,
             imageKeysOfUnits = unique(imageKeysOfUnits),  getRepresentations = T,
             returnContents = T,
             bn_momentum = 0.9,
             bn_epsilon = BN_EP,
+            conda_env = conda_env,
+            conda_env_required = conda_env_required,
             seed = ai(400L + jr)  ); setwd(new_wd)
           ImageRepresentations_df <- as.data.frame(  ImageRepresentations$ImageRepresentations )
           row.names(ImageRepresentations_df) <- as.character(unique(imageKeysOfUnits))
@@ -341,7 +346,7 @@ AnalyzeImageConfounding <- function(
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
         file = file,
         dataType = dataType,
-        InitImageProcess = function(im,inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
+        InitImageProcess = InitImageProcessFn,
         nWidth_ImageRep = nWidth_ImageRep,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,
@@ -352,11 +357,14 @@ AnalyzeImageConfounding <- function(
         ImageModelClass = ImageModelClass,
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
+        inputAvePoolingSize = inputAvePoolingSize,
         TfRecords_BufferScaler = 3L,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
         bn_momentum = 0.9,
         bn_epsilon = BN_EP,
+        conda_env = conda_env,
+        conda_env_required = conda_env_required,
         seed = ai(4003L)  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
@@ -1067,6 +1075,7 @@ AnalyzeImageConfounding <- function(
 
     # set salience map names
     if(!is.null(SalienceX)){ names(SalienceX) <- colnames(X) }
+    rm( InitImageProcessFn )
 
     print2( "Done with image confounding analysis!" ); try(setwd(orig_wd), T)
     return(    list(

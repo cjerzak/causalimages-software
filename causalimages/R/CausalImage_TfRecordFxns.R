@@ -114,7 +114,7 @@ WriteTfRecord <- function(file,
   }
   print("Finalizing tfrecords....")
   tf_record_writer$close()
-  print("Done writing tfrecord!!")
+  print("Done writing tfrecord!")
 }
 
 #!/usr/bin/env Rscript
