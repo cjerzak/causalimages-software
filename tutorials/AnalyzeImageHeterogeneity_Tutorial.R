@@ -78,9 +78,11 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
   # write a function that reads in images as saved and process them into an array
   NBANDS <- 3L
   imageHeight <- imageWidth <- 351L #  pixel height/width
-  acquireImageRep <- function(keys){
+  acquireImageRep <- function( keys ){
+    # keys <- unique(UgandaDataProcessed$geo_long_lat_key)[1:5]
     # initialize an array shell to hold image slices
     array_shell <- array(NA, dim = c(1L, imageHeight, imageWidth, NBANDS))
+    # dim(array_shell)
 
     # iterate over keys:
     # -- images are referenced to keys
@@ -103,14 +105,13 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
       array_ <- aperm(array_, c(1,5, 2, 3, 4))
       array_ <- array(array_, dim(array_)[-1])
     }
-
     return(array_)
   }
 
   # try out the function
   # note: some units are co-located in same area (hence, multiple observations per image key)
   ImageBatch <- acquireImageRep( UgandaDataProcessed$geo_long_lat_key[ check_indices <- c(1, 20, 50, 101)  ])
-  acquireImageRep( UgandaDataProcessed$geo_long_lat_key[ check_indices[1] ]   )
+  acquireImageRep( UgandaDataProcessed$geo_long_lat_key[ check_indices[1:2] ]   )
 
   # sanity checks in the analysis of earth observation data are essential
   # check that images are centered around correct location
@@ -131,7 +132,8 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 # to ensure correct ordering of data
 tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
 if( reSaveTfRecords ){
-    causalimages::WriteTfRecord(  file = tfrecord_loc,
+    causalimages::WriteTfRecord(
+                    file = tfrecord_loc,
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
                     acquireImageFxn = acquireImageRep )
 }

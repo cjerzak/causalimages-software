@@ -192,15 +192,15 @@ GetImageRepresentations <- function(
         SpatialFF_d <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
                                          out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                          use_bias = F, # hidden bias
-                                         key = jax$random$PRNGKey(ai(3340L + d_))),
+                                         key = jax$random$PRNGKey(ai(3340L + seed + d_))),
                             eq$nn$Linear(in_features = nWidth_ImageRep,
                                          out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                          use_bias = F, # swiglu bias
-                                         key = jax$random$PRNGKey(ai(3311L + d_))),
+                                         key = jax$random$PRNGKey(ai(3311L + seed + d_))),
                             eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                          out_features = nWidth_ImageRep,
                                          use_bias = F, # final bias
-                                         key = jax$random$PRNGKey(ai(33324L + d_))))
+                                         key = jax$random$PRNGKey(ai(33324L + seed +  d_))))
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
         InvSoftPlus <- function(.){ jnp$log(jnp$exp(.) - 1) }
         #jax$nn$softplus( InvSoftPlus(jnp$array(4)))
@@ -218,7 +218,7 @@ GetImageRepresentations <- function(
                    in_channels = rawChannelDims, use_bias = F,
                    out_channels = nWidth_ImageRep, key = jax$random$PRNGKey(4L+100L+seed)), # patch embed
         eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                      use_bias = F, key = jax$random$PRNGKey(999L+d_ )) # final dense proj
+                      use_bias = F, key = jax$random$PRNGKey(999L+d_ + seed  )) # final dense proj
       ))
     }
     TransformerBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
@@ -237,8 +237,7 @@ GetImageRepresentations <- function(
       print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
           # standardize
-          m <- jnp$multiply(RMS_norm(m),
-                            LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]])
+          m <- RMS_norm(m)* LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]]
 
           # rotary embeddings
           m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
@@ -251,7 +250,9 @@ GetImageRepresentations <- function(
 
           # multihead attention block
           m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
-                      query = m_pos, key_  = m_pos, value = m), T) #key = seed, # breaks in GPU mode
+                      query=m_pos,
+                      key_ =m_pos,
+                      value=m), T) #key = seed, # breaks in GPU mode
 
           # residual connection
           mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[1]]$astype(jnp$float32) )$astype(mtm1$dtype)
@@ -333,20 +334,19 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_ImageRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
-                                    # dropout_p = dropoutRate,
                                     key = jax$random$PRNGKey( 23453355L + seed+dt_) )
         TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           use_bias = F, # hidden bias
-                          key = jax$random$PRNGKey(ai(33430L + 1L+dt_))),
+                          key = jax$random$PRNGKey(ai(33430L + 1L+dt_ + seed  ))),
              eq$nn$Linear(in_features = nWidth_ImageRep,
                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           use_bias = F, # swiglu bias
-                          key = jax$random$PRNGKey(ai(33311L + 1L+dt_))),
+                          key = jax$random$PRNGKey(ai(33311L + 1L+dt_ + seed ))),
              eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           out_features = nWidth_ImageRep,
                           use_bias = F, # final bias
-                          key = jax$random$PRNGKey(ai(333324L + 1L+dt_))))
+                          key = jax$random$PRNGKey(ai(333324L + 1L + dt_ + seed ))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
                                                "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep )))),
@@ -358,7 +358,7 @@ GetImageRepresentations <- function(
                             jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
                             jnp$array(0.), # unused  in temporal
                             eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                                         use_bias = F, key = jax$random$PRNGKey(999L+d_ ))
+                                         use_bias = F, key = jax$random$PRNGKey(999L+d_+seed  ))
                             ))
     }
 
@@ -479,9 +479,9 @@ GetImageRepresentations <- function(
       #representation_ <- try( np$array( ImageRepArm_batch_R(ModelList, # for debugging
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]),
-                                                                           jax$random$PRNGKey(ai(2L+ok_counter)), inference = T),
+                                                                           jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
                                                           StateList,
-                                                          jax$random$PRNGKey(ai(last_i)),
+                                                          jax$random$PRNGKey(ai(last_i + seed)),
                                                           MPList, T)[[1]]  ), T)
       # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)

@@ -365,7 +365,7 @@ AnalyzeImageConfounding <- function(
         bn_epsilon = BN_EP,
         conda_env = conda_env,
         conda_env_required = conda_env_required,
-        seed = ai(4003L)  ); setwd(new_wd)
+        seed = ai(4003L + seed)  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
         rm( ImageRepresentations )
@@ -378,7 +378,7 @@ AnalyzeImageConfounding <- function(
                                              out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                             yes = 1L,
                                                                             no = nWidth_Dense),
-                                             use_bias = T, key = jax$random$PRNGKey(d_+44L))
+                                             use_bias = T, key = jax$random$PRNGKey(d_+44L + as.integer(seed)))
           LayerBN_d  <- eq$nn$BatchNorm(
                 input_size = outd_, axis_name = batch_axis_name,
                 momentum = 0.9, eps = 0.001, channelwise_affine = T)
@@ -570,7 +570,7 @@ AnalyzeImageConfounding <- function(
 
           # training step
           if(T == F){
-            m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F)
+            m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i ), inference = F)
             x <- jnp$array(X[batch_indices,],dtype = jnp$float16)
             treat <- jnp$array(obsW[batch_indices],dtype = jnp$float16); inference <- F
             vseed <- jax$random$split( seed <- jax$random$PRNGKey( 500L+i ),batchSize)
