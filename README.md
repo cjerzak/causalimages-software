@@ -21,8 +21,6 @@ _Beta package version:_ [`GitHub.com/cjerzak/causalimages-software`](https://git
 
 _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-software`](https://github.com/AIandGlobalDevelopmentLab/causalimages-software)
 
-_January 2024 update:_ `causalimages` now uses a [JAX](https://en.wikipedia.org/wiki/Google_JAX) backend for improved causal image and image-sequence model performance. In addition, the package has been successfully tested on [CPU](https://en.wikipedia.org/wiki/Central_processing_unit), [CUDA](https://en.wikipedia.org/wiki/CUDA), and [METAL](https://en.wikipedia.org/wiki/Metal_(API)) frameworks. 
-
 # What is causalimages?<a id="description"></a>
 
 Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
