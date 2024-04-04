@@ -31,7 +31,7 @@ WriteTfRecord <- function(file,
   print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
   {
   library(tensorflow);
-  if(!is.null(conda_env)){ try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T) }
+  if(!is.null(conda_env)){ try(reticulate::use_condaenv(conda_env, required = conda_env_required),T) }
 
   # import python garbage collectors
   py_gc <- reticulate::import("gc")

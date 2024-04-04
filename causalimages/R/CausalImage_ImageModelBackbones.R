@@ -45,6 +45,7 @@ GetImageRepresentations <- function(
     returnContents = T,
     getRepresentations = T,
     ImageModelClass = "VisionTransformer",
+    Sys.setenv_text = NULL,
 
     InitImageProcess = NULL,
     nWidth_ImageRep = 64L,
@@ -66,16 +67,14 @@ GetImageRepresentations <- function(
   # initialize tensorflow if not already initialized
   if(   !"logical" %in% class(try(as.numeric(np$array(jnp$square(1.)))==1,T))  | !all(c("gc", "jax", "numpy", "numpy", "jax.numpy", "jmp", "optax", "equinox") %in% ls()) ){
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library(tensorflow);
-    if(!is.null(conda_env)){
-      try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+    library(tensorflow); if(!is.null(conda_env)){
+      try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
-
-    # import python garbage collectors
+    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
     py_gc <- reticulate::import("gc")
     jax <<- reticulate::import("jax")
-    np <<- reticulate::import("numpy")
     jnp <<- reticulate::import("jax.numpy")
+    np <<- reticulate::import("numpy")
     jmp <<- reticulate::import("jmp")
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")

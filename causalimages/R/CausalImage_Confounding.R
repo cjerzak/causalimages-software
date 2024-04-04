@@ -66,6 +66,7 @@ AnalyzeImageConfounding <- function(
                                    long = NULL,
                                    conda_env = "CausalImagesEnv",
                                    conda_env_required = T,
+                                   Sys.setenv_text = NULL,
 
                                    figuresTag = NULL,
                                    figuresPath = "./",
@@ -91,16 +92,14 @@ AnalyzeImageConfounding <- function(
                                    seed = NULL){
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    Sys.setenv(XLA_PYTHON_CLIENT_MEM_FRACTION = ".90")
     library(tensorflow); if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
-    Sys.sleep(.5); try(tf$square(1.),T); Sys.sleep(.5)
     # note: for balanced training, generate two tf records
-
+    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
     jax <<- reticulate::import("jax")
-    np <<- reticulate::import("numpy")
     jnp <<- reticulate::import("jax.numpy")
+    np <<- reticulate::import("numpy")
     jmp <<- reticulate::import("jmp")
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")

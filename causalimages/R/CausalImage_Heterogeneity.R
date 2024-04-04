@@ -61,7 +61,7 @@
 #' # For a tutorial, see
 #' # github.com/cjerzak/causalimages-software/
 #'
-#' @import tensorflow rrapply
+#' @import reticulate rrapply
 #' @export
 #' @md
 AnalyzeImageHeterogeneity <- function(obsW,
@@ -96,6 +96,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nSGD  = 500L,
                                       batchSize = 16L,
                                       seed = NULL,
+                                      Sys.setenv_text = NULL,
 
                                       ImageModelClass = "VisionTransformer",
                                       nMonte_predictive = 10L,
@@ -111,9 +112,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(tensorflow); if(!is.null(conda_env)){
-      try(tensorflow::use_condaenv(conda_env, required = conda_env_required),T)
+      try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
-    Sys.sleep(1.); try(tf$square(1.),T); Sys.sleep(1.)
+    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
     py_gc <- reticulate::import("gc")
     jax <<- reticulate::import("jax")
     np <<- reticulate::import("numpy")

@@ -67,9 +67,9 @@ SimulateImageSystem <- function(dag = NULL,...){
     strsplit(zer,split = "->") }) )
   # load in tensorflow + helper fxns
   {
-    library(tensorflow);
-    try(tensorflow::use_python(python = "/Users/cjerzak/miniforge3/bin/python", required = T),T)
-    try(tensorflow::use_condaenv("tensorflow_m1", required = T, conda = "/opt/miniconda3/envs/tensorflow_m1"),T)
+    library(reticulate);
+    try(reticulate::use_python(python = "/Users/cjerzak/miniforge3/bin/python", required = T),T)
+    try(reticulate::use_condaenv("tensorflow_m1", required = T, conda = "/opt/miniconda3/envs/tensorflow_m1"),T)
     try(tf$sqrt(1.),T)
     try(tf$config$list_physical_devices('CPU'),T)
     try(tf$config$list_physical_devices('GPU'),T)
