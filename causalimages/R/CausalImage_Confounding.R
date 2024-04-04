@@ -92,7 +92,7 @@ AnalyzeImageConfounding <- function(
                                    seed = NULL){
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library(tensorflow); if(!is.null(conda_env)){
+    if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
     # note: for balanced training, generate two tf records
@@ -107,6 +107,11 @@ AnalyzeImageConfounding <- function(
     # tf$config$get_visible_devices() # confirm CPU only
     # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
 
+    # cleanup
+    print2(sprintf("Default device: %s",jnp$array(0.)$device()))
+
+    # set float type
+    library(tensorflow);
     image_dtype_tf <- tf$float16
     image_dtype <- jnp$float16
     if(is.null(seed)){seed <- ai(runif(1,1,10000))}
@@ -229,7 +234,6 @@ AnalyzeImageConfounding <- function(
     # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
-      browser()
       ds_next_train <- ds_iterator_train$`next`()
 
       # setup normalizations
