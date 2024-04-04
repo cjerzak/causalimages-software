@@ -290,6 +290,7 @@ AnalyzeImageConfounding <- function(
             bn_epsilon = BN_EP,
             conda_env = conda_env,
             conda_env_required = conda_env_required,
+            Sys.setenv_text = Sys.setenv_text,
             seed = ai(400L + jr)  ); setwd(new_wd)
           ImageRepresentations_df <- as.data.frame(  ImageRepresentations$ImageRepresentations )
           row.names(ImageRepresentations_df) <- as.character(unique(imageKeysOfUnits))
@@ -364,6 +365,7 @@ AnalyzeImageConfounding <- function(
         bn_epsilon = BN_EP,
         conda_env = conda_env,
         conda_env_required = conda_env_required,
+        Sys.setenv_text = Sys.setenv_text,
         seed = ai(4003L + seed)  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
