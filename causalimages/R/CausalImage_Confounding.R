@@ -88,6 +88,7 @@ AnalyzeImageConfounding <- function(
                                    TfRecords_BufferScaler = 4L,
                                    LEARNING_RATE_BASE = 0.001,
                                    dataType = "image",
+                                   image_dtype = "float16",
                                    atError = "stop", # stop or debug
                                    seed = NULL){
   {
@@ -112,9 +113,9 @@ AnalyzeImageConfounding <- function(
 
     # set float type
     library(tensorflow);
-    image_dtype_tf <- tf$float16
-    image_dtype <- jnp$float16
-    if(is.null(seed)){seed <- ai(runif(1,1,10000))}
+    if(image_dtype == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
+    if(image_dtype == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
+    if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
   }
 
   if(!optimizeImageRep & nDepth_ImageRep > 1){
@@ -234,6 +235,7 @@ AnalyzeImageConfounding <- function(
     # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
+      # get a data batch 
       ds_next_train <- ds_iterator_train$`next`()
 
       # setup normalizations
@@ -464,9 +466,11 @@ AnalyzeImageConfounding <- function(
           NegLL <- jnp$mean( NegLL )
 
           print2("Returning loss + state...")
-          NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
-          NegLL <- MPList[[2]]$scale( NegLL ) # scale loss
-          StateList <- MPList[[1]]$cast_to_param( StateList ) # compute to param dtype
+          if(image_dtype == "float16"){ 
+            NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
+            NegLL <- MPList[[2]]$scale( NegLL ) # scale loss
+            StateList <- MPList[[1]]$cast_to_param( StateList ) # compute to param dtype
+          }
 
           # return
           return( list(NegLL, StateList)  )
@@ -602,7 +606,12 @@ AnalyzeImageConfounding <- function(
             StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
 
             # get loss + grad
-            loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+            if(image_dtype == "float16"){ 
+              loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+            }
+            if(image_dtype != "float16"){ 
+              loss_vec[i] <- myLoss_fromGrad <- np$array( GradientUpdatePackage[[1]][[1]] )# value
+            }
             GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
             GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
             GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
@@ -613,7 +622,9 @@ AnalyzeImageConfounding <- function(
                 jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
               AllFinite <- jax$jit( jmp$all_finite )
             }
-            GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
+            if(image_dtype == "float16"){ 
+              GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
+            }
             AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
             MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
             # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
@@ -742,9 +753,9 @@ AnalyzeImageConfounding <- function(
         trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
         testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
         tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/c(prW_est))) - sum(obsY*prop.table((1-obsW)/c(1-prW_est) ))
-        tauHat_propensityHajek_vec <- replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
+        tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
                         sum(  obsY[i_]*prop.table(obsW[i_]/c(prW_est[i_]))) -
-                          sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } )
+                          sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } ))
     }
 
     # process in and out of sample losses

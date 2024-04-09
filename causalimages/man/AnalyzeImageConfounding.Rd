@@ -19,6 +19,7 @@ AnalyzeImageConfounding(
   long = NULL,
   conda_env = "CausalImagesEnv",
   conda_env_required = T,
+  Sys.setenv_text = NULL,
   figuresTag = NULL,
   figuresPath = "./",
   plotBands = 1L,
@@ -26,18 +27,22 @@ AnalyzeImageConfounding(
   optimizeImageRep = T,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
-  nWidth_Dense = 32L,
-  nDepth_Dense = 1L,
-  strides = 2L,
-  dropoutRate = 0.1,
-  batchSize = 50L,
-  kernelSize = 3L,
   temporalKernelSize = 2L,
+  kernelSize = 5L,
+  nWidth_Dense = 64L,
+  nDepth_Dense = 1L,
+  ImageModelClass = "VisionTransformer",
+  strides = 2L,
+  nDepth_TemporalRep = 3L,
+  patchEmbedDim = 16L,
+  dropoutRate = 0.1,
+  batchSize = 16L,
   nSGD = 400L,
   testFrac = 0.05,
   TfRecords_BufferScaler = 4L,
-  LEARNING_RATE_BASE = 0.005,
+  LEARNING_RATE_BASE = 0.001,
   dataType = "image",
+  atError = "stop",
   seed = NULL
 )
 }
@@ -78,6 +83,10 @@ AnalyzeImageConfounding(
 
 \item{nDepth_ImageRep}{Integer specifying depth of image model representation.}
 
+\item{temporalKernelSize}{Dimensions used in temporal convolutions (if `dataType = "video"``)}
+
+\item{kernelSize}{Dimensions used in spatial convolutions.}
+
 \item{nWidth_Dense}{Integer specifying width of image model representation.}
 
 \item{nDepth_Dense}{Integer specifying depth of dense model representation.}
@@ -87,10 +96,6 @@ AnalyzeImageConfounding(
 \item{dropoutRate}{Droppout rate used in training used to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
 
 \item{batchSize}{Batch size used in SGD optimization. Default = \code{50L}.}
-
-\item{kernelSize}{Dimensions used in spatial convolutions.}
-
-\item{temporalKernelSize}{Dimensions used in temporal convolutions (if `dataType = "video"``)}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations. Default = \code{400L}}
 

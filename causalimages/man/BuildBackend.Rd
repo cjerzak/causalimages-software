@@ -2,7 +2,7 @@
 % Please edit documentation in R/CausalImage_BuildBackend.R
 \name{BuildBackend}
 \alias{BuildBackend}
-\title{Perform causal estimation under image confounding}
+\title{Build the environment for CausalImages models. Builds a conda environment in which jax, tensorflow, tensorflow-probability optax, equinox, and jmp are installed.}
 \usage{
 BuildBackend(conda_env = "CausalImagesEnv", conda = "auto")
 }
@@ -16,7 +16,7 @@ Builds the computational environment for \code{causalimages}. This function requ
 You may find out a list of conda Python paths via: \code{system("which python")}
 }
 \description{
-Perform causal estimation under image confounding
+Build the environment for CausalImages models. Builds a conda environment in which jax, tensorflow, tensorflow-probability optax, equinox, and jmp are installed.
 }
 \examples{
 # For a tutorial, see

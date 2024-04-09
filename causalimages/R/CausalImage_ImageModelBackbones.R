@@ -277,8 +277,8 @@ GetImageRepresentations <- function(
 
       if( TransformerOutputPathControl ){
         # final norm
-        m <- jnp$add(m, jnp$squeeze( jnp$multiply( RMS_norm( jnp$expand_dims(m,0L) ),
-                    LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  ) ))
+        m <- jnp$squeeze(  jnp$multiply( RMS_norm( jnp$expand_dims(m,0L) ),
+                    LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  ) )
 
         # linear proj
         m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )
