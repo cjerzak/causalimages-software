@@ -531,10 +531,12 @@ AnalyzeImageConfounding <- function(
               g_norm, max_norm, updates)
             return( updates )
           } )
-          LR_schedule <- optax$cosine_decay_schedule( init_value = LEARNING_RATE_BASE, decay_steps = nSGD )
+          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps =  min(c(20L,nSGD)),
+                                                            decay_steps = max(c(21L,nSGD-100L)),
+                                                            init_value = LEARNING_RATE_BASE/100, peak_value = LEARNING_RATE_BASE, end_value =  LEARNING_RATE_BASE/100)
           optax_optimizer <-  optax$chain(
-            optax$clip(1), # optax$zero_nans(),
-            # optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D
+            optax$clip(1), 
+            optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D
             optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
           )
 
