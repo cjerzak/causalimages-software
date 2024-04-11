@@ -56,7 +56,7 @@ AnalyzeImageConfounding <- function(
                                    X = NULL,
                                    file = NULL,
                                    imageKeysOfUnits = NULL,
-                                   nBoot = 50L,
+                                   nBoot = 10L,
                                    inputAvePoolingSize = 1L,
                                    useTrainingPertubations = T,
 
@@ -76,7 +76,7 @@ AnalyzeImageConfounding <- function(
                                    optimizeImageRep = T,
                                    nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, temporalKernelSize = 2L, kernelSize = 5L,
                                    nWidth_Dense = 64L,  nDepth_Dense = 1L,
-                                   ImageModelClass = "VisionTransformer",
+                                   imageModelClass = "VisionTransformer",
 
                                    strides = 2L,
                                    nDepth_TemporalRep = 3L,
@@ -86,7 +86,7 @@ AnalyzeImageConfounding <- function(
                                    nSGD  = 400L,
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
-                                   LEARNING_RATE_BASE = 0.001,
+                                   learningRateMax = 0.001,
                                    dataType = "image",
                                    image_dtype = "float16",
                                    atError = "stop", # stop or debug
@@ -287,7 +287,7 @@ AnalyzeImageConfounding <- function(
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
             temporalKernelSize = temporalKernelSize,
-            ImageModelClass = ImageModelClass,
+            imageModelClass = imageModelClass,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             inputAvePoolingSize = inputAvePoolingSize,
@@ -361,7 +361,7 @@ AnalyzeImageConfounding <- function(
         nDepth_TemporalRep = nDepth_TemporalRep,
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
-        ImageModelClass = ImageModelClass,
+        imageModelClass = imageModelClass,
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         inputAvePoolingSize = inputAvePoolingSize,
@@ -533,7 +533,7 @@ AnalyzeImageConfounding <- function(
           } )
           LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps =  min(c(20L,nSGD)),
                                                             decay_steps = max(c(21L,nSGD-100L)),
-                                                            init_value = LEARNING_RATE_BASE/100, peak_value = LEARNING_RATE_BASE, end_value =  LEARNING_RATE_BASE/100)
+                                                            init_value = learningRateMax/100, peak_value = learningRateMax, end_value =  learningRateMax/100)
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
             optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D

@@ -1,4 +1,4 @@
-#' Decompose treatment effect heterogeneity by image
+#' Decompose treatment effect heterogeneity by  %>% 
 #'
 #' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023). Users
 #' input in treatment and outcome data, along with a function specifying how to load in images
@@ -91,14 +91,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       temporalKernelSize = 2L,
-                                      LEARNING_RATE_BASE = 0.005,
+                                      learningRateMax = 0.005,
                                       patchEmbedDim = 16L,
                                       nSGD  = 500L,
                                       batchSize = 16L,
                                       seed = NULL,
                                       Sys.setenv_text = NULL,
 
-                                      ImageModelClass = "VisionTransformer",
+                                      imageModelClass = "VisionTransformer",
                                       nMonte_predictive = 10L,
                                       nMonte_salience = 10L,
                                       nMonte_variational = 2L,
@@ -268,7 +268,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         nDepth_TemporalRep = nDepth_TemporalRep,
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
-        ImageModelClass = ImageModelClass,
+        imageModelClass = imageModelClass,
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         TfRecords_BufferScaler = 3L,
@@ -751,7 +751,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               g_norm, max_norm, updates)
         return( updates )
       })
-      LR_schedule <- optax$cosine_decay_schedule( init_value = LEARNING_RATE_BASE, decay_steps = nSGD )
+      LR_schedule <- optax$cosine_decay_schedule( init_value = learningRateMax, decay_steps = nSGD )
       optax_optimizer <-  optax$chain(
         optax$clip(1), # optax$zero_nans(),
         # optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D
