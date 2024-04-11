@@ -44,7 +44,7 @@ GetImageRepresentations <- function(
     conda_env_required = T,
     returnContents = T,
     getRepresentations = T,
-    ImageModelClass = "VisionTransformer",
+    imageModelClass = "VisionTransformer",
     Sys.setenv_text = NULL,
 
     InitImageProcess = NULL,
@@ -156,7 +156,7 @@ GetImageRepresentations <- function(
     RMS_norm <- function(x_){ jnp$divide( x_, jnp$sqrt(0.001+jnp$mean(jnp$square(x_), -1L, keepdims=T))) }
 
     # set up model
-    if(ImageModelClass == "VisionTransformer"){
+    if(imageModelClass == "VisionTransformer"){
       # Calculate number of patches
       nPatches_side = ai(rawSpatialDims / patchEmbedDim)
       nPatches = ai(nPatches_side^2)
@@ -285,7 +285,7 @@ GetImageRepresentations <- function(
       }
     return( list(m, StateList) )
     }
-    if(ImageModelClass == "CNN"){
+    if(imageModelClass == "CNN"){
     StateList <- ModelList <- replicate(nDepth_ImageRep, list())
     for(d_ in 1L:nDepth_ImageRep){
         if(d_ > 1){ strides <- 1L }
@@ -365,11 +365,11 @@ GetImageRepresentations <- function(
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
     ImageRepArm_SpatialArm <- function(ModelList, m, StateList, seed, MPList, inference){
-      if(ImageModelClass == "VisionTransformer"){
+      if(imageModelClass == "VisionTransformer"){
           m <- TransformerBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
           StateList <- m[[2]]; m <- m[[1]]
       }
-      if(ImageModelClass == "CNN"){
+      if(imageModelClass == "CNN"){
           m <- jnp$transpose(m, c(2L, 0L, 1L)) # transpose to C,W,H
           for(d__ in 1:nDepth_ImageRep){
             m <- LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m) # spatial conv; fails in METAL with nDepth > 2
