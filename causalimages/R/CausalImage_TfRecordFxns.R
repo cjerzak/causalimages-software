@@ -216,7 +216,6 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     return_list[[li_]] <- eval(parse(text =
                       paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
     if(  any(diff(uniqueKeyIndices)<0)  ){ # re-order if needed
-      #indices_sorted[ match(uniqueKeyIndices,indices_sorted) ]
       return_list[[li_]] <- tf$gather(return_list[[li_]],
                                       indices = as.integer(match(uniqueKeyIndices,indices_sorted)-1L),
                                       axis = 0L)

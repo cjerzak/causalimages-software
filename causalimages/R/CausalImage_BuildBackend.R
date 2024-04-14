@@ -24,17 +24,10 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                            conda = conda, pip = TRUE,
                            envname = conda_env)
   if(Sys.info()["sysname"] == "Darwin"){
-    try_ <- try(reticulate::py_install("jax-metal", conda = conda, pip = TRUE,
-                                       envname = conda_env), T)
-    if("try-error" %in% class(try_)){
-      print("Failed to establish connection with jax-metal, falling back to jax...")
-      try_ <- try(reticulate::py_install("jax", conda = conda, pip = TRUE,
-                                         envname = conda_env), T)
-    }
+      reticulate::py_install("jax", conda = conda, pip = TRUE, envname = conda_env)
   }
   if(Sys.info()["sysname"] == "Windows"){
-    reticulate::py_install("jax", conda = conda, pip = TRUE,
-                           envname = conda_env)
+      reticulate::py_install("jax", conda = conda, pip = TRUE, envname = conda_env)
   }
   if(Sys.info()["sysname"] == "Linux"){
     # pip install --upgrade jax jaxlib==0.1.69+cuda111 -f https://storage.googleapis.com/jax-releases/jax_releases.html

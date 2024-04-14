@@ -113,8 +113,8 @@ AnalyzeImageConfounding <- function(
 
     # set float type
     library(tensorflow);
-    if(image_dtype == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
-    if(image_dtype == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
+    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
+    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
   }
 
@@ -182,7 +182,7 @@ AnalyzeImageConfounding <- function(
         dataset <- dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
                                    reshuffle_each_iteration = T)
         dataset <- dataset$batch(  ai(batchSize)   )
-        dataset <- dataset$prefetch(tf$data$AUTOTUNE)
+        dataset <- dataset$prefetch( tf$data$AUTOTUNE ) 
         return( dataset  )
       }
 
@@ -212,12 +212,7 @@ AnalyzeImageConfounding <- function(
         if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
 
         # normalize
-        im <- jnp$divide(jnp$subtract(im, NORM_MEAN_array), NORM_SD_array)
-
-        # training pertubations
-        if(useTrainingPertubations){
-          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
-        }
+        im <- (im - NORM_MEAN_array) / NORM_SD_array
 
         # downshift resolution if desired
         if(inputAvePoolingSize > 1 & dataType == "image"){
@@ -226,6 +221,12 @@ AnalyzeImageConfounding <- function(
                             stride = ai(c(inputAvePoolingSize,inputAvePoolingSize)))(  jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L))
             }, 0L)(im)
         }
+        
+        # training pertubations
+        if(useTrainingPertubations){
+          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+        }
+
         return( im  )
     })
 
@@ -237,7 +238,7 @@ AnalyzeImageConfounding <- function(
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
       # get a data batch 
       ds_next_train <- ds_iterator_train$`next`()
-
+      
       # setup normalizations
       ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
       if(is.null(NORM_MEAN)){ NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),ApplyAxis,sd); NORM_MEAN[] <- NORM_SD[] <- 0 }
@@ -288,6 +289,7 @@ AnalyzeImageConfounding <- function(
             batchSize = batchSize,
             temporalKernelSize = temporalKernelSize,
             imageModelClass = imageModelClass,
+            optimizeImageRep = optimizeImageRep, 
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             inputAvePoolingSize = inputAvePoolingSize,
@@ -362,6 +364,7 @@ AnalyzeImageConfounding <- function(
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
         imageModelClass = imageModelClass,
+        optimizeImageRep = optimizeImageRep, 
         temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         inputAvePoolingSize = inputAvePoolingSize,
@@ -383,22 +386,19 @@ AnalyzeImageConfounding <- function(
         for(d_ in 1L:nDepth_Dense){
           DenseProj_d <- eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
                                                                             no =  nWidth_Dense),
-                                             out_features = outd_ <- ifelse(d_ == nDepth_Dense,
-                                                                            yes = 1L,
-                                                                            no = nWidth_Dense),
-                                             use_bias = T, key = jax$random$PRNGKey(d_+44L + as.integer(seed)))
-          LayerBN_d  <- eq$nn$BatchNorm(
-                input_size = outd_, axis_name = batch_axis_name,
-                momentum = 0.9, eps = 0.001, channelwise_affine = T)
+                                      out_features = outd_ <- ifelse(d_ == nDepth_Dense,
+                                                                            yes = 1L,  no = nWidth_Dense),
+                                      use_bias = T, key = jax$random$PRNGKey(d_+44L + as.integer(seed)))
+          LayerBN_d  <- eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
+                                         momentum = 0.9, eps = 0.001, channelwise_affine = F)
           DenseStateList[[d_]] <- eval(parse(text = sprintf("list('BNState_d%s' = eq$nn$State( LayerBN_d ))", d_)))
           DenseList[[d_]] <- eval(parse(text = sprintf('list("DenseProj_d%s" = DenseProj_d,
-                                                              "BN_%s" = LayerBN_d
-                                                              )', d_, d_ )))
+                                                              "BN_%s" = LayerBN_d)', d_, d_ )))
         }
 
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
-                                vseed, StateList, seed, MPList, inference){
+                                    vseed, StateList, seed, MPList, inference){
           if(!XisNull){  m <- jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
@@ -439,10 +439,11 @@ AnalyzeImageConfounding <- function(
           m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
-          # label smoothing to prevent underflow (log(0) generates NAs)
+          # enforce range in [0,1]
           m <- jax$nn$sigmoid( m )
-          m <- jnp$add(jnp$multiply(jnp$subtract(1., ep_LabelSmooth <- jnp$array(0.01)), m),
-                               jnp$divide(ep_LabelSmooth, 2.))
+          
+          # label smoothing to prevent underflow (log(0) generates NAs)
+          m <- (1. - (ep_LabelSmooth <- jnp$array(0.01))) * m + ep_LabelSmooth/2.
 
           # return contents
           return( list(m, StateList) )
@@ -461,12 +462,10 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
 
           # compute negative log-likelihood loss
-          NegLL <-  jnp$negative(  jnp$add( jnp$multiply(treat, jnp$log(m)),
-                                            jnp$multiply(1-treat, jnp$log(1-m)) )  )
-          NegLL <- jnp$mean( NegLL )
+          NegLL <-  jnp$mean( jnp$negative(  treat*jnp$log(m) +  (1-treat)*jnp$log(1-m) )  ) 
 
           print2("Returning loss + state...")
-          if(image_dtype == "float16"){ 
+          if(image_dtype_char == "float16"){ 
             NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
             NegLL <- MPList[[2]]$scale( NegLL ) # scale loss
             StateList <- MPList[[1]]$cast_to_param( StateList ) # compute to param dtype
@@ -492,52 +491,15 @@ AnalyzeImageConfounding <- function(
 
         # define optimizer and training step
         {
-          unitwise_norm <- function(x){
-            # """Computes norms of each output unit separately."""
-            if(jnp$squeeze(x)$ndim <= 1L){  # Scalars and vectors
-              squared_norm <- jnp$sum(jnp$square(x), keepdims=T)
-            }
-            # Note that this assumes parameters with a shape of length 3 are multihead
-            # linear parameters--if you wish to apply AGC to 1D convs, you may need
-            # to modify this line.
-            if( x$ndim %in% c(2L, 3L)){  # Linear layers of shape IO or multihead linear
-              squared_norm <- jnp$sum(jnp$square(x), axis=0L, keepdims=T)
-            }
-
-            # Conv kernels of shape HWIO - from original code
-            # if( x$ndim == 4L){  squared_norm = jnp$sum(jnp$square(x), axis=c(0L, 1L, 2L), keepdims=T) }
-
-            # Conv kernels of shape OIHW
-            if( x$ndim == 4L){ squared_norm <- jnp$sum(jnp$square(x), axis=c(1L:3L), keepdims=T) }
-
-            if( x$ndim == 5L){
-              squared_norm <- jnp$sum(jnp$square(x), axis=c(1L:4L), keepdims=T)
-            }
-
-            return( jnp$broadcast_to(jnp$sqrt(squared_norm), x$shape) )
-          }
-          MyAdaptiveGradClip <- eq$filter_jit( function(updates, params){
-            eps <- jnp$array(0.001); clipping <- jnp$array( 0.1 )
-            g_norm <- jax$tree_util$tree_map(unitwise_norm, list(updates, params))
-            p_norm <- g_norm[[2]]; g_norm <- g_norm[[1]]
-
-            # Maximum allowable norm.
-            max_norm = jax$tree_util$tree_map( function( x ){ clipping * jnp$maximum(x, eps)}, p_norm)
-
-            # If grad norm > clipping * param_norm, rescale.
-            updates <- jax$tree_util$tree_map(function(g_norm, max_norm, grad){
-              clipped_grad <- grad * (max_norm / jnp$maximum(g_norm, jnp$array(0.001)))
-              return( jnp$where(g_norm < max_norm, grad, clipped_grad))},
-              g_norm, max_norm, updates)
-            return( updates )
-          } )
-          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps =  min(c(20L,nSGD)),
-                                                            decay_steps = max(c(21L,nSGD-100L)),
-                                                            init_value = learningRateMax/100, peak_value = learningRateMax, end_value =  learningRateMax/100)
+          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps =  min(c(20L, nSGD)),
+                                                            decay_steps = max(c(21L, nSGD-100L)),
+                                                            init_value = learningRateMax/100, 
+                                                            peak_value = learningRateMax, 
+                                                            end_value =  learningRateMax/100)
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D
-            optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
+            optax$adaptive_grad_clip(clipping = 0.25), # bug with equinox's Conv4D
+            optax$adabelief( learning_rate = LR_schedule )
           )
 
           # model partition, setup state, perform parameter count
@@ -551,11 +513,11 @@ AnalyzeImageConfounding <- function(
 
         print2("Starting training...")
         keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
-        L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
-        keysUsedInTraining <- c()
-        n_sgd_iters <- nSGD; tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
+        L2grad_vec <- loss_vec <- rep(NA,times=nSGD)
+        keysUsedInTraining <- tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
           t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
 
+          # get next batch 
           ds_next_train <- ds_iterator_train$`next`()
 
           # if we run out of observations, reset iterator
@@ -608,10 +570,10 @@ AnalyzeImageConfounding <- function(
             StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
 
             # get loss + grad
-            if(image_dtype == "float16"){ 
+            if(image_dtype_char == "float16"){ 
               loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
             }
-            if(image_dtype != "float16"){ 
+            if(image_dtype_char != "float16"){ 
               loss_vec[i] <- myLoss_fromGrad <- np$array( GradientUpdatePackage[[1]][[1]] )# value
             }
             GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
@@ -622,15 +584,29 @@ AnalyzeImageConfounding <- function(
             if(i == 1){
               Map2Zero <- eq$filter_jit(function(input){
                 jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
+              GetGetNorms <- eq$filter_jit(function(input){
+                jax$tree_map(function(x){ jnp$mean(jnp$abs(x)) }, input) })
               AllFinite <- jax$jit( jmp$all_finite )
             }
-            if(image_dtype == "float16"){ 
+            if(image_dtype_char == "float16"){ 
               GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
             }
             AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
             MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
             # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
+            
+            # sanity checks 
+            if(T == F){ 
+              UnitNorms <- eq$partition(GetGetNorms( GradientUpdatePackage ), eq$is_array)[[1]]
+              UnitNorms[[1]][[1]]$SeperableFeature_jax_d1$weight
+              UnitNorms[[1]][[2]]$SpatialTransformerSupp[[1]]$weight
+              UnitNorms[[2]][[1]]$DenseProj_d1$weight
+              UnitNorms[[2]][[1]]$DenseProj_d1$weight
+              GetGetNorms( GradientUpdatePackage )[[2]][[1]]$DenseProj_d1$weight
+              GradientUpdatePackage[[2]][[1]]$BN_1$weight
+              GradientUpdatePackage[[2]][[1]]$DenseProj_d1$weight
+            }
 
             # update parameters if finite gradients
             DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
@@ -640,8 +616,6 @@ AnalyzeImageConfounding <- function(
 
               # get updates
               GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
-              GradientUpdatePackage <- MyAdaptiveGradClip( GradientUpdatePackage,
-                                                           eq$partition(ModelList, eq$is_array)[[1]] )
               GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
                                                        state = opt_state,
                                                        params = eq$partition(ModelList, eq$is_array)[[1]])
@@ -653,7 +627,6 @@ AnalyzeImageConfounding <- function(
               # perform updates
               ModelList <- eq$combine( jit_apply_updates(
                                           params = GlobalPartition(eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
-                                          #params = eq$partition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
                                           updates = GradientUpdatePackage),
                                   eq$partition(ModelList, eq$is_array)[[2]])
               StateList <- StateList_tmp
@@ -664,14 +637,14 @@ AnalyzeImageConfounding <- function(
           # print diagnostics
           i_ <- i ; if(i %% 10 == 0 | i < 10 ){
             print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
-                           i, n_sgd_iters,
-                           loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
+                           i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
                            (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
             loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
             try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
             if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
           }
         } # end for(i in i_:nSGD){
+        
         print2("Getting predicted quantities...")
         GetImageArm_OneX <- eq$filter_jit( function(ModelList, ModelList_fixed,
                  m, vseed,
@@ -719,7 +692,6 @@ AnalyzeImageConfounding <- function(
           x <- jnp$expand_dims(jnp$array(  ifelse(length(obs_with_key) == 1, yes = list(t(X[obs_with_key,])),
                                                               no = list(X[obs_with_key,]))[[1]],
                            dtype = jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
-
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = ModelList, no = ModelList_fixed),
                                           InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L+i), inference = T),
                                           StateList, seed, MPList, T)[[1]]
@@ -741,10 +713,8 @@ AnalyzeImageConfounding <- function(
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
           Results_by_keys[[inference_counter]] <- ret_list
         }
-        Results_by_keys_list <- Results_by_keys
-        Results_by_keys <- ( do.call(rbind, Results_by_keys_list) )
-        Results_by_keys <- apply(Results_by_keys,2,function(zer){(do.call(rbind,zer))})
-        Results_by_keys <- as.data.frame( Results_by_keys )
+        Results_by_keys <- as.data.frame(
+                        apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
         prW_est <- f2n(  Results_by_keys$ProbW )
 
         # checks
@@ -887,7 +857,7 @@ AnalyzeImageConfounding <- function(
 
             col_ <- ifelse(in_ %in% top_treated, yes = "black", no = "gray")
             in_counter <- in_counter + 1
-            if(  !is.null(lat)  ){ long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_])) }
+            long_lat_in_ <- ""; if(  !is.null(lat)  ){ long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_])) }
 
             im_orig <- im_ <- InitImageProcessFn( im = jnp$array(ds_next_in[[1]]), key = jax$random$PRNGKey(3L), inference = T )
             XToConcat_values <- jnp$array(t(X[in_,]),jnp$float16)

@@ -37,18 +37,12 @@ GetAndSaveGeolocatedImages <- function(
     lat,
     keys,
     tif_pool,
-    image_pixel_width = 250L,
+    image_pixel_width = 256L,
     save_folder = ".",
     save_as = "csv",
     lyrs = NULL){
 
-
-  if(attemptRestart == T){
-
-    browser()
-  }
-
-  library(raster)
+  library(raster); library(sf)
   RADIUS_CELLS <- (DIAMETER_CELLS <- image_pixel_width) / 2
   bad_indices <- c();observation_indices <- 1:length(long)
   counter_b <- 0 ; for(i in observation_indices){
@@ -60,7 +54,7 @@ GetAndSaveGeolocatedImages <- function(
       counter_ <- counter_ + 1
       if(is.na(tif_pool[counter_])){ found_ <- bad_ <- T }
       if(!is.na(tif_pool[counter_])){
-        MASTER_IMAGE_ <- try(brick(tif_pool[counter_] ), T)
+        MASTER_IMAGE_ <- try(raster::brick( tif_pool[counter_] ), T)
         SpatialTarget_utm <- LongLat2CRS(
           long = SpatialTarget_longlat[1],
           lat = SpatialTarget_longlat[2],
@@ -77,11 +71,11 @@ GetAndSaveGeolocatedImages <- function(
       }
     }
     if(bad_){
-      print(sprintf("Bad at %s. Apparently, no .tif contains the reference point",i))
+      print2(sprintf("Failure at %s. Apparently, no .tif contains the reference point",i))
       bad_indices <- c(bad_indices,i)
     }
     if(!bad_){
-      print(sprintf("Good at %s. Extracting and saving image", i))
+      print2(sprintf("Success at %s - Extracting & saving image!", i))
       # available rows/cols
       rows_available <- nrow( MASTER_IMAGE_ )
       cols_available <- ncol( MASTER_IMAGE_ )
@@ -131,4 +125,5 @@ GetAndSaveGeolocatedImages <- function(
       }
     }
   }
+  print2("Done with GetAndSaveGeolocatedImages()!")
 }
