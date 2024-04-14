@@ -2,7 +2,7 @@
 % Please edit documentation in R/CausalImage_Heterogeneity.R
 \name{AnalyzeImageHeterogeneity}
 \alias{AnalyzeImageHeterogeneity}
-\title{Decompose treatment effect heterogeneity by image}
+\title{Decompose treatment effect heterogeneity by  \%>\%}
 \usage{
 AnalyzeImageHeterogeneity(
   obsW,
@@ -33,13 +33,13 @@ AnalyzeImageHeterogeneity(
   testFrac = 0.1,
   kernelSize = 5L,
   temporalKernelSize = 2L,
-  LEARNING_RATE_BASE = 0.005,
+  learningRateMax = 0.005,
   patchEmbedDim = 16L,
   nSGD = 500L,
   batchSize = 16L,
   seed = NULL,
   Sys.setenv_text = NULL,
-  ImageModelClass = "VisionTransformer",
+  imageModelClass = "VisionTransformer",
   nMonte_predictive = 10L,
   nMonte_salience = 10L,
   nMonte_variational = 2L,

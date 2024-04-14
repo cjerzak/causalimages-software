@@ -9,7 +9,7 @@ GetAndSaveGeolocatedImages(
   lat,
   keys,
   tif_pool,
-  image_pixel_width = 250L,
+  image_pixel_width = 256L,
   save_folder = ".",
   save_as = "csv",
   lyrs = NULL

@@ -10,7 +10,7 @@ AnalyzeImageConfounding(
   X = NULL,
   file = NULL,
   imageKeysOfUnits = NULL,
-  nBoot = 50L,
+  nBoot = 10L,
   inputAvePoolingSize = 1L,
   useTrainingPertubations = T,
   orthogonalize = F,
@@ -31,7 +31,7 @@ AnalyzeImageConfounding(
   kernelSize = 5L,
   nWidth_Dense = 64L,
   nDepth_Dense = 1L,
-  ImageModelClass = "VisionTransformer",
+  imageModelClass = "VisionTransformer",
   strides = 2L,
   nDepth_TemporalRep = 3L,
   patchEmbedDim = 16L,
@@ -40,8 +40,9 @@ AnalyzeImageConfounding(
   nSGD = 400L,
   testFrac = 0.05,
   TfRecords_BufferScaler = 4L,
-  LEARNING_RATE_BASE = 0.001,
+  learningRateMax = 0.001,
   dataType = "image",
+  image_dtype = "float16",
   atError = "stop",
   seed = NULL
 )
