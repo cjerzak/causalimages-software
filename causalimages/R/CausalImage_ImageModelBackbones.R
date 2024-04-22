@@ -291,7 +291,7 @@ GetImageRepresentations <- function(
                                          key = jax$random$PRNGKey(4L+d_+seed))
       SeperableFeature_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                         groups = dimsSpatial, 
+                                         groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
                                          key = jax$random$PRNGKey(50L+d_+seed))
       ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
