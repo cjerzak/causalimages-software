@@ -276,7 +276,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         returnContents = T,
         bn_momentum = bn_momentum,
         bn_epsilon = BN_EP,
-        InitImageProcess = function(im, inference){InitImageProcessFn(im,jax$random$PRNGKey(2L), inference)},
+        InitImageProcess = InitImageProcessFn,
         seed = seed); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]

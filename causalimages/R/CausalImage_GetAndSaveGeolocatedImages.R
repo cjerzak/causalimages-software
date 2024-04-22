@@ -45,9 +45,9 @@ GetAndSaveGeolocatedImages <- function(
   library(raster); library(sf)
   RADIUS_CELLS <- (DIAMETER_CELLS <- image_pixel_width) / 2
   bad_indices <- c();observation_indices <- 1:length(long)
-  counter_b <- 0 ; for(i in observation_indices){
+  counter_b <- 0; for(i in observation_indices){
     counter_b <- counter_b + 1
-    if(counter_b %% 10 == 0){print(sprintf("Iter %s of %s",counter_b,length(observation_indices)))}
+    if(counter_b %% 10 == 0){print2(sprintf("At image %s of %s",counter_b,length(observation_indices)))}
     SpatialTarget_longlat <- c(long[i],lat[i])
 
     found_<-F;counter_ <- 0; while(found_ == F){

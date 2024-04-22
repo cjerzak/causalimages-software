@@ -61,7 +61,6 @@ GetImageRepresentations <- function(
     dropoutRate,
     dataType = "image",
     bn_momentum = 0.9,
-    bn_epsilon = 0.01,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL){
 
@@ -321,7 +320,7 @@ GetImageRepresentations <- function(
         LayerBN <- eq$nn$BatchNorm(
           input_size = nWidth_ImageRep,
           axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = 0.001, channelwise_affine = F)
+          momentum = bn_momentum, eps = 0.01, channelwise_affine = F)
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,

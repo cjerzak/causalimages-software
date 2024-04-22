@@ -206,7 +206,6 @@ AnalyzeImageConfounding <- function(
       }
     }
 
-    binaryCrossLoss <- function(W,prW){ return( - mean( log(prW+0.001)*W + log(1-prW+0.001)*(1-W) ) ) }
     InitImageProcessFn <- jax$jit(function(im, key, inference){
         # expand dims if needed
         if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
@@ -296,7 +295,6 @@ AnalyzeImageConfounding <- function(
             imageKeysOfUnits = unique(imageKeysOfUnits),  getRepresentations = T,
             returnContents = T,
             bn_momentum = 0.9,
-            bn_epsilon = BN_EP,
             conda_env = conda_env,
             conda_env_required = conda_env_required,
             Sys.setenv_text = Sys.setenv_text,
@@ -318,7 +316,8 @@ AnalyzeImageConfounding <- function(
 
         # compute QOIs
         myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
-        prW_est_ <- sigmoid( as.matrix(cbind(1, glmnetInput)) %*% myGlmnet_coefs_ )
+        prW_est_ <- predict(myGlmnet_, s ="lambda.min",newx= as.matrix(glmnetInput), type = "response")
+        #prW_est_ <- sigmoid( as.matrix(cbind(1, glmnetInput)) %*% myGlmnet_coefs_ )
         tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/c(prW_est_) - (1-obsW_)*obsY_/c(1-prW_est_) )
         tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/c(prW_est_))) -
                         sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
@@ -372,7 +371,6 @@ AnalyzeImageConfounding <- function(
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
         bn_momentum = 0.9,
-        bn_epsilon = BN_EP,
         conda_env = conda_env,
         conda_env_required = conda_env_required,
         Sys.setenv_text = Sys.setenv_text,
@@ -442,8 +440,8 @@ AnalyzeImageConfounding <- function(
           # enforce range in [0,1]
           m <- jax$nn$sigmoid( m )
           
-          # label smoothing to prevent underflow (log(0) generates NAs)
-          m <- (1. - (ep_LabelSmooth <- jnp$array(0.01))) * m + ep_LabelSmooth/2.
+          # label smoothing to prevent NAs via log(0)
+          m <- (1. - (ep_ls <- jnp$array(0.01))) * m + ep_ls/2.
 
           # return contents
           return( list(m, StateList) )
@@ -716,7 +714,7 @@ AnalyzeImageConfounding <- function(
         Results_by_keys <- as.data.frame(
                         apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
         prW_est <- f2n(  Results_by_keys$ProbW )
-
+        
         # checks
         # usedKeys  == unique(imageKeysOfUnits)
         # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
@@ -733,10 +731,17 @@ AnalyzeImageConfounding <- function(
     # process in and out of sample losses
     prWEst_baseline <- prW_est
     prWEst_baseline[] <- mean( obsW[trainIndices] )
+    
+    # cross entropy loss calcs
+    LSmooth <- (function(x, epsilon = 0.01){ return( (1 - epsilon) * x + epsilon / 2 )})
+    binaryCrossLoss <- function(W,prW){ 
+      prW <- LSmooth(prW);return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
     lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
     lossCE_OUT <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
     lossCE_IN <-  binaryCrossLoss(  obsW[trainIndices], prW_est[trainIndices]  )
+
+    # class error calcs
     lossClassError_OUT_baseline <- 1/length(testIndices) * (sum( prWEst_baseline[testIndices][ obsW[testIndices] == 1] < 0.5) +
                            sum( prWEst_baseline[testIndices][ obsW[testIndices] == 0] > 0.5))
     lossClassError_IN_baseline <- 1/length(trainIndices) * (sum( prWEst_baseline[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
@@ -745,6 +750,8 @@ AnalyzeImageConfounding <- function(
                            sum( prW_est[testIndices][ obsW[testIndices] == 0] > 0.5))
     lossClassError_IN <- 1/length(trainIndices) * (sum( prW_est[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
                                                      sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
+    
+    # store output
     ModelEvaluationMetrics <- list(
       "CELoss_out" = lossCE_OUT,
       "CELoss_out_baseline" = lossCE_OUT_baseline,
