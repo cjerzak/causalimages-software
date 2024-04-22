@@ -116,6 +116,7 @@ AnalyzeImageConfounding <- function(
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
+    LSmooth <- (function(x, epsilon = 0.01){ return( (1 - epsilon) * x + epsilon / 2 )})
   }
 
   if(!optimizeImageRep & nDepth_ImageRep > 1){
@@ -713,7 +714,7 @@ AnalyzeImageConfounding <- function(
         }
         Results_by_keys <- as.data.frame(
                         apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-        prW_est <- f2n(  Results_by_keys$ProbW )
+        prW_est <-  Results_by_keys$ProbW <- LSmooth( f2n(  Results_by_keys$ProbW ) )
         
         # checks
         # usedKeys  == unique(imageKeysOfUnits)
@@ -729,11 +730,10 @@ AnalyzeImageConfounding <- function(
     }
 
     # process in and out of sample losses
-    prWEst_baseline <- prW_est
+    prWEst_baseline <- prW_est 
     prWEst_baseline[] <- mean( obsW[trainIndices] )
     
     # cross entropy loss calcs
-    LSmooth <- (function(x, epsilon = 0.01){ return( (1 - epsilon) * x + epsilon / 2 )})
     binaryCrossLoss <- function(W,prW){ 
       prW <- LSmooth(prW);return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
