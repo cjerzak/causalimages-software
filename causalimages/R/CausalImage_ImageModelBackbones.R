@@ -283,24 +283,29 @@ GetImageRepresentations <- function(
     StateList <- ModelList <- replicate(nDepth_ImageRep, list())
     for(d_ in 1L:nDepth_ImageRep){
         if(d_ > 1){ strides <- 1L }
-        SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
-                                             num_spatial_dims = 2L, stride = c(strides, strides),
-                                             in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
-                                             out_channels = dimsSpatial, use_bias = F,
-                                             groups = dimsSpatial,
-                                             key = jax$random$PRNGKey(4L+d_+seed))
-        SeperableFeature_jax <- eq$nn$Conv(out_channels = nWidth_ImageRep,
-                                           in_channels = dimsSpatial,  kernel_size = c(1L,1L),
-                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
-                                           key = jax$random$PRNGKey(50L+d_+seed))
-        ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
-                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = jax$random$PRNGKey(3250L+d_+seed))
-        ResidualTPath_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
-                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = jax$random$PRNGKey(32520L+d_+seed))
+      SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
+                                         num_spatial_dims = 2L, stride = c(strides, strides),
+                                         in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
+                                         out_channels = dimsSpatial, use_bias = F,
+                                         groups = dimsSpatial,
+                                         key = jax$random$PRNGKey(4L+d_+seed))
+      SeperableFeature_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
+                                         out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
+                                         groups = dimsSpatial, 
+                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
+                                         key = jax$random$PRNGKey(50L+d_+seed))
+      ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
+                                        out_channels = nWidth_ImageRep,
+                                        groups = 1L,
+                                        kernel_size = c(1L,1L),
+                                        num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
+                                        key = jax$random$PRNGKey(3250L+d_+seed))
+      ResidualTPath_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+                                      out_channels = nWidth_ImageRep,
+                                      groups = 1L,
+                                      kernel_size = c(1L,1L),
+                                      num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
+                                      key = jax$random$PRNGKey(32520L+d_+seed))
 
         # reset weights with Xavier/Glorot
         if(T == T){ 

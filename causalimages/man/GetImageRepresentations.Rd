@@ -27,7 +27,6 @@ GetImageRepresentations(
   dropoutRate,
   dataType = "image",
   bn_momentum = 0.9,
-  bn_epsilon = 0.01,
   inputAvePoolingSize = 1L,
   seed = NULL
 )

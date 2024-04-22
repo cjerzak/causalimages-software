@@ -275,7 +275,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
         bn_momentum = bn_momentum,
-        bn_epsilon = BN_EP,
         InitImageProcess = InitImageProcessFn,
         seed = seed); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
