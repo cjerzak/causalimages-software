@@ -253,7 +253,7 @@ GetImageRepresentations <- function(
           mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[1]]$astype(jnp$float32) )$astype(mtm1$dtype)
 
           # normalize
-          m <- jnp$multiply(RMS_norm(m), LE(ModelList,sprintf("%sTransformerRenormer_d%s",type,d_))[[2]])
+          m <- RMS_norm(m) * LE(ModelList,sprintf("%sTransformerRenormer_d%s",type,d_))[[2]]
 
           # feed forward
           m <- jax$nn$swish(ffmap(LE(ModelList,sprintf("%sFF_d%s",type,d_))[[1]], m)) *
@@ -273,8 +273,7 @@ GetImageRepresentations <- function(
 
       if( TransformerOutputPathControl ){
         # final norm
-        m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *
-                              LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
+        m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *  LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
 
         # linear proj, note: dense starts with linear projection  
         # m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )  
@@ -296,6 +295,16 @@ GetImageRepresentations <- function(
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
                                          key = jax$random$PRNGKey(50L+d_+seed))
+      SeperableFeature2_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+                                         out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
+                                         groups = 1L, 
+                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
+                                         key = jax$random$PRNGKey(530L+d_+seed))
+      SeperableFeature3_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
+                                          groups = 1L, 
+                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
+                                          key = jax$random$PRNGKey(5340L+d_+seed))
       ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
                                         out_channels = nWidth_ImageRep,
                                         groups = 1L,
@@ -316,11 +325,6 @@ GetImageRepresentations <- function(
                                                               minval = -sqrt(6/(dimsSpatial+dimsSpatial)),
                                                               maxval = sqrt(6/(dimsSpatial+dimsSpatial)),
                                                               shape = jax$tree_util$tree_leaves(SeperableSpatial_jax)[[1]]$shape) )
-        SeperableFeature_jax <- eq$tree_at(function(l){l$weight}, SeperableFeature_jax,
-                                           jax$random$uniform(key=jax$random$PRNGKey(45L+d_+seed),
-                                                              minval = -sqrt(6/(dimsSpatial+nWidth_ImageRep)),
-                                                              maxval = sqrt(6/(dimsSpatial+nWidth_ImageRep)),
-                                                              shape = jax$tree_util$tree_leaves(SeperableFeature_jax)[[1]]$shape))
         }
 
         # setup bn for CNN block
@@ -328,14 +332,16 @@ GetImageRepresentations <- function(
           input_size = (BatchNormDim <- nWidth_ImageRep), # post-activation
           #input_size = (BatchNormDim <- dimsSpatial), # pre-activation
           axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = (BN_ep <- 0.01), channelwise_affine = F)
+          momentum = bn_momentum, eps = (BN_ep <- 0.01^2), channelwise_affine = F)
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,
+                                  "SeperableFeature2_jax_d%s" = SeperableFeature2_jax, 
+                                  "SeperableFeature3_jax_d%s" = SeperableFeature3_jax, 
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
                                   "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
-                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=BatchNormDim)) ))', d_, d_, d_, d_, d_, d_ )))
+                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=BatchNormDim)) ))', d_, d_, d_, d_, d_, d_, d_, d_ )))
     }
     ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
       "FinalCNNProj"=eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
@@ -399,7 +405,7 @@ GetImageRepresentations <- function(
             
             # seperable convolution   
              m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
-                    LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m)) 
+                    LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
 
             if( optimizeImageRep ){
               if(T == F){ 
@@ -420,10 +426,12 @@ GetImageRepresentations <- function(
               }
               
               # act fxn
-              m <- jax$nn$swish( m )
+              m <- jax$nn$swish( 
+                    LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
+                ) * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
   
               # adaptive max pooling 
-              if(d__ %% 2 %in% c(1)){ 
+              if(d__ %% 2 %in% c(0,1)){ 
                 m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) # succeeds on METAL backend
               }
               
@@ -437,8 +445,9 @@ GetImageRepresentations <- function(
             }
           }
           
-          # final max pooling, final norm (if used), and projection 
+          # final pooling, final norm (if used), and projection 
           m <- jnp$max(m, c(1L:2L))
+          #m <- jnp$mean(m, c(1L:2L))
           if(optimizeImageRep & T == F){
               m <- LE(ModelList, "FinalCNNBN")[[1]](m, state = LE(StateList, "BNState_ImRep_FinalCNNBN"), 
                                                     inference = inference)

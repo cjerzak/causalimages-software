@@ -113,7 +113,7 @@ AnalyzeImageConfounding <- function(
     print2(sprintf("Default device: %s",jnp$array(0.)$device()))
 
     # set float type
-    library(tensorflow);
+    library( tensorflow );
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
@@ -300,7 +300,7 @@ AnalyzeImageConfounding <- function(
     py_gc$collect()
 
     # set up holders
-    sigmoid <- function(.){1/(1+exp(-.))}
+    sigmoid <- function(x){1/(1+exp(-x))}
     prW_est <- rep(NA,times = length(obsW))
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
@@ -505,6 +505,7 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
 
           # compute negative log-likelihood loss
+          m <- MPList[[1]]$cast_to_output( m )
           NegLL <-  jnp$mean( jnp$negative(  treat*jnp$log(m) +  (1-treat)*jnp$log(1-m) )  ) 
 
           print2("Returning loss + state...")
@@ -526,24 +527,25 @@ AnalyzeImageConfounding <- function(
         ModelList_fixed <- jnp$array(0.)
         MPList <- list(jmp$Policy(compute_dtype="float16", 
                                   param_dtype="float32", 
-                                  output_dtype="float32"),
-                       jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float16),
-                                            min_loss_scale = jnp$array(1.,dtype = jnp$float16),
-                                            period = 20L))
+                                  output_dtype=(outputDtype <- "float32")),
+                       jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
+                                            min_loss_scale = jnp$array(2^2.,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
+                                            period = 50L))
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
 
         # define optimizer and training step
         {
-          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(50L, nSGD))),
-                                                            decay_steps = max(c(51L, nSGD-nWarmup)),
+          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(100L, nSGD))),
+                                                            decay_steps = max(c(101L, nSGD-nWarmup)),
                                                             init_value = learningRateMax/100, 
                                                             peak_value = learningRateMax, 
                                                             end_value =  learningRateMax/100)
+          plot(np$array(LR_schedule(jnp$array(1:nSGD))),xlab = "Iteration", ylab="Learning rate")
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.02),
+            optax$adaptive_grad_clip(clipping = 0.05),
             optax$adabelief( learning_rate = LR_schedule )
           )
 
@@ -725,18 +727,17 @@ AnalyzeImageConfounding <- function(
                                   eq$partition(ModelList, eq$is_array)[[2]])
               StateList <- StateList_tmp
               rm(StateList_tmp, GradientUpdatePackage)
-              
-              # print diagnostics
-              i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-                print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
-                               i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
-                               (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
-                loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-                par(mfrow=c(1,2))
-                try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
-                if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
-                try(plot(na.omit(GradNorm_vec), cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number"), T)
-              }
+            }
+            # print diagnostics
+            i_ <- i ; if(i %% 10 == 0 | i < 10 ){
+              print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
+                             i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
+                             (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
+              loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
+              par(mfrow=c(1,2))
+              try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
+              if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
+              try(plot(na.omit(GradNorm_vec), cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number"), T)
             }
           }
         } # end for(i in i_:nSGD){
