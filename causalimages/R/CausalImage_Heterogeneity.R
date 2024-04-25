@@ -224,14 +224,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
 
     if(useTrainingPertubations){
-      trainingPertubations <- function(im_, key){
+      trainingPertubations_OneObs <- function(im_, key){
         AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
         which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
-        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(1L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
         return( im_ )
-      }
+      } 
+      trainingPertubations <- jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
     }
     InitImageProcessFn <- jax$jit(function(im, key, inference){
       # expand dims if needed
@@ -242,7 +243,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # training pertubations
       if(useTrainingPertubations){
-        im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+        im <- jax$lax$cond(inference, 
+                           true_fun = function(){ im }, 
+                           false_fun = function(){ trainingPertubations(im, 
+                                                                        jax$random$split(key,im$shape[[1]])) } )
       }
 
       # downshift resolution if desired

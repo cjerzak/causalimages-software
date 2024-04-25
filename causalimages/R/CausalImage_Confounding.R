@@ -87,6 +87,7 @@ AnalyzeImageConfounding <- function(
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
                                    learningRateMax = 0.001,
+                                   TFRecordControl = NULL, 
                                    dataType = "image",
                                    image_dtype = "float16",
                                    atError = "stop", # stop or debug
@@ -116,7 +117,7 @@ AnalyzeImageConfounding <- function(
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
-    LSmooth <- (function(x, epsilon = 0.01){ return( (1 - epsilon) * x + epsilon / 2 )})
+    obsW <- f2n(obsW); obsY <- f2n(obsY)
   }
 
   if(!optimizeImageRep & nDepth_ImageRep > 1){
@@ -148,8 +149,7 @@ AnalyzeImageConfounding <- function(
   if( !XisNull ){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
   if( !XisNull ){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
   if( XisNull ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
-  X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.00001+(X_sd <- apply(X,2,sd))) )
-
+  X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,sd))) )
   {
     if(is.null(file)){stop("No file specified for tfrecord!")}
     changed_wd <- F; if(  !is.null(  file  )  ){
@@ -165,46 +165,86 @@ AnalyzeImageConfounding <- function(
 
       # define
       tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
-
-      # shuffle (generating different train/test splits)
-      tf_dataset <- tf$data$Dataset$shuffle(  tf_dataset,
-                                              buffer_size = tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=tf$int64),
-                                              reshuffle_each_iteration = F )
-
+      
       # helper functions
-      useVideo <- dataType == "video"
+      useVideoIndicator <- dataType == "video"
       getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype_tf)} )
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)} )
         return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
       }
-      getParsed_tf_dataset_train <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype_tf)},
-                                   num_parallel_calls = tf$data$AUTOTUNE)
-        dataset <- dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
-                                   reshuffle_each_iteration = T)
-        dataset <- dataset$batch(  ai(batchSize)   )
-        dataset <- dataset$prefetch( tf$data$AUTOTUNE ) 
-        return( dataset  )
+
+      # setup iterators - skip the first test_size observations 
+      if(!is.null(TFRecordControl)){
+        getParsed_tf_dataset_train_Select <- function( tf_dataset ){
+          return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
+                                     num_parallel_calls = tf$data$AUTOTUNE) ) 
+        }
+        getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
+          tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                     reshuffle_each_iteration = T) # set false so same train/test split each re-initialization
+          tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
+          tf_dataset <- tf_dataset$prefetch( tf$data$AUTOTUNE ) 
+          return( tf_dataset )
+        }
+        tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
+                            tf_dataset$skip(  test_size <-  ai( TFRecordControl$nTest)  )
+                            )$take( ai(TFRecordControl$nControl) ) 
+        tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
+                              tf_dataset$skip( test_size <-  ai( TFRecordControl$nTest) )
+                              )$skip( ai(TFRecordControl$nControl)+1L) 
+        tf_dataset_train_treated <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_treated)
+        tf_dataset_train_control <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_control)
+        ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
+        ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
+        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_control )
+        if(T == F){ 
+        # get next batch  zzz xxx 
+        #ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated )
+        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated  )
+        ds_next_train <- ds_iterator_train$`next`()
+        
+        # select batch indices based on keys
+        batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
+        keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
+        batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
+        ds_next_train <- ds_next_train[[1]]
+        # imageKeysOfUnits[batch_indices]
+        #jnp$array(obsW[batch_indices], dtype = jnp$float16)
+        # which(obsW == 1)
+        # which(imageKeysOfUnits %in% imageKeysOfUnits[batch_indices])
       }
-
-      # setup iterators
-      tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) ))) )$`repeat`(  -1L )
+      }
+      if(is.null(TFRecordControl)){
+        getParsed_tf_dataset_train <- function( tf_dataset ){
+          dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
+                                     num_parallel_calls = tf$data$AUTOTUNE)
+          dataset <- dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                     reshuffle_each_iteration = F) # set false so same train/test split each re-initialization
+          dataset <- dataset$batch(  ai(batchSize)   )
+          dataset <- dataset$prefetch( tf$data$AUTOTUNE ) 
+          return( dataset  )
+        }
+        
+        # shuffle (generating different train/test splits)
+        tf_dataset <- tf$data$Dataset$shuffle(  tf_dataset, buffer_size = tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=tf$int64), reshuffle_each_iteration = F )
+        tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
+        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+      }
+      # define inference iterator 
       tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
-
-      # reset iterators
-      ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
       ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
     }
 
     if(useTrainingPertubations){
-      trainingPertubations <- function(im_, key){
+      trainingPertubations_OneObs <- function(im_, key){
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(1L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
-          return( im_ )
-      }
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+         return( im_ )
+      } 
+      trainingPertubations <- jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
     }
 
     InitImageProcessFn <- jax$jit(function(im, key, inference){
@@ -218,15 +258,17 @@ AnalyzeImageConfounding <- function(
         if(inputAvePoolingSize > 1 & dataType == "image"){
           im <- jax$vmap(function(imm){
             jnp$transpose(  eq$nn$AvgPool2d(kernel_size = ai(c(inputAvePoolingSize,inputAvePoolingSize)),
-                            stride = ai(c(inputAvePoolingSize,inputAvePoolingSize)))(  jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L))
-            }, 0L)(im)
+                            stride = ai(c(inputAvePoolingSize,inputAvePoolingSize)))(
+                          jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
         }
         
         # training pertubations
         if(useTrainingPertubations){
-          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){ trainingPertubations(im, key) } )
+          im <- jax$lax$cond(inference, 
+                             true_fun = function(){ im }, 
+                             false_fun = function(){  trainingPertubations(im, 
+                                                              jax$random$split(key,im$shape[[1]])) } )
         }
-
         return( im  )
     })
 
@@ -235,30 +277,31 @@ AnalyzeImageConfounding <- function(
 
     # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
-    NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-10)){
+    NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-20)){
       # get a data batch 
       ds_next_train <- ds_iterator_train$`next`()
       
       # setup normalizations
       ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
-      if(is.null(NORM_MEAN)){ NORM_MEAN <- NORM_SD <- apply(as.array(ds_next_train[[1]]),ApplyAxis,sd); NORM_MEAN[] <- NORM_SD[] <- 0 }
 
       # update normalizations
-      NORM_SD <- NORM_SD + apply(as.array(ds_next_train[[1]]),ApplyAxis,sd) / momentCalIters
-      NORM_MEAN <- NORM_MEAN + apply(as.array(ds_next_train[[1]]),ApplyAxis,mean) / momentCalIters
+      NORM_SD <- rbind(NORM_SD, apply(as.array(ds_next_train[[1]]),ApplyAxis,sd))
+      NORM_MEAN <- rbind(NORM_MEAN, apply(as.array(ds_next_train[[1]]),ApplyAxis,mean))
     }
+    NORM_SD <- apply(NORM_SD,2,median)
+    NORM_MEAN <- apply(NORM_MEAN,2,mean)
     NORM_MEAN_array <- jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
     NORM_SD_array <- jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
     if(dataType == "video"){
       NORM_MEAN_array <- jnp$expand_dims(NORM_MEAN_array, 0L)
       NORM_SD_array <- jnp$expand_dims(NORM_SD_array, 0L)
     }
+    EP_LSMOOTH <- jnp$array(0.05)
     py_gc$collect()
 
     # set up holders
-    prW_est <- rep(NA,times = length(obsW))
-
     sigmoid <- function(.){1/(1+exp(-.))}
+    prW_est <- rep(NA,times = length(obsW))
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
       # define train/test indices based on out of sample keys
@@ -270,7 +313,7 @@ AnalyzeImageConfounding <- function(
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
                                    ncol = nWidth_ImageRep + 1 + ifelse(!XisNull, yes = ncol(X), no = 0))
       for(jr in 1L:(nBoot+1L)){
-        print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) )
+        if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
         if(jr != (nBoot+1L)){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
         if(jr == (nBoot+1L)){ indices_ <- 1:length( imageKeysOfUnits ) }
 
@@ -340,6 +383,7 @@ AnalyzeImageConfounding <- function(
               x_m <- jnp$concatenate(list( jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
             my_probs <- jax$nn$sigmoid(  jnp$matmul(x_m, LE( ModelList, "myGlmnet_coefs_tf" ) )  )
+            my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
             return( list(my_probs, StateList) )
           }
           ModelList <- list("myGlmnet_coefs_tf" = jnp$array(myGlmnet_coefs, dtype = jnp$float32))
@@ -442,7 +486,7 @@ AnalyzeImageConfounding <- function(
           m <- jax$nn$sigmoid( m )
           
           # label smoothing to prevent NAs via log(0)
-          m <- (1. - (ep_ls <- jnp$array(0.01))) * m + ep_ls/2.
+          m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
 
           # return contents
           return( list(m, StateList) )
@@ -480,7 +524,9 @@ AnalyzeImageConfounding <- function(
         ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]], DenseList)
         StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
         ModelList_fixed <- jnp$array(0.)
-        MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
+        MPList <- list(jmp$Policy(compute_dtype="float16", 
+                                  param_dtype="float32", 
+                                  output_dtype="float32"),
                        jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float16),
                                             min_loss_scale = jnp$array(1.,dtype = jnp$float16),
                                             period = 20L))
@@ -490,20 +536,21 @@ AnalyzeImageConfounding <- function(
 
         # define optimizer and training step
         {
-          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps =  min(c(20L, nSGD)),
-                                                            decay_steps = max(c(21L, nSGD-100L)),
+          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(50L, nSGD))),
+                                                            decay_steps = max(c(51L, nSGD-nWarmup)),
                                                             init_value = learningRateMax/100, 
                                                             peak_value = learningRateMax, 
                                                             end_value =  learningRateMax/100)
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.25), # bug with equinox's Conv4D
+            optax$adaptive_grad_clip(clipping = 0.02),
             optax$adabelief( learning_rate = LR_schedule )
           )
 
           # model partition, setup state, perform parameter count
           opt_state <- optax_optimizer$init(   eq$partition(ModelList, eq$is_array)[[1]] )
           print2(sprintf("Total trainable parameter count: %s", nTrainable <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
+          # unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size}))
 
           # jit update fxns
           jit_apply_updates <- eq$filter_jit(optax$apply_updates)
@@ -511,39 +558,90 @@ AnalyzeImageConfounding <- function(
         }
 
         print2("Starting training...")
+        tmp <- c()
         keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
-        L2grad_vec <- loss_vec <- rep(NA,times=nSGD)
+        GradNorm_vec <- loss_vec <- rep(NA,times=nSGD)
         keysUsedInTraining <- tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
           t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
 
-          # get next batch 
-          ds_next_train <- ds_iterator_train$`next`()
-
-          # if we run out of observations, reset iterator
-          RestartedIterator <- F; if( is.null(ds_next_train) ){
-              print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
-              ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-              ds_next_train <-  ds_iterator_train$`next`(); gc();py_gc$collect()
-          }
-
-          # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-          if(!RestartedIterator){
-              if(dim(ds_next_train[[1]])[1] != batchSize){
-                print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+          if(is.null(TFRecordControl)){ 
+            # get next batch 
+            ds_next_train <- ds_iterator_train$`next`()
+  
+            # if we run out of observations, reset iterator
+            RestartedIterator <- F; if( is.null(ds_next_train) ){
+                print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
                 ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-                ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
-              }
+                ds_next_train <-  ds_iterator_train$`next`(); gc();py_gc$collect()
+            }
+  
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
+            if(!RestartedIterator){ if(dim(ds_next_train[[1]])[1] != batchSize){
+                  print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+                  ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+                  ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
+            } }
+            
+            # select batch indices based on keys
+            batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
+            batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
+            ds_next_train <- ds_next_train[[1]]
           }
-
-          # select batch indices based on keys
-          batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
-          batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-          ds_next_train <- ds_next_train[[1]]
+          if(!is.null(TFRecordControl)){ 
+            # get next batch 
+            ds_next_train_control <- ds_iterator_train_control$`next`()
+            
+            # if we run out of observations, reset iterator
+            RestartedIterator <- F; if( is.null(ds_next_train_control) ){
+              print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+              ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
+              ds_next_train_control <-  ds_iterator_train_control$`next`(); gc();py_gc$collect()
+            }
+            
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
+            if(!RestartedIterator){ if(dim(ds_next_train_control[[1]])[1] != batchSize){
+              print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+              ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
+              ds_next_train_control <-  ds_iterator_train_control$`next`(); gc(); py_gc$collect()
+            } }
+            
+            # get next batch 
+            ds_next_train_treated <- ds_iterator_train_treated$`next`()
+            
+            # if we run out of observations, reset iterator
+            RestartedIterator <- F; if( is.null(ds_next_train_treated) ){
+              print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+              ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
+              ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc();py_gc$collect()
+            }
+            
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
+            if(!RestartedIterator){ if(dim(ds_next_train_treated[[1]])[1] != batchSize){
+              print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+              ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
+              ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc(); py_gc$collect()
+            } }
+            
+            # select batch indices based on keys
+            batch_keys <- c(unlist(  lapply( p2l(ds_next_train_control[[3]]$numpy()), as.character) ),
+                            unlist(  lapply( p2l(ds_next_train_treated[[3]]$numpy()), as.character) ))
+            batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
+            ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
+                                            ds_next_train_treated[[1]]), 0L)
+            print(table(obsW[batch_indices]))
+            tmp <- c(tmp,batch_indices)
+            # plot(tmp)
+            # plot(diff(obsW[tmp]))
+            # plot(head(obsW[tmp],300))
+            # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[1]]
+            # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[2]]
+          }
           if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
 
           # training step
           if(T == F){
-            m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i ), inference = F)
+            m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+11L), inference = F)
+            causalimages::image2(np$array(m)[1,,,2])
             x <- jnp$array(X[batch_indices,],dtype = jnp$float16)
             treat <- jnp$array(obsW[batch_indices],dtype = jnp$float16); inference <- F
             vseed <- jax$random$split( seed <- jax$random$PRNGKey( 500L+i ),batchSize)
@@ -556,7 +654,7 @@ AnalyzeImageConfounding <- function(
             InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
             jnp$array(X[batch_indices,], dtype = jnp$float16), # x
             jnp$array(obsW[batch_indices], dtype = jnp$float16), # treat
-            jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
+            jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed
             StateList, # StateList
             jax$random$PRNGKey( 123L+i ), # seed
             MPList, # MPlist
@@ -595,33 +693,30 @@ AnalyzeImageConfounding <- function(
             # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             
-            # sanity checks 
-            if(T == F){ 
-              UnitNorms <- eq$partition(GetGetNorms( GradientUpdatePackage ), eq$is_array)[[1]]
-              UnitNorms[[1]][[1]]$SeperableFeature_jax_d1$weight
-              UnitNorms[[1]][[2]]$SpatialTransformerSupp[[1]]$weight
-              UnitNorms[[2]][[1]]$DenseProj_d1$weight
-              UnitNorms[[2]][[1]]$DenseProj_d1$weight
-              GetGetNorms( GradientUpdatePackage )[[2]][[1]]$DenseProj_d1$weight
-              GradientUpdatePackage[[2]][[1]]$BN_1$weight
-              GradientUpdatePackage[[2]][[1]]$DenseProj_d1$weight
-            }
+            # get update norm 
+            GradNorm_vec[i] <- mean( WeightGrads <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  ) 
+            print( summary( WeightGrads ) ) 
+            # plot(WeightGrads)
 
             # update parameters if finite gradients
-            DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
-            if(! DoUpdate ){ print2("Warning: Not updating parameters due to non-finite gradients in mixed-precision training...") }
+            DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
+                        !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-5)
+            if(! DoUpdate ){ print2("Warning: Not updating parameters due to zero or non-finite gradients in mixed-precision training...") }
             if( DoUpdate ){
               DoneUpdates <- DoneUpdates + 1
 
-              # get updates
+              # cast updates to param 
               GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
+              
+              # get updates
               GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
                                                        state = opt_state,
                                                        params = eq$partition(ModelList, eq$is_array)[[1]])
 
               # separate updates from state
               opt_state <- GradientUpdatePackage[[2]]
-              GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
+              GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], 
+                                                  GradientUpdatePackage_aux)
 
               # perform updates
               ModelList <- eq$combine( jit_apply_updates(
@@ -630,20 +725,22 @@ AnalyzeImageConfounding <- function(
                                   eq$partition(ModelList, eq$is_array)[[2]])
               StateList <- StateList_tmp
               rm(StateList_tmp, GradientUpdatePackage)
+              
+              # print diagnostics
+              i_ <- i ; if(i %% 10 == 0 | i < 10 ){
+                print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
+                               i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
+                               (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
+                loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
+                par(mfrow=c(1,2))
+                try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
+                if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
+                try(plot(na.omit(GradNorm_vec), cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number"), T)
+              }
             }
           }
-
-          # print diagnostics
-          i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-            print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
-                           i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
-                           (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
-            loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-            try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
-            if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
-          }
         } # end for(i in i_:nSGD){
-        
+
         print2("Getting predicted quantities...")
         GetImageArm_OneX <- eq$filter_jit( function(ModelList, ModelList_fixed,
                  m, vseed,
@@ -651,7 +748,14 @@ AnalyzeImageConfounding <- function(
           # image representation model
           m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, T)
           StateList <- m[[2]] ; m <- m[[1]]
-          return( m <- jax$nn$sigmoid( m ) )
+          
+          # sigmoid 
+          m <- jax$nn$sigmoid( m )
+          
+          # label smoothing to prevent NAs via log(0)
+          m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+          
+          return( m )
         })
 
         inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
@@ -672,7 +776,7 @@ AnalyzeImageConfounding <- function(
                                                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
                                                 filename = file,
                                                 iterator = passedIterator,
-                                                readVideo = useVideo,
+                                                readVideo = useVideoIndicator,
                                                 image_dtype = image_dtype_tf,
                                                 nObs = length(unique(imageKeysOfUnits)),
                                                 return_iterator = T ); setwd(new_wd)
@@ -703,6 +807,7 @@ AnalyzeImageConfounding <- function(
                                 jax$random$PRNGKey(as.integer(runif(1,0,100000))),
                                 MPList, T)[[1]]
             m <- jax$nn$sigmoid( m )
+            m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
             if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
             return( m )
           })
@@ -714,7 +819,7 @@ AnalyzeImageConfounding <- function(
         }
         Results_by_keys <- as.data.frame(
                         apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-        prW_est <-  Results_by_keys$ProbW <- LSmooth( f2n(  Results_by_keys$ProbW ) )
+        prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
         
         # checks
         # usedKeys  == unique(imageKeysOfUnits)
@@ -734,8 +839,7 @@ AnalyzeImageConfounding <- function(
     prWEst_baseline[] <- mean( obsW[trainIndices] )
     
     # cross entropy loss calcs
-    binaryCrossLoss <- function(W,prW){ 
-      prW <- LSmooth(prW);return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
+    binaryCrossLoss <- function(W,prW){ return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
     lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
     lossCE_OUT <-  binaryCrossLoss(  obsW[testIndices], prW_est[testIndices]  )
@@ -824,7 +928,8 @@ AnalyzeImageConfounding <- function(
                      ImageGrad_mean) ) # salience direction
       }, device = jax$devices('cpu')[[1]])
       MPList <- list(jmp$Policy(compute_dtype="float32", param_dtype="float32", output_dtype="float32"),
-           jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
+                      jmp$DynamicLossScale(jnp$array(2^15), 
+                                           period = 20L))
       makePlots <- function(){
         salience_try <- try({
         print2("Plotting salience maps...")
@@ -856,7 +961,7 @@ AnalyzeImageConfounding <- function(
             setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                     uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[in_]),
                                                     filename = file,
-                                                    readVideo = useVideo,
+                                                    readVideo = useVideoIndicator,
                                                     nObs = length(imageKeysOfUnits) ); setwd(new_wd)
             ds_next_in[[1]] <- jnp$array( ds_next_in[[1]] )
             if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1034,7 +1139,7 @@ AnalyzeImageConfounding <- function(
           setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                            uniqueKeyIndices = keyNum_,
                                                            filename = file,
-                                                           readVideo = useVideo,
+                                                           readVideo = useVideoIndicator,
                                                            nObs = length(unique(imageKeysOfUnits) ) ); setwd(new_wd)
           ds_next_in[[1]] <- jnp$array(ds_next_in[[1]])
           if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1051,14 +1156,14 @@ AnalyzeImageConfounding <- function(
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
-        SalienceX <- SalienceX*X_sd  +  X_mean
-      }
+    }
     if( !optimizeImageRep ){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
         SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)]
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
-        SalienceX <- SalienceX*X_sd  +  X_mean
-    } }
+    } 
+      SalienceX <- SalienceX*X_sd  +  X_mean
+    }
     # rescale the salience map into original scale
 
     postDiffInLat <- preDiffInLat <- NULL

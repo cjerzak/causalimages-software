@@ -139,7 +139,9 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     print2("Setting up image representation model...")
-    MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float32"),
+    MPList <- list(jmp$Policy(compute_dtype="float16", 
+                              param_dtype="float32", 
+                              output_dtype="float32"),
                    jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
 
 
@@ -271,11 +273,11 @@ GetImageRepresentations <- function(
 
       if( TransformerOutputPathControl ){
         # final norm
-        m <- jnp$squeeze(  jnp$multiply( RMS_norm( jnp$expand_dims(m,0L) ),
-                              LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  ) )
+        m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *
+                              LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
 
-        # linear proj
-        m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )
+        # linear proj, note: dense starts with linear projection  
+        # m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )  
       }
     return( list(m, StateList) )
     }
@@ -308,7 +310,7 @@ GetImageRepresentations <- function(
                                       key = jax$random$PRNGKey(32520L+d_+seed))
 
         # reset weights with Xavier/Glorot
-        if(T == T){ 
+        if(T == F){ 
         SeperableSpatial_jax <- eq$tree_at(function(l){l$weight}, SeperableSpatial_jax,
                                            jax$random$uniform(key=jax$random$PRNGKey(5L+d_+seed),
                                                               minval = -sqrt(6/(dimsSpatial+dimsSpatial)),
@@ -323,20 +325,26 @@ GetImageRepresentations <- function(
 
         # setup bn for CNN block
         LayerBN <- eq$nn$BatchNorm(
-          input_size = nWidth_ImageRep,
+          input_size = (BatchNormDim <- nWidth_ImageRep), # post-activation
+          #input_size = (BatchNormDim <- dimsSpatial), # pre-activation
           axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = 0.01, channelwise_affine = F)
+          momentum = bn_momentum, eps = (BN_ep <- 0.01), channelwise_affine = F)
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
                                   "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
-                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=nWidth_ImageRep)) ))', d_, d_, d_, d_, d_, d_ )))
+                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=BatchNormDim)) ))', d_, d_, d_, d_, d_, d_ )))
     }
     ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
-      eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
-                   use_bias = F, key = jax$random$PRNGKey(9989L + seed  ) )  ))
+      "FinalCNNProj"=eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
+                   use_bias = F, key = jax$random$PRNGKey(9989L + seed  ) )  ),
+      "FinalCNNBN"=list(LayerBN <- eq$nn$BatchNorm(input_size = nWidth_ImageRep,
+                            axis_name = batch_axis_name,
+                            momentum = bn_momentum, eps = BN_ep, channelwise_affine = F), 
+                            jnp$array(rep(1.,times=nWidth_ImageRep)) ))
+    StateList[[d_+1]] <- eval(parse(text = "list('BNState_ImRep_FinalCNNBN'=eq$nn$State( LayerBN ))"))
     }
     if(dataType == "video"){
       for(dt_ in 1L:nDepth_TemporalRep){
@@ -384,7 +392,7 @@ GetImageRepresentations <- function(
           StateList <- m[[2]]; m <- m[[1]]
       }
       if(imageModelClass == "CNN"){
-          m <- jnp$transpose(m, c(2L, 0L, 1L)) # transpose to C,W,H
+          m <- jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
           for(d__ in 1:nDepth_ImageRep){
             # residual path 
             mtm1 <- m
@@ -394,37 +402,57 @@ GetImageRepresentations <- function(
                     LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m)) 
 
             if( optimizeImageRep ){
+              if(T == F){ 
+                hist(c(np$array(m$val)))
+                hist(c(np$array(LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)$val)))
+                hist(c(np$array(LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)$val)))
+                hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1))$val)))
+              }
+              
               # batchnorm block
-              {
+              if( optimizeImageRep ){ 
                 m <- LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep_d%s",d__)), inference = inference)
                 StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
                 if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L),1L) }
+                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L),1L)  }
               }
               
               # act fxn
               m <- jax$nn$swish( m )
   
-              # adaptive max pooling & projection 
-              m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) # succeeds on METAL backend
+              # adaptive max pooling 
+              if(d__ %% 2 %in% c(1)){ 
+                m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) # succeeds on METAL backend
+              }
+              
+              # projection 
+              m <- LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)
               
               # residual connection 
-              m <- eq$nn$AdaptiveMaxPool2d(list(m$shape[[2]],m$shape[[3]]))(
+              m <- eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))(
                             LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)) +  
-                        LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m) * 
-                                  jax$nn$softplus( LE(ModelList,sprintf("SpatialResidualWts_d%s",d_))[[2]]$astype(jnp$float32) )$astype(mtm1$dtype)
+                         m * jax$nn$softplus( LE(ModelList,sprintf("SpatialResidualWts_d%s",d_))[[2]]$astype(jnp$float32) )$astype(mtm1$dtype)
             }
           }
           
-          # final max pooling & projection 
+          # final max pooling, final norm (if used), and projection 
           m <- jnp$max(m, c(1L:2L))
-          m <- LE(ModelList,"SpatialTransformerSupp")[[1]](m)
+          if(optimizeImageRep & T == F){
+              m <- LE(ModelList, "FinalCNNBN")[[1]](m, state = LE(StateList, "BNState_ImRep_FinalCNNBN"), 
+                                                    inference = inference)
+              StateIndex <- paste(sapply(LE_index( StateList, "BNState_ImRep_FinalCNNBN" ), function(zer){ paste("[[", zer, "]]") }), collapse = "")
+              eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
+              if(dataType == "image"){ m <- m * LE(ModelList, "FinalCNNBN")[[2]] }
+              if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, "FinalCNNBN")[[2]],1L),1L) }
+          }
+          # m <- LE(ModelList,"FinalCNNProj")(m) # note: projection done in next dense layer
       }
       return( list(m, StateList)  )
     }
     ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
+    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
@@ -443,7 +471,6 @@ GetImageRepresentations <- function(
                axis_name = batch_axis_name,
                out_axes = list(0L,NULL))(ModelList, m, StateList, seed, MPList, inference)
       StateList <- m[[2]]; m <- m[[1]]
-      print(sprintf("Image model output dtype: [%s]", as.character( m$dtype) ))
 
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
@@ -458,8 +485,8 @@ GetImageRepresentations <- function(
                       out_axes = list(0L,NULL))(ModelList, m,
                                                 StateList, jnp$add(seed,9L), MPList, inference)
         StateList <- m[[2]]; m <- m[[1]]
-        print(sprintf("Temporal model output dtype: [%s]", as.character( m$dtype) ))
       }
+      # print(sprintf("Output dtype: [%s]", as.character( (m <- MPList[[1]]$cast_to_output(m))$dtype) ))
       return( list(m, StateList) )
     })
   }
