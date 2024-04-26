@@ -510,8 +510,7 @@ GetImageRepresentations <- function(
         m <- jax$vmap(function(ModelList, m,
                                StateList, seed, MPList, inference){
                     TransformerBackbone(ModelList, m,
-                                        StateList, seed, MPList, inference, type = "Temporal")
-                    },
+                                        StateList, seed, MPList, inference, type = "Temporal")},
                       in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
                       axis_name = batch_axis_name,
                       out_axes = list(0L,NULL))(ModelList, m,
