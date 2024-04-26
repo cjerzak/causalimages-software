@@ -305,6 +305,11 @@ GetImageRepresentations <- function(
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
                                           key = jax$random$PRNGKey(5340L+d_+seed))
+      SeperableFeature4_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
+                                          groups = 1L, 
+                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
+                                          key = jax$random$PRNGKey(53140L+d_+seed))
       ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
                                         out_channels = nWidth_ImageRep,
                                         groups = 1L,
@@ -328,20 +333,27 @@ GetImageRepresentations <- function(
         }
 
         # setup bn for CNN block
-        LayerBN <- eq$nn$BatchNorm(
-          input_size = (BatchNormDim <- nWidth_ImageRep), # post-activation
-          #input_size = (BatchNormDim <- dimsSpatial), # pre-activation
+        LayerBN1 <- eq$nn$BatchNorm(
+          #input_size = (BatchNormDim1 <- dimsSpatial), # input norm
+          input_size = (BatchNormDim1 <- nWidth_ImageRep), # post-process norm
           axis_name = batch_axis_name,
           momentum = bn_momentum, eps = (BN_ep <- 0.01^2), channelwise_affine = F)
-        StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'=eq$nn$State( LayerBN ))", d_)))
+        LayerBN2 <- eq$nn$BatchNorm(
+          input_size = (BatchNormDim2 <- nWidth_ImageRep), 
+          axis_name = batch_axis_name,
+          momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)
+        StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep1_d%s'=list(eq$nn$State( LayerBN1 )),
+                                                        'BNState_ImRep2_d%s'=list(eq$nn$State( LayerBN2 )))", d_, d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
                                   "SeperableFeature_jax_d%s" = SeperableFeature_jax,
                                   "SeperableFeature2_jax_d%s" = SeperableFeature2_jax, 
                                   "SeperableFeature3_jax_d%s" = SeperableFeature3_jax, 
+                                  "SeperableFeature4_jax_d%s" = SeperableFeature4_jax, 
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
                                   "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
-                                  "BN_ImRep_d%s" = list(LayerBN, jnp$array(rep(1.,times=BatchNormDim)) ))', d_, d_, d_, d_, d_, d_, d_, d_ )))
+                                  "BN_ImRep1_d%s" = list(LayerBN1, jnp$array(rep(1.,times=BatchNormDim1)) ),
+                                  "BN_ImRep2_d%s" = list(LayerBN2, jnp$array(rep(1.,times=BatchNormDim2)) ))', d_, d_, d_, d_, d_, d_, d_, d_, d_, d_ )))
     }
     ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
       "FinalCNNProj"=eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
@@ -404,39 +416,49 @@ GetImageRepresentations <- function(
             mtm1 <- m
             
             # seperable convolution   
-             m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
+            m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
                     LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
 
             if( optimizeImageRep ){
-              if(T == F){ 
-                hist(c(np$array(m$val)))
-                hist(c(np$array(LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)$val)))
-                hist(c(np$array(LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)$val)))
-                hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1))$val)))
-              }
-              
-              # batchnorm block
-              if( optimizeImageRep ){ 
-                m <- LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep_d%s",d__)), inference = inference)
-                StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep_d%s",d__) ),
+              # bnorm
+              if( optimizeImageRep &  d__ > 1 & T == T){ 
+                m <- LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep1_d%s",d__))[[1]], inference = inference)
+                StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep1_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
-                if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep_d%s",d__))[[2]],1L),1L),1L)  }
+                if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L) }
+                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L),1L)  }
               }
               
               # act fxn
               m <- jax$nn$swish( 
                     LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
-                ) * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-  
-              # adaptive max pooling 
-              if(d__ %% 2 %in% c(0,1)){ 
-                m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) # succeeds on METAL backend
-              }
+                )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
               
               # projection 
-              m <- LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)
+              m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              
+              if( optimizeImageRep & T == T ){ 
+                m <- LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep2_d%s",d__))[[1]], inference = inference)
+                StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep2_d%s",d__) ),
+                                           function(zer){ paste("[[", zer, "]]") }), collapse = "")
+                eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
+                if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L) }
+                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L),1L)  }
+              }
+              
+              # adaptive max pooling 
+              if(d__ %% 2 %in% c(0,1)){ 
+                m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) 
+                m <- LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)
+              }
+              
+              if(T == F){ 
+                hist(c(np$array(mtm1$val))); apply(np$array(mtm1$val),2,sd)
+                hist(c(np$array(m$val))); apply(np$array(m$val),2,sd)
+                hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1))$val)))
+                # hist(c(np$array(LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)$val)))
+              }
               
               # residual connection 
               m <- eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))(
@@ -448,7 +470,8 @@ GetImageRepresentations <- function(
           # final pooling, final norm (if used), and projection 
           m <- jnp$max(m, c(1L:2L))
           #m <- jnp$mean(m, c(1L:2L))
-          if(optimizeImageRep & T == F){
+          if(optimizeImageRep & T == T){
+              print2("Performing final CNN normalization...")
               m <- LE(ModelList, "FinalCNNBN")[[1]](m, state = LE(StateList, "BNState_ImRep_FinalCNNBN"), 
                                                     inference = inference)
               StateIndex <- paste(sapply(LE_index( StateList, "BNState_ImRep_FinalCNNBN" ), function(zer){ paste("[[", zer, "]]") }), collapse = "")
@@ -460,8 +483,8 @@ GetImageRepresentations <- function(
       }
       return( list(m, StateList)  )
     }
-    ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
-    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
+    #ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
+    ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ print("DEBUG MODE IS ON IN IMAGE BACKBONE")
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
@@ -542,7 +565,9 @@ GetImageRepresentations <- function(
                                                                            jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
                                                           StateList,
                                                           jax$random$PRNGKey(ai(last_i + seed)),
-                                                          MPList, T)[[1]]  ), T)
+                                                          MPList, 
+                                                          T # inference 
+                                                          )[[1]]  ), T)
       # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }
