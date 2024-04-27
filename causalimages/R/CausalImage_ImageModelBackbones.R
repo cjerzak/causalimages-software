@@ -60,7 +60,7 @@ GetImageRepresentations <- function(
     TfRecords_BufferScaler = 10L,
     dropoutRate,
     dataType = "image",
-    bn_momentum = 0.9,
+    bn_momentum = 0.99,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     seed = NULL){
 
@@ -151,7 +151,7 @@ GetImageRepresentations <- function(
 
     # set batch name
     batch_axis_name <- "batch";
-    if(!"bn_momentum" %in% ls()){ bn_momentum <- 0.90 }
+    if(!"bn_momentum" %in% ls()){ bn_momentum <- 0.99 }
 
     # transformer preliminaries
     ffmap <- jax$vmap(function(L_, x){ L_(x) }, in_axes = list(NULL,0L))

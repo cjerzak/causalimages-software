@@ -338,7 +338,7 @@ AnalyzeImageConfounding <- function(
             inputAvePoolingSize = inputAvePoolingSize,
             imageKeysOfUnits = unique(imageKeysOfUnits),  getRepresentations = T,
             returnContents = T,
-            bn_momentum = 0.9,
+            bn_momentum = 0.99,
             conda_env = conda_env,
             conda_env_required = conda_env_required,
             Sys.setenv_text = Sys.setenv_text,
@@ -415,7 +415,7 @@ AnalyzeImageConfounding <- function(
         TfRecords_BufferScaler = 3L,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
-        bn_momentum = 0.9,
+        bn_momentum = 0.99,
         conda_env = conda_env,
         conda_env_required = conda_env_required,
         Sys.setenv_text = Sys.setenv_text,
@@ -433,7 +433,7 @@ AnalyzeImageConfounding <- function(
                                                                             yes = 1L,  no = nWidth_Dense),
                                       use_bias = T, key = jax$random$PRNGKey(d_+44L + as.integer(seed)))
           LayerBN_d  <- eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
-                                         momentum = 0.9, eps = 0.001, channelwise_affine = F)
+                                         momentum = 0.99, eps = 0.001, channelwise_affine = F)
           DenseStateList[[d_]] <- eval(parse(text = sprintf("list('BNState_d%s' = eq$nn$State( LayerBN_d ))", d_)))
           DenseList[[d_]] <- eval(parse(text = sprintf('list("DenseProj_d%s" = DenseProj_d,
                                                               "BN_%s" = LayerBN_d)', d_, d_ )))
@@ -820,6 +820,10 @@ AnalyzeImageConfounding <- function(
         Results_by_keys <- as.data.frame(
                         apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
         prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
+        if(any(is.na(prW_est))){
+          warning("NAs in output probabilities...Imputing them with average estimate")
+          prW_est[is.na(prW_est)] <- mean(prW_est, na.rm = T)
+        }
         
         # checks
         # usedKeys  == unique(imageKeysOfUnits)
