@@ -697,7 +697,6 @@ AnalyzeImageConfounding <- function(
             
             # get update norm 
             GradNorm_vec[i] <- mean( WeightGrads <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  ) 
-            print( summary( WeightGrads ) ) 
             # plot(WeightGrads)
 
             # update parameters if finite gradients
@@ -840,6 +839,7 @@ AnalyzeImageConfounding <- function(
     prWEst_baseline[] <- mean( obsW[trainIndices] )
     
     # cross entropy loss calcs
+    browser()
     binaryCrossLoss <- function(W,prW){ return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
     lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
