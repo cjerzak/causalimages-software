@@ -484,7 +484,7 @@ GetImageRepresentations <- function(
       return( list(m, StateList)  )
     }
     ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
-    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ print("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(10L); 
+    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ print("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 

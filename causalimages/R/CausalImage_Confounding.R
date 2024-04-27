@@ -527,7 +527,7 @@ AnalyzeImageConfounding <- function(
         ModelList_fixed <- jnp$array(0.)
         MPList <- list(jmp$Policy(compute_dtype="float16", 
                                   param_dtype="float32", 
-                                  output_dtype=(outputDtype <- "float32")),
+                                  output_dtype=(outputDtype <- "float16")),
                        jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
                                             min_loss_scale = jnp$array(2^2.,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
                                             period = 50L))
@@ -839,7 +839,6 @@ AnalyzeImageConfounding <- function(
     prWEst_baseline[] <- mean( obsW[trainIndices] )
     
     # cross entropy loss calcs
-    browser()
     binaryCrossLoss <- function(W,prW){ return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
     lossCE_IN_baseline <- binaryCrossLoss(obsW[trainIndices], prWEst_baseline[trainIndices])
