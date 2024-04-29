@@ -273,7 +273,7 @@ GetImageRepresentations <- function(
 
       if( TransformerOutputPathControl ){
         # final norm
-        m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *  LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
+        #m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *  LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
 
         # linear proj, note: dense starts with linear projection  
         # m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )  
