@@ -305,17 +305,20 @@ AnalyzeImageConfounding <- function(
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
       # define train/test indices based on out of sample keys
-      outKeys <- sample(unique(imageKeysOfUnits), max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+      outKeys <- sample(unique(imageKeysOfUnits), 
+                        max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
       inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
-                                   ncol = nWidth_ImageRep + 1 + ifelse(!XisNull, yes = ncol(X), no = 0))
+                                   ncol = nWidth_ImageRep + 1 + ifelse(!XisNull, 
+                                                                       yes = ncol(X), 
+                                                                       no = 0))
       for(jr in 1L:(nBoot+1L)){
         if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
-        if(jr != (nBoot+1L)){ indices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
-        if(jr == (nBoot+1L)){ indices_ <- 1:length( imageKeysOfUnits ) }
+        if(jr != (nBoot+1L)){ bindices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
+        if(jr == (nBoot+1L)){ bindices_ <- 1:length( imageKeysOfUnits ) }
 
         # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
         {
@@ -348,7 +351,7 @@ AnalyzeImageConfounding <- function(
           ImageRepresentations_df <- ImageRepresentations_df[as.character(imageKeysOfUnits),]
         }
         # subset indices for training
-        indices_forTraining <- indices_[indices_ %in% trainIndices]
+        indices_forTraining <- bindices_[bindices_ %in% trainIndices]
         glmnetInput <- ifelse(XisNull, yes = list(ImageRepresentations_df),
                                        no = list(cbind(as.matrix(X), ImageRepresentations_df)))[[1]]
         myGlmnet_ <- glmnet::cv.glmnet(
@@ -356,15 +359,19 @@ AnalyzeImageConfounding <- function(
           y = as.matrix(obsW[indices_forTraining]),
           alpha = 0, # alpha = 0 is the ridge penalty
           family = "binomial")
-        obsW_ <- obsW[indices_]; obsY_ <- obsY[indices_]
+        obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
+        prW_est_ <- predict(myGlmnet_, s ="lambda.min",
+                            newx = as.matrix(glmnetInput[bindices_,]), 
+                            type = "response")
+        # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_))
+        # plot(obsW[indices_forTraining], c(predict(myGlmnet_, s ="lambda.min",newx = as.matrix(glmnetInput[indices_forTraining,]), type = "response")))
 
         # compute QOIs
         myGlmnet_coefs_ <- as.matrix( glmnet::coef.glmnet(myGlmnet_, s = "lambda.min") )
-        prW_est_ <- predict(myGlmnet_, s ="lambda.min",newx= as.matrix(glmnetInput), type = "response")
-        #prW_est_ <- sigmoid( as.matrix(cbind(1, glmnetInput)) %*% myGlmnet_coefs_ )
-        tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/c(prW_est_) - (1-obsW_)*obsY_/c(1-prW_est_) )
+        tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/c(prW_est_) - 
+                                                            (1-obsW_)*obsY_/c(1-prW_est_) )
         tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/c(prW_est_))) -
-                        sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
+                                            sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
         myGlmnet_coefs_mat[jr,] <- c(myGlmnet_coefs_)
         if(jr == (nBoot+1L)){
           nTrainable <- length(  myGlmnet_coefs_  )

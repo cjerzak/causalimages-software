@@ -401,7 +401,6 @@ GetImageRepresentations <- function(
                             ))
     }
 
-    # zzz
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
     ImageRepArm_SpatialArm <- function(ModelList, m, StateList, seed, MPList, inference){
@@ -427,7 +426,7 @@ GetImageRepresentations <- function(
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
                 if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L),1L)  }
+                if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L),1L)  }
               }
               
               # act fxn
@@ -444,7 +443,7 @@ GetImageRepresentations <- function(
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
                 if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ browser(); m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L),1L)  }
+                if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L),1L)  }
               }
               
               # adaptive max pooling 
@@ -567,7 +566,6 @@ GetImageRepresentations <- function(
                                                           MPList, 
                                                           T # inference 
                                                           )[[1]]  ), T)
-      # representation_
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if("try-error" %in% class(representation_)){ browser() }
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
