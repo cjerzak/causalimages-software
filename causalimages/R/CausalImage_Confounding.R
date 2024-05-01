@@ -198,20 +198,20 @@ AnalyzeImageConfounding <- function(
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_control )
         if(T == F){ 
-        # get next batch  zzz xxx 
-        #ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated )
-        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated  )
-        ds_next_train <- ds_iterator_train$`next`()
-        
-        # select batch indices based on keys
-        batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
-        keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
-        batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-        ds_next_train <- ds_next_train[[1]]
-        # imageKeysOfUnits[batch_indices]
-        #jnp$array(obsW[batch_indices], dtype = jnp$float16)
-        # which(obsW == 1)
-        # which(imageKeysOfUnits %in% imageKeysOfUnits[batch_indices])
+          # get next batch  zzz xxx 
+          #ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated )
+          ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated  )
+          ds_next_train <- ds_iterator_train$`next`()
+          
+          # select batch indices based on keys
+          batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
+          keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
+          batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
+          ds_next_train <- ds_next_train[[1]]
+          # imageKeysOfUnits[batch_indices]
+          #jnp$array(obsW[batch_indices], dtype = jnp$float16)
+          # which(obsW == 1)
+          # which(imageKeysOfUnits %in% imageKeysOfUnits[batch_indices])
       }
       }
       if(is.null(TFRecordControl)){
@@ -312,7 +312,7 @@ AnalyzeImageConfounding <- function(
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
-                                   ncol = nWidth_ImageRep + 1 + ifelse(!XisNull, 
+                                   ncol = 3*nWidth_ImageRep + 1 + ifelse(!XisNull, 
                                                                        yes = ncol(X), 
                                                                        no = 0))
       for(jr in 1L:(nBoot+1L)){
@@ -357,13 +357,14 @@ AnalyzeImageConfounding <- function(
         myGlmnet_ <- glmnet::cv.glmnet(
           x = as.matrix(glmnetInput[indices_forTraining,]),
           y = as.matrix(obsW[indices_forTraining]),
+          nfolds = 5,
           alpha = 0, # alpha = 0 is the ridge penalty
+          type.measure = "default", 
           family = "binomial")
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
         prW_est_ <- predict(myGlmnet_, s ="lambda.min",
-                            newx = as.matrix(glmnetInput[bindices_,]), 
-                            type = "response")
-        # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_))
+                            newx = as.matrix(glmnetInput[bindices_,]), type = "response")
+        # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_)); tapply(prW_est_, obsW_, mean)
         # plot(obsW[indices_forTraining], c(predict(myGlmnet_, s ="lambda.min",newx = as.matrix(glmnetInput[indices_forTraining,]), type = "response")))
 
         # compute QOIs

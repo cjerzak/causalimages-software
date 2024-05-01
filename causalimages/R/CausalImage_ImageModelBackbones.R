@@ -418,6 +418,18 @@ GetImageRepresentations <- function(
             m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
                     LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
 
+            if(! optimizeImageRep){
+              m <- jax$nn$swish( 
+                LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
+              )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              
+              m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)),
+                                        mn_ <- jnp$mean(m, c(1L:2L)),
+                                        mx_*mn_), 0L)
+              return( list(m, StateList)  )
+            }
+            
             if( optimizeImageRep ){
               # bnorm
               if( optimizeImageRep &  d__ > 1 & T == T){ 
@@ -429,12 +441,10 @@ GetImageRepresentations <- function(
                 if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L),1L)  }
               }
               
-              # act fxn
+              # swiglu act fxn
               m <- jax$nn$swish( 
                     LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
                 )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              
-              # projection 
               m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
               
               if( optimizeImageRep & T == T ){ 
@@ -526,7 +536,8 @@ GetImageRepresentations <- function(
   }
 
   Representations <- NULL; if(getRepresentations){
-  Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), ncol = nWidth_ImageRep)
+  Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
+                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, no = 3*nWidth_ImageRep))
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
