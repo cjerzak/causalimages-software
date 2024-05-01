@@ -197,22 +197,6 @@ AnalyzeImageConfounding <- function(
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_control )
-        if(T == F){ 
-          # get next batch  zzz xxx 
-          #ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated )
-          ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_treated  )
-          ds_next_train <- ds_iterator_train$`next`()
-          
-          # select batch indices based on keys
-          batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
-          keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
-          batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-          ds_next_train <- ds_next_train[[1]]
-          # imageKeysOfUnits[batch_indices]
-          #jnp$array(obsW[batch_indices], dtype = jnp$float16)
-          # which(obsW == 1)
-          # which(imageKeysOfUnits %in% imageKeysOfUnits[batch_indices])
-      }
       }
       if(is.null(TFRecordControl)){
         getParsed_tf_dataset_train <- function( tf_dataset ){
@@ -639,23 +623,14 @@ AnalyzeImageConfounding <- function(
             ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
                                             ds_next_train_treated[[1]]), 0L)
             print(table(obsW[batch_indices]))
-            tmp <- c(tmp,batch_indices)
+            # tmp <- c(tmp,batch_indices)
             # plot(tmp)
-            # plot(diff(obsW[tmp]))
             # plot(head(obsW[tmp],300))
             # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[1]]
-            # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[2]]
           }
           if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
 
           # training step
-          if(T == F){
-            m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+11L), inference = F)
-            causalimages::image2(np$array(m)[1,,,2])
-            x <- jnp$array(X[batch_indices,],dtype = jnp$float16)
-            treat <- jnp$array(obsW[batch_indices],dtype = jnp$float16); inference <- F
-            vseed <- jax$random$split( seed <- jax$random$PRNGKey( 500L+i ),batchSize)
-          }
           # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
           t1 <- Sys.time()
           GradientUpdatePackage <- try(GradAndLossAndAux(
