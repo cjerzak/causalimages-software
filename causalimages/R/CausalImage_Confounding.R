@@ -629,7 +629,7 @@ AnalyzeImageConfounding <- function(
             batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
             ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
                                             ds_next_train_treated[[1]]), 0L)
-            print(table(obsW[batch_indices]))
+            # print(table(obsW[batch_indices]))
             # tmp <- c(tmp,batch_indices)
             # plot(tmp)
             # plot(head(obsW[tmp],300))
