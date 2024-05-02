@@ -631,7 +631,6 @@ AnalyzeImageConfounding <- function(
                                             ds_next_train_treated[[1]]), 0L)
             # print(table(obsW[batch_indices]))
             # tmp <- c(tmp,batch_indices)
-            # plot(tmp)
             # plot(head(obsW[tmp],300))
             # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[1]]
           }
@@ -1088,11 +1087,14 @@ AnalyzeImageConfounding <- function(
 
         if(optimizeImageRep){
           pdf(sprintf("%s/Loss_%s.pdf", figuresPath,FigNameAppend))
-            par(mar = c(5,5,1,1))
+          { 
+            par(mar = c(6,5,1,1))
             try(plot(loss_vec, cex = 1.5, cex.lab = 2,
-                     xlab = "Iteration",
-                     ylab = "Loss"),T);
+                     xlab = "Iteration", ylab = "Loss"),T);
             try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
+            mtext(side = 1, ifelse(tagInFigures, yes = figuresTag, no = ""), 
+                  line = 4.5, cex = 1)
+          }
           dev.off()
         }
 
@@ -1156,16 +1158,19 @@ AnalyzeImageConfounding <- function(
         SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)]
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
     } 
-      SalienceX <- SalienceX*X_sd  +  X_mean
-    }
+      
     # rescale the salience map into original scale
+    SalienceX <- SalienceX*X_sd  +  X_mean
+    }
 
     postDiffInLat <- preDiffInLat <- NULL
     if(!is.null(lat)){
       preDiffInLat <- colMeans(cbind(long[obsW == 1],lat[obsW == 1])) -
         colMeans(cbind(long[obsW == 0],lat[obsW == 0]))
-      postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*prop.table(1/prW_est[obsW == 1])) -
-        colSums(cbind(long[obsW == 0],lat[obsW == 0])*prop.table(1/(1-prW_est[obsW == 0])))
+      postDiffInLat <- colSums(cbind(long[obsW == 1],lat[obsW == 1])*
+                                 prop.table(1/prW_est[obsW == 1])) - 
+                        colSums(cbind(long[obsW == 0],lat[obsW == 0])*
+                                  prop.table(1/prW_est[obsW == 0]))
     }
 
     # set salience map names
