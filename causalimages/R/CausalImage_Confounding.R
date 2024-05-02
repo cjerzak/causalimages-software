@@ -131,7 +131,7 @@ AnalyzeImageConfounding <- function(
   figuresTag < ifelse(is.null(figuresTag), yes = "", no = figuresTag)
 
   # make all directory logic explicit
-  loss_vec <- NULL
+  myGlmnet_coefs <- loss_vec <- NULL
   orig_wd <- getwd()
   if( (cond1 <- substr(figuresPath, start = 0, stop = 1) == ".")  ){
     figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd)
@@ -289,14 +289,21 @@ AnalyzeImageConfounding <- function(
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
       # define train/test indices based on out of sample keys
-      outKeys <- sample(unique(imageKeysOfUnits), 
-                        max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+      imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
+      outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
+                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
+                   sample(names(imageKeysByTreatment[imageKeysByTreatment <= 0.5]), 
+                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2)), T)
+      if("try-error" %in% class(outKeys)){ 
+        outKeys <- sample(unique(imageKeysOfUnits), 
+                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+      }
       inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
-                                   ncol = 3*nWidth_ImageRep + 1 + ifelse(!XisNull, 
+                                   ncol = 2*nWidth_ImageRep + 1 + ifelse(!XisNull, 
                                                                        yes = ncol(X), 
                                                                        no = 0))
       for(jr in 1L:(nBoot+1L)){
@@ -343,10 +350,10 @@ AnalyzeImageConfounding <- function(
           y = as.matrix(obsW[indices_forTraining]),
           nfolds = 5,
           alpha = 0, # alpha = 0 is the ridge penalty
-          type.measure = "default", 
+          type.measure = "auc", 
           family = "binomial")
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
-        prW_est_ <- predict(myGlmnet_, s ="lambda.min",
+        prW_est_ <- predict(myGlmnet_, s = "lambda.min",
                             newx = as.matrix(glmnetInput[bindices_,]), type = "response")
         # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_)); tapply(prW_est_, obsW_, mean)
         # plot(obsW[indices_forTraining], c(predict(myGlmnet_, s ="lambda.min",newx = as.matrix(glmnetInput[indices_forTraining,]), type = "response")))
@@ -1177,6 +1184,7 @@ AnalyzeImageConfounding <- function(
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat, "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
+      "myGlmnet_coefs" = myGlmnet_coefs, 
       "nTrainableParameters" = nTrainable,
       "trainIndices" = trainIndices,
       "testIndices" = testIndices

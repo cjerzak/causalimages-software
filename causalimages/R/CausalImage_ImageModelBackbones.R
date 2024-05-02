@@ -419,14 +419,12 @@ GetImageRepresentations <- function(
                     LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
 
             if(! optimizeImageRep){
-              m <- jax$nn$swish( 
-                LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
-              )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              #m <- jax$nn$swish( 
+                #LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m) )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              # m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              # hist(np$array(m$val)) 
               
-              m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)),
-                                        mn_ <- jnp$mean(m, c(1L:2L)),
-                                        mx_*mn_), 0L)
+              m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)), mn_ <- jnp$mean(m, c(1L:2L))), 0L)
               return( list(m, StateList)  )
             }
             
@@ -537,7 +535,7 @@ GetImageRepresentations <- function(
 
   Representations <- NULL; if(getRepresentations){
   Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
-                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, no = 3*nWidth_ImageRep))
+                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, no = 2*nWidth_ImageRep))
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
