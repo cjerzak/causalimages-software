@@ -1184,7 +1184,8 @@ AnalyzeImageConfounding <- function(
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat, "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
-      "myGlmnet_coefs" = myGlmnet_coefs, 
+      "myGlmnet_coefs" = myGlmnet_coefs,
+      "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
       "nTrainableParameters" = nTrainable,
       "trainIndices" = trainIndices,
       "testIndices" = testIndices
