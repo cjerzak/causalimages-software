@@ -1157,8 +1157,7 @@ AnalyzeImageConfounding <- function(
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
     } 
       
-    # rescale the salience map into original scale
-    # DON'T ADD BACK X_MEAN!
+    # rescale the salience map into original scale: Don't add back X_mean
     SalienceX <- SalienceX*X_sd
     }
 
