@@ -753,8 +753,7 @@ AnalyzeImageConfounding <- function(
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
         ImageRepArm_batch_jit <- eq$filter_jit( ImageRepArm_batch_R )
-        usedKeys <- c()
-        for(cut_ in unique(KeyQuantCuts)){ # use when not incorporating X's
+        usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
           # cut_ <- unique(KeyQuantCuts)[1]
           inference_counter <- inference_counter + 1
           zer <- which(cut_  ==  KeyQuantCuts)
@@ -1044,8 +1043,7 @@ AnalyzeImageConfounding <- function(
                   main = long_lat_in_, cex.main = 1.5, col.main =  col_,
                   xlab = ifelse( plot_index_counter == 1,
                                  yes = ifelse(tagInFigures, yes = figuresTag, no = ""),
-                                 no = "")
-                )
+                                 no = "") )
               }
               if(plotRBG){
                 plot(0, main = long_lat_in_, col.main = col_,
@@ -1144,7 +1142,6 @@ AnalyzeImageConfounding <- function(
 
           im_ <- InitImageProcessFn( jnp$array(ds_next_in[[1]]), jax$random$PRNGKey(432L), T)
           x_ <- jnp$array(t(X[sampIndex_,]), jnp$float16)
-          # m <- jmp$cast_to_full(im_); x <- jmp$cast_to_full(x_); vseed <- seed <- jax$random$PRNGKey(10L)
           SalienceX_contrib <- np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
                         jmp$cast_to_full(im_),
                         jmp$cast_to_full(x_),
@@ -1156,12 +1153,13 @@ AnalyzeImageConfounding <- function(
     }
     if( !optimizeImageRep ){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
-        SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)]
+        SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)] * X_sd 
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
     } 
       
     # rescale the salience map into original scale
-    SalienceX <- SalienceX*X_sd  +  X_mean
+    # DON'T ADD BACK X_MEAN!
+    SalienceX <- SalienceX*X_sd
     }
 
     postDiffInLat <- preDiffInLat <- NULL
