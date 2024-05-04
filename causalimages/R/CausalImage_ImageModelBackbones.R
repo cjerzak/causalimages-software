@@ -535,7 +535,8 @@ GetImageRepresentations <- function(
 
   Representations <- NULL; if(getRepresentations){
   Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
-                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, no = 2*nWidth_ImageRep))
+                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, 
+                                                            no = nWidth_ImageRep+nWidth_ImageRep*(imageModelClass=="CNN") ))
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 

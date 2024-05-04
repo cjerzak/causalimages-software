@@ -303,9 +303,10 @@ AnalyzeImageConfounding <- function(
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
-                                   ncol = 2*nWidth_ImageRep + 1 + ifelse(!XisNull, 
-                                                                       yes = ncol(X), 
-                                                                       no = 0))
+                                   ncol = nWidth_ImageRep +
+                                     nWidth_ImageRep*(imageModelClass=="CNN") + 
+                                     1 + 
+                                     ifelse(!XisNull, yes = ncol(X), no = 0))
       for(jr in 1L:(nBoot+1L)){
         if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
         if(jr != (nBoot+1L)){ bindices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
