@@ -181,7 +181,7 @@ AnalyzeImageConfounding <- function(
         }
         getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
           tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
-                                     reshuffle_each_iteration = T) # set false so same train/test split each re-initialization
+                                     reshuffle_each_iteration = T) 
           tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
           tf_dataset <- tf_dataset$prefetch( tf$data$AUTOTUNE ) 
           return( tf_dataset )

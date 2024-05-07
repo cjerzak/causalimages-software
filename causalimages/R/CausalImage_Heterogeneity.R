@@ -164,46 +164,51 @@ AnalyzeImageHeterogeneity <- function(obsW,
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
     print2( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
-    tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    tf_dataset_master <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
-    useVideo <- (dataType == "video")
+    useVideoIndicator <- (dataType == "video")
     getParsed_tf_dataset_inference <- function(tf_dataset){
-      dataset <- tf_dataset$map( function(x){ parse_tfr_element(element = x,
-                                                                readVideo = useVideo,
-                                                                image_dtype = image_dtype_tf) } ) # return
-      return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
+      dataset <- tf_dataset$map( function(x){ 
+                              parse_tfr_element(element = x,
+                                                readVideo = useVideoIndicator,
+                                                image_dtype = image_dtype_tf) } ) 
+      return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
     }
-    getParsed_tf_dataset_train <- function(tf_dataset){
-      dataset <- tf_dataset$map( function(x){ parse_tfr_element(element = x,
-                                                                readVideo = useVideo,
-                                                                image_dtype = image_dtype_tf) },
-                                 num_parallel_calls = tf$data$AUTOTUNE)
-      dataset <- dataset$shuffle(buffer_size = tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=tf$int64),
-                                 reshuffle_each_iteration = T)
-      dataset <- dataset$batch(  as.integer(batchSize)   )
-      dataset <- dataset$prefetch( tf$data$AUTOTUNE )
-      return( dataset  )
+    
+    # setup k-fold cross-fitting
+    {
+      getParsed_tf_dataset_train_Select <- function( tf_dataset ){
+        return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
+                                num_parallel_calls = tf$data$AUTOTUNE) ) 
+      }
+      getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
+        tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                         reshuffle_each_iteration = T) 
+        tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
+        tf_dataset <- tf_dataset$prefetch( tf$data$AUTOTUNE ) 
+        return( tf_dataset )
+      }
+      nUniqueKeys <- length( unique( imageKeysOfUnits ) )
+      cf_keys_split <- 1*as.numeric(cut(1:nUniqueKeys,3))
+      cf_keys_split <- sapply( 1:(kFolds <- 3L), function(l_){ list(which(cf_keys_split==l_))})
+      cf_keys_toSkip_bounds <- lapply(cf_keys_split,function(l_){c(min(l_), max(l_))})
     }
 
-    # setup iterators
-    tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) ))) )$`repeat`(  -1L )
-    tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
+    # setup iterator
+    tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset_master )
 
-    # reset iterators
-    ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+    # reset iterator
     ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
 
     # checks
     # ds_iterator_inference$output_shapes; ds_iterator_train$output_shapes
-    # ds_next_train <- reticulate::iter_next( ds_iterator_train )
     # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
   }
 
-  # normalize
   print2("Getting channel normalization parameters...")
   tmp <- replicate(30, {
-        tmp <- jnp$array( ds_iterator_train$`next`()[[1]]  )
+        tmp <- jnp$array( ds_iterator_inference$`next`()[[1]]  )
         if(length(tmp$shape) == 4){
           l_ <- list("NORM_MEAN" = as.array(tf$cast(jnp$mean(tmp, 0L:2L),tf$float32)),
                      "NORM_SD" = as.array(tf$cast(jnp$mean(tmp, 0L:2L),tf$float32)  ))
@@ -214,39 +219,45 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         return( l_  )
     })
-    NORM_MEAN <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",])),
+  NORM_MEAN <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",])),
                                                                            dtype = image_dtype)),0L),0L), 0L)
-    NORM_SD <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_SD",])),
+  NORM_SD <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_SD",])),
                                                                          dtype = image_dtype)),0L),0L), 0L)
-    if(length(dim(tmp)) == 5){
+  if(length(dim(tmp)) == 5){
       NORM_MEAN <- jnp$expand_dims( NORM_MEAN, 0L)
       NORM_SD <- jnp$expand_dims( NORM_SD, 0L)
-    }
+  }
+  
+  # reset inference iterator 
+  ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
+  
+  # clear memory 
+  rm(  tmp  ) 
 
-    if(useTrainingPertubations){
-      trainingPertubations_OneObs <- function(im_, key){
+  if(useTrainingPertubations){
+    trainingPertubations_OneObs <- function(im_, key){
         AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
         which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
         return( im_ )
-      } 
-      trainingPertubations <- jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
-    }
-    InitImageProcessFn <- jax$jit(function(im, key, inference){
+    } 
+    trainingPertubations <- jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
+  }
+  InitImageProcessFn <- jax$jit(function(im, key, inference){
       # expand dims if needed
       if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
 
       # normalize
-      im <- jnp$divide(jnp$subtract(im, NORM_MEAN), NORM_SD)
+      im <- (im - NORM_MEAN) / NORM_SD
 
       # training pertubations
       if(useTrainingPertubations){
         im <- jax$lax$cond(inference, 
                            true_fun = function(){ im }, 
                            false_fun = function(){ trainingPertubations(im, 
-                                                                        jax$random$split(key,im$shape[[1]])) } )
+                                                        jax$random$split(key,im$shape[[1]])) } )
       }
 
       # downshift resolution if desired
@@ -254,798 +265,776 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
       # return normalized (& pertubed if inference = F) image/image seq
       return( im  )
-    })
+  })
 
-    rm(  tmp  )
-
-
-  # obtain image representation function
-  {
-    print2("Initializing image representation functions...")
-    SharedImageRepresentation <- T;
-    setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
-        file = file, conda_env = conda_env,
-        dataType = dataType,
-        nWidth_ImageRep = nWidth_ImageRep,
-        nDepth_ImageRep = nDepth_ImageRep,
-        strides = strides,
-        nDepth_TemporalRep = nDepth_TemporalRep,
-        patchEmbedDim = patchEmbedDim,
-        batchSize = batchSize,
-        imageModelClass = imageModelClass,
-        temporalKernelSize = temporalKernelSize,
-        kernelSize = kernelSize,
-        TfRecords_BufferScaler = 3L,
-        imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
-        returnContents = T,
-        bn_momentum = bn_momentum,
-        InitImageProcess = InitImageProcessFn,
-        seed = seed); setwd(new_wd)
-        ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
-        ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
-        ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
-
-        print2("Done initializing image representation function...")
-        rm(ImageRepresentations); gc(); py_gc$collect()
-  }
-
-  # set environment of image sampling functions
-  figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
-  windowCounter <- 0
-
-  # orthogonalize if specified
-  whichNA_dropped <- c()
-  if(orthogonalize){
-    print2("Orthogonalizing Potential Outcomes...")
-    if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
-
-    # drop observations with NAs in their orthogonalized outcomes
-    whichNA_dropped <- which( is.na(  rowSums( X ) ) )
-    if(length(whichNA_dropped) > 0){
-      # note: transportabilityMat doesn't need to drop dropNAs
-      obsW <- obsW[-whichNA_dropped]
-      obsY <- obsY[-whichNA_dropped]
-      X <- X[-whichNA_dropped,]
-      imageKeysOfUnits <- imageKeysOfUnits[-whichNA_dropped]
-      lat <- lat[ -whichNA_dropped ]
-      long <- long[ -whichNA_dropped ]
-    }
-    Yobs_ortho <- resid(temp_lm <- lm(obsY ~ X))
-    if(length(Yobs_ortho) != length(obsY)){
-      stop("length(Yobs_ortho) != length(obsY)")
-    }
-    plot(obsY,Yobs_ortho)
-    obsY <- Yobs_ortho
-  }
-
-  # setup tf record
-  plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
-
-  # specify some training parameters + helper functions
-  batchFracOut <- max(1/3*batchSize,3) / batchSize
-  nMonte_variational <- as.integer( nMonte_variational  )
-  widthFreq <- 20
-  WhenPool <- c(1,2)
-  #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
-  #plot(as.matrix2(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1));abline(h=0.5)
-
-  # set up some placeholders
-  y0_true <- r2_y1_out <- r2_y0_out <- ClusterProbs_est <- NULL
-  tau_i_est <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
-  if(!"ClusterProbs" %in% ls() &
-     !"ClusterProbs" %in% ls(envir=globalenv())){ClusterProbs<-NULL}
-
-  # normalize outcomes for stability (estimates are re-normalized after training)
-  obsY_orig <- obsY
-  Y_mean <- mean(obsY); Y_sd <- sd(obsY)
-  obsY <- (obsY - Y_mean)  /  Y_sd
-  Rescale <- function(x,doMean = F){ return( x*Y_sd + ifelse(doMean, yes = Y_mean, no = 0) ) }
-  Tau_mean_init_prior <- Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
-  Tau_sd_init <- sqrt( var(obsY[obsW==1]) + var( obsY[obsW==0]) )
-  Y0_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); return(sd(obsY[top_][obsW[top_]==0])) }))
-  Y1_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); sd(obsY[top_][obsW[top_]==1]) }))
-  tau_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); mean(obsY[top_][obsW[top_]==1]) - mean(obsY[top_][obsW[top_]==0]) }))
-  Y0_mean_init_prior <- Y0_mean_init <- mean(obsY[obsW==0]); Y0_sd_raw <- max(0.01, mean(Y0_sd_vec,na.rm=T))
-  Y1_mean_init_prior <- Y1_mean_init <- mean(obsY[obsW==1]); Y1_sd_raw <- max(0.01, mean(Y1_sd_vec,na.rm=T))
-  softplus_inverse <- function(x){ jnp$log(jnp$exp(x) - cnst(1.)) }
-  softplus_inverse2 <- function(x){ jnp$log(jnp$exp(x) - jnp$array(1)) }
-  Y0_sd_priorMean <- softplus_inverse(cnst(Y0_sd_raw))
-  Y1_sd_priorMean <-softplus_inverse(cnst(Y1_sd_raw))
-  Y0_sd_initMean <-softplus_inverse(cnst((SD_scaling <- 1)*Y0_sd_raw))#<-SD_scaling*sd(obsY[obsW==0])))
-  Y1_sd_initMean <-softplus_inverse(cnst(SD_scaling*Y1_sd_raw))#<-SD_scaling*sd(obsY[obsW==1])))
-
-  #for(BAYES_STEP in c(1,2)){
-  for(BAYES_STEP in c(1)){
-    if(BAYES_STEP == 1){ print2("Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...") }
-    if(BAYES_STEP == 2){ print2("Empirical Bayes Estimation Step...") }
-
-    if(BAYES_STEP == 1){
-      nSGD_ORIG <- nSGD
-      nSGD <- nSGD
-      L2_grad_scale <- cnst( 0.5 )
-      SD_PRIOR_MODEL <- cnst(.0001); KL_wt <- cnst(0)
-      SD_INIT_MODEL <- cnst(.000001)
-      PRIOR_MODEL_FXN <- function(name_){
-        eval(parse(text = 'function(dtype, shape, name, trainable, add_variable_fn){
-      d_prior <- oryx$distributions$Normal(loc = jnp$zeros(shape), scale = cnst(SD_PRIOR_MODEL))
-      tfd$Independent(d_prior, reinterpreted_batch_ndims = tf$size(d_prior$batch_shape_tensor())) }'))
-      }
-      PRIOR_MODEL_FXN("hap")
-      PosteriorInitializer <- function(){
-        eval(parse(text = 'tfp$layers$default_mean_field_normal_fn(
-        is_singular = F,
-        loc_initializer = tf$keras$initializers$GlorotUniform(seed = as.integer(runif(1,1,100000))),
-        untransformed_scale_initializer = tf$keras$initializers$random_normal(mean = -9.0, stddev = 0.001, seed = as.integer(runif(1,1,100000))),
-        loc_regularizer = NULL,
-        untransformed_scale_regularizer = NULL,
-        loc_constraint = NULL,
-        untransformed_scale_constraint = NULL )')) }
-    }
-    if(BAYES_STEP == 2){
-      nSGD <- nSGD_ORIG
-      L2_grad_scale <- cnst( 0.5 )
-      KL_wt <- cnst( batchSize / length(obsY) )
-      PRIOR_MODEL_FXN <- function(name_){
-        prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_ )
-        prior_SD_name <- sprintf("%s_PRIOR_SD_HASH818",name_ )
-        ZERO_LEN_IN <- length( eval(parse(text = sprintf("%s$variables",name_)))) == 0
-        if( ZERO_LEN_IN){
-          prior_loc_name <- "jnp$zeros(shape)"; prior_SD_name <- "1"
-        }
-        if( !ZERO_LEN_IN){
-          z_name_ref <- eval(parse(text = sprintf("%s$variables[[1]]$name",name_)))
-          z_name_ref <- gsub(z_name_ref, pattern = ":",replacement = "XCOLX")
-          z_name_ref <- gsub(z_name_ref, pattern = "/",replacement = "XDASHX")
-
-          # set mean
-          eval.parent(parse(text = sprintf("%s <- jnp$array(%s$variables[[1]],variable_dtype)",prior_loc_name,name_)))
-
-          # set sd
-          eval.parent(parse(text = sprintf("%s <- tf$maximum(jnp$array(0.001,dtype = variable_dtype),
-                                                        jnp$array(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),variable_dtype))",prior_SD_name,name_)))
-        }
-        eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
-              d_prior <- oryx$distributions$Normal(loc = (%s),
-                                  scale = (%s))
-              tfd$Independent(d_prior, reinterpreted_batch_ndims = tf$size(d_prior$batch_shape_tensor())) }',
-                                  prior_loc_name, prior_SD_name)))
-      }
-
-      # set other priors
-      Tau_mean_init_prior <- as.vector(MeanDist_tau[k_,"Mean"][[1]])
-      Y0_sd_priorMean <- as.vector(SDDist_Y0[k_,"Mean"][[1]])
-      Y1_sd_priorMean <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
-    }
-
-    print2("Building clustering model...")
+  # set up placeholders + start loop 
+  Loss_out_baseline_vec <- Loss_out_vec <- Y0_est_mat <- Y1_est_mat <- tau_i_est_mat <- c()  
+  TestIndices_list <- TrainIndices_list <- replicate(list(), n = kFolds)
+  for(kf_ in 1:kFolds){
+    # setup iterator 
     {
-      batch_axis_name <- "batch"; bn_momentum <- 0.9; ep_BN <- 0.001
-      DenseList_Prior <- DenseStateList <- DenseList <- list()
-      for(arm_ in c("Tau","EY0")){
-        for(dense_ in 1L:nDepth_Dense){
-              # arm_ <- "Tau"; dense_ <- 1L
-              # arm_ <- "Tau"; dense_ <- 2L
-              LeftDim <- as.integer( ifelse(dense_==1, yes = nWidth_ImageRep, no = nWidth_Dense) )
-              RightDim <- as.integer( ifelse(dense_==nDepth_Dense,
-                                         yes = ifelse(arm_ == "Tau", yes = kClust_est-1L, no = 1L),
-                                         no = nWidth_Dense))
-              eval(parse(text = sprintf("DenseList$%s_d%s <- list(
-                                      jnp$array(matrix(rnorm(RightDim*LeftDim)*sqrt(2/LeftDim), nrow = LeftDim)),
-                                      jnp$array(matrix(rnorm(RightDim*LeftDim,sd=0.0001, mean = -8), nrow = LeftDim)),
-                                      jnp$array(rep(0, times = RightDim)),
-                                      eq$nn$BatchNorm( input_size = RightDim, axis_name = batch_axis_name, momentum = bn_momentum, eps = ep_BN, channelwise_affine = T)
-                                        )", arm_, dense_ )))
-              eval(parse(text = sprintf("DenseList_Prior$%s_d%s <- list(
-                                      jnp$array(matrix(rnorm(RightDim*LeftDim)*sqrt(2/LeftDim), nrow = LeftDim)),
-                                      jnp$array(matrix(rnorm(RightDim*LeftDim,sd=0.0001, mean = -8), nrow = LeftDim)))", arm_, dense_ )))
-              eval(parse(text = sprintf("DenseStateList$BNState_%s_d%s <- eq$nn$State(  DenseList$%s_d%s[[4]]  )", arm_, dense_, arm_, dense_ )))
-        }
+      # select a tf record indexed to (1:kFolds([!1:kFolds %in% kf_] (skip indices bounded by cf_keys_toSkip_bounds)
+      # 1 2 3 4 * 5 6 7 8 * 9 10 11 12, K = 3 
+      if(kf_ == 1){ 
+        tf_dataset_train <- getParsed_tf_dataset_train_Select(
+          tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ) 
+          # skip 1:4
       }
-      print2("Initializing cluster projection...")
-      Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
-      Tau_means_init <- Tau_mean_init + .01*seq(-1,1,length.out=kClust_est)*max(0.01,abs(Tau_mean_init))
-
-      print2("Initializing cluster centers...")
-      base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
-      SDDist_Y1 <- SDDist_Y0 <- MeanDist_tau <- base_mat
-      as.numeric2 <- function(x){ as.numeric(tf$cast(x,tf$float32)) }
-      as.matrix2 <- function(x){ as.matrix(tf$cast(x,tf$float32)) }
-      for(k_ in 1:kClust_est){
-        sd_init_trainableParams <- as.numeric2(softplus_inverse2(0.00001)) # set this to a small number so network starts off as nearly deterministic
-
-        # tau's
-        MeanDist_tau[k_,"Mean"][[1]] <- list( jnp$array(cnst(Tau_means_init[k_]) ) )
-        MeanDist_tau[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams) ) )
-        MeanDist_tau[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(Tau_mean_init_prior), cnst(2*sd(tau_vec) )))
-
-        # Y0
-        SDDist_Y0[k_,"Mean"][[1]] <- list( jnp$array(cnst(as.numeric2(Y0_sd_initMean)) ) )
-        SDDist_Y0[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams)) )
-        SDDist_Y0[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(as.numeric2(Y0_sd_priorMean)), cnst(2*sd(Y0_sd_vec))))
-
-        # Y0
-        SDDist_Y1[k_,"Mean"][[1]] <- list( jnp$array(cnst(Y1_sd_initMean) ) )
-        SDDist_Y1[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams)) )
-        SDDist_Y1[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(Y1_sd_priorMean),cnst(2*sd(Y1_sd_vec))))
+      if(kf_ == kFolds){ 
+        tf_dataset_train <- getParsed_tf_dataset_train_Select(
+          tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) ) 
+        # take 1 2 3 4 * 5 6 7 8
       }
+      if(kf_ > 1 & kf_ < kFolds){ 
+         tf_dataset_train <- getParsed_tf_dataset_train_Select(
+           tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) )$concatenate(
+             tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ))$`repeat`(-1L) # repeat to avoid out of sequence errors 
+         # 1:4, skip 1:8
+      }
+      tf_dataset_train <- getParsed_tf_dataset_train_BatchAndShuffle( tf_dataset_train )
+      ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
     }
-    MeanDist_tau <- unlist(  MeanDist_tau  )
-    SDDist_Y1 <- unlist(  SDDist_Y1  )  ;  SDDist_Y0 <- unlist(  SDDist_Y0  )
-    names(MeanDist_tau) <- paste("Tau_", names(MeanDist_tau), sep = "")
-    names(SDDist_Y0) <- paste("Y0_", names(SDDist_Y0),sep = "")
-    names(SDDist_Y1) <- paste("Y1_", names(SDDist_Y1),sep = "")
-    CausalList <- c(MeanDist_tau, SDDist_Y0, SDDist_Y1)
-    PriorCausalList <- CausalList[grepl(names(CausalList),pattern = "Prior")]
-    CausalList <- CausalList[!grepl(names(CausalList),pattern = "Prior")]
-
-    GetDenseNet <- function(ModelList, ModelList_fixed, m,
-                            vseed, StateList, seed, MPList, inference, type){
-        m <- jnp$expand_dims(m, 0L)
-
-        # dense part
-        # m_tminus1 <- m
-        for(d__ in 1L:nDepth_Dense){
-          # projection
-          Wts <- oryx$distributions$Normal( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
-                            jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) ) )$sample(seed = jnp$add(40L, seed) )
-          Wts <- MPList[[1]]$cast_to_compute(  Wts )
-          m <- jnp$add( jnp$matmul( m, Wts ),
-                        LE(ModelList, sprintf("%s_d%s",type, d__))[[3]])
-
-          # BN + non-linearity
-          if(dense_ < nDepth_Dense){
-            m <- LE(ModelList, sprintf("%s_d%s",type, d__))[[4]](m, state = StateList[[d__]], inference = inference)
-            StateIndex <- LE_index(StateList, sprintf("%s_d%s",type, d__))
-            StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
-            eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex)))
-            m <- m[[1]]
-
-            # Non-linearity
-            m <- jax$nn$swish(  m   )
+    
+    # obtain image representation function
+    {
+      print2("Initializing image representation functions...")
+      SharedImageRepresentation <- T;
+      setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
+          file = file, conda_env = conda_env,
+          dataType = dataType,
+          nWidth_ImageRep = nWidth_ImageRep,
+          nDepth_ImageRep = nDepth_ImageRep,
+          strides = strides,
+          nDepth_TemporalRep = nDepth_TemporalRep,
+          patchEmbedDim = patchEmbedDim,
+          batchSize = batchSize,
+          imageModelClass = imageModelClass,
+          temporalKernelSize = temporalKernelSize,
+          kernelSize = kernelSize,
+          TfRecords_BufferScaler = 3L,
+          imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
+          returnContents = T,
+          bn_momentum = bn_momentum,
+          InitImageProcess = InitImageProcessFn,
+          seed = seed); setwd(new_wd)
+          ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
+          ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
+          ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+  
+          print2("Done initializing image representation function...")
+          rm(ImageRepresentations); gc(); py_gc$collect()
+    }
+  
+    # set environment of image sampling functions
+    figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
+    windowCounter <- 0
+  
+    # orthogonalize if specified
+    whichNA_dropped <- c()
+    if(orthogonalize){
+      print2("Orthogonalizing Potential Outcomes...")
+      if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
+  
+      # drop observations with NAs in their orthogonalized outcomes
+      whichNA_dropped <- which( is.na(  rowSums( X ) ) )
+      if(length(whichNA_dropped) > 0){
+        # note: transportabilityMat doesn't need to drop dropNAs
+        obsW <- obsW[-whichNA_dropped]
+        obsY <- obsY[-whichNA_dropped]
+        X <- X[-whichNA_dropped,]
+        imageKeysOfUnits <- imageKeysOfUnits[-whichNA_dropped]
+        lat <- lat[ -whichNA_dropped ]
+        long <- long[ -whichNA_dropped ]
+      }
+      Yobs_ortho <- resid(temp_lm <- lm(obsY ~ X))
+      if(length(Yobs_ortho) != length(obsY)){
+        stop("length(Yobs_ortho) != length(obsY)")
+      }
+      plot(obsY,Yobs_ortho)
+      obsY <- Yobs_ortho
+    }
+  
+    # set up holders 
+    Tau_mean_return_vec <- plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
+    Tau_sd_vec <- Tau_mean_return_sd_vec <- NULL 
+  
+    # specify some training parameters + helper functions
+    batchFracOut <- max(1/3*batchSize,3) / batchSize
+    nMonte_variational <- ai( nMonte_variational  )
+    widthFreq <- 20
+    WhenPool <- c(1,2)
+    #as the temperature goes to 0 the RelaxedOneHotCategorical becomes discrete with a distribution described by the logits or probs parameters
+    #plot(as.matrix2(do.call(rbind,replicate(100,tfd$RelaxedOneHotCategorical(temperature = temperature, probs = c(0.1,0.9))$sample(1L))))[,2],ylim = c(0,1));abline(h=0.5)
+  
+    # set up some placeholders
+    y0_true <- r2_y1_out <- r2_y0_out <- ClusterProbs_est <- NULL
+    tau_i_est <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
+    if(!"ClusterProbs" %in% ls() &
+       !"ClusterProbs" %in% ls(envir=globalenv())){ClusterProbs<-NULL}
+  
+    # normalize outcomes for stability (estimates are re-normalized after training)
+    obsY_orig <- obsY
+    Y_mean <- mean(obsY); Y_sd <- sd(obsY)
+    obsY <- (obsY - Y_mean)  /  Y_sd
+    Rescale <- function(x,doMean = F){ return( x*Y_sd + ifelse(doMean, yes = Y_mean, no = 0) ) }
+    Tau_mean_init_prior <- Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
+    Tau_sd_init <- sqrt( var(obsY[obsW==1]) + var( obsY[obsW==0]) )
+    Y0_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); return(sd(obsY[top_][obsW[top_]==0])) }))
+    Y1_sd_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); sd(obsY[top_][obsW[top_]==1]) }))
+    tau_vec <- na.omit(replicate(10000,{ top_ <- sample(1:length(obsY),batchSize); mean(obsY[top_][obsW[top_]==1]) - mean(obsY[top_][obsW[top_]==0]) }))
+    Y0_mean_init_prior <- Y0_mean_init <- mean(obsY[obsW==0]); Y0_sd_raw <- max(0.01, mean(Y0_sd_vec,na.rm=T))
+    Y1_mean_init_prior <- Y1_mean_init <- mean(obsY[obsW==1]); Y1_sd_raw <- max(0.01, mean(Y1_sd_vec,na.rm=T))
+    softplus_inverse <- function(x){ jnp$log(jnp$exp(x) - cnst(1.)) }
+    softplus_inverse2 <- function(x){ jnp$log(jnp$exp(x) - jnp$array(1)) }
+    Y0_sd_priorMean <- softplus_inverse(cnst(Y0_sd_raw))
+    Y1_sd_priorMean <-softplus_inverse(cnst(Y1_sd_raw))
+    Y0_sd_initMean <-softplus_inverse(cnst((SD_scaling <- 1)*Y0_sd_raw))#<-SD_scaling*sd(obsY[obsW==0])))
+    Y1_sd_initMean <-softplus_inverse(cnst(SD_scaling*Y1_sd_raw))#<-SD_scaling*sd(obsY[obsW==1])))
+  
+    #for(BAYES_STEP in c(1,2)){if(BAYES_STEP == 1){ print2(ifelse(BAYES_STEP==1,yes="Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...", no="Empirical Bayes Estimation Step...")) }
+    for(BAYES_STEP in c(1)){
+      if(BAYES_STEP == 1){
+        nSGD_ORIG <- nSGD
+        L2_grad_scale <- cnst( 0.5 )
+        SD_PRIOR_MODEL <- cnst(.0001); KL_wt <- cnst(0)
+        SD_INIT_MODEL <- cnst(.000001)
+        PRIOR_MODEL_FXN <- function(name_){
+          eval(parse(text = 'function(dtype, shape, name, trainable, add_variable_fn){
+        d_prior <- oryx$distributions$Normal(loc = jnp$zeros(shape), scale = cnst(SD_PRIOR_MODEL))
+        tfd$Independent(d_prior, reinterpreted_batch_ndims = tf$size(d_prior$batch_shape_tensor())) }'))
+        }
+        PRIOR_MODEL_FXN("hap")
+        PosteriorInitializer <- function(){
+          eval(parse(text = 'tfp$layers$default_mean_field_normal_fn(
+          is_singular = F,
+          loc_initializer = tf$keras$initializers$GlorotUniform(seed = ai(runif(1,1,100000))),
+          untransformed_scale_initializer = tf$keras$initializers$random_normal(mean = -9.0, stddev = 0.001, seed = ai(runif(1,1,100000))),
+          loc_regularizer = NULL,
+          untransformed_scale_regularizer = NULL,
+          loc_constraint = NULL,
+          untransformed_scale_constraint = NULL )')) }
+      }
+      if(BAYES_STEP == 2){
+        nSGD <- nSGD_ORIG
+        L2_grad_scale <- cnst( 0.5 )
+        KL_wt <- cnst( batchSize / length(obsY) )
+        PRIOR_MODEL_FXN <- function(name_){
+          prior_loc_name <- sprintf("%s_PRIOR_MEAN_HASH818",name_ )
+          prior_SD_name <- sprintf("%s_PRIOR_SD_HASH818",name_ )
+          ZERO_LEN_IN <- length( eval(parse(text = sprintf("%s$variables",name_)))) == 0
+          if( ZERO_LEN_IN){
+            prior_loc_name <- "jnp$zeros(shape)"; prior_SD_name <- "1"
+          }
+          if( !ZERO_LEN_IN){
+            z_name_ref <- eval(parse(text = sprintf("%s$variables[[1]]$name",name_)))
+            z_name_ref <- gsub(z_name_ref, pattern = ":",replacement = "XCOLX")
+            z_name_ref <- gsub(z_name_ref, pattern = "/",replacement = "XDASHX")
+  
+            # set mean
+            eval.parent(parse(text = sprintf("%s <- jnp$array(%s$variables[[1]],variable_dtype)",prior_loc_name,name_)))
+  
+            # set sd
+            eval.parent(parse(text = sprintf("%s <- tf$maximum(jnp$array(0.001,dtype = variable_dtype),
+                                                          jnp$array(0.1*tf$sqrt(tf$math$reduce_variance(%s$variables[[1]])),variable_dtype))",prior_SD_name,name_)))
+          }
+          eval(parse(text = sprintf('function(dtype, shape, name, trainable, add_variable_fn){
+                d_prior <- oryx$distributions$Normal(loc = (%s),
+                                    scale = (%s))
+                tfd$Independent(d_prior, reinterpreted_batch_ndims = tf$size(d_prior$batch_shape_tensor())) }',
+                                    prior_loc_name, prior_SD_name)))
+        }
+  
+        # set other priors
+        Tau_mean_init_prior <- as.vector(MeanDist_tau[k_,"Mean"][[1]])
+        Y0_sd_priorMean <- as.vector(SDDist_Y0[k_,"Mean"][[1]])
+        Y1_sd_priorMean <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
+      }
+  
+      print2("Building clustering model...")
+      {
+        batch_axis_name <- "batch"; bn_momentum <- 0.9; ep_BN <- 0.001
+        DenseList_Prior <- DenseStateList <- DenseList <- list()
+        for(arm_ in c("Tau","EY0")){
+          for(dense_ in 1L:nDepth_Dense){
+                # arm_ <- "Tau"; dense_ <- 1L
+                LeftDim <- ai( ifelse(dense_==1, yes = nWidth_ImageRep, no = nWidth_Dense) )
+                RightDim <- ai( ifelse(dense_==nDepth_Dense,
+                                           yes = ifelse(arm_ == "Tau", yes = kClust_est-1L, no = 1L),
+                                           no = nWidth_Dense))
+                eval(parse(text = sprintf("DenseList$%s_d%s <- list(
+                                        jnp$array(matrix(rnorm(RightDim*LeftDim)*sqrt(2/LeftDim), nrow = LeftDim)),
+                                        jnp$array(matrix(rnorm(RightDim*LeftDim,sd=0.0001, mean = -8), nrow = LeftDim)),
+                                        jnp$array(rep(0, times = RightDim)),
+                                        eq$nn$BatchNorm( input_size = RightDim, axis_name = batch_axis_name, momentum = bn_momentum, eps = ep_BN, channelwise_affine = T)
+                                          )", arm_, dense_ )))
+                eval(parse(text = sprintf("DenseList_Prior$%s_d%s <- list(
+                                        jnp$array(matrix(rnorm(RightDim*LeftDim)*sqrt(2/LeftDim), nrow = LeftDim)),
+                                        jnp$array(matrix(rnorm(RightDim*LeftDim,sd=0.0001, mean = -8), nrow = LeftDim)))", arm_, dense_ )))
+                eval(parse(text = sprintf("DenseStateList$BNState_%s_d%s <- eq$nn$State(  DenseList$%s_d%s[[4]]  )", arm_, dense_, arm_, dense_ )))
           }
         }
-
-      if(type == "Tau"){
-        m <- jnp$concatenate(list( MPList[[1]]$cast_to_compute( jnp$zeros(list(1L,1L)) ), m), 1L)
-      }
-      if(type == "Y0"){  m <- m }
-      return( list(jnp$squeeze( m, 0L), StateList)  )
-    }
-    for(type_ in c("EY0","Tau")){
-      eval(parse(text =  sprintf("Get%s_batch <- jax$vmap( Get%s <- function(
-        ModelList, ModelList_fixed,
-        m, vseed,
-        StateList, seed, MPList, inference){
-        GetDenseNet(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference, type = '%s')
-      }, in_axes = list(NULL, NULL,
-                        0L, 0L,
-                        NULL, NULL, NULL, NULL),
-         axis_name = batch_axis_name,
-         out_axes = list(0L, NULL))", type_, type_ , type_)))
-    }
-
-    if(grepl(heterogeneityModelType, pattern = "variational")){
-      getClusterSamp_logitInput <- function(logits_, seed_){
-        return( oryx$distributions$RelaxedOneHotCategorical(temperature = c2f(temperature),
-                  logits =  logits_ )$sample(seed = jnp$add(452L, seed_)) )
-      }
-      if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
-        GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
-          EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
-                              m, vseed, StateList, seed, MPList, inference)[[1]]
-          Clust_logits <- GetTau_batch(ModelList,ModelList_fixed,
-                                       m, vseed, StateList, seed, MPList, inference)[[1]]
-          clustT <- getClusterSamp_logitInput(Clust_logits, seed)
-          ETau_draw <-  oryx$distributions$Normal(
-                          c2f(getTau_means(ModelList)),
-                    jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = jnp$add(10L,seed))
-          Etau_i <- jnp$sum(jnp$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
-          return( EY0 + Etau_i )
+        print2("Initializing cluster projection...")
+        Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
+        Tau_means_init <- Tau_mean_init + .01*seq(-1,1,length.out=kClust_est)*max(0.01,abs(Tau_mean_init))
+  
+        print2("Initializing cluster centers...")
+        base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
+        SDDist_Y1 <- SDDist_Y0 <- MeanDist_tau <- base_mat
+        as.numeric2 <- function(x){ as.numeric(tf$cast(x,tf$float32)) }
+        as.matrix2 <- function(x){ as.matrix(tf$cast(x,tf$float32)) }
+        for(k_ in 1:kClust_est){
+          sd_init_trainableParams <- as.numeric2(softplus_inverse2(0.00001)) # set this to a small number so network starts off as nearly deterministic
+  
+          # tau's
+          MeanDist_tau[k_,"Mean"][[1]] <- list( jnp$array(cnst(Tau_means_init[k_]) ) )
+          MeanDist_tau[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams) ) )
+          MeanDist_tau[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(Tau_mean_init_prior), cnst(2*sd(tau_vec) )))
+  
+          # Y0
+          SDDist_Y0[k_,"Mean"][[1]] <- list( jnp$array(cnst(as.numeric2(Y0_sd_initMean)) ) )
+          SDDist_Y0[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams)) )
+          SDDist_Y0[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(as.numeric2(Y0_sd_priorMean)), cnst(2*sd(Y0_sd_vec))))
+  
+          # Y0
+          SDDist_Y1[k_,"Mean"][[1]] <- list( jnp$array(cnst(Y1_sd_initMean) ) )
+          SDDist_Y1[k_,"SD"][[1]] <- list( jnp$array(cnst(sd_init_trainableParams)) )
+          SDDist_Y1[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(Y1_sd_priorMean),cnst(2*sd(Y1_sd_vec))))
         }
       }
-      getTau_means <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_Mean1"), LE(ModelList, "Tau_Mean2") )) )  }
-      getTau_sds <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_SD1"), LE(ModelList, "Tau_SD2") )) )  }
+      MeanDist_tau <- unlist(  MeanDist_tau  )
+      SDDist_Y1 <- unlist(  SDDist_Y1  )  ;  SDDist_Y0 <- unlist(  SDDist_Y0  )
+      names(MeanDist_tau) <- paste("Tau_", names(MeanDist_tau), sep = "")
+      names(SDDist_Y0) <- paste("Y0_", names(SDDist_Y0),sep = "")
+      names(SDDist_Y1) <- paste("Y1_", names(SDDist_Y1),sep = "")
+      CausalList <- c(MeanDist_tau, SDDist_Y0, SDDist_Y1)
+      PriorCausalList <- CausalList[grepl(names(CausalList),pattern = "Prior")]
+      CausalList <- CausalList[!grepl(names(CausalList),pattern = "Prior")]
+  
+      GetDenseNet <- function(ModelList, ModelList_fixed, m,
+                              vseed, StateList, seed, MPList, inference, type){
+          m <- jnp$expand_dims(m, 0L)
+  
+          # dense part
+          for(d__ in 1L:nDepth_Dense){
+            # projection
+            Wts <- oryx$distributions$Normal( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
+                              jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) ) )$sample(seed = jnp$add(40L, seed) )
+            Wts <- MPList[[1]]$cast_to_compute(  Wts )
+            m <- jnp$add( jnp$matmul( m, Wts ),
+                          LE(ModelList, sprintf("%s_d%s",type, d__))[[3]])
+  
+            # BN + non-linearity
+            if(dense_ < nDepth_Dense){
+              m <- LE(ModelList, sprintf("%s_d%s",type, d__))[[4]](m, state = StateList[[d__]], inference = inference)
+              StateIndex <- LE_index(StateList, sprintf("%s_d%s",type, d__))
+              StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
+              eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex)))
+              m <- m[[1]]
+  
+              # Non-linearity
+              m <- jax$nn$swish(  m   )
+            }
+          }
+  
+        if(type == "Tau"){
+          m <- jnp$concatenate(list( MPList[[1]]$cast_to_compute( jnp$zeros(list(1L,1L)) ), m), 1L)
+        }
+        if(type == "Y0"){  m <- m }
+        return( list(jnp$squeeze( m, 0L), StateList)  )
+      }
+      for(type_ in c("EY0","Tau")){
+        # note: first column of GetTau is ZEROS
+        eval(parse(text =  sprintf("Get%s_batch <- jax$vmap( Get%s <- function(
+          ModelList, ModelList_fixed,
+          m, vseed,
+          StateList, seed, MPList, inference){
+          GetDenseNet(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference, type = '%s')
+        }, in_axes = list(NULL, NULL,
+                          0L, 0L,
+                          NULL, NULL, NULL, NULL),
+           axis_name = batch_axis_name,
+           out_axes = list(0L, NULL))", type_, type_ , type_)))
+      }
+      if(grepl(heterogeneityModelType, pattern = "variational")){
+        getClusterSamp_logitInput <- function(logits_, seed_){
+          return( oryx$distributions$RelaxedOneHotCategorical(temperature = c2f(temperature),
+                    logits =  logits_ )$sample(seed = jnp$add(452L, seed_)) )
+        }
+        if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
+          GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
+            EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
+                                m, vseed, StateList, seed, MPList, inference)[[1]]
+            Clust_logits <- GetTau_batch(ModelList,ModelList_fixed,
+                                         m, vseed, StateList, seed, MPList, inference)[[1]]
+            clustT <- getClusterSamp_logitInput(Clust_logits, seed)
+            ETau_draw <-  oryx$distributions$Normal(
+                            c2f(getTau_means(ModelList)),
+                      jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = jnp$add(10L,seed))
+            Etau_i <- jnp$sum(jnp$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
+            return( EY0 + Etau_i )
+          }
+        }
+        getTau_means <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_Mean1"), LE(ModelList, "Tau_Mean2") )) )  }
+        getTau_sds <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_SD1"), LE(ModelList, "Tau_SD2") )) )  }
+      }
       getSDY_params <- function(ModelList, qname, pname){ return(
         jnp$stack(list(LE(ModelList, sprintf("%s_%s1", qname, pname)),
                        LE(ModelList, sprintf("%s_%s2", qname, pname)) )) ) }
-    }
-
-    GetLikelihoodDraw_batch <- function(
-                                        ModelList, ModelList_fixed,
-                                        m, treat, y, vseed,
-                                        StateList, seed, MPList, inference){
-      # image representation model
-      if(SharedImageRepresentation){
-        print2("Getting image representation...")
-        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                m, StateList, seed, MPList, inference)
-        StateList <- m[[2]]; m <- m[[1]]
-      }
-
-      print2("Getting cluster logits...")
-      clustT <- GetTau_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
-      StateList <- clustT[[2]]; clustT <- clustT[[1]]
-      clustT <- MPList[[1]]$cast_to_compute( getClusterSamp_logitInput(c2f(clustT), seed) )
-
-      print2("Getting baseline outcome...")
-      EY0_i <- GetEY0_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
-      StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
-
-      print2("Setting up Bayesian model...")
-      # note: use vseed if vmapping and seed if pre-batched
-      ETau_draw <- oryx$distributions$Normal(
-        c2f(getTau_means( ModelList )),
-        jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = jnp$add(seed,111L) )
-      ETau_draw <- MPList[[1]]$cast_to_compute( ETau_draw )
-
-      # get SD draws
-      EY0Uncert_draw <- oryx$distributions$Normal(
-                      c2f( getSDY_params(ModelList,"Y0", "Mean") ),
-                     jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = jnp$add(seed,324L) )
-      EY0Uncert_draw <- jax$nn$softplus( EY0Uncert_draw )
-      EY0Uncert_draw <- MPList[[1]]$cast_to_compute( EY0Uncert_draw )
-
-      EY1Uncert_draw <- oryx$distributions$Normal(
-                      c2f( getSDY_params(ModelList, "Y1", "Mean")) ,
-        jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = jnp$add(seed,3234L))
-      EY1Uncert_draw <- jax$nn$softplus( EY1Uncert_draw )
-      EY1Uncert_draw <- MPList[[1]]$cast_to_compute( EY1Uncert_draw )
-
-      # setup likelihood
-      #Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), 1L , keepdims=F)
-      #Sigma2_Y0_i <- jnp$sum(jnp$multiply( EY0SD_draw^cnst(2), clustT),1L,keepdims=F)
-      #Sigma2_Y1_i <- jnp$sum(jnp$multiply( EY1SD_draw^cnst(2), clustT),1L,keepdims=F)
-      Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), keepdims=F)
-      EY0Uncert_draw <- jnp$sum(jnp$multiply( EY0Uncert_draw, clustT),keepdims=F)
-      EY1Uncert_draw <- jnp$sum(jnp$multiply( EY1Uncert_draw, clustT),keepdims=F)
-      Y_Sigma <- (jnp$multiply( cnst(1) - treat , EY0Uncert_draw ) +
-                    jnp$multiply( treat, EY1Uncert_draw ))
-      Y_Mean <- jnp$multiply( cnst(1) - treat, EY0_i ) +
-                     jnp$multiply( treat, EY0_i + Etau_i)
-
-      # some commented analyses to triple-check code correctness re: initialization
-      #lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = Y_Mean, scale = Y_Sigma)$log_prob(y) )
-      lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = c2f(Y_Mean), scale = c2f(Y_Sigma) )$log_prob(c2f(y)) )
-
-      # simplify by uncommenting
-      #lik_dist_draw <- jnp$negative(  jnp$mean((Y_Mean - y)^2) ) # later we - to min the sum of squares
-
-      # return
-      return(list(lik_dist_draw, StateList));
-    }
-
-    # get KL terms
-    getKL <- (function(ModelList){
-      # specify some distributions
-      if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
-        Tau_mean_vec <- getTau_means(ModelList)
-        MeanDist_Tau_post = oryx$distributions$Normal(Tau_mean_vec, jax$nn$softplus(c2f(jnp$stack(MeanDist_tau[,"SD"]))))
-      }
-      SDDist_Y1_post = oryx$distributions$Normal(jnp$stack(SDDist_Y1[,"Mean"]), jax$nn$softplus(jnp$stack(SDDist_Y1[,"SD"])))
-      SDDist_Y0_post = oryx$distributions$Normal(jnp$stack(SDDist_Y0[,"Mean"]), jax$nn$softplus(jnp$stack(SDDist_Y0[,"SD"])))
-
-      # generate KL components
-      KLterm <- jnp$zeros(list(), dtype = keras_layers_dtype)
-      if(! heterogeneityModelType  %in% c("variational_minimal_visualizer")){
-        if(nDepth_Dense > 0){ for(dense_ in 1:nDepth_Dense){
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_a$kernel_posterior,DenseProj_Y0_%s_a$kernel_prior)",nDepth_Dense, nDepth_Dense)))
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_a$kernel_posterior,DenseProj_Clust_%s_a$kernel_prior)",nDepth_Dense, nDepth_Dense)))
-
-          # comment if not using _b
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_b$kernel_posterior,DenseProj_Y0_%s_b$kernel_prior)",nDepth_Dense, nDepth_Dense)))
-          KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_b$kernel_posterior,DenseProj_Clust_%s_b$kernel_prior)",nDepth_Dense, nDepth_Dense)))
-        }}
-      }
-      if(heterogeneityModelType == "variational_minimal"){
-        KLterm <- KLterm + jnp$sum(tfd$kl_divergence(MeanDist_Tau_post, (MeanDist_tau[,"Prior"][[1]])))
-      }
-      KLterm <- KLterm + jnp$sum(tfd$kl_divergence(SDDist_Y0_post, (SDDist_Y0[,"Prior"][[1]])))
-      KLterm <- KLterm + jnp$sum(tfd$kl_divergence(SDDist_Y1_post, (SDDist_Y1[,"Prior"][[1]])))
-      return( KLterm  )
-    })
-
-    GetExpectedLikelihood <-  function(ModelList, ModelList_fixed,
-                                        m, treat, y, vseed,
-                                        StateList, seed, MPList, inference){
-      Elik <- jnp$zeros(list(), dtype = jnp$float16)
-      for(mi_ in 1L:nMonte_variational){
-        LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
-                                                m, treat, y, jnp$add(vseed, mi_),
-                                                StateList, jnp$add(seed, mi_), MPList, inference)
-        StateList <- LikContrib[[2]]; LikContrib <- LikContrib[[1]]
-        Elik <- Elik + LikContrib / jnp$array(f2n(nMonte_variational), jnp$float16)
-      }
-      return( list(Elik, StateList) )
-    }
-
-    GetLoss <- function(ModelList, ModelList_fixed,
-                        m, treat, y, vseed,
-                        StateList, seed, MPList){
-        ModelList <- MPList[[1]]$cast_to_compute( ModelList )
-        ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
-        StateList <- MPList[[1]]$cast_to_compute( StateList )
-
-        # likelihood and state updates
-        Elik <- GetExpectedLikelihood(ModelList, ModelList_fixed,
-                                      m, treat, y, vseed,
-                                      StateList, seed, MPList, F) # note: inference = F
-        StateList <- Elik[[2]]; Elik <- Elik[[1]]
-
-        # minimize negative log likelihood and positive KL term
-        if(BAYES_STEP == 1){ minThis <- jnp$negative( Elik ) }
-        if(BAYES_STEP == 2){ minThis <- CombineLikelihoodWithKL( Elik, klContrib ) }
-
-        print2("Returning loss + state...")
-        minThis <- MPList[[1]]$cast_to_output( minThis ) # compute to output dtype
-        minThis <- MPList[[2]]$scale( minThis ) # scale loss
-
-        StateList <- MPList[[1]]$cast_to_param( StateList ) # cast to param dtype
-        return( list(minThis, StateList)  )
-    }
-
-    CombineLikelihoodWithKL <- ( function(lik_, kl_){
-      minThis <- tf$negative(jnp$sum( lik_ ))
-      if(BAYES_STEP == 2){
-        minThis <- minThis + KL_wt * kl_ # combine likelihood with prior
-      }
-      minThis <- minThis / cnst(as.numeric(batchSize)) # normalize
-    })
-
-    # set state and model lists
-    gc(); py_gc$collect()
-    GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-    if(!optimizeImageRep){
-      ModelList <- list(DenseList, CausalList)
-      ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
-    }
-    if(optimizeImageRep){
-      ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]],
-                        DenseList, CausalList)
-      ModelList_fixed <- jnp$array(0.)
-    }
-    StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
-    MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
-                   jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float16),
-                                        min_loss_scale = jnp$array(1.,dtype = jnp$float16),
-                                        period = 20L))
-    ModelList <- MPList[[1]]$cast_to_param( ModelList )
-    ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
-    rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
-
-    # define optimizer and training step
-    {
-      unitwise_norm <- function(x){
-          # """Computes norms of each output unit separately."""
-        if(jnp$squeeze(x)$ndim <= 1L){  # Scalars and vectors
-          squared_norm <- jnp$sum(jnp$square(x), keepdims=T)
+      if(grepl(heterogeneityModelType, pattern = "tarnet")){
+        GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
+          EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
+                              m, vseed, StateList, seed, MPList, inference)[[1]]
+          Etau_i <- jnp$expand_dims(jnp$take(GetTau_batch(ModelList,ModelList_fixed,
+                                 m, vseed, StateList, seed, MPList, inference)[[1]], 1L, axis = 1L), 1L)
+          return( EY0 + Etau_i )
         }
-        # Note that this assumes parameters with a shape of length 3 are multihead
-        # linear parameters--if you wish to apply AGC to 1D convs, you may need
-        # to modify this line.
-        if( x$ndim %in% c(2L, 3L)){  # Linear layers of shape IO or multihead linear
-          squared_norm <- jnp$sum(jnp$square(x), axis=0L, keepdims=T)
-        }
-
-        # Conv kernels of shape HWIO - from original code
-        # if( x$ndim == 4L){  squared_norm = jnp$sum(jnp$square(x), axis=c(0L, 1L, 2L), keepdims=T) }
-
-        # Conv kernels of shape OIHW
-        if( x$ndim == 4L){ squared_norm <- jnp$sum(jnp$square(x), axis=c(1L:3L), keepdims=T) }
-
-        if( x$ndim == 5L){
-          squared_norm <- jnp$sum(jnp$square(x), axis=c(1L:4L), keepdims=T)
-        }
-
-        return( jnp$broadcast_to(jnp$sqrt(squared_norm), x$shape) )
       }
-      MyAdaptiveGradClip <- eq$filter_jit( function(updates, params){
-        eps <- jnp$array(0.001); clipping <- jnp$array( 0.05 )
-        g_norm <- jax$tree_util$tree_map(unitwise_norm, list(updates, params))
-        p_norm <- g_norm[[2]]; g_norm <- g_norm[[1]]
-
-        # Maximum allowable norm.
-        max_norm = jax$tree_util$tree_map(
-          function( x ){ clipping * jnp$maximum(x, eps)}, p_norm)
-
-        # If grad norm > clipping * param_norm, rescale.
-        updates <- jax$tree_util$tree_map(function(g_norm, max_norm, grad){
-          clipped_grad <- grad * (max_norm / jnp$maximum(g_norm, jnp$array(0.001)))
-          return( jnp$where(g_norm < max_norm, grad, clipped_grad))},
-              g_norm, max_norm, updates)
-        return( updates )
+  
+      GetLikelihoodDraw_batch <- function(
+                                          ModelList, ModelList_fixed,
+                                          m, treat, y, vseed,
+                                          StateList, seed, MPList, inference){
+        # image representation model
+        if(SharedImageRepresentation){
+          print2("Getting image representation...")
+          m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
+                                  m, StateList, seed, MPList, inference)
+          StateList <- m[[2]]; m <- m[[1]]
+        }
+  
+        print2("Getting cluster logits...")
+        clustT <- GetTau_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
+        StateList <- clustT[[2]]; clustT <- clustT[[1]]
+        
+        print2("Getting baseline outcome...")
+        EY0_i <- GetEY0_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
+        StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
+        
+        if(grepl(heterogeneityModelType,pattern="tarnet")){ 
+          Etau_i <- jnp$expand_dims(jnp$take(clustT, 1L, axis = 1L),1L)
+          EY0Uncert_draw <- jnp$take(jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0", "Mean"))),0L)
+          EY1Uncert_draw <- jnp$take(jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "Mean"))),0L)
+        }
+        if(grepl(heterogeneityModelType,pattern="variational")){ 
+          clustT <- MPList[[1]]$cast_to_compute( getClusterSamp_logitInput(c2f(clustT), seed) )
+          
+          # note: use vseed if vmapping and seed if pre-batched
+          ETau_draw <- oryx$distributions$Normal(
+            c2f(getTau_means( ModelList )),
+            jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = jnp$add(seed,111L) )
+          ETau_draw <- MPList[[1]]$cast_to_compute( ETau_draw )
+    
+          # get SD draws
+          EY0Uncert_draw <- oryx$distributions$Normal(
+                          c2f( getSDY_params(ModelList,"Y0", "Mean") ),
+                         jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = jnp$add(seed,324L) )
+          EY0Uncert_draw <- MPList[[1]]$cast_to_compute( jax$nn$softplus( EY0Uncert_draw ) )
+    
+          EY1Uncert_draw <- oryx$distributions$Normal(
+                          c2f( getSDY_params(ModelList, "Y1", "Mean")) ,
+            jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = jnp$add(seed,3234L))
+          EY1Uncert_draw <- MPList[[1]]$cast_to_compute( jax$nn$softplus( EY1Uncert_draw ) )
+    
+          # setup likelihood
+          #Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), 1L , keepdims=F)
+          #Sigma2_Y0_i <- jnp$sum(jnp$multiply( EY0SD_draw^cnst(2), clustT),1L,keepdims=F)
+          #Sigma2_Y1_i <- jnp$sum(jnp$multiply( EY1SD_draw^cnst(2), clustT),1L,keepdims=F)
+          Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), keepdims=F)
+          EY0Uncert_draw <- jnp$sum(jnp$multiply( EY0Uncert_draw, clustT),keepdims=F)
+          EY1Uncert_draw <- jnp$sum(jnp$multiply( EY1Uncert_draw, clustT),keepdims=F)
+        } 
+        
+        Y_Sigma <- (jnp$multiply( cnst(1) - treat , EY0Uncert_draw ) +
+                        jnp$multiply( treat, EY1Uncert_draw ))
+        Y_Mean <- jnp$multiply( cnst(1) - treat, EY0_i ) +
+                       jnp$multiply( treat, EY0_i + Etau_i)
+  
+        # some commented analyses to triple-check code correctness re: initialization
+        #lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = Y_Mean, scale = Y_Sigma)$log_prob(y) )
+        lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = c2f(Y_Mean), 
+                                                             scale = c2f(Y_Sigma) )$log_prob(c2f(y)) )
+  
+        # simplify by uncommenting
+        #lik_dist_draw <- jnp$negative(  jnp$mean((Y_Mean - y)^2) ) # later we - to min the sum of squares
+  
+        # return
+        return(list(lik_dist_draw, StateList));
+      }
+  
+      # get KL terms
+      getKL <- (function(ModelList){
+        # specify some distributions
+        if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
+          Tau_mean_vec <- getTau_means(ModelList)
+          MeanDist_Tau_post = oryx$distributions$Normal(Tau_mean_vec, jax$nn$softplus(c2f(jnp$stack(MeanDist_tau[,"SD"]))))
+        }
+        SDDist_Y1_post = oryx$distributions$Normal(jnp$stack(SDDist_Y1[,"Mean"]), jax$nn$softplus(jnp$stack(SDDist_Y1[,"SD"])))
+        SDDist_Y0_post = oryx$distributions$Normal(jnp$stack(SDDist_Y0[,"Mean"]), jax$nn$softplus(jnp$stack(SDDist_Y0[,"SD"])))
+  
+        # generate KL components
+        KLterm <- jnp$zeros(list(), dtype = keras_layers_dtype)
+        if(! heterogeneityModelType  %in% c("variational_minimal_visualizer")){
+          if(nDepth_Dense > 0){ for(dense_ in 1:nDepth_Dense){
+            KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_a$kernel_posterior,DenseProj_Y0_%s_a$kernel_prior)",nDepth_Dense, nDepth_Dense)))
+            KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_a$kernel_posterior,DenseProj_Clust_%s_a$kernel_prior)",nDepth_Dense, nDepth_Dense)))
+  
+            # comment if not using _b
+            KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Y0_%s_b$kernel_posterior,DenseProj_Y0_%s_b$kernel_prior)",nDepth_Dense, nDepth_Dense)))
+            KLterm <- KLterm + eval(parse(text=sprintf("tfd$kl_divergence(DenseProj_Clust_%s_b$kernel_posterior,DenseProj_Clust_%s_b$kernel_prior)",nDepth_Dense, nDepth_Dense)))
+          }}
+        }
+        if(heterogeneityModelType == "variational_minimal"){
+          KLterm <- KLterm + jnp$sum(tfd$kl_divergence(MeanDist_Tau_post, (MeanDist_tau[,"Prior"][[1]])))
+        }
+        KLterm <- KLterm + jnp$sum(tfd$kl_divergence(SDDist_Y0_post, (SDDist_Y0[,"Prior"][[1]])))
+        KLterm <- KLterm + jnp$sum(tfd$kl_divergence(SDDist_Y1_post, (SDDist_Y1[,"Prior"][[1]])))
+        return( KLterm  )
       })
-      LR_schedule <- optax$cosine_decay_schedule( init_value = learningRateMax, decay_steps = nSGD )
-      optax_optimizer <-  optax$chain(
-        optax$clip(1), # optax$zero_nans(),
-        # optax$adaptive_grad_clip(clipping = 0.1), # bug with equinox's Conv4D
-        optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
-      )
-
-      # model partition, setup state, perform parameter count
-      opt_state <- optax_optimizer$init( eq$partition(ModelList, eq$is_array)[[1]] )
-      print2(sprintf("Total trainable parameter count: %s",
-                     nParams <- sum(unlist(lapply(jax$tree_leaves( eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
-
-      # jit update fxns
-      jit_apply_updates <- eq$filter_jit(optax$apply_updates)
-      jit_get_update <- eq$filter_jit(optax_optimizer$update)
-    }
-
-    print2("Starting training...")
-    keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
-    if(BAYES_STEP == 2){
-      eval(parse(text = sprintf("rm(%s)",paste(ls()[grepl(ls(),pattern="HASH818")] ,collapse= ',') )))
-    }
-
-    # training loop
-    gc(); py_gc$collect()
-    IndicesByW <- tapply(1:length(obsW),obsW,c)
-    UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
-    L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
-    keysUsedInTraining <- c()
-    n_sgd_iters <- nSGD; tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
-        t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
-
-        ds_next_train <- ds_iterator_train$`next`()
-
-        # if we run out of observations, reset iterator
-        RestartedIterator <- F; if( is.null(ds_next_train) ){
-            print2("Re-setting iterator! (type 1)")
-            ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-            ds_next_train <-  ds_iterator_train$`next`(); py_gc$collect()
+  
+      GetExpectedLikelihood <-  function(ModelList, ModelList_fixed,
+                                          m, treat, y, vseed,
+                                          StateList, seed, MPList, inference){
+        Elik <- jnp$zeros(list(), dtype = jnp$float16)
+        for(mi_ in 1L:nMonte_variational){
+          LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
+                                                  m, treat, y, jnp$add(vseed, mi_),
+                                                  StateList, jnp$add(seed, mi_), MPList, inference)
+          StateList <- LikContrib[[2]]; LikContrib <- LikContrib[[1]]
+          Elik <- Elik + LikContrib / jnp$array(f2n(nMonte_variational), jnp$float16)
         }
-
-          # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-        if(!RestartedIterator){ if(length(ds_next_train[[3]]) != batchSize){
-              print2("Re-setting iterator! (type 2)")
+        return( list(Elik, StateList) )
+      }
+  
+      GetLoss <- function(ModelList, ModelList_fixed,
+                          m, treat, y, vseed,
+                          StateList, seed, MPList){
+          ModelList <- MPList[[1]]$cast_to_compute( ModelList )
+          ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
+          StateList <- MPList[[1]]$cast_to_compute( StateList )
+  
+          # likelihood and state updates
+          Elik <- GetExpectedLikelihood(ModelList, ModelList_fixed,
+                                        m, treat, y, vseed,
+                                        StateList, seed, MPList, F) # note: inference = F
+          StateList <- Elik[[2]]; Elik <- Elik[[1]]
+  
+          # minimize negative log likelihood and positive KL term
+          if(BAYES_STEP == 1){ minThis <- jnp$negative( Elik ) }
+          if(BAYES_STEP == 2){ minThis <- CombineLikelihoodWithKL( Elik, klContrib ) }
+  
+          print2("Returning loss + state...")
+          minThis <- MPList[[1]]$cast_to_output( minThis ) # compute to output dtype
+          minThis <- MPList[[2]]$scale( minThis ) # scale loss
+  
+          StateList <- MPList[[1]]$cast_to_param( StateList ) # cast to param dtype
+          return( list(minThis, StateList)  )
+      }
+  
+      CombineLikelihoodWithKL <- ( function(lik_, kl_){
+        minThis <- tf$negative(jnp$sum( lik_ ))
+        if(BAYES_STEP == 2){
+          minThis <- minThis + KL_wt * kl_ # combine likelihood with prior
+        }
+        minThis <- minThis / cnst(as.numeric(batchSize)) # normalize
+      })
+  
+      # set state and model lists
+      gc(); py_gc$collect()
+      GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
+      if(!optimizeImageRep){
+        ModelList <- list(DenseList, CausalList)
+        ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
+      }
+      if(optimizeImageRep){
+        ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]],
+                          DenseList, CausalList)
+        ModelList_fixed <- jnp$array(0.)
+      }
+      StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
+      MPList <- list(jmp$Policy(compute_dtype="float16", param_dtype="float32", output_dtype="float16"),
+                     jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float16),
+                                          min_loss_scale = jnp$array(1.,dtype = jnp$float16),
+                                          period = 20L))
+      ModelList <- MPList[[1]]$cast_to_param( ModelList )
+      ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
+      rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
+  
+      # define optimizer and training step
+      {
+        LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(50, nSGD))),
+                                                          decay_steps = max(c(51, nSGD-nWarmup)),
+                                                          init_value = learningRateMax/100, 
+                                                          peak_value = learningRateMax, 
+                                                          end_value =  learningRateMax/100)
+        optax_optimizer <-  optax$chain(
+          optax$clip(1), 
+          optax$adaptive_grad_clip(clipping = 0.1),
+          optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
+        )
+  
+        # model partition, setup state, perform parameter count
+        opt_state <- optax_optimizer$init( eq$partition(ModelList, eq$is_array)[[1]] )
+        print2(sprintf("Total trainable parameter count: %s", nParams <- sum(unlist(lapply(jax$tree_leaves( eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
+  
+        # jit update fxns
+        jit_apply_updates <- eq$filter_jit(optax$apply_updates)
+        jit_get_update <- eq$filter_jit(optax_optimizer$update)
+      }
+  
+      print2(sprintf("Starting training at k = %s of %s...",k_, kFolds))
+      keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
+      if(BAYES_STEP == 2){
+        eval(parse(text = sprintf("rm(%s)",paste(ls()[grepl(ls(),pattern="HASH818")] ,collapse= ',') )))
+      }
+  
+      # training loop
+      gc(); py_gc$collect()
+      IndicesByW <- tapply(1:length(obsW),obsW,c)
+      UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
+      L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
+      n_sgd_iters <- nSGD; keysUsedInTraining <- tauMeans <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
+          t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
+  
+          ds_next_train <- try(ds_iterator_train$`next`(),T)
+          if("try-error" %in% class(ds_next_train)){browser()}
+  
+          # if we run out of observations, reset iterator
+          RestartedIterator <- F; if( is.null(ds_next_train) ){
+              print2("Re-setting iterator! (type 1)")
               ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-              ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
-        } }
-
-        # select batch indices based on keys
-        batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
-        batch_indices <- sapply(batch_keys, function(key_){
-          f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-        ds_next_train <- ds_next_train[[1]]
-        if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
-
-        # debugging
-        if(T == F){
-          m <- InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L), inference = F)
-          treat <- jnp$array(as.matrix(obsW[batch_indices]), jnp$float16)
-          y <- jnp$array(as.matrix(obsY[batch_indices]), jnp$float16); inference = F
-          vseed <- jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize)
-          seed <-  jax$random$PRNGKey( 500L+i )
-          # GetLikelihoodDraw;
-          GetLoss_jit <- eq$filter_jit( GetLoss )
-          myLoss_fromGrad <- GetLoss(
-          #myLoss_fromGrad <- GetLoss_jit(
-                                    ModelList, ModelList_fixed,
-                                    InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F),  # m
-                                    jnp$array(as.matrix(obsW[batch_indices]), jnp$float16), # treat
-                                    jnp$array(as.matrix(obsY[batch_indices]), jnp$float16), # y
-                                    vseed,
-                                    StateList,
-                                    jax$random$PRNGKey( 123L+i ), # seed
-                                    MPList)
+              ds_next_train <-  ds_iterator_train$`next`(); py_gc$collect()
+          }
+  
+            # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
+          if(!RestartedIterator){ if(length(ds_next_train[[3]]) != batchSize){
+                print2("Re-setting iterator! (type 2)")
+                ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+                ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
+          } }
+  
+          # select batch indices based on keys
+          batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
+          batch_indices <- sapply(batch_keys, function(key_){
+            f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
+          ds_next_train <- ds_next_train[[1]]
+          if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
+  
+      # training step
+      if( justCheckCrossFitter <- F ){ print("Just checking cross-fitter...") }
+      if( !justCheckCrossFitter ){ 
+          t1 <- Sys.time();
+          # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
+          GradientUpdatePackage <- GradAndLossAndAux(
+                                                   MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
+                                                   InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
+                                                   jnp$array(as.matrix(obsW[batch_indices]),dtype = jnp$float16), # treat
+                                                   jnp$array(as.matrix(obsY[batch_indices]),dtype = jnp$float16), # y
+                                                   jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
+                                                   StateList, # StateList
+                                                   jax$random$PRNGKey( 123L+i ), # seed
+                                                   MPList # MPlist
+                                                   )
+  
+          if(!"try-error" %in% class(GradientUpdatePackage)){
+            # get updated state
+            StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
+  
+            # get loss + grad
+            loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+            GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
+            GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
+            GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
+  
+            # unscale + adjust loss scale is some non-finite or NA
+            if(i == 1){
+              Map2Zero <- eq$filter_jit(function(input){
+                jax$tree_map(function(x){ jnp$where(jnp$isnan(x),
+                                                    jnp$array(0), x)}, input) })
+              AllFinite <- jax$jit( jmp$all_finite )
+            }
+            GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
+            AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
+            MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
+  
+            # update parameters if finite gradients
+            DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
+            if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients in mixed-precision training...") }
+            if( DoUpdate ){
+              DoneUpdates <- DoneUpdates + 1
+  
+              # get updates
+              GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
+              GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
+                                                       state = opt_state,
+                                                       params =  eq$partition(ModelList, eq$is_array)[[1]] )
+  
+              # separate updates from state
+              opt_state <- GradientUpdatePackage[[2]]
+              GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
+  
+              # perform update
+              ModelList <- eq$combine( jit_apply_updates(
+                            params = GlobalPartition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
+                            updates = GlobalPartition(GradientUpdatePackage,PartFxn)[[1]] ),
+                        eq$partition(ModelList, eq$is_array)[[2]])
+  
+              # feed in updates for state and model
+              StateList <- StateList_tmp
+              rm(GradientUpdatePackage, StateList_tmp)
+            }
+         } #
+  
+        # print diagnostics
+        i_ <- i ; if(i %% 10 == 0 | i < 10 ){
+          print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - Total time (s): %.2f - Grad time (s): %.2f",
+                         i, n_sgd_iters,
+                         loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
+                         (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ))
+          loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
+          try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
+          if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
         }
-
-        # training step
-        t1 <- Sys.time();
-        # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-        GradientUpdatePackage <- GradAndLossAndAux(
-                                                 MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                                                 InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-                                                 jnp$array(obsW[batch_indices],dtype = jnp$float16), # treat
-                                                 jnp$array(obsY[batch_indices],dtype = jnp$float16), # y
-                                                 jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                                                 StateList, # StateList
-                                                 jax$random$PRNGKey( 123L+i ), # seed
-                                                 MPList # MPlist
-                                                 )
-
-        if(!"try-error" %in% class(GradientUpdatePackage)){
-          # get updated state
-          StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
-
-          # get loss + grad
-          loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
-          GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
-          GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
-          GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
-
-          # unscale + adjust loss scale is some non-finite or NA
-          if(i == 1){
-            Map2Zero <- eq$filter_jit(function(input){
-              jax$tree_map(function(x){ jnp$where(jnp$isnan(x),
-                                                  jnp$array(0), x)}, input) })
-            AllFinite <- jax$jit( jmp$all_finite )
+        if(BAYES_STEP == 1){
+        if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
+          windowCounter <- windowCounter + 1; z_counter <- 0
+          if(T == F){
+          for(z in trainable_variables){
+            z_counter <- z_counter + 1
+            z_name_orig <- z_name_ <- z$name
+            z_name_ <- gsub(z_name_, pattern = ":",replacement = "XCOLX")
+            z_name_ <- gsub(z_name_, pattern = "/",replacement = "XDASHX")
+            if(windowCounter == 1){
+              eval(parse(text = sprintf("SZ_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
+              eval(parse(text = sprintf("SZ2_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
+            }
+            try(eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_))), T)
+            try(eval(parse(text = sprintf("SZ2_%s <- jnp$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_))), T)
+            if(i == n_sgd_iters){
+              #eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
+              try(eval(parse(text = sprintf("RollVar_%s <- tf$cast(1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow),dtype=keras_layers_dtype)", z_name_,z_name_))), T)
+            }
           }
-          GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
-          AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
-          MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-
-          # update parameters if finite gradients
-          DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
-          if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients in mixed-precision training...") }
-          if( DoUpdate ){
-            DoneUpdates <- DoneUpdates + 1
-
-            # get updates
-            GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
-            GradientUpdatePackage <- MyAdaptiveGradClip( GradientUpdatePackage,
-                                                         eq$partition(ModelList, eq$is_array)[[1]] )
-            GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
-                                                     state = opt_state,
-                                                     params =  eq$partition(ModelList, eq$is_array)[[1]] )
-
-            # separate updates from state
-            opt_state <- GradientUpdatePackage[[2]]
-            GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
-
-            # perform update
-            ModelList <- eq$combine( jit_apply_updates(
-                          params = GlobalPartition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
-                          updates = GlobalPartition(GradientUpdatePackage,PartFxn)[[1]] ),
-                      eq$partition(ModelList, eq$is_array)[[2]])
-
-            # feed in updates for state and model
-            StateList <- StateList_tmp
-            rm(GradientUpdatePackage, StateList_tmp)
-          }
-       } #
-
-      # print diagnostics
-      i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - Total time (s): %.2f - Grad time (s): %.2f",
-                       i, n_sgd_iters,
-                       loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
-                       (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ))
-        loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-        try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
-        if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
-      }
-      if(BAYES_STEP == 1){
-      if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
-        windowCounter <- windowCounter + 1; z_counter <- 0
-        if(T == F){
-        for(z in trainable_variables){
-          z_counter <- z_counter + 1
-          z_name_orig <- z_name_ <- z$name
-          z_name_ <- gsub(z_name_, pattern = ":",replacement = "XCOLX")
-          z_name_ <- gsub(z_name_, pattern = "/",replacement = "XDASHX")
-          if(windowCounter == 1){
-            eval(parse(text = sprintf("SZ_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
-            eval(parse(text = sprintf("SZ2_%s <- jnp$zeros(jnp$shape(z), dtype = keras_layers_dtype)", z_name_)))
-          }
-          try(eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_))), T)
-          try(eval(parse(text = sprintf("SZ2_%s <- jnp$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_))), T)
-          if(i == n_sgd_iters){
-            #eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
-            #eval(parse(text = sprintf("RollVar_%s <- tf$maximum(0.0001,SZ2_%s/nWindow - RollMean_%s^2)", z_name_,z_name_,z_name_,z_name_)))
-            try(eval(parse(text = sprintf("RollVar_%s <- tf$cast(1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow),dtype=keras_layers_dtype)", z_name_,z_name_))), T)
           }
         }
         }
       }
-      }
-    } # end for(i in i_:nSGD){
-  }
-
-    print2("Getting predicted quantities...")
-    GetSummaries <- eq$filter_jit(function(ModelList, ModelList_fixed,
-                                           m, vseed,
-                                           StateList, seed, MPList){
-      # image representation model
-      if(SharedImageRepresentation){
-        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                          m, StateList, seed, MPList, T)
-        StateList <- m[[2]] ; m <- m[[1]]
-      }
-      y0_ <- sapply(1L:nMonte_predictive, function(iter){ list(jnp$expand_dims(
-                       GetEY0_batch(ModelList, ModelList_fixed,
-                                    m,  jnp$add(vseed,iter), StateList, jnp$add(seed,iter), MPList, T)[[1]], 0L)) })
-      y1_ <- sapply(1L:nMonte_predictive, function(iter){ list(jnp$expand_dims(
-                      GetEY1_batch(ModelList, ModelList_fixed,
-                                    m, jnp$add(vseed,iter), StateList, jnp$add(seed,iter), MPList, T), 0L)) })
-      y0_ <- jnp$concatenate(y0_,0L); y0_ <- jnp$mean(y0_,0L)
-      y1_ <- jnp$concatenate(y1_,0L); y1_ <- jnp$mean(y1_,0L)
-
-      # get predictions
-      ClusterProbs_est_ <- jnp$concatenate(sapply(1L:nMonte_predictive,function(iter){
-                          jnp$expand_dims(jax$nn$softmax(
-                                  GetTau_batch(ModelList, ModelList_fixed,
-                                               m, jnp$add(vseed,iter),
-                                               StateList, jnp$add(seed,iter), MPList, T)[[1]]), 0L) } ),0L)
-      ClusterProbs_std_ <- jnp$std(ClusterProbs_est_,0L)
-      ClusterProbs_est_ <- jnp$mean(ClusterProbs_est_,0L)
-      ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
-
-      return( list(y0_, y1_,
-                  ClusterProbs_est_,
-                  ClusterProbs_lower_conf_,
-                  ClusterProbs_std_) )
-    })
-
-    inference_counter <- 0; nUniqueKeys <- length(unique(imageKeysOfUnits))
-    KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.33) ))
-    #passedIterator <- NULL; Results_by_keys <- replicate(nUniqueKeys,list());for(zer in 1:nUniqueKeys){ # use when incorporating X's
-    passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
-    for(cut_ in unique(KeyQuantCuts)){ # use when not incorporating X's
-      # cut_ <- unique(KeyQuantCuts)[1]
-      inference_counter <- inference_counter + 1
-      zer <- which(cut_   == KeyQuantCuts)
-      #gc(); py_gc$collect()
-      atP <- max(zer)/nUniqueKeys
-      if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done: %.3f", atP)) }
-        {
-          setwd(orig_wd);ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                         uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
-                                                         filename = file,
-                                                         iterator = passedIterator,
-                                                         readVideo = useVideo,
-                                                         image_dtype = image_dtype_tf,
-                                                         nObs = length(unique(imageKeysOfUnits)),
-                                                         return_iterator = T );setwd(new_wd)
-          passedIterator <- ds_next_in[[2]]
-          key_ <- try(unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy()) , as.character) ), T)
-          ds_next_in <- ds_next_in[[1]]
-
-          # deal with batch 1 case here
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
-          ds_next_in <- ds_next_in[[1]]
-      }
-
-      # get summaries and save
-      GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
-                                      InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T),
-                                      jax$random$split(jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                      StateList, jax$random$PRNGKey(as.integer(runif(1,0,100000))), MPList)
-      ret_list <- list("y0_" = as.matrix2(GottenSummaries[[1]]),
-                       "y1_" = as.matrix2(GottenSummaries[[2]]),
-                       "ClusterProbs_est_"=as.matrix2(GottenSummaries[[3]]),
-                       "ClusterProbs_lower_conf_"=as.matrix2(GottenSummaries[[4]]),
-                       "ClusterProbs_std_"=as.matrix2(GottenSummaries[[5]]),
-                       "key" = as.matrix( key_) )
-      if(runif(1)<0.1){ print(GottenSummaries[[3]]) }
-      Results_by_keys[[inference_counter]] <- ret_list
+      } # end for(i in i_:nSGD){
     }
-    print2("Done getting predicted quantities...")
-    Results_by_keys_list <- Results_by_keys
-    Results_by_keys <- ( do.call(rbind, Results_by_keys_list) )
-    Results_by_keys <- apply(Results_by_keys,2,function(zer){(do.call(rbind,zer))})
-
-    # checks
-    # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
-    # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
-    # mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
-
-    # re-order data
-    Results_by_keys <- lapply(Results_by_keys, function(zer){
-                                    zer[match(imageKeysOfUnits, unlist(  Results_by_keys[["key"]] )),]})
-
-    # checks
-    # unlist(Results_by_keys[["key"]]) == (imageKeysOfUnits)
-
-    # process all outcomes
-    Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T)
-    Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T)
-    Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
-    tau_i_est <- Rescale( Y1_est - Y0_est, doMean = F)
-    tau_vec_kmeans <- c(  kmeans(tau_i_est, centers=2)$centers)
-
+    
+    # remember training sequence 
     trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
     testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
-    Yobs_est_out <- Yobs_est[testIndices]
-    Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[trainIndices]))^2 )^0.5
-    Loss_out <- mean( (Yobs_est_out - mean(Yobs_est_out)) ^2)^0.5
+  
+  if(!justCheckCrossFitter){ 
+    print2("Getting predicted quantities...")
+    GetSummaries <- eq$filter_jit(function(ModelList, ModelList_fixed,
+                                             m, vseed,
+                                             StateList, seed, MPList){
+        # image representation model
+        if(SharedImageRepresentation){
+          m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
+                                            m, StateList, seed, MPList, T)
+          StateList <- m[[2]] ; m <- m[[1]]
+        }
+        y0_ <- sapply(1L:nMonte_predictive, function(iter){ list(jnp$expand_dims(
+                         GetEY0_batch(ModelList, ModelList_fixed,
+                                      m,  jnp$add(vseed,iter), StateList, jnp$add(seed,iter), MPList, T)[[1]], 0L)) })
+        y1_ <- sapply(1L:nMonte_predictive, function(iter){ list(jnp$expand_dims(
+                        GetEY1_batch(ModelList, ModelList_fixed,
+                                      m, jnp$add(vseed,iter), StateList, jnp$add(seed,iter), MPList, T), 0L)) })
+        y0_ <- jnp$concatenate(y0_,0L); y0_ <- jnp$mean(y0_,0L)
+        y1_ <- jnp$concatenate(y1_,0L); y1_ <- jnp$mean(y1_,0L)
+  
+        # get predictions
+        ClusterProbs_est_ <- jnp$concatenate(sapply(1L:nMonte_predictive,function(iter){
+                            jnp$expand_dims(jax$nn$softmax(
+                                    GetTau_batch(ModelList, ModelList_fixed,
+                                                 m, jnp$add(vseed,iter),
+                                                 StateList, jnp$add(seed,iter), MPList, T)[[1]]), 0L) } ),0L)
+        ClusterProbs_std_ <- jnp$std(ClusterProbs_est_,0L)
+        ClusterProbs_est_ <- jnp$mean(ClusterProbs_est_,0L)
+        ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
+  
+        return( list(y0_, y1_,
+                    ClusterProbs_est_,
+                    ClusterProbs_lower_conf_,
+                    ClusterProbs_std_) )
+      })
+  
+      inference_counter <- 0; nUniqueKeys <- length(unique(imageKeysOfUnits))
+      KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.5) ))
+      #passedIterator <- NULL; Results_by_keys <- replicate(nUniqueKeys,list());for(zer in 1:nUniqueKeys){ # use when incorporating X's
+      passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
+      for(cut_ in unique(KeyQuantCuts)){ # use when not incorporating X's
+        inference_counter <- inference_counter + 1
+        zer <- which(cut_   == KeyQuantCuts)
+        atP <- max(zer)/nUniqueKeys
+        if( any(zer %% 50 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done (inference): %.3f", atP)) }
+          {
+            setwd(orig_wd);ds_next_in <- GetElementFromTfRecordAtIndices(
+                                                           uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
+                                                           filename = file,
+                                                           iterator = passedIterator,
+                                                           readVideo = useVideoIndicator,
+                                                           image_dtype = image_dtype_tf,
+                                                           nObs = length(unique(imageKeysOfUnits)),
+                                                           return_iterator = T );setwd(new_wd)
+            passedIterator <- ds_next_in[[2]]
+            key_ <- try(unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy()) , as.character) ), T)
+            ds_next_in <- ds_next_in[[1]]
+  
+            # deal with batch 1 case here
+            if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+            if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+            ds_next_in <- ds_next_in[[1]]
+        }
+  
+        # get summaries and save
+        GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
+                                        InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T),
+                                        jax$random$split(jax$random$PRNGKey(ai(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                        StateList, jax$random$PRNGKey(ai(runif(1,0,100000))), MPList)
+        ret_list <- list("y0_" = as.matrix2(GottenSummaries[[1]]),
+                         "y1_" = as.matrix2(GottenSummaries[[2]]),
+                         "ClusterProbs_est_"=as.matrix2(GottenSummaries[[3]]),
+                         "ClusterProbs_lower_conf_"=as.matrix2(GottenSummaries[[4]]),
+                         "ClusterProbs_std_"=as.matrix2(GottenSummaries[[5]]),
+                         "key" = as.matrix( key_) )
+        Results_by_keys[[inference_counter]] <- ret_list
+      }
+      print2("Done getting predicted quantities...")
+      Results_by_keys_list <- Results_by_keys
+      Results_by_keys <- ( do.call(rbind, Results_by_keys_list) )
+      Results_by_keys <- apply(Results_by_keys,2,function(zer){(do.call(rbind,zer))})
+  
+      # re-order data
+      Results_by_keys <- lapply(Results_by_keys, function(zer){
+                                      zer[match(imageKeysOfUnits, unlist(  Results_by_keys[["key"]] )),]})
 
-    # check results
-    plot(Yobs_est,obsY_orig); abline(a=0,b=1)
-    if(grepl(heterogeneityModelType,pattern="variational_CNN")){ Tau_mean_vec <- tau_vec_kmeans; Tau_sd_vec <- NULL }
-    impliedATE <- mean(  tau_i_est )
+      # process all outcomes
+      Y0_est_mat <- cbind(Y0_est_mat,
+                          Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T))
+      Y1_est_mat <- cbind(Y1_est_mat,
+                          Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T))
+      Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
+      tau_i_est_mat <- cbind(tau_i_est_mat,
+                             tau_i_est <- Rescale( Y1_est - Y0_est, doMean = F))
+  
+      Yobs_est_out <- Yobs_est[testIndices]
+      Loss_out_baseline_vec <- c(Loss_out_baseline_vec,
+                                 Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[trainIndices]))^2 )^0.5)
+      Loss_out_vec <- c(Loss_out_vec, Loss_out <- mean( (Yobs_est_out - mean(Yobs_est_out))^2)^0.5)
+  }
 
+      # save test indices 
+      TestIndices_list[[kf_]] <- testIndices
+      TrainIndices_list[[kf_]] <- trainIndices
+  } # end k fold 
+  
+  if(justCheckCrossFitter){
+    return(list("CF_info" = list("TrainIndices_list"=TrainIndices_list, "TestIndices_list"=TestIndices_list)))
+  }
+  
     # process outcome predictions
     W_test <- obsW[testIndices]
     Y_test_truth <- obsY[testIndices]
@@ -1062,7 +1051,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # get cluster probs
   if(grepl(heterogeneityModelType, pattern = "variational")){
-    # characterizing the treatment effects
     print2("Summarizing results...")
     SDDist_Y1_post <- oryx$distributions$Normal(getSDY_params(ModelList, "Y1", "Mean"),
                                 jax$nn$softplus(getSDY_params(ModelList, "Y1", "SD")))
@@ -1080,30 +1068,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
       MeanDist_Tau_post = (oryx$distributions$Normal(Tau_mean_vec, Tau_sd_vec <- jax$nn$softplus(getTau_sds(ModelList))))
       Tau_sd_vec_ <- as.numeric2(tf$sqrt(tf$math$reduce_variance(MeanDist_Tau_post$sample(
                               100L, seed = jax$random$PRNGKey(45L)),0L)))
-                              #seed = Sigma0_sd_vec <- as.numeric2(jnp$mean(jax$nn$softplus(SDDist_Y0_post$sample(100L,
       Tau_sd_vec <- sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
       Tau_sd_vec <- Tau_sd_vec * Y_sd
     }
   }
 
   # transportability analysis
-  cluster_prob_transport_means <- NULL
-  if(!is.null(transportabilityMat)){
+  cluster_prob_transport_means <- NULL; if(!is.null(transportabilityMat)){
     print2("Getting posterior predictive mean probabilities for transportability analysis...")
     {
-      {
-      GetProbAndExpand <- function(m){jnp$expand_dims( jax$nn$softmax(GetTau(m,inference = T)),0L) }
+      if(grepl(heterogeneityModelType, pattern = "variational")){ GetProbAndExpand <- function(m){jnp$expand_dims( jax$nn$softmax(GetTau(m,inference = T)),0L) }}
+      if(grepl(heterogeneityModelType, pattern = "tarnet")){ GetProbAndExpand <- function(m){jnp$expand_dims( GetTau(m,inference = T),0L) }}
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
         gc(); py_gc$collect()
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
-
         {
           setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                          uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),
                                                          filename = file,
-                                                         readVideo = useVideo,
+                                                         readVideo = useVideoIndicator,
                                                          image_dtype = image_dtype_tf,
                                                          nObs = nrow(transportabilityMat) ); setwd(new_wd)
           if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
@@ -1121,7 +1106,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       colnames(cluster_prob_transport_means) <- paste('mean_k',1:ncol(cluster_prob_transport_means), sep = "")
       colnames(cluster_prob_transport_var) <- paste('var_k',1:ncol(cluster_prob_transport_means), sep = "")
       }
-      if(TRUE %in% transportabilityMat){
+    if(TRUE %in% transportabilityMat){
         transportabilityMat <- as.data.frame(cbind(
                                      "key"=imageKeysOfUnits,
                                      "long"=long,
@@ -1129,541 +1114,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
         cluster_prob_transport_means <- Results_by_keys$ClusterProbs_est_
         cluster_prob_transport_var <-  Results_by_keys$ClusterProbs_std_^2
       }
-      transportabilityMat <- try(cbind(transportabilityMat,
+    transportabilityMat <- try(cbind(transportabilityMat,
                                    cluster_prob_transport_means,
                                    cluster_prob_transport_var),T)
-    }
   }
 
   # perform plots
   if( changed_wd ){ setwd(  orig_wd  ) }
   if( plotResults == T){
-    print2("Plotting results...")
-    MPList <- list(jmp$Policy(compute_dtype="float32",
-                              param_dtype="float32",
-                              output_dtype="float32"),
-                   jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float32),
-                                        min_loss_scale = jnp$array(1.,dtype = jnp$float32),
-                                        period = 20L))
-    if(heterogeneityModelType == "variational_minimal"){
-      Tau_mean_vec_n <- as.numeric2( Tau_mean_vec )
-      synth_seq <- seq(min(Tau_mean_vec_n - 2 * as.numeric2(Tau_sd_vec),Tau_mean_vec_n - 2 * as.numeric2(Tau_sd_vec)),
-                       max(Tau_mean_vec_n + 2 * as.numeric2(Tau_sd_vec),Tau_mean_vec_n + 2 * as.numeric2(Tau_sd_vec)),
-                       length.out=1000)
-
-      if(truthKnown <- ("ClusterProbs" %in% ls(envir = globalenv()))){
-        my_density <- density(ClusterProbs)
-        my_density$y <- my_density$y
-        synth_seq <- seq(min(my_density$x,na.rm=T),max(my_density$x,na.rm=T),length.out=100)
-      }
-
-      for(kr_ in 1:kClust_est){
-        eval(parse(text = sprintf("d%s <- dnorm(synth_seq, mean = Tau_mean_vec_n[kr_], sd = Tau_sd_vec[kr_] )",  kr_)))
-      }
-      pdf(sprintf("%s/HeteroSimTauDensity%s_ExternalFigureKey%s.pdf",
-                  figuresPath, heterogeneityModelType, figuresTag))
-      {
-        par(mar=c(5,5,1,1))
-        numbering_seq <- 1:kClust_est #c("1","1")
-        col_seq <- 1:kClust_est #c("black","black")
-        #col_seq[which.max(c(as.numeric2(tau1),as.numeric2(tau2)))] <- "red"
-        #numbering_seq[which.max(c(as.numeric2(tau1),as.numeric2(tau2)))] <- 2
-          if(!truthKnown){
-            my_density <- eval(parse(text = sprintf("
-                        data.frame('y'=max(c(%s)))
-                        ", paste(paste("d",1:kClust_est,sep=""), collapse = ","))  ))
-          }
-          plot(my_density,
-               col = ifelse(truthKnown,yes="darkgray",no="white"),
-               lty = 2, cex = 0, lwd = 3,
-               xlim = c(min(synth_seq),max(synth_seq)),
-               ylim = c(0,max(my_density$y,na.rm=T)*1.5),
-               cex.lab = 2, main = "",
-               ylab = "Density",
-               xlab = "Per Image Treatment Effect")
-          if(!truthKnown){ axis(2,cex.axis = 1) }
-          #points(tau_vec, rep(0,times=kClust_est),
-          points(Tau_mean_vec_n, rep(0,times=kClust_est),
-                 col = col_seq,
-                 pch = "|", cex = 4)
-          for(krk_ in 1:kClust_est){
-            points(synth_seq,
-                   eval(parse(text = sprintf("d%s",krk_))),
-                   type = "l", col= col_seq[krk_],lwd = 3)
-          }
-          legends_seq_vec <- c(expression("True"~p(Y[i](1)-Y[i](0)~"|"~M[i])),
-                               sapply(numbering_seq, function(numbering_){
-                                    eval(parse(text=sprintf('
-              expression(hat(p)~"("~Y[i](1)-Y[i](0)~"|"~Z[i]==%s~")")',numbering_)))}))
-          lty_seq_vec <- c(2,1,1)
-          col_seq_vec <- c("gray",col_seq)
-          if(!truthKnown){
-            legends_seq_vec <- legends_seq_vec[-1]
-            col_seq_vec <- col_seq_vec[-1]
-            lty_seq_vec <- lty_seq_vec[-1]
-          }
-          legend("topleft", legend = legends_seq_vec,
-                 box.lwd = 0, box.lty = 0, cex = 2,
-                 lty = lty_seq_vec, col = col_seq_vec, lwd = 3)
-      }
-      dev.off()
-
-      if(truthKnown){
-        order_ <- order(ClusterProbs)
-        if(cor(ClusterProbs, ClusterProbs_est) > 0){
-          # we do this so the coloring stays consistent
-          col_dim <- rank(ClusterProbs_est)#gtools::quantcut(ClusterProbs_est, q = 100)
-        }
-        if(cor(ClusterProbs, ClusterProbs_est) < 0){
-          col_dim <- rank(-ClusterProbs_est)#gtools::quantcut(ClusterProbs_est, q = 100)
-        }
-        pdf(sprintf("%s/HeteroSimCluster_ExternalFigureKey%s.pdf",
-                    figuresPath, figuresTag))
-        {
-          par(mar=c(5,5,1,1))
-          plot( ClusterProbs[order_],
-                1:length(order_)/length(order_),
-                xlab = "Per Image Treatment Effect",
-                ylab = "Empirical CDF(x)",pch = 19,
-                col = viridis::magma(n=length(col_dim),alpha=0.9)[col_dim][order_],
-                cex = 1.5, cex.lab = 2)
-          legend("topleft",
-                 box.lwd = 0, box.lty = 0,
-                 pch = 19, #box.col = "white",
-                 col = c(viridis::magma(5)[2],
-                         viridis::magma(5)[3],
-                         viridis::magma(5)[4]),
-                 cex = 2,
-                 legend=c("Higher Clust 1 Prob.",
-                          "...",
-                          "Higher Clust 2 Prob."))
-        }
-        dev.off()
-      }
-    }
-
-    par(mfrow=c(1,1))
-    gc(); py_gc$collect()
-    try(hist(ClusterProbs_est),T)
-    plot(Yobs_est, obsY_orig); abline(a=0,b=1)
-    plotting_coordinates_list <- list(); typePlot_counter <- 0
-    ep_LabelSmooth <- jnp$array(0.01)
-
-    dLogProb_dImage <- jax$grad(LogProb_Image <- function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
-      if(SharedImageRepresentation){
-        m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                               jnp$expand_dims(m,0L),
-                               StateList, seed, MPList, T)[[1]]
-        m <- jnp$squeeze(m)
-      }
-
-      PROBS_ <- sapply(1L:nMonte_salience, function(itr){
-        jnp$expand_dims(GetTau(ModelList, ModelList_fixed,
-                               m, jnp$add(jnp$expand_dims(vseed,0L),itr),
-                               StateList, jnp$add(seed,itr), MPList, T)[[1]],0L)
-      })
-      PROBS_ <- jnp$concatenate(PROBS_,0L)
-      PROBS_ <- jax$nn$softmax(PROBS_)
-      PROBS_ <- jnp$add(jnp$multiply(jnp$subtract(jnp$array(1.), ep_LabelSmooth),PROBS_),
-                                jnp$divide(ep_LabelSmooth, jnp$array(2.))) # label smoothing
-      PROBS_ <- jnp$multiply(jnp$array(c(1,rep(0,times = kClust_est-1))),
-                             jnp$mean(jnp$log(PROBS_), 0L) )# # log prob of cat 1
-      PROBS_ <- jnp$sum(PROBS_)
-      return(  PROBS_  ) # mean log prob
-    }, 2L)
-    ImGrad_fxn <- eq$filter_jit( function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
-          # cast to float32
-          ModelList <- MPList[[1]]$cast_to_param( ModelList )
-          ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
-          StateList <- MPList[[1]]$cast_to_param( StateList )
-          m <- MPList[[1]]$cast_to_param( m )
-          m <- jax$device_put(m, jax$devices('cpu')[[1]])
-
-          ImageGrad_o <- dLogProb_dImage(ModelList, ModelList_fixed,
-                                         m, vseed,
-                                         StateList, seed, MPList)
-          reduceDim <- ifelse( dataType == "video", yes = 3L, no = 2L)
-          ImageGrad_L2 <- jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
-          ImageGrad_mean <- jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
-          return( list(ImageGrad_L2,  # salience magnitude
-                       ImageGrad_mean) ) # salience direction
-
-    }, device = jax$devices('cpu')[[1]])
-    video_plotting_fxn <- function(){
-            print2("Image seq results plot...")
-            plotting_coordinates_mat <- c()
-            total_counter <- 0;
-            for(k_ in 1:rows_){
-              used_coordinates <- c()
-              for(i in 1:5){
-                gc(); py_gc$collect()
-                total_counter <- total_counter + 1
-                rfxn <- function(xer){xer}
-                bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
-                  BreakTies <- function(x){x + runif(length(x),-1e-3,1e-3)}
-                  if(typePlot == "uncertainty"){
-                    main_ <- letters[  total_counter  ]
-
-                    # plot images with largest std's
-                    valBrokenTies <- BreakTies(ClusterProbs_std[,k_])
-                    sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                    im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                  }
-                  if(grepl(typePlot,pattern = "mean")){
-                    main_ <- total_counter
-
-                    # plot images with largest cluster probs
-                    if(typePlot ==  "mean"){
-                      valBrokenTies <- BreakTies(ClusterProbs_lower_conf[,k_])
-                      sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                      im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                    }
-
-                    # plot images with largest lower confidence
-                    if(typePlot ==  "mean_upperConf"){
-                      valBrokenTies <- BreakTies(ClusterProbs_est_full[,k_])
-                      sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                      im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                    }
-                  }
-
-                  coordinate_i <- c(long[im_i], lat[im_i])
-                  if(i > 1){
-                    isUnique_ <- F; if(!is.null(long)){
-                      dist_m <- geosphere::distm(x = coordinate_i,
-                                                 y = cbind(f2n(used_coordinates[,3]),
-                                                           f2n(used_coordinates[,4])),
-                                                 fun = geosphere::distHaversine)
-                      bad_counter <- bad_counter + 1
-                      if(all(dist_m >= 1000)){isUnique_ <- T}
-                    }
-                    if(is.null(long)){
-                      bad_counter <- bad_counter + 1
-                      isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_coordinates[,2] )
-                    }
-                  }
-                  if(i == 1){ isUnique_<-T }
-                }
-                used_coordinates <- rbind(used_coordinates,
-                                          c("observation_index" = im_i,
-                                            "key" = imageKeysOfUnits[im_i],
-                                            "long" = coordinate_i[1],
-                                            "lat" = coordinate_i[2]))
-
-                # load in video
-                setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
-                                                                 filename = file,
-                                                                 readVideo = useVideo,
-                                                                 image_dtype = image_dtype_tf,
-                                                                 nObs = length(unique(imageKeysOfUnits)) ); setwd(new_wd)
-                ds_next_in <- ds_next_in[[1]]
-                if(length(ds_next_in$shape) == 4){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
-
-              PlotWithMean <- grepl(typePlot,pattern = "mean")
-              animation::saveGIF({
-                # panel 1 of GIF
-                par(mfrow=c(1,1+1*PlotWithMean))
-                orig_scale_im_raster <-  as.array( ds_next_in[1,,,,plotBands[1]] )
-                nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
-                IG <- np$array(  ImGrad_fxn(ModelList,
-                                            ModelList_fixed,
-                                            InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                                            jax$random$PRNGKey(400L),
-                                            StateList,
-                                            jax$random$PRNGKey(430L),
-                                            MPList)[[1]] )
-                for (t_ in 1L:nTimeSteps) {
-                plotRBG <- !(length(plotBands) < 3 | dim(ds_next_in)[length(dim(ds_next_in))] < 3)
-                par(mar = margins_gif <- c(5,5,3,1))
-                if(!plotRBG){
-                      par(mar = margins_gif)
-                      causalimages::image2(
-                        as.matrix2( orig_scale_im_raster[t_,,] ),
-                        main = main_, cex.main = 4,
-                        cex.lab = 1.5, col.lab = k_, col.main = k_,
-                        xlab = ifelse(!is.null(long),
-                                      yes = sprintf("Long: %s, Lat: %s",
-                                                    fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                                    fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                                      no = ""))
-                      animation::ani.pause()  # Pause to make sure it gets rendered
-                  }
-                if(plotRBG){
-                  orig_scale_im_raster <- raster::brick(
-                        0.0001 + (as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32) )) +
-                          0*runif(length(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32 ))),
-                                  min = 0, max = 0.01) ) # with random jitter
-                  stretch <- ifelse(
-                        any(apply(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands],tf$float32)), 3,sd) < 1.),
-                        yes = "", no = "lin")
-                  raster::plotRGB(  orig_scale_im_raster,
-                                        margins = T,
-                                        r = 1, g = 2, b = 3,
-                                        # mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                                        main = main_,
-                                        cex.lab = 1.5, col.lab = k_,
-                                        xlab = ifelse(!is.null(long),
-                                                      yes = sprintf("Long: %s, Lat: %s",
-                                                                    fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                                                    fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                                                      no = ""),
-                                        col.main = k_, cex.main=4,  stretch = stretch)
-                }
-
-                # salience plotting routine
-                if(PlotWithMean){
-                  ylab_ <- ""; if(i==1){
-                    tauk <- np$array(Tau_mean_vec)[k_]
-                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
-                    if(orthogonalize == T){
-                      ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
-                    }
-                  }
-
-                  #obtain video gradient magnitudes
-                  {
-                    nColors <- 1000
-                    { #if(i == 1){
-                      # pos/neg breaks should be on the same scale across observation
-                      gradMag_breaks <- try(sort(quantile((c(IG)),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                      if("try-error" %in% class(gradMag_breaks)){gradMag_breaks <-  seq(-1, 1,length.out = nColors) }
-                      if(!"try-error" %in% class(gradMag_breaks)){
-                        if(any(is.infinite(gradMag_breaks))){
-                          gradMag_breaks <-  seq(-1, 1,length.out = nColors)
-                      }} }
-
-                    # panel 2 - magnitude
-                    par(mar = margins_gif)
-                    image(t(IG[t_,,,1])[,nrow(IG[t_,,,1]):1L],
-                          col = viridis::magma(nColors - 1),
-                          main = main_, cex.main = 1.5, col.main = "white",
-                          ylab = "",cex.axis = 3,
-                          cex.axis = (cex_tile_axis <- 4), col.axis=k_,
-                          breaks = gradMag_breaks, axes = F)
-                    animation::ani.pause()  # Pause to make sure it gets rendered
-                    }}
-                }
-                },
-                movie.name = sprintf("%s/HeteroSimCluster_ExternalFigureKey%s_Type%s_Ortho%s_k%s_i%s.gif",
-                                    figuresPath,  figuresTag, typePlot, orthogonalize, k_, i),
-                ani.height = 480*1, ani.width = 480*(1+PlotWithMean),
-                autobrowse = F, autoplay = F)
-              }
-              plotting_coordinates_mat <- try(rbind(plotting_coordinates_mat, used_coordinates ),T)
-            }
-            return( plotting_coordinates_mat )
-        }
-    image_plotting_fxn <- function(){
-          print2("Image results plot...")
-          pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf", figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
-              height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
-              width = 4*nExamples)
-          {
-            #a
-            if(grepl(typePlot,pattern = "mean")){
-              par(mar=c(2, 5.9, 3, 0.5))
-              layout_mat_orig <- layout_mat <- matrix(c(1:nExamples*3-3+1,
-                                     1:nExamples*3-1,
-                                     1:nExamples*3), nrow = 3, byrow = T)
-              for(kr_ in 2:kClust_est){
-                layout_mat <- rbind(layout_mat,
-                                    layout_mat_orig+max(layout_mat))
-              }
-            }
-            if(typePlot %in% c("uncertainty")){
-              par(mar=c(2,2,4,2)); layout_mat <- t(1:nExamples)
-            }
-            layout(mat = layout_mat,
-                   widths = rep(2,ncol(layout_mat)),
-                   heights = rep(2,nrow(layout_mat)))
-            plotting_coordinates_mat <- c()
-            total_counter <- 0
-            for(k_ in 1:rows_){
-              used_coordinates <- c()
-              for(i in 1:5){
-                gc(); py_gc$collect()
-                #if(k_ == 2 & typePlot == "mean"){ }
-                #if(k_ == 2 & i == 1){  }
-                print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
-                total_counter <- total_counter + 1
-                rfxn <- function(xer){xer}
-                bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
-                  BreakTies <- function(x){x + runif(length(x),-1e-3,1e-3)}
-                  if(typePlot == "uncertainty"){
-                    main_ <- letters[  total_counter  ]
-
-                    # plot images with largest std's
-                    valBrokenTies <- BreakTies(ClusterProbs_std[,k_])
-                    sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                    im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                  }
-                  if(grepl(typePlot,pattern = "mean")){
-                    main_ <- total_counter
-
-                    # plot images with largest lower confidence
-                    if(typePlot ==  "mean"){
-                       valBrokenTies <- BreakTies(ClusterProbs_lower_conf[,k_])
-                       sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                       im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                    }
-
-                    # plot images with largest cluster probs
-                    if(typePlot ==  "mean_upperConf"){
-                      valBrokenTies <- BreakTies(ClusterProbs_est_full[,k_])
-                      sorted_unique_prob_k <- sort(rfxn(unique(valBrokenTies)),decreasing=T)
-                      im_i <- which(valBrokenTies == sorted_unique_prob_k[i+bad_counter])[1]
-                    }
-                  }
-
-                  coordinate_i <- c(long[im_i], lat[im_i])
-                  if(  i > 1  ){
-                    isUnique_ <- F; if(!is.null(long)){
-                      dist_m <- geosphere::distm(x = coordinate_i,
-                                                 y = cbind(f2n(used_coordinates[,3]),
-                                                       f2n(used_coordinates[,4])),
-                                                 fun = geosphere::distHaversine)
-                      bad_counter <- bad_counter + 1
-                      if(all(dist_m >= 1000)){isUnique_ <- T}
-                    }
-                    if(is.null(long)){
-                      bad_counter <- bad_counter + 1
-                      isUnique_ <- !( imageKeysOfUnits[im_i] %in% used_coordinates[,2] )
-                    }
-                  }
-                  if(i == 1){ isUnique_<-T }
-                }
-
-                used_coordinates <-  rbind(used_coordinates,
-                                          c("observation_index"=im_i,
-                                            "key"=imageKeysOfUnits[im_i],
-                                            "long" = coordinate_i[1],
-                                            "lat" = coordinate_i[2]))
-                print2(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
-                          as.integer(k_), as.integer(i), as.integer(im_i),
-                                   long[im_i], lat[im_i]))
-                # load in image
-                setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[im_i]),
-                                                                 filename = file,
-                                                                 readVideo = useVideo,
-                                                                 image_dtype = image_dtype_tf,
-                                                                 nObs = length(unique(imageKeysOfUnits)) ); setwd(new_wd)
-                ds_next_in <- jnp$array(  ds_next_in[[1]] )
-                if(length(ds_next_in$shape) == 3 ){ ds_next_in <- jnp$expand_dims(ds_next_in, 0L) }
-
-                if(length(plotBands) < 3){
-                    orig_scale_im_raster <-  np$array(ds_next_in)[1,,,plotBands[1]]
-                    causalimages::image2(
-                      as.matrix2( orig_scale_im_raster ),
-                      main = main_, cex.main = 4,
-                      cex.lab = 2.5, col.lab = k_, col.main = k_,
-                      xlab = ifelse(!is.null(long),
-                                    yes = sprintf("Long: %s, Lat: %s",
-                                                  fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                                  fixZeroEndings(round(coordinate_i,2L)[2],2L)), no = ""))
-                }
-                if(length(plotBands) >= 3){
-                  orig_scale_im_raster <- raster::brick( 0.0001 +
-                      0*runif(length(np$array(ds_next_in)[1, , ,plotBands]), min = 0, max = 0.01) + # random jitter
-                      (np$array(ds_next_in)[1,,,plotBands]))
-                  stretch <- ifelse( any(apply(np$array(ds_next_in)[1, , ,plotBands], 3,sd) < 1.), yes = "", no = "lin")
-                  raster::plotRGB(  orig_scale_im_raster, margins = T,
-                                   mar = (margins_vec <- (ep_<-1e-6)*c(1,3,1,1)),
-                                   main = main_,
-                                   cex.lab = 2.5, col.lab = k_,
-                                   xlab = ifelse(!is.null(long),
-                                             yes = sprintf("Long: %s, Lat: %s",
-                                                  fixZeroEndings(round(coordinate_i,2L)[1],2L),
-                                                  fixZeroEndings(round(coordinate_i,2L)[2],2L)),
-                                             no = ""),
-                                   col.main = k_, cex.main=4,  stretch = stretch)
-                }
-                if(grepl(typePlot,pattern = "mean")){
-                  ylab_ <- ""; if(i==1){
-                    tauk <- np$array(Tau_mean_vec)[k_]
-                    ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]==%.3f)",k_,tauk)))
-                    if(orthogonalize == T){
-                      ylab_ <- eval(parse(text = sprintf("expression(hat(tau)[%s]^{phantom() ~ symbol('\136') ~ phantom()}==%.3f)",k_, tauk)))
-                    }
-                    axis(side = 2,at=0.5,labels = ylab_,pos=-0.,tick=F,cex.axis=cex_tile_axis <- 4,
-                         col.axis=k_)
-                  }
-
-                  #obtain image gradients
-                  {
-                    gc(); py_gc$collect()
-                    IG <- ImGrad_fxn(ModelList, ModelList_fixed,
-                                     InitImageProcessFn(jnp$array(ds_next_in), jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                                     jax$random$PRNGKey(400L),
-                                     StateList,
-                                     jax$random$PRNGKey(430L),
-                                     MPList)
-                    IG[[1]] <- np$array(IG[[1]])[,,1] # magnitude
-                    IG[[2]] <- np$array(IG[[2]])[,,1] # direction
-
-                    { #if(i == 1){
-                      nColors <- 1000
-                      IG_forBreaks <- IG[[1]] + runif(length(IG[[1]]),-0.0000000000001, 0.0000000000001)
-                      gradMag_breaks <- try(sort(quantile((c(IG_forBreaks)),probs = seq(0,1,length.out = nColors),na.rm=T)),T)
-                      if("try-error" %in% class(gradMag_breaks)){gradMag_breaks <-  seq(-1, 1,length.out=nColors) }
-
-                      # pos/neg breaks should be on the same scale across observation
-                      IG_forBreaks <- IG[[2]] + runif(length(IG[[2]]),-0.0000000000001, 0.0000000000001)
-                      pos_breaks <- try(sort( quantile(c(IG_forBreaks[IG_forBreaks>=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                      if("try-error" %in% class(pos_breaks)){pos_breaks <-  seq(0, 1,length.out=nColors/2) }
-
-                      neg_breaks <- try(sort(quantile(c(IG_forBreaks[IG_forBreaks<=0]),probs = seq(0,1,length.out=nColors/2),na.rm=T)),T)
-                      if("try-error" %in% class(neg_breaks)){neg_breaks <-  seq(-1, 0,length.out=nColors/2) }
-                    }
-
-                    # magnitude
-                    magPlot <- image(t(IG[[1]])[,nrow(IG[[1]]):1],
-                              col = viridis::magma(nColors - 1),
-                              breaks = gradMag_breaks, axes = F)
-                    if("try-error" %in% class(magPlot)){ print2("magPlot broken") }
-                    ylab_ <- ""; if(i==1){
-                      try(axis(side = 2,at=0.5,labels = "Salience Magnitude",
-                           pos=-0.,tick=F, cex.axis=3, col.axis=k_),T)
-                    }
-
-                    # direction
-                    dirPlot <- image(t(IG[[2]])[,nrow(IG[[2]]):1],
-                              col = c(hcl.colors(nColors/2-1L,"reds"),
-                                      hcl.colors(nColors/2 ,"blues")),
-                              breaks = c(neg_breaks,pos_breaks), axes = F)
-                    if("try-error" %in% class(dirPlot)){print2("dirPlot broken")}
-                    ylab_ <- ""; if(i==1){
-                      try( axis(side = 2,at=0.5,labels = "Salience Direction",
-                              pos=-0.,tick=F, cex.axis=3, col.axis=k_),  T)
-                    }
-                  }
-                }
-              }
-              plotting_coordinates_mat <- rbind(plotting_coordinates_mat, used_coordinates )
-            }
-          }
-          dev.off()
-          return( plotting_coordinates_mat )
-      }
-    for(typePlot in (typePlot_vec <- c("mean","uncertainty"))){ "mean_upperConf"
-        typePlot_counter <- typePlot_counter + 1
-        rows_ <- kClust_est; nExamples <- 5
-        if(typePlot == "uncertainty"){ rows_ <- 1L }
-
-        print2("Starting plot routine...")
-        plotting_coordinates_mat_ <- ifelse(dataType == "video", yes = list(video_plotting_fxn), no = list(image_plotting_fxn))[[1]]()
-
-        if("try-error" %in% class(plotting_coordinates_mat_)){
-          print2('if("try-error" %in% class(plotting_coordinates_mat_)){')
-          browser()
-        }
-        try(dev.off(),T)
-        plotting_coordinates_list[[typePlot_counter]] <- plotting_coordinates_mat_
-      }
-    try({ names(plotting_coordinates_list) <- typePlot_vec},T)
-    par(mfrow=c(1,1))
-    }
+    CausalImageHeterogeneity_plot <- paste(deparse(CausalImageHeterogeneity_plot),collapse="\n")
+    CausalImageHeterogeneity_plot <- gsub(CausalImageHeterogeneity_plot,pattern="function \\(\\)",replace="")
+    eval( parse( text = CausalImageHeterogeneity_plot ), envir = environment() )
+  }
   try(setwd(orig_wd), T)
   return( list(
                  "clusterTaus_mean" = as.numeric2(Tau_mean_return_vec),
@@ -1672,7 +1134,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "clusterProbs_mean" = ClusterProbs_est_full,
                  "clusterProbs_sd" = ClusterProbs_std,
                  "clusterProbs_lowerConf" = ClusterProbs_lower_conf,
-                 "impliedATE" = impliedATE,
+                 "impliedATE" = mean(  tau_i_est ),
                  "individualTau_est" = tau_i_est,
                  "Y0_est" = Y0_est,
                  "Y1_est" = Y1_est,
@@ -1680,6 +1142,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "loss_vec" = loss_vec,
                  "Loss_baseline_out" = Loss_baseline_out,
                  "Loss_out" = Loss_out,
+                 "CF_info" = list("cf_keys_split" = cf_keys_split,
+                                  "Loss_out_vec" = Loss_out_vec,
+                                  "Loss_out_baseline_vec" = Loss_out_baseline_vec,
+                                  "Y0_est_mat" = Y0_est_mat,
+                                  "Y1_est_mat" = Y1_est_mat, 
+                                  "tau_i_est_mat" = tau_i_est_mat,
+                                  "TestIndices_list" = TestIndices_list,
+                                  "TrainIndices_list" = TrainIndices_list),
                  "transportabilityMat" = transportabilityMat,
                  "plottedCoordinatesList" = plotting_coordinates_list,
                  "whichNA_dropped" = whichNA_dropped) )
