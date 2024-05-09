@@ -124,16 +124,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
     oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
-    # tf$config$get_visible_devices() # confirm CPU only
-    # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
+    # tf$config$get_visible_devices(); tf$config$experimental$set_visible_devices(list(), "GPU")
+    print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
     gc(); py_gc$collect()
 
-    c2f <- jmp$cast_to_full
-
-    #https://developer.apple.com/forums/thread/723138
-    # tmp <- tf$`function`(function(x){ tf$abs(x)}, jit_compile = T, autograph = T); tmp(jnp$array(1.))
-
     # image dtype management
+    c2f <- jmp$cast_to_full
     image_dtype <- jnp$float16
     image_dtype_tf <- tf$float16
     keras_layers_dtype <-  NULL
@@ -143,8 +139,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
   }
   if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
-
-  # make all directory logic explicit
+  
+  print2("Setting up wd logic")
   orig_wd <- getwd()
   cond1 <- substr(figuresPath, start = 0, stop = 1) == "."
   if(cond1){ figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd) }
@@ -355,8 +351,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
   
     # set up holders 
-    Tau_mean_return_vec <- plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
-    Tau_sd_vec <- Tau_mean_return_sd_vec <- NULL 
+    Tau_sd_vec <- plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
+    Tau_mean_return_vec <- Tau_mean_return_sd_vec <- jnp$array(1.)
   
     # specify some training parameters + helper functions
     batchFracOut <- max(1/3*batchSize,3) / batchSize

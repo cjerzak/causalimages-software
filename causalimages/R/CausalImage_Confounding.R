@@ -108,9 +108,8 @@ AnalyzeImageConfounding <- function(
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
     # tf$config$get_visible_devices() # confirm CPU only
     # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
+    print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
 
-    # cleanup
-    print2(sprintf("Default device: %s",jnp$array(0.)$device()))
 
     # set float type
     library( tensorflow );
