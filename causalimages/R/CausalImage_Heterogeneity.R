@@ -273,12 +273,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # 1 2 3 4 * 5 6 7 8 * 9 10 11 12, K = 3 
       if(kf_ == 1){ 
         tf_dataset_train <- getParsed_tf_dataset_train_Select(
-          tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ) 
+          tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) )$`repeat`(-1L) 
           # skip 1:4
       }
       if(kf_ == kFolds){ 
         tf_dataset_train <- getParsed_tf_dataset_train_Select(
-          tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) ) 
+          tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) )$`repeat`(-1L) 
         # take 1 2 3 4 * 5 6 7 8
       }
       if(kf_ > 1 & kf_ < kFolds){ 
