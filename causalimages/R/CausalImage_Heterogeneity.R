@@ -1,4 +1,4 @@
-#' Decompose treatment effect heterogeneity by  %>% 
+#' Decompose treatment effect heterogeneity by image or image sequence
 #'
 #' Implements the image heterogeneity decomposition analysis of Jerzak, Johansson, and Daoud (2023). Users
 #' input in treatment and outcome data, along with a function specifying how to load in images
@@ -124,16 +124,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
     oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
     jax$config$update("jax_enable_x64", FALSE);
-    # tf$config$get_visible_devices() # confirm CPU only
-    # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
+    # tf$config$get_visible_devices(); tf$config$experimental$set_visible_devices(list(), "GPU")
+    print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
     gc(); py_gc$collect()
 
-    c2f <- jmp$cast_to_full
-
-    #https://developer.apple.com/forums/thread/723138
-    # tmp <- tf$`function`(function(x){ tf$abs(x)}, jit_compile = T, autograph = T); tmp(jnp$array(1.))
-
     # image dtype management
+    c2f <- jmp$cast_to_full
     image_dtype <- jnp$float16
     image_dtype_tf <- tf$float16
     keras_layers_dtype <-  NULL
@@ -143,8 +139,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
   }
   if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
-
-  # make all directory logic explicit
+  
+  print2("Setting up wd logic")
   orig_wd <- getwd()
   cond1 <- substr(figuresPath, start = 0, stop = 1) == "."
   if(cond1){ figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd) }
@@ -268,7 +264,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   })
 
   # set up placeholders + start loop 
-  Loss_out_baseline_vec <- Loss_out_vec <- Y0_est_mat <- Y1_est_mat <- tau_i_est_mat <- c()  
+  Loss_out_baseline_vec <- Loss_out_vec <- Y0_est_mat <- Y1_est_mat <- tau_est_mat <- c()  
   TestIndices_list <- TrainIndices_list <- replicate(list(), n = kFolds)
   for(kf_ in 1:kFolds){
     # setup iterator 
@@ -277,12 +273,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # 1 2 3 4 * 5 6 7 8 * 9 10 11 12, K = 3 
       if(kf_ == 1){ 
         tf_dataset_train <- getParsed_tf_dataset_train_Select(
-          tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ) 
+          tf_dataset_master$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) )$`repeat`(-1L) 
           # skip 1:4
       }
       if(kf_ == kFolds){ 
         tf_dataset_train <- getParsed_tf_dataset_train_Select(
-          tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) ) 
+          tf_dataset_master$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) )$`repeat`(-1L) 
         # take 1 2 3 4 * 5 6 7 8
       }
       if(kf_ > 1 & kf_ < kFolds){ 
@@ -355,8 +351,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     }
   
     # set up holders 
-    Tau_mean_return_vec <- plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
-    Tau_sd_vec <- Tau_mean_return_sd_vec <- NULL 
+    Tau_sd_vec <- plotting_coordinates_list <- Tau_mean_sd_vec <- loss_vec <- NULL
+    Tau_mean_return_vec <- Tau_mean_return_sd_vec <- jnp$array(1.)
   
     # specify some training parameters + helper functions
     batchFracOut <- max(1/3*batchSize,3) / batchSize
@@ -368,7 +364,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   
     # set up some placeholders
     y0_true <- r2_y1_out <- r2_y0_out <- ClusterProbs_est <- NULL
-    tau_i_est <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
+    tau_est <- negELL <- y1_est <- y0_est <- y1_true <- y0_true <- NULL
     if(!"ClusterProbs" %in% ls() &
        !"ClusterProbs" %in% ls(envir=globalenv())){ClusterProbs<-NULL}
   
@@ -570,8 +566,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             ETau_draw <-  oryx$distributions$Normal(
                             c2f(getTau_means(ModelList)),
                       jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = jnp$add(10L,seed))
-            Etau_i <- jnp$sum(jnp$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
-            return( EY0 + Etau_i )
+            Etau_ <- jnp$sum(jnp$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
+            return( EY0 + Etau_ )
           }
         }
         getTau_means <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_Mean1"), LE(ModelList, "Tau_Mean2") )) )  }
@@ -584,9 +580,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
           EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
                               m, vseed, StateList, seed, MPList, inference)[[1]]
-          Etau_i <- jnp$expand_dims(jnp$take(GetTau_batch(ModelList,ModelList_fixed,
+          Etau_ <- jnp$expand_dims(jnp$take(GetTau_batch(ModelList,ModelList_fixed,
                                  m, vseed, StateList, seed, MPList, inference)[[1]], 1L, axis = 1L), 1L)
-          return( EY0 + Etau_i )
+          return( EY0 + Etau_ )
         }
       }
   
@@ -611,7 +607,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
         
         if(grepl(heterogeneityModelType,pattern="tarnet")){ 
-          Etau_i <- jnp$expand_dims(jnp$take(clustT, 1L, axis = 1L),1L)
+          Etau_ <- jnp$expand_dims(jnp$take(clustT, 1L, axis = 1L),1L)
           EY0Uncert_draw <- jnp$take(jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0", "Mean"))),0L)
           EY1Uncert_draw <- jnp$take(jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "Mean"))),0L)
         }
@@ -636,10 +632,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
           EY1Uncert_draw <- MPList[[1]]$cast_to_compute( jax$nn$softplus( EY1Uncert_draw ) )
     
           # setup likelihood
-          #Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), 1L , keepdims=F)
+          #Etau_ <- jnp$sum( jnp$multiply(ETau_draw, clustT), 1L , keepdims=F)
           #Sigma2_Y0_i <- jnp$sum(jnp$multiply( EY0SD_draw^cnst(2), clustT),1L,keepdims=F)
           #Sigma2_Y1_i <- jnp$sum(jnp$multiply( EY1SD_draw^cnst(2), clustT),1L,keepdims=F)
-          Etau_i <- jnp$sum( jnp$multiply(ETau_draw, clustT), keepdims=F)
+          Etau_ <- jnp$sum( jnp$multiply(ETau_draw, clustT), keepdims=F)
           EY0Uncert_draw <- jnp$sum(jnp$multiply( EY0Uncert_draw, clustT),keepdims=F)
           EY1Uncert_draw <- jnp$sum(jnp$multiply( EY1Uncert_draw, clustT),keepdims=F)
         } 
@@ -647,7 +643,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         Y_Sigma <- (jnp$multiply( cnst(1) - treat , EY0Uncert_draw ) +
                         jnp$multiply( treat, EY1Uncert_draw ))
         Y_Mean <- jnp$multiply( cnst(1) - treat, EY0_i ) +
-                       jnp$multiply( treat, EY0_i + Etau_i)
+                       jnp$multiply( treat, EY0_i + Etau_)
   
         # some commented analyses to triple-check code correctness re: initialization
         #lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = Y_Mean, scale = Y_Sigma)$log_prob(y) )
@@ -1017,8 +1013,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Y1_est_mat <- cbind(Y1_est_mat,
                           Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T))
       Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
-      tau_i_est_mat <- cbind(tau_i_est_mat,
-                             tau_i_est <- Rescale( Y1_est - Y0_est, doMean = F))
+      tau_est_mat <- cbind(tau_est_mat,
+                             tau_est <- Rescale( Y1_est - Y0_est, doMean = F))
   
       Yobs_est_out <- Yobs_est[testIndices]
       Loss_out_baseline_vec <- c(Loss_out_baseline_vec,
@@ -1035,6 +1031,24 @@ AnalyzeImageHeterogeneity <- function(obsW,
     return(list("CF_info" = list("TrainIndices_list"=TrainIndices_list, "TestIndices_list"=TestIndices_list)))
   }
   
+    tau_m2_est_cf <- Y0_m2_est_cf <- Y1_m2_est_cf <- tau_est_cf <- Y0_est_cf <- Y1_est_cf <- rep(0,times=nrow(Y0_est_mat))
+    for(cf_ in 1:kFolds){
+      Y0_est_cf[TestIndices_list[[cf_]]] <- Y0_est_cf[TestIndices_list[[cf_]]] + Y0_est_mat[TestIndices_list[[cf_]],cf_] / (kFolds-1)
+      Y1_est_cf[TestIndices_list[[cf_]]] <- Y1_est_cf[TestIndices_list[[cf_]]] + Y1_est_mat[TestIndices_list[[cf_]],cf_] / (kFolds-1)
+      tau_est_cf[TestIndices_list[[cf_]]] <- tau_est_cf[TestIndices_list[[cf_]]] + tau_est_mat[TestIndices_list[[cf_]],cf_] / (kFolds-1)
+  
+      Y0_m2_est_cf[TestIndices_list[[cf_]]] <- Y0_m2_est_cf[TestIndices_list[[cf_]]] + Y0_est_mat[TestIndices_list[[cf_]],cf_]^2 / (kFolds-1)
+      Y1_m2_est_cf[TestIndices_list[[cf_]]] <- Y1_m2_est_cf[TestIndices_list[[cf_]]] + Y1_est_mat[TestIndices_list[[cf_]],cf_]^2 / (kFolds-1)
+      tau_m2_est_cf[TestIndices_list[[cf_]]] <- tau_m2_est_cf[TestIndices_list[[cf_]]] + tau_est_mat[TestIndices_list[[cf_]],cf_]^2/ (kFolds-1)
+    }
+    Y0_est_se <- sqrt( Y0_m2_est_cf - Y0_est_cf^2 )
+    Y1_est_se <- sqrt( Y1_m2_est_cf - Y1_est_cf^2 )
+    tau_est_se <- sqrt( tau_m2_est_cf - tau_est_cf^2 )
+    
+    Y0_est <- Y0_est_cf
+    Y1_est <- Y1_est_cf
+    Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
+    
     # process outcome predictions
     W_test <- obsW[testIndices]
     Y_test_truth <- obsY[testIndices]
@@ -1134,11 +1148,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
                  "clusterProbs_mean" = ClusterProbs_est_full,
                  "clusterProbs_sd" = ClusterProbs_std,
                  "clusterProbs_lowerConf" = ClusterProbs_lower_conf,
-                 "impliedATE" = mean(  tau_i_est ),
-                 "individualTau_est" = tau_i_est,
+                 "impliedATE" = mean(  tau_est ),
+                 "individualTau_est" = tau_est,
                  "Y0_est" = Y0_est,
                  "Y1_est" = Y1_est,
                  "Yobs_est" = Yobs_est,
+                 
+                 "Y0_est_se" = Y0_est_se, 
+                 "Y1_est_se" = Y1_est_se, 
+                 "tau_est_se" = tau_est_se, 
+                 
                  "loss_vec" = loss_vec,
                  "Loss_baseline_out" = Loss_baseline_out,
                  "Loss_out" = Loss_out,
@@ -1147,7 +1166,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                   "Loss_out_baseline_vec" = Loss_out_baseline_vec,
                                   "Y0_est_mat" = Y0_est_mat,
                                   "Y1_est_mat" = Y1_est_mat, 
-                                  "tau_i_est_mat" = tau_i_est_mat,
+                                  "tau_est_mat" = tau_est_mat,
                                   "TestIndices_list" = TestIndices_list,
                                   "TrainIndices_list" = TrainIndices_list),
                  "transportabilityMat" = transportabilityMat,
