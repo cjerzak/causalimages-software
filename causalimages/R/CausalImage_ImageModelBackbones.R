@@ -139,6 +139,7 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     print2("Setting up image representation model...")
+    NonLinearScaler <- 3^2
     MPList <- list(jmp$Policy(compute_dtype="float16", 
                               param_dtype="float32", 
                               output_dtype="float32"),
@@ -156,6 +157,7 @@ GetImageRepresentations <- function(
     # transformer preliminaries
     ffmap <- jax$vmap(function(L_, x){ L_(x) }, in_axes = list(NULL,0L))
     RMS_norm <- function(x_){ jnp$divide( x_, jnp$sqrt(0.001+jnp$mean(jnp$square(x_), -1L, keepdims=T))) }
+    LayerNorm <- function(x_){ jax$nn$standardize( x_, -1L, epsilon = 1e-5) }
     InvSoftPlus <- function(x){ jnp$log(jnp$exp(x) - 1) }
 
     # set up model
@@ -201,7 +203,7 @@ GetImageRepresentations <- function(
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
         ModelList[[d_]] <- eval(parse(text = sprintf('list("SpatialMultihead_d%s" = SpatialMultihead_d,
                                                           "SpatialFF_d%s" = SpatialFF_d,
-                                                          "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep )))),
+                                                          "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep )))),
                                                           "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
     }
     ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
@@ -232,7 +234,7 @@ GetImageRepresentations <- function(
       print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
           # standardize
-          m <- RMS_norm(m)* LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]]
+          m <- RMS_norm(m)*LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]]
 
           # rotary embeddings
           m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
@@ -245,9 +247,9 @@ GetImageRepresentations <- function(
 
           # multihead attention block
           m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
-                      query=m_pos,
-                      key_ =m_pos,
-                      value=m), T) #key = seed, # breaks in GPU mode
+                      query = m_pos,
+                      key_  = m_pos,
+                      value = m), T) #key = seed, # breaks in GPU mode
 
           # residual connection
           mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[1]]$astype(jnp$float32) )$astype(mtm1$dtype)
@@ -265,15 +267,16 @@ GetImageRepresentations <- function(
       }
       print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
-      # path control
-      TransformerOutputPathControl <- (dataType == "image" & type == "Spatial") | (dataType == "video" & type == "Temporal")
+      # path control -- only executed in final pass over sequences
+      TransformerOutputPathControl <- (dataType == "image" & type == "Spatial") | 
+                                            (dataType == "video" & type == "Temporal")
 
-      # take CLS embedding
+      # take CLS embedding from position 0 
       m <- jnp$take(m, indices = 0L, axis = 0L)
 
       if( TransformerOutputPathControl ){
         # final norm
-        #m <- jnp$squeeze(   RMS_norm( jnp$expand_dims(m,0L) ) *  LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]   )
+        m <- jnp$squeeze( LayerNorm( jnp$expand_dims(m,0L) )*LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  )
 
         # linear proj, note: dense starts with linear projection  
         # m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )  
@@ -351,7 +354,7 @@ GetImageRepresentations <- function(
                                   "SeperableFeature4_jax_d%s" = SeperableFeature4_jax, 
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
-                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( nDepth_ImageRep )))),
+                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( NonLinearScaler * nDepth_ImageRep )))),
                                   "BN_ImRep1_d%s" = list(LayerBN1, jnp$array(rep(1.,times=BatchNormDim1)) ),
                                   "BN_ImRep2_d%s" = list(LayerBN2, jnp$array(rep(1.,times=BatchNormDim2)) ))', d_, d_, d_, d_, d_, d_, d_, d_, d_, d_ )))
     }
@@ -367,7 +370,7 @@ GetImageRepresentations <- function(
     if(dataType == "video"){
       for(dt_ in 1L:nDepth_TemporalRep){
         TemporalTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
-                                            jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
+                                              jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
         TemporalMultihead_d <- eq$nn$MultiheadAttention(
                                     query_size = nWidth_ImageRep,
                                     output_size = nWidth_ImageRep,
@@ -388,7 +391,7 @@ GetImageRepresentations <- function(
                           key = jax$random$PRNGKey(ai(333324L + 1L + dt_ + seed ))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
-                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( nDepth_TemporalRep )))),
+                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_TemporalRep )))),
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
@@ -521,10 +524,9 @@ GetImageRepresentations <- function(
                       in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
                       axis_name = batch_axis_name,
                       out_axes = list(0L,NULL))(ModelList, m,
-                                                StateList, jnp$add(seed,9L), MPList, inference)
+                                                StateList, jnp$add(seed,42L), MPList, inference)
         StateList <- m[[2]]; m <- m[[1]]
       }
-      # print(sprintf("Output dtype: [%s]", as.character( (m <- MPList[[1]]$cast_to_output(m))$dtype) ))
       return( list(m, StateList) )
     })
   }
@@ -542,7 +544,7 @@ GetImageRepresentations <- function(
 
       batch_indices <- (last_i+1):(last_i+batchSize)
       batch_indices <- batch_indices[batch_indices <= length(unique(imageKeysOfUnits))]
-      last_i <- batch_indices[length(batch_indices)]
+      last_i <- batch_indices[ length(batch_indices) ]
 
       # checks for last / batch size corrections
       if(last_i == length(unique(imageKeysOfUnits))){ ok <- T }
@@ -560,7 +562,7 @@ GetImageRepresentations <- function(
                                                                               no = list(NULL))[[1]] ); setwd(new_wd)
       if(batchSizeOneCorrection){
           batch_inference[[1]][[1]] <- tf$concat(list(tf$expand_dims(batch_inference[[1]][[1]],0L),
-                                                 tf$expand_dims(batch_inference[[1]][[1]],0L)), 0L)
+                                                      tf$expand_dims(batch_inference[[1]][[1]],0L)), 0L)
       }
       saved_iterator <- batch_inference[[2]]
       batch_inference <- batch_inference[[1]]
@@ -576,7 +578,11 @@ GetImageRepresentations <- function(
                                                           MPList, 
                                                           T # inference 
                                                           )[[1]]  ), T)
+      # plot(representation_)
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
+      # plot(representation_[,sample(1:20)])
+      # plot(representation_[1,],np$array(LE(ModelList,"SpatialTransformerSupp")[[1]]))
+      # plot(representation_[sample(1:4,1),],np$array(LE(ModelList,"TemporalTransformerSupp")[[1]]))
       if("try-error" %in% class(representation_)){ browser() }
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)

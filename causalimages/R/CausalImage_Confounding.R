@@ -629,7 +629,7 @@ AnalyzeImageConfounding <- function(
             batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
             ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
                                             ds_next_train_treated[[1]]), 0L)
-            # print(table(obsW[batch_indices]))
+            print(table(obsW[batch_indices]))
             # tmp <- c(tmp,batch_indices)
             # plot(head(obsW[tmp],300))
             # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[1]]
@@ -1186,6 +1186,7 @@ AnalyzeImageConfounding <- function(
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat, "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
+      "AUC" = pROC::roc(obsW[testIndices], prW_est[testIndices])$auc,
       "myGlmnet_coefs" = myGlmnet_coefs,
       "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
       "nTrainableParameters" = nTrainable,
