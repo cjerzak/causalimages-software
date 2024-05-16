@@ -175,7 +175,7 @@ GetImageRepresentations <- function(
       position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
       cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
       sin_terms_patch <- jnp$sin( pos_times_theta_patch )
-      WideMultiplicationFactor <- 3.75
+      WideMultiplicationFactor <- 3.5
       nTransformerOutputWidth <- nWidth_ImageRep
 
     StateList <- ModelList <- replicate(nDepth_ImageRep+1, jnp$array(0.)) # initialize with 0's
@@ -276,10 +276,10 @@ GetImageRepresentations <- function(
 
       if( TransformerOutputPathControl ){
         # final norm
-        m <- jnp$squeeze( LayerNorm( jnp$expand_dims(m,0L) )*LE(ModelList,sprintf("%sTransformerSupp",type))[[3]]  )
+        # m <- jnp$squeeze(LayerNorm( jnp$expand_dims(m,0L) )*LE(ModelList,sprintf("%sTransformerSupp",type))[[3]])
 
         # linear proj, note: dense starts with linear projection  
-        # m <- LE(ModelList,sprintf("%sTransformerSupp",type))[[5]]( m )  
+        # m <- LE(ModelList,sprintf("%sTransformerSupp", type))[[5]]( m )  
       }
     return( list(m, StateList) )
     }

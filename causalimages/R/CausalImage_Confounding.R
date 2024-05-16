@@ -345,13 +345,14 @@ AnalyzeImageConfounding <- function(
         indices_forTraining <- bindices_[bindices_ %in% trainIndices]
         glmnetInput <- ifelse(XisNull, yes = list(ImageRepresentations_df),
                                        no = list(cbind(as.matrix(X), ImageRepresentations_df)))[[1]]
-        myGlmnet_ <- glmnet::cv.glmnet(
+        myGlmnet_ <- try(glmnet::cv.glmnet(
           x = as.matrix(glmnetInput[indices_forTraining,]),
           y = as.matrix(obsW[indices_forTraining]),
           nfolds = 5,
           alpha = 0, # alpha = 0 is the ridge penalty
           type.measure = "auc", 
-          family = "binomial")
+          family = "binomial"), T)
+        if("try-error" %in% class(myGlmnet_)){ browser() }
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
         prW_est_ <- predict(myGlmnet_, s = "lambda.min",
                             newx = as.matrix(glmnetInput[bindices_,]), type = "response")
