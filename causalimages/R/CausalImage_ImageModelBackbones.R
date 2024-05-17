@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 #' Generates image and video representations useful in earth observation tasks for casual inference.
 #'
 #' Generates image and video representations useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).
@@ -139,12 +138,10 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     print2("Setting up image representation model...")
-    NonLinearScaler <- 3^2
-    MPList <- list(jmp$Policy(compute_dtype="float16", 
-                              param_dtype="float32", 
-                              output_dtype="float32"),
+    if(dataType == "video"){ NonLinearScaler <- 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) }
+    if(dataType == "image"){ NonLinearScaler <- 1/sqrt( 2*nDepth_ImageRep ) }
+    MPList <- list(jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
                    jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
-
 
     # coerce to integer for safety
     kernelSize <- ai(kernelSize); strides <- ai(strides)
@@ -159,64 +156,65 @@ GetImageRepresentations <- function(
     RMS_norm <- function(x_){ jnp$divide( x_, jnp$sqrt(0.001+jnp$mean(jnp$square(x_), -1L, keepdims=T))) }
     LayerNorm <- function(x_){ jax$nn$standardize( x_, -1L, epsilon = 1e-5) }
     InvSoftPlus <- function(x){ jnp$log(jnp$exp(x) - 1) }
-
+    
+    # Calculate number of patches
+    nPatches_side = ai(rawSpatialDims / patchEmbedDim)
+    nPatches = ai(nPatches_side^2)
+    InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
+    
+    # rotary embedding setup
+    theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
+    theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
+    theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
+    nTimeSteps_patch <- ai(nPatches_side^2)
+    position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
+    cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
+    sin_terms_patch <- jnp$sin( pos_times_theta_patch )
+    WideMultiplicationFactor <- 3.5
+    nTransformerOutputWidth <- nWidth_ImageRep
+    
     # set up model
     if(imageModelClass == "VisionTransformer"){
-      # Calculate number of patches
-      nPatches_side = ai(rawSpatialDims / patchEmbedDim)
-      nPatches = ai(nPatches_side^2)
-      InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
-
-      # rotary embedding setup
-      theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
-      theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
-      theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
-      nTimeSteps_patch <- ai(nPatches_side^2)
-      position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
-      cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
-      sin_terms_patch <- jnp$sin( pos_times_theta_patch )
-      WideMultiplicationFactor <- 3.5
-      nTransformerOutputWidth <- nWidth_ImageRep
-
-    StateList <- ModelList <- replicate(nDepth_ImageRep+1, jnp$array(0.)) # initialize with 0's
-    for(d_ in 1L:nDepth_ImageRep){
-        SpatialTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
-                                             jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
-        SpatialMultihead_d <- eq$nn$MultiheadAttention(
-                            query_size = nWidth_ImageRep,
-                            output_size = nWidth_ImageRep,
-                            num_heads = 12L,
-                            use_output_bias = F,
-                            key = jax$random$PRNGKey( 23453355L + seed + d_) )
-        SpatialFF_d <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
-                                         out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
-                                         use_bias = F, # hidden bias
-                                         key = jax$random$PRNGKey(ai(3340L + seed + d_))),
-                            eq$nn$Linear(in_features = nWidth_ImageRep,
-                                         out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
-                                         use_bias = F, # swiglu bias
-                                         key = jax$random$PRNGKey(ai(3311L + seed + d_))),
-                            eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
-                                         out_features = nWidth_ImageRep,
-                                         use_bias = F, # final bias
-                                         key = jax$random$PRNGKey(ai(33324L + seed +  d_))))
-        StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
-        ModelList[[d_]] <- eval(parse(text = sprintf('list("SpatialMultihead_d%s" = SpatialMultihead_d,
-                                                          "SpatialFF_d%s" = SpatialFF_d,
-                                                          "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep )))),
-                                                          "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
-    }
-    ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
-        jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
-        jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Stop
-        jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
-        eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
-                   num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
-                   in_channels = rawChannelDims, use_bias = F,
-                   out_channels = nWidth_ImageRep, key = jax$random$PRNGKey(4L+1040L+seed)), # patch embed
-        eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                      use_bias = F, key = jax$random$PRNGKey(999L + seed  ) ) # final dense proj
-      ))
+      StateList <- ModelList <- replicate(nDepth_ImageRep+1, jnp$array(0.)) # initialize with 0's
+      for(d_ in 1L:nDepth_ImageRep){
+          SpatialTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
+                                               jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
+          SpatialMultihead_d <- eq$nn$MultiheadAttention(
+                                    query_size = nWidth_ImageRep,
+                                    output_size = nWidth_ImageRep,
+                                    num_heads = 12L,
+                                    use_output_bias = F,
+                                    key = jax$random$PRNGKey( 23453355L + seed + d_) )
+          SpatialFF_d <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
+                                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
+                                           use_bias = F, # hidden bias
+                                           key = jax$random$PRNGKey(ai(3340L + seed + d_))),
+                              eq$nn$Linear(in_features = nWidth_ImageRep,
+                                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
+                                           use_bias = F, # swiglu bias
+                                           key = jax$random$PRNGKey(ai(3311L + seed + d_))),
+                              eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
+                                           out_features = nWidth_ImageRep,
+                                           use_bias = F, # final bias
+                                           key = jax$random$PRNGKey(ai(33324L + seed +  d_))))
+          StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
+          ModelList[[d_]] <- eval(parse(text = sprintf('list("SpatialMultihead_d%s" = SpatialMultihead_d,
+                                                            "SpatialFF_d%s" = SpatialFF_d,
+                                                            "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(NonLinearScaler)),InvSoftPlus(jnp$array(NonLinearScaler))),
+                                                            "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
+      }
+      ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
+          jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
+          jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Stop
+          jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
+          eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
+                     num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
+                     padding_mode = "REFLECT",
+                     in_channels = rawChannelDims, use_bias = F,
+                     out_channels = nWidth_ImageRep, key = jax$random$PRNGKey(4L+1040L+seed)), # patch embed
+          eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
+                        use_bias = F, key = jax$random$PRNGKey(999L + seed  ) ) # final dense proj
+        ))
     }
     TransformerBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
       if(type == "Spatial"){ # patch embed
@@ -354,7 +352,7 @@ GetImageRepresentations <- function(
                                   "SeperableFeature4_jax_d%s" = SeperableFeature4_jax, 
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
-                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_ImageRep ))),InvSoftPlus(jnp$array(1./ sqrt( NonLinearScaler * nDepth_ImageRep )))),
+                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array( NonLinearScaler )),InvSoftPlus(jnp$array( NonLinearScaler ))),
                                   "BN_ImRep1_d%s" = list(LayerBN1, jnp$array(rep(1.,times=BatchNormDim1)) ),
                                   "BN_ImRep2_d%s" = list(LayerBN2, jnp$array(rep(1.,times=BatchNormDim2)) ))', d_, d_, d_, d_, d_, d_, d_, d_, d_, d_ )))
     }
@@ -376,22 +374,22 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_ImageRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
-                                    key = jax$random$PRNGKey( 23453355L + seed+dt_) )
+                                    key = jax$random$PRNGKey( 2343355L + seed+dt_) )
         TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           use_bias = F, # hidden bias
-                          key = jax$random$PRNGKey(ai(33430L + 1L+dt_ + seed  ))),
+                          key = jax$random$PRNGKey(ai(334300L + 1L+dt_ + seed  ))),
              eq$nn$Linear(in_features = nWidth_ImageRep,
                           out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           use_bias = F, # swiglu bias
-                          key = jax$random$PRNGKey(ai(33311L + 1L+dt_ + seed ))),
+                          key = jax$random$PRNGKey(ai(333110L + 1L+dt_ + seed ))),
              eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                           out_features = nWidth_ImageRep,
                           use_bias = F, # final bias
-                          key = jax$random$PRNGKey(ai(333324L + 1L + dt_ + seed ))))
+                          key = jax$random$PRNGKey(ai(3333924L + 1L + dt_ + seed ))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
-                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_TemporalRep ))),InvSoftPlus(jnp$array(1./sqrt( NonLinearScaler * nDepth_TemporalRep )))),
+                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(NonLinearScaler)),InvSoftPlus(jnp$array(NonLinearScaler))),
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
@@ -414,6 +412,8 @@ GetImageRepresentations <- function(
       if(imageModelClass == "CNN"){
           m <- jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
           for(d__ in 1:nDepth_ImageRep){
+            print(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
+            
             # residual path 
             mtm1 <- m
             
@@ -432,14 +432,12 @@ GetImageRepresentations <- function(
             }
             
             if( optimizeImageRep ){
-              # bnorm
               if( optimizeImageRep &  d__ > 1 & T == T){ 
                 m <- LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep1_d%s",d__))[[1]], inference = inference)
                 StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep1_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
-                if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L),1L)  }
+                m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[2]],1L),1L) 
               }
               
               # swiglu act fxn
@@ -453,8 +451,7 @@ GetImageRepresentations <- function(
                 StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep2_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
                 eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
-                if(dataType == "image"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L) }
-                if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L),1L)  }
+                m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[2]],1L),1L) 
               }
               
               # adaptive max pooling 
@@ -467,7 +464,6 @@ GetImageRepresentations <- function(
                 hist(c(np$array(mtm1$val))); apply(np$array(mtm1$val),2,sd)
                 hist(c(np$array(m$val))); apply(np$array(m$val),2,sd)
                 hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1))$val)))
-                # hist(c(np$array(LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)$val)))
               }
               
               # residual connection 
@@ -479,22 +475,20 @@ GetImageRepresentations <- function(
           
           # final pooling, final norm (if used), and projection 
           m <- jnp$max(m, c(1L:2L))
-          #m <- jnp$mean(m, c(1L:2L))
           if(optimizeImageRep & T == T){
               print2("Performing final CNN normalization...")
               m <- LE(ModelList, "FinalCNNBN")[[1]](m, state = LE(StateList, "BNState_ImRep_FinalCNNBN"), 
                                                     inference = inference)
               StateIndex <- paste(sapply(LE_index( StateList, "BNState_ImRep_FinalCNNBN" ), function(zer){ paste("[[", zer, "]]") }), collapse = "")
               eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
-              if(dataType == "image"){ m <- m * LE(ModelList, "FinalCNNBN")[[2]] }
-              if(dataType == "video"){ m <- m * jnp$expand_dims(jnp$expand_dims(LE(ModelList, "FinalCNNBN")[[2]],1L),1L) }
+              m <- m * LE(ModelList, "FinalCNNBN")[[2]] 
           }
           # m <- LE(ModelList,"FinalCNNProj")(m) # note: projection done in next dense layer
       }
       return( list(m, StateList)  )
     }
-    ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
     #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ print("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
+    ImageRepArm_batch <- eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
@@ -504,7 +498,6 @@ GetImageRepresentations <- function(
       print2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
 
       # get spatial representation
-      # m <- m[1,,,]
       m <- jax$vmap(function(ModelList, m,
                              StateList, seed, MPList, inference){
             ImageRepArm_SpatialArm(ModelList, m,
@@ -517,6 +510,7 @@ GetImageRepresentations <- function(
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
         m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L))
+        # ( np$array(m)[1:5,,sample(1:10,1)] ) ;m$shape
         m <- jax$vmap(function(ModelList, m,
                                StateList, seed, MPList, inference){
                     TransformerBackbone(ModelList, m,

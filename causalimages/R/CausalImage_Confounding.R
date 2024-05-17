@@ -187,10 +187,10 @@ AnalyzeImageConfounding <- function(
         }
         tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
                             tf_dataset$skip(  test_size <-  ai( TFRecordControl$nTest)  )
-                            )$take( ai(TFRecordControl$nControl) ) 
+                            )$take( ai(TFRecordControl$nControl) )$`repeat`(-1L)  
         tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
                               tf_dataset$skip( test_size <-  ai( TFRecordControl$nTest) )
-                              )$skip( ai(TFRecordControl$nControl)+1L) 
+                              )$skip( ai(TFRecordControl$nControl)+1L)$`repeat`(-1L) 
         tf_dataset_train_treated <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_treated)
         tf_dataset_train_control <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_control)
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
@@ -630,7 +630,7 @@ AnalyzeImageConfounding <- function(
             batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
             ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
                                             ds_next_train_treated[[1]]), 0L)
-            print(table(obsW[batch_indices]))
+            # print(table(obsW[batch_indices]))
             # tmp <- c(tmp,batch_indices)
             # plot(head(obsW[tmp],300))
             # StateList[[1]][[3]]$BNState_ImRep_FinalCNNBN$tree_flatten()[[1]]

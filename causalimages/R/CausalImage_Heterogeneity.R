@@ -791,9 +791,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
         MPList <- list(jmp$Policy(compute_dtype = (ComputeDtype <- jnp$float16), 
                                   param_dtype = jnp$float32,
-                                  output_dtype= jnp$float16),
-                       jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = jnp$float16),
-                                            min_loss_scale = jnp$array(1.,dtype = jnp$float16),
+                                  output_dtype= (OutputDtype <- jnp$float16)),
+                       jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = OutputDtype),
+                                            min_loss_scale = jnp$array(1.,dtype = OutputDtype),
                                             period = 20L))
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
@@ -808,7 +808,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                             end_value =  learningRateMax/100)
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.1),
+            optax$adaptive_grad_clip(clipping = 0.10),
             optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
           )
     
