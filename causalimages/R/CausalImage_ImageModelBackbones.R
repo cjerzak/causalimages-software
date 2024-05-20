@@ -7,7 +7,6 @@
 #' @param conda_env A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`. Default = `"CausalImagesEnv"`
 #' @param conda_env_required A Boolean stating whether use of the specified conda environment is required.
 #' @param kernelSize Dimensif(ions used in the convolution kernels.
-#' @param temporalKernelSize Dimensions used in the temporal part of the convolution kernels if using image sequences.
 #' @param nWidth_ImageRep Number of embedding features output.
 #' @param strides  Integer specifying the strides used in the convolutional layers.
 #' @param InitImageProcess (default = `NULL`) Initial image processing function. Usually left `NULL`.
@@ -53,7 +52,6 @@ GetImageRepresentations <- function(
     batchSize = 16L,
     optimizeImageRep = T,
     strides = 1L,
-    temporalKernelSize = 2L,
     kernelSize = 3L,
     patchEmbedDim = 16L,
     TfRecords_BufferScaler = 10L,
@@ -138,8 +136,9 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     print2("Setting up image representation model...")
-    if(dataType == "video"){ NonLinearScaler <- 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) }
-    if(dataType == "image"){ NonLinearScaler <- 1/sqrt( 2*nDepth_ImageRep ) }
+    #if(dataType == "video"){ NonLinearScaler <- 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) }
+    #if(dataType == "image"){ NonLinearScaler <- 1/sqrt( 2*nDepth_ImageRep ) }
+    NonLinearScaler <- 1L
     MPList <- list(jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
                    jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
 
@@ -170,7 +169,7 @@ GetImageRepresentations <- function(
     position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
     cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
     sin_terms_patch <- jnp$sin( pos_times_theta_patch )
-    WideMultiplicationFactor <- 3.5
+    WideMultiplicationFactor <- 4.
     nTransformerOutputWidth <- nWidth_ImageRep
     
     # set up model
@@ -417,22 +416,24 @@ GetImageRepresentations <- function(
             # residual path 
             mtm1 <- m
             
-            # seperable convolution   
+            # seperable spatial convolution   
             m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
                     LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
 
             if(! optimizeImageRep){
               #m <- jax$nn$swish( 
                 #LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m) )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              # m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              # m <- LE(ModelList,sprintf("SeperableFeature4_jax_d%s",d__))(m)
               # hist(np$array(m$val)) 
               
-              m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)), mn_ <- jnp$mean(m, c(1L:2L))), 0L)
+              m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)), 
+                                        mn_ <- jnp$mean(m, c(1L:2L)), 
+                                        mx_ * mn_), 0L)
               return( list(m, StateList)  )
             }
             
             if( optimizeImageRep ){
-              if( optimizeImageRep &  d__ > 1 & T == T){ 
+              if( T == T ){  print("CNN BN (pre swiglu)")
                 m <- LE(ModelList, sprintf("BN_ImRep1_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep1_d%s",d__))[[1]], inference = inference)
                 StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep1_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
@@ -441,12 +442,11 @@ GetImageRepresentations <- function(
               }
               
               # swiglu act fxn
-              m <- jax$nn$swish( 
-                    LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m)
-                )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              m <- LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              m <- jax$nn$swish(  LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m) )  *
+                              LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
+              m <- LE(ModelList,sprintf("SeperableFeature4_jax_d%s",d__))(m)
               
-              if( optimizeImageRep & T == T ){ 
+              if( T == F ){  print("CNN BN (post swiglu)")
                 m <- LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep2_d%s",d__))[[1]], inference = inference)
                 StateIndex <- paste(sapply(LE_index( StateList, sprintf("BNState_ImRep2_d%s",d__) ),
                                            function(zer){ paste("[[", zer, "]]") }), collapse = "")
@@ -510,7 +510,7 @@ GetImageRepresentations <- function(
       # unsqueeze temporal dim if needed
       if(dataType == "video"){
         m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L))
-        # ( np$array(m)[1:5,,sample(1:10,1)] ) ;m$shape
+        # (np$array(m)[1:5,,sample(1:10,1)]); m$shape
         m <- jax$vmap(function(ModelList, m,
                                StateList, seed, MPList, inference){
                     TransformerBackbone(ModelList, m,

@@ -37,7 +37,6 @@
 #' @param nWidth_Dense Integer specifying width of image model representation.
 #' @param nDepth_Dense Integer specifying depth of dense model representation.
 #' @param kernelSize Dimensions used in spatial convolutions.
-#' @param temporalKernelSize imensions used in temporal convolutions (if `dataType = "video"``)
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return Returns a list consiting of \itemize{
@@ -90,7 +89,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       strides = 2L,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
-                                      temporalKernelSize = 2L,
                                       learningRateMax = 0.005,
                                       patchEmbedDim = 16L,
                                       nSGD  = 500L,
@@ -323,7 +321,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
             imageModelClass = imageModelClass,
-            temporalKernelSize = temporalKernelSize,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
@@ -474,7 +471,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             for(dense_ in 1L:nDepth_Dense){
                   # arm_ <- "Tau"; dense_ <- 1L
                   InputDim <- ai( ifelse(dense_==1, yes = nWidth_ImageRep, no = nWidth_Dense) )
-                  HiddenDim <- ai( ifelse(dense_ < nDepth_Dense, yes = ai( nWidth_Dense*(HiddenWidthDense <- 3.) ), no = nWidth_Dense) )
+                  HiddenDim <- ai( ifelse(dense_ < nDepth_Dense, 
+                                          yes = ai( nWidth_Dense*(HiddenWidthDense <- 3.) ), no = nWidth_ImageRep) )
                   OutputDim <- ai( ifelse(dense_==nDepth_Dense,
                                              yes = ifelse(arm_ == "Tau", yes = kClust_est-1L, no = 1L),
                                              no = nWidth_Dense))
@@ -558,7 +556,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
                   eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
                 }
-              
                 if(grepl(heterogeneityModelType,pattern="variational")){  
                   Wts <- MPList[[1]]$cast_to_compute( oryx$distributions$Normal( 
                                             c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
@@ -607,7 +604,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
                                   m, vseed, StateList, seed, MPList, inference)[[1]]
               Clust_logits <- GetTau_batch(ModelList,ModelList_fixed,
-                                           m, vseed, StateList, seed, MPList, inference)[[1]]
+                                  m, vseed, StateList, seed, MPList, inference)[[1]]
               clustT <- getClusterSamp_logitInput(Clust_logits, seed)
               ETau_draw <-  oryx$distributions$Normal(
                               c2f(getTau_means(ModelList)),
@@ -626,8 +623,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
             EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
                                 m, vseed, StateList, seed, MPList, inference)[[1]]
-            Etau_ <- GetTau_batch(ModelList,ModelList_fixed,
-                                   m, vseed, StateList, seed, MPList, inference)[[1]]
+            Etau_ <- GetTau_batch(ModelList, ModelList_fixed,
+                                m, vseed, StateList, seed, MPList, inference)[[1]]
             return( EY0 + Etau_ )
           }
         }
@@ -794,7 +791,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                   output_dtype= (OutputDtype <- jnp$float16)),
                        jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = OutputDtype),
                                             min_loss_scale = jnp$array(1.,dtype = OutputDtype),
-                                            period = 20L))
+                                            period = 50L))
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
@@ -808,7 +805,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                             end_value =  learningRateMax/100)
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.10),
+            optax$adaptive_grad_clip(clipping = 0.25),
             optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
           )
     
@@ -866,6 +863,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if( !justCheckCrossFitter ){ 
             t1 <- Sys.time();
             # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
+            # i_<-1; image2(np$array(InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F))[i_,1,,,1])
+            # image2(np$array(InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F))[i_,2,,,1])
+            # SwappedRowsIndicator[batch_indices]
+            # obsW[batch_indices]
+            # obsY[batch_indices]
             GradientUpdatePackage <- GradAndLossAndAux(
                                                      MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
                                                      InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
@@ -890,8 +892,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
               # unscale + adjust loss scale is some non-finite or NA
               if(i == 1){
                 Map2Zero <- eq$filter_jit(function(input){
-                  jax$tree_map(function(x){ jnp$where(jnp$isnan(x),
-                                                      jnp$array(0), x)}, input) })
+                  jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
                 AllFinite <- jax$jit( jmp$all_finite )
               }
               GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
@@ -1065,7 +1066,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # process all outcomes
         Y0_est_mat <- cbind(Y0_est_mat, Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T))
         Y1_est_mat <- cbind(Y1_est_mat, Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T))
-        Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW )
+        Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW)
         tau_est_mat <- cbind(tau_est_mat,  tau_est <- ( Y1_est - Y0_est))# Y(w)_est already re-scaled 
         browser()
         # hist( Results_by_keys$y0_ ) 
@@ -1075,20 +1076,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
         # LE(ModelList, sprintf("%s_d%s","EY0", nDepth_Dense))[[1]]
         
         # hist( Results_by_keys$y1_ ) 
-        # cor(Results_by_keys$y1_[obsW==1],obsY[obsW==1])
-        # hist(obsY[obsW==1])
+        # cor( Results_by_keys$y1_[obsW==1],obsY[obsW==1] )
+        # hist( obsY[obsW==1] )
         
         # hist(tau_est)
         # hist(Results_by_keys$y1_-Results_by_keys$y0_)
-        # cor(tau_est,SwappedRowsIndicator)
+        # plot(tau_est, SwappedRowsIndicator)
+        # cor(tau_est, SwappedRowsIndicator)
         # summary(lm(SwappedRowsIndicator~tau_est))
         # LE(ModelList, sprintf("%s_d%s","Tau", nDepth_Dense))[[3]]
         # mean((obsY[obsW==1])) - mean((obsY[obsW==0]))
         # mean(Rescale(obsY[obsW==1],doMean = T)) - mean(Rescale(obsY[obsW==0],doMean = T))
     
-        Yobs_est_out <- Yobs_est[testIndices]
+        Yobs_est_out <- Yobs_est[ testIndices ]
         Loss_out_baseline_vec <- c(Loss_out_baseline_vec,
-                                   Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[trainIndices]))^2 )^0.5)
+                                   Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[ trainIndices ]))^2 )^0.5)
         Loss_out_vec <- c(Loss_out_vec, Loss_out <- mean( (Yobs_est_out - mean(Yobs_est_out))^2)^0.5)
     }
   
