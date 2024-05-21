@@ -148,7 +148,7 @@ GetImageRepresentations <- function(
 
     # set batch name
     batch_axis_name <- "batch";
-    if(!"bn_momentum" %in% ls()){ bn_momentum <- 0.99 }
+    if(!"bn_momentum" %in% ls()){ bn_momentum <- 0.90 }
 
     # transformer preliminaries
     ffmap <- jax$vmap(function(L_, x){ L_(x) }, in_axes = list(NULL,0L))
