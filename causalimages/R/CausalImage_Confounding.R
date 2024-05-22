@@ -28,7 +28,6 @@
 #' @param nWidth_Dense Integer specifying width of image model representation.
 #' @param nDepth_Dense Integer specifying depth of dense model representation.
 #' @param kernelSize Dimensions used in spatial convolutions.
-#' @param temporalKernelSize Dimensions used in temporal convolutions (if `dataType = "video"``)
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return Returns a list consisting of
@@ -74,7 +73,7 @@ AnalyzeImageConfounding <- function(
                                    plotResults = T,
 
                                    optimizeImageRep = T,
-                                   nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, temporalKernelSize = 2L, kernelSize = 5L,
+                                   nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, kernelSize = 5L,
                                    nWidth_Dense = 64L,  nDepth_Dense = 1L,
                                    imageModelClass = "VisionTransformer",
 
@@ -130,7 +129,7 @@ AnalyzeImageConfounding <- function(
   figuresTag < ifelse(is.null(figuresTag), yes = "", no = figuresTag)
 
   # make all directory logic explicit
-  myGlmnet_coefs <- loss_vec <- NULL
+  ImageRepresentations_df <- myGlmnet_coefs <- loss_vec <- NULL
   orig_wd <- getwd()
   if( (cond1 <- substr(figuresPath, start = 0, stop = 1) == ".")  ){
     figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd)
@@ -324,7 +323,6 @@ AnalyzeImageConfounding <- function(
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
-            temporalKernelSize = temporalKernelSize,
             imageModelClass = imageModelClass,
             optimizeImageRep = optimizeImageRep, 
             kernelSize = kernelSize,
@@ -409,7 +407,6 @@ AnalyzeImageConfounding <- function(
         batchSize = batchSize,
         imageModelClass = imageModelClass,
         optimizeImageRep = optimizeImageRep, 
-        temporalKernelSize = temporalKernelSize,
         kernelSize = kernelSize,
         inputAvePoolingSize = inputAvePoolingSize,
         TfRecords_BufferScaler = 3L,
@@ -481,12 +478,9 @@ AnalyzeImageConfounding <- function(
           # dense model
           m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
-
-          # enforce range in [0,1]
-          m <- jax$nn$sigmoid( m )
           
-          # label smoothing to prevent NAs via log(0)
-          m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+          # sigmoid & label smoothing to prevent NAs via log(0)
+          m <- (1. - EP_LSMOOTH) * jax$nn$sigmoid( m ) + EP_LSMOOTH/2.
 
           # return contents
           return( list(m, StateList) )
@@ -1189,6 +1183,7 @@ AnalyzeImageConfounding <- function(
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
       "AUC" = pROC::roc(obsW[testIndices], prW_est[testIndices])$auc,
       "myGlmnet_coefs" = myGlmnet_coefs,
+      "ImageRepresentations_df" = ImageRepresentations_df, 
       "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
       "nTrainableParameters" = nTrainable,
       "trainIndices" = trainIndices,

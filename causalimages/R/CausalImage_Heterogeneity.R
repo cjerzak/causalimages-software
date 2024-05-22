@@ -1220,6 +1220,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
   try(setwd(orig_wd), T)
   
+  browser()
+  
   return( list(
                  "clusterTaus_mean" = as.numeric2(Tau_mean_return_vec),
                  "clusterTaus_sd" = as.numeric2(Tau_mean_return_sd_vec),
