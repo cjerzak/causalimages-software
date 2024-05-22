@@ -302,7 +302,7 @@ AnalyzeImageConfounding <- function(
 
       myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
                                    ncol = nWidth_ImageRep +
-                                     nWidth_ImageRep*(imageModelClass=="CNN") + 
+                                     2*nWidth_ImageRep*(imageModelClass=="CNN") + 
                                      1 + 
                                      ifelse(!XisNull, yes = ncol(X), no = 0))
       for(jr in 1L:(nBoot+1L)){
@@ -428,7 +428,7 @@ AnalyzeImageConfounding <- function(
                                                                             no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                             yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = jax$random$PRNGKey(d_+44L + as.integer(seed)))
+                                      use_bias = T, key = jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
           LayerBN_d  <- eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
                                          momentum = 0.99, eps = 0.001, channelwise_affine = F)
           DenseStateList[[d_]] <- eval(parse(text = sprintf("list('BNState_d%s' = eq$nn$State( LayerBN_d ))", d_)))

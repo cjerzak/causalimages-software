@@ -162,13 +162,18 @@ GetImageRepresentations <- function(
     InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
     
     # rotary embedding setup
-    theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
-    theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
-    theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
-    nTimeSteps_patch <- ai(nPatches_side^2)
-    position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
-    cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
-    sin_terms_patch <- jnp$sin( pos_times_theta_patch )
+    if(T == F){ 
+      theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
+      theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
+      theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
+      nTimeSteps_patch <- ai(nPatches_side^2)
+      position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
+      cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
+      sin_terms_patch <- jnp$sin( pos_times_theta_patch )
+    }
+    RotaryPositionalEmbeddings <- eq$nn$RotaryPositionalEmbedding( ifelse(optimizeImageRep, 
+                                                                          yes = nWidth_ImageRep, 
+                                                                          no = 3L*nWidth_ImageRep))
     WideMultiplicationFactor <- 4.
     nTransformerOutputWidth <- nWidth_ImageRep
     
@@ -234,13 +239,16 @@ GetImageRepresentations <- function(
           m <- RMS_norm(m)*LE(ModelList,sprintf("%sTransformerRenormer_d%s",type, d_))[[1]]
 
           # rotary embeddings
-          m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
-          for( IDX in seq(0L, nWidth_ImageRep, by = 2L)){
-            m_pos <- m_pos$at[,jnp$array(IDX)]$add(  jnp$negative(jnp$take(m, IDX+1L, axis = 1L) ) )
-            m_pos <- m_pos$at[,jnp$array(IDX+1L)]$add( jnp$take(m, IDX, axis = 1L) )
+          if(T == F){ 
+            m_pos <- MPList[[1]]$cast_to_compute( jnp$zeros_like( m ) )
+            for( IDX in seq(0L, nWidth_ImageRep, by = 2L)){
+              m_pos <- m_pos$at[,jnp$array(IDX)]$add(  jnp$negative(jnp$take(m, IDX+1L, axis = 1L) ) )
+              m_pos <- m_pos$at[,jnp$array(IDX+1L)]$add( jnp$take(m, IDX, axis = 1L) )
+            }
+            m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
+                      m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
           }
-          m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
-                    m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
+          m_pos <- RotaryPositionalEmbeddings( m )
 
           # multihead attention block
           m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
@@ -365,25 +373,28 @@ GetImageRepresentations <- function(
     StateList[[d_+1]] <- eval(parse(text = "list('BNState_ImRep_FinalCNNBN'=eq$nn$State( LayerBN ))"))
     }
     if(dataType == "video"){
+      nWidth_VideoRep <- ifelse(optimizeImageRep,
+                                     yes = nWidth_ImageRep,
+                                     no = nWidth_ImageRep + 2L*nWidth_ImageRep*(imageModelClass=="CNN"))
       for(dt_ in 1L:nDepth_TemporalRep){
-        TemporalTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
-                                              jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
+        TemporalTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
+                                              jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
         TemporalMultihead_d <- eq$nn$MultiheadAttention(
-                                    query_size = nWidth_ImageRep,
-                                    output_size = nWidth_ImageRep,
+                                    query_size = nWidth_VideoRep,
+                                    output_size = nWidth_VideoRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
                                     key = jax$random$PRNGKey( 2343355L + seed+dt_) )
-        TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_ImageRep,
-                          out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
+        TemporalFF_d  <- list(eq$nn$Linear(in_features = nWidth_VideoRep,
+                          out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # hidden bias
                           key = jax$random$PRNGKey(ai(334300L + 1L+dt_ + seed  ))),
-             eq$nn$Linear(in_features = nWidth_ImageRep,
-                          out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
+             eq$nn$Linear(in_features = nWidth_VideoRep,
+                          out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # swiglu bias
                           key = jax$random$PRNGKey(ai(333110L + 1L+dt_ + seed ))),
-             eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
-                          out_features = nWidth_ImageRep,
+             eq$nn$Linear(in_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
+                          out_features = nWidth_VideoRep,
                           use_bias = F, # final bias
                           key = jax$random$PRNGKey(ai(3333924L + 1L + dt_ + seed ))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
@@ -392,11 +403,11 @@ GetImageRepresentations <- function(
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
-                            jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
-                            jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Stop
-                            jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
+                            jnp$array(t(runif(nWidth_VideoRep,-sqrt(6/nWidth_VideoRep),sqrt(6/nWidth_VideoRep)))), # Start
+                            jnp$array(t(runif(nWidth_VideoRep,-sqrt(6/nWidth_VideoRep),sqrt(6/nWidth_VideoRep)))), # Stop
+                            jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                             jnp$array(0.), # unused  in temporal
-                            eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
+                            eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
                                          use_bias = F, key = jax$random$PRNGKey(999L+d_+seed  ))
                             ))
     }
@@ -532,7 +543,7 @@ GetImageRepresentations <- function(
   Representations <- NULL; if(getRepresentations){
   Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
                             ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, 
-                                                            no = nWidth_ImageRep+nWidth_ImageRep*(imageModelClass=="CNN") ))
+                                                            no = nWidth_ImageRep+2*nWidth_ImageRep*(imageModelClass=="CNN") ))
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
