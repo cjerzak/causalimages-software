@@ -6,7 +6,7 @@
 #' @param imageKeysOfUnits A vector of length `length(imageKeysOfUnits)` specifying the unique image ID associated with each unit. Samples of `imageKeysOfUnits` are fed into the package to call images into memory.
 #' @param conda_env A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`. Default = `"CausalImagesEnv"`
 #' @param conda_env_required A Boolean stating whether use of the specified conda environment is required.
-#' @param kernelSize Dimensif(ions used in the convolution kernels.
+#' @param kernelSize Dimensions used in the convolution kernels.
 #' @param nWidth_ImageRep Number of embedding features output.
 #' @param strides  Integer specifying the strides used in the convolutional layers.
 #' @param InitImageProcess (default = `NULL`) Initial image processing function. Usually left `NULL`.
@@ -46,6 +46,7 @@ GetImageRepresentations <- function(
     Sys.setenv_text = NULL,
 
     InitImageProcess = NULL,
+    pretrainedModel = NULL, 
     nWidth_ImageRep = 64L,
     nDepth_ImageRep = 1L,
     nDepth_TemporalRep = 1L,
@@ -136,9 +137,9 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     print2("Setting up image representation model...")
-    #if(dataType == "video"){ NonLinearScaler <- 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) }
-    #if(dataType == "image"){ NonLinearScaler <- 1/sqrt( 2*nDepth_ImageRep ) }
-    NonLinearScaler <- 1L
+    if(dataType == "video"){ NonLinearScaler <- jnp$array( 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) )  };
+    if(dataType == "image"){ NonLinearScaler <- jnp$array( 1/sqrt( 2*nDepth_ImageRep ) )  }
+    #NonLinearScaler <- jnp$array( 1. ) 
     MPList <- list(jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
                    jmp$DynamicLossScale(jnp$array(2^15), period = 1000L))
 
@@ -161,20 +162,32 @@ GetImageRepresentations <- function(
     nPatches = ai(nPatches_side^2)
     InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
     
+    
+    # adjust widths as needed 
+    nWidth_VideoRep <- ifelse(optimizeImageRep,
+                              yes = nWidth_ImageRep,
+                              no = nWidth_ImageRep + 2L*nWidth_ImageRep*(imageModelClass=="CNN" & 
+                                                                           optimizeImageRep == F ))
+    if(!is.null(pretrainedModel)){ if(pretrainedModel == "vit-base"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
+    if(!is.null(pretrainedModel)){ if(pretrainedModel == "dino"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
+    if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
+    
     # rotary embedding setup
     if(T == F){ 
       theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
       theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
       theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
-      nTimeSteps_patch <- ai(nPatches_side^2)
-      position_patch <- jnp$expand_dims( jnp$arange(1L, nTimeSteps_patch+3L), 1L)  # + 3L for stop, start
+
+      position_patch <- jnp$expand_dims( jnp$arange(1L, (ai(nTimeSteps_patch <- ai(nPatches_side^2))) +3L), 1L)  # + 3L for stop, start
       cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
       sin_terms_patch <- jnp$sin( pos_times_theta_patch )
     }
-    RotaryPositionalEmbeddings <- eq$nn$RotaryPositionalEmbedding( ifelse(optimizeImageRep, 
+    RotaryPositionalEmbeddings_spatial <- eq$nn$RotaryPositionalEmbedding( ifelse(optimizeImageRep, 
                                                                           yes = nWidth_ImageRep, 
-                                                                          no = 3L*nWidth_ImageRep))
-    WideMultiplicationFactor <- 4.
+                                                                          no = ifelse(imageModelClass == "CNN" & is.null(pretrainedModel), 
+                                                                                      yes = 3L*nWidth_ImageRep, no = nWidth_ImageRep) ) ) 
+    RotaryPositionalEmbeddings_temporal <- eq$nn$RotaryPositionalEmbedding( nWidth_VideoRep  ) 
+    WideMultiplicationFactor <- 3.5
     nTransformerOutputWidth <- nWidth_ImageRep
     
     # set up model
@@ -204,7 +217,7 @@ GetImageRepresentations <- function(
           StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep_d%s'= jnp$array(0.))", d_)))
           ModelList[[d_]] <- eval(parse(text = sprintf('list("SpatialMultihead_d%s" = SpatialMultihead_d,
                                                             "SpatialFF_d%s" = SpatialFF_d,
-                                                            "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array(NonLinearScaler)),InvSoftPlus(jnp$array(NonLinearScaler))),
+                                                            "SpatialResidualWts_d%s" = list(InvSoftPlus(NonLinearScaler),InvSoftPlus(NonLinearScaler)),
                                                             "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
       }
       ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
@@ -229,7 +242,7 @@ GetImageRepresentations <- function(
 
       # append start and stop condons
       m <- jnp$concatenate(list(LE(ModelList,sprintf("%sTransformerSupp",type))[[1]], m), 0L)
-      m <- jnp$concatenate(list(m, LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L)
+      # m <- jnp$concatenate(list(m, LE(ModelList,sprintf("%sTransformerSupp",type))[[2]]), 0L) # comment if no stop codon
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
@@ -248,7 +261,8 @@ GetImageRepresentations <- function(
             m_pos <- m*jnp$take( MPList[[1]]$cast_to_compute(cos_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) +
                       m_pos*jnp$take(MPList[[1]]$cast_to_compute(sin_terms_patch), jnp$array(0L:(m$shape[[1]]-1L)), 0L) # p. 7
           }
-          m_pos <- RotaryPositionalEmbeddings( m )
+          if(type == "Spatial"){ m_pos <- RotaryPositionalEmbeddings_spatial( m ) } 
+          if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
 
           # multihead attention block
           m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
@@ -272,14 +286,11 @@ GetImageRepresentations <- function(
       }
       print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
-      # path control -- only executed in final pass over sequences
-      TransformerOutputPathControl <- (dataType == "image" & type == "Spatial") | 
-                                            (dataType == "video" & type == "Temporal")
-
       # take CLS embedding from position 0 
       m <- jnp$take(m, indices = 0L, axis = 0L)
 
-      if( TransformerOutputPathControl ){
+      # path control -- only executed in final pass over sequences
+      if( (dataType == "image" & type == "Spatial") |  (dataType == "video" & type == "Temporal") ){
         # final norm
         # m <- jnp$squeeze(LayerNorm( jnp$expand_dims(m,0L) )*LE(ModelList,sprintf("%sTransformerSupp",type))[[3]])
 
@@ -359,7 +370,7 @@ GetImageRepresentations <- function(
                                   "SeperableFeature4_jax_d%s" = SeperableFeature4_jax, 
                                   "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
                                   "ResidualTPath_jax_d%s" = ResidualTPath_jax,
-                                  "SpatialResidualWts_d%s" = list(InvSoftPlus(jnp$array( NonLinearScaler )),InvSoftPlus(jnp$array( NonLinearScaler ))),
+                                  "SpatialResidualWts_d%s" = list(InvSoftPlus( NonLinearScaler ),InvSoftPlus( NonLinearScaler )),
                                   "BN_ImRep1_d%s" = list(LayerBN1, jnp$array(rep(1.,times=BatchNormDim1)) ),
                                   "BN_ImRep2_d%s" = list(LayerBN2, jnp$array(rep(1.,times=BatchNormDim2)) ))', d_, d_, d_, d_, d_, d_, d_, d_, d_, d_ )))
     }
@@ -373,9 +384,6 @@ GetImageRepresentations <- function(
     StateList[[d_+1]] <- eval(parse(text = "list('BNState_ImRep_FinalCNNBN'=eq$nn$State( LayerBN ))"))
     }
     if(dataType == "video"){
-      nWidth_VideoRep <- ifelse(optimizeImageRep,
-                                     yes = nWidth_ImageRep,
-                                     no = nWidth_ImageRep + 2L*nWidth_ImageRep*(imageModelClass=="CNN"))
       for(dt_ in 1L:nDepth_TemporalRep){
         TemporalTransformerRenormer_d <- list(jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                               jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
@@ -399,7 +407,7 @@ GetImageRepresentations <- function(
                           key = jax$random$PRNGKey(ai(3333924L + 1L + dt_ + seed ))))
         ModelList[[length(ModelList) + 1]] <- eval(parse(text = sprintf('list("TemporalTransformerRenormer_d%s" = TemporalTransformerRenormer_d,
                                                 "TemporalMultihead_d%s" = TemporalMultihead_d,
-                                               "TemporalResidualWts_d%s" = list(InvSoftPlus(jnp$array(NonLinearScaler)),InvSoftPlus(jnp$array(NonLinearScaler))),
+                                               "TemporalResidualWts_d%s" = list(InvSoftPlus( NonLinearScaler ), InvSoftPlus( NonLinearScaler )),
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
@@ -415,11 +423,11 @@ GetImageRepresentations <- function(
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
     ImageRepArm_SpatialArm <- function(ModelList, m, StateList, seed, MPList, inference){
-      if(imageModelClass == "VisionTransformer"){
+      if(imageModelClass == "VisionTransformer" ){
           m <- TransformerBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
           StateList <- m[[2]]; m <- m[[1]]
       }
-      if(imageModelClass == "CNN"){
+      if(imageModelClass == "CNN" ){
           m <- jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
           for(d__ in 1:nDepth_ImageRep){
             print(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
@@ -504,33 +512,39 @@ GetImageRepresentations <- function(
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
       # squeeze temporal dim if needed
-      if(dataType == "video"){ m <- jnp$reshape(m, c(-1L, (orig_shape_m <- jnp$shape(m))[3:5])) }
-
-      print2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
-
-      # get spatial representation
-      m <- jax$vmap(function(ModelList, m,
-                             StateList, seed, MPList, inference){
-            ImageRepArm_SpatialArm(ModelList, m,
-                                   StateList, seed, MPList, inference) },
-               in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
-               axis_name = batch_axis_name,
-               out_axes = list(0L,NULL))(ModelList, m, StateList, seed, MPList, inference)
-      StateList <- m[[2]]; m <- m[[1]]
-
-      # unsqueeze temporal dim if needed
-      if(dataType == "video"){
-        m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L))
-        # (np$array(m)[1:5,,sample(1:10,1)]); m$shape
-        m <- jax$vmap(function(ModelList, m,
-                               StateList, seed, MPList, inference){
-                    TransformerBackbone(ModelList, m,
-                                        StateList, seed, MPList, inference, type = "Temporal")},
-                      in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
-                      axis_name = batch_axis_name,
-                      out_axes = list(0L,NULL))(ModelList, m,
-                                                StateList, jnp$add(seed,42L), MPList, inference)
-        StateList <- m[[2]]; m <- m[[1]]
+      if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel,pattern="video") }
+      if(thisPath){
+        if(dataType == "video" & is.null(pretrainedModel)){ m <- jnp$reshape(m, c(-1L, (orig_shape_m <- jnp$shape(m))[3:5])) }
+  
+        print2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
+  
+        # get spatial representation
+        if( is.null(pretrainedModel) ){ 
+          m <- jax$vmap(function(ModelList, m,
+                                 StateList, seed, MPList, inference){
+                ImageRepArm_SpatialArm(ModelList, m,
+                                       StateList, seed, MPList, inference) },
+                   in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
+                   axis_name = batch_axis_name,
+                   out_axes = list(0L,NULL))(ModelList, m, StateList, seed, MPList, inference)
+          StateList <- m[[2]]; m <- m[[1]]
+        }
+  
+        # unsqueeze temporal dim if needed
+        if(dataType == "video"){
+          if( is.null(pretrainedModel) ){ m <- jnp$reshape(m, c(orig_shape_m[1:2], -1L)) } 
+          # (np$array(m)[1:5,,sample(1:10,1)]); m$shape
+          m <- jax$vmap(function(ModelList, m,
+                                 StateList, seed, MPList, inference){
+                      TransformerBackbone(ModelList, m,
+                                          StateList, seed, MPList, inference, type = "Temporal")},
+                        in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
+                        axis_name = batch_axis_name,
+                        out_axes = list(0L,NULL))(ModelList, m,
+                                                  StateList, jnp$add(seed,42L), MPList, inference)
+          StateList <- m[[2]]; m <- m[[1]]
+          # plot(np$array(m)[,sample(1:10,2)]); m$shape
+        }
       }
       return( list(m, StateList) )
     })
@@ -543,7 +557,7 @@ GetImageRepresentations <- function(
   Representations <- NULL; if(getRepresentations){
   Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
                             ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, 
-                                                            no = nWidth_ImageRep+2*nWidth_ImageRep*(imageModelClass=="CNN") ))
+                                                            no = nWidth_ImageRep+2L*nWidth_ImageRep*(imageModelClass=="CNN")*is.null(pretrainedModel) ))
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
@@ -575,6 +589,61 @@ GetImageRepresentations <- function(
 
       gc(); try(py_gc$collect(), T) # collect memory
       #representation_ <- try( np$array( ImageRepArm_batch_R(ModelList, # uncomment for debugging
+
+      if( !is.null(pretrainedModel) ){
+        InitImageProcess <- function(m, seed, inference){ 
+        if(!"TransformersModule" %in% ls()){ TransformersModule <<- reticulate::import("transformers") } 
+        if(!grepl(pretrainedModel,pattern="video")){
+          if( dataType == "video" ){ 
+            m_shape_orig <- m$shape
+            m <- jnp$reshape(m, list(-1L,m$shape[[3]],m$shape[[4]], m$shape[[5]]))
+          }
+          if(m$shape[[4]] == 1L){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
+          if(m$shape[[4]] > 3L){ m <- jnp$take(m,0L:2L,axis=3L) }
+          my_image_np <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
+          #my_image <- Image$fromarray(  my_image_np ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
+          
+          if(!"FeatureExtractor" %in% ls() & pretrainedModel == "vit-base"){ 
+            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('google/vit-base-patch16-224-in21k')
+            inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
+            m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
+          }
+          if(!"FeatureExtractor" %in% ls() & pretrainedModel == "dino"){ 
+            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('facebook/dino-vitb16')
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('facebook/dino-vitb16')
+            inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
+            m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
+          }
+          if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
+        }
+        if(!"FeatureExtractor" %in% ls() & grepl(pretrainedModel,pattern="videomae")){ 
+            # https://huggingface.co/docs/transformers/en/model_doc/videomae
+            #videoModelName <- "videomae-base-ssv2"
+            videoModelName <- "MCG-NJU/videomae-base"
+            #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
+            
+            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(videoModelName)
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(videoModelName)
+            
+            m_rep <- c(); for(j_ in 1L:m$shape[[1]]){ 
+              m_ <- jnp$take(m, j_-1L, axis = 0L)
+              if(m_$shape[[4]] == 1L){ m_ <- m_ * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
+              if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
+              m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
+              my_image_np <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
+              inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
+              m_ <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
+              #m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
+              m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
+            }
+            m <- jnp$array( m_rep )
+        }
+          return( m ) 
+        }
+        # InitImageProcess( jnp$array(batch_inference[[1]]) )$shape
+      }
+      
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]),
                                                                            jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
@@ -583,9 +652,8 @@ GetImageRepresentations <- function(
                                                           MPList, 
                                                           T # inference 
                                                           )[[1]]  ), T)
-      # plot(representation_)
-      # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       # plot(representation_[,sample(1:20)])
+      # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       # plot(representation_[1,],np$array(LE(ModelList,"SpatialTransformerSupp")[[1]]))
       # plot(representation_[sample(1:4,1),],np$array(LE(ModelList,"TemporalTransformerSupp")[[1]]))
       if("try-error" %in% class(representation_)){ browser() }
@@ -608,6 +676,8 @@ GetImageRepresentations <- function(
    return( list( "ImageRepresentations"= Representations,
                  "ImageRepArm_batch_R" = ImageRepArm_batch_R,
                  "ImageRepArm_batch" = ImageRepArm_batch,
-                 "ImageModel_And_State_And_MPPolicy_List" = ImageModel_And_State_And_MPPolicy_List ) )
+                 "ImageModel_And_State_And_MPPolicy_List" = ImageModel_And_State_And_MPPolicy_List,
+                 "InitImageProcess" = InitImageProcess
+                 ) )
   }
 }

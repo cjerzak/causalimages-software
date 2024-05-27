@@ -76,6 +76,7 @@ AnalyzeImageConfounding <- function(
                                    nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, kernelSize = 5L,
                                    nWidth_Dense = 64L,  nDepth_Dense = 1L,
                                    imageModelClass = "VisionTransformer",
+                                   pretrainedModel = NULL, 
 
                                    strides = 2L,
                                    nDepth_TemporalRep = 3L,
@@ -118,10 +119,6 @@ AnalyzeImageConfounding <- function(
     obsW <- f2n(obsW); obsY <- f2n(obsY)
   }
 
-  if(!optimizeImageRep & nDepth_ImageRep > 1){
-    if(atError == "stop"){ stop("Stopping: When optimizeImageRep = T, nDepth_ImageRep must be 1L") }
-    if(atError == "debug"){ browser() }
-  }
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
@@ -300,11 +297,6 @@ AnalyzeImageConfounding <- function(
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
-      myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1,
-                                   ncol = nWidth_ImageRep +
-                                     2*nWidth_ImageRep*(imageModelClass=="CNN") + 
-                                     1 + 
-                                     ifelse(!XisNull, yes = ncol(X), no = 0))
       for(jr in 1L:(nBoot+1L)){
         if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
         if(jr != (nBoot+1L)){ bindices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
@@ -324,6 +316,7 @@ AnalyzeImageConfounding <- function(
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
             imageModelClass = imageModelClass,
+            pretrainedModel = pretrainedModel, 
             optimizeImageRep = optimizeImageRep, 
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
@@ -363,6 +356,7 @@ AnalyzeImageConfounding <- function(
                                                             (1-obsW_)*obsY_/c(1-prW_est_) )
         tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/c(prW_est_))) -
                                             sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
+        if(jr == 1){ myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1, ncol = length(myGlmnet_coefs_)) }
         myGlmnet_coefs_mat[jr,] <- c(myGlmnet_coefs_)
         if(jr == (nBoot+1L)){
           nTrainable <- length(  myGlmnet_coefs_  )
@@ -406,6 +400,7 @@ AnalyzeImageConfounding <- function(
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
         imageModelClass = imageModelClass,
+        pretrainedModel = pretrainedModel, 
         optimizeImageRep = optimizeImageRep, 
         kernelSize = kernelSize,
         inputAvePoolingSize = inputAvePoolingSize,

@@ -87,6 +87,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nDepth_TemporalRep = 1L,
                                       useTrainingPertubations = T,
                                       strides = 2L,
+                                      pretrainedModel = NULL, 
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       learningRateMax = 0.005,
@@ -321,6 +322,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
             imageModelClass = imageModelClass,
+            pretrainedModel = pretrainedModel, 
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
@@ -798,14 +800,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
     
         # define optimizer and training step
         {
-          LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(50, nSGD))),
-                                                            decay_steps = max(c(51, nSGD-nWarmup)),
-                                                            init_value = learningRateMax/100, 
-                                                            peak_value = learningRateMax, 
-                                                            end_value =  learningRateMax/100)
+          #LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(100, nSGD))), decay_steps = max(c(51, nSGD-nWarmup)),
+                                                            #init_value = learningRateMax/100, peak_value = learningRateMax, 
+                                                            #end_value =  learningRateMax/100)
+          LR_schedule <- optax$cosine_onecycle_schedule(transition_steps = nSGD, peak_value = learningRateMax)
+          plot( np$array( jax$vmap(function(i_){LR_schedule(i_)},0L)(jnp$array(as.matrix(1L:nSGD)))) ) 
           optax_optimizer <-  optax$chain(
             optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.25),
+            optax$adaptive_grad_clip(clipping = 0.5),
             optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
           )
     
