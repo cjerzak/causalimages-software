@@ -512,7 +512,7 @@ GetImageRepresentations <- function(
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
       # squeeze temporal dim if needed
-      if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel,pattern="video") }
+      thisPath <- T;if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel,pattern="video") }
       if(thisPath){
         if(dataType == "video" & is.null(pretrainedModel)){ m <- jnp$reshape(m, c(-1L, (orig_shape_m <- jnp$shape(m))[3:5])) }
   
