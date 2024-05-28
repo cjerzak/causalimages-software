@@ -170,7 +170,7 @@ GetImageRepresentations <- function(
                                                                            optimizeImageRep == F ))
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "vit-base"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "dino"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
-    if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
+    if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 3L*768L } }  
     
     # rotary embedding setup
     if(T == F){ 
@@ -634,8 +634,8 @@ GetImageRepresentations <- function(
               my_image_np <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
               inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
               m_ <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
-              #m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
-              m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
+              m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
+              #m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
             }
             m <- jnp$array( m_rep )
         }
