@@ -55,6 +55,8 @@ AnalyzeImageConfounding <- function(
                                    X = NULL,
                                    file = NULL,
                                    imageKeysOfUnits = NULL,
+                                   fileTransport = NULL,
+                                   imageKeysOfUnitsTransport = NULL,
                                    nBoot = 10L,
                                    inputAvePoolingSize = 1L,
                                    useTrainingPertubations = T,
@@ -126,7 +128,7 @@ AnalyzeImageConfounding <- function(
   figuresTag < ifelse(is.null(figuresTag), yes = "", no = figuresTag)
 
   # make all directory logic explicit
-  ImageRepresentations_df <- myGlmnet_coefs <- loss_vec <- NULL
+  ImageRepresentations_df_transport <- ImageRepresentations_df <- myGlmnet_coefs <- loss_vec <- NULL
   orig_wd <- getwd()
   if( (cond1 <- substr(figuresPath, start = 0, stop = 1) == ".")  ){
     figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd)
@@ -383,6 +385,35 @@ AnalyzeImageConfounding <- function(
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
           ImageRepArm_batch_R <- ImageRepresentations$ImageRepArm_batch_R
+          
+          if(!is.null(fileTransport)){
+            setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
+              file = fileTransport,
+              # file = file, # for debugging 
+              dataType = dataType,
+              InitImageProcess = InitImageProcessFn,
+              nWidth_ImageRep = nWidth_ImageRep,
+              nDepth_ImageRep = nDepth_ImageRep,
+              strides = strides,
+              dropoutRate = 0,
+              nDepth_TemporalRep = nDepth_TemporalRep,
+              patchEmbedDim = patchEmbedDim,
+              batchSize = batchSize,
+              imageModelClass = imageModelClass,
+              pretrainedModel = pretrainedModel, 
+              optimizeImageRep = optimizeImageRep, 
+              kernelSize = kernelSize,
+              TfRecords_BufferScaler = 3L,
+              inputAvePoolingSize = inputAvePoolingSize,
+              imageKeysOfUnits = unique(imageKeysOfUnitsTransport),  getRepresentations = T,
+              returnContents = T,
+              bn_momentum = 0.99,
+              conda_env = conda_env,
+              conda_env_required = conda_env_required,
+              Sys.setenv_text = Sys.setenv_text,
+              seed = ai(400L + jr)  ); setwd(new_wd)
+            ImageRepresentations_df_transport <- as.data.frame(  ImageRepresentations_df_transport$ImageRepresentations )
+          }
         }
       }
     }
@@ -1179,6 +1210,7 @@ AnalyzeImageConfounding <- function(
       "AUC" = pROC::roc(obsW[testIndices], prW_est[testIndices])$auc,
       "myGlmnet_coefs" = myGlmnet_coefs,
       "ImageRepresentations_df" = ImageRepresentations_df, 
+      "ImageRepresentations_df_transport" = ImageRepresentations_df_transport, 
       "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
       "nTrainableParameters" = nTrainable,
       "trainIndices" = trainIndices,

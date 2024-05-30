@@ -221,8 +221,8 @@ GetImageRepresentations <- function(
                                                             "SpatialTransformerRenormer_d%s" = SpatialTransformerRenormer_d)', d_, d_, d_, d_ )))
       }
       ModelList[[d_+1]] <- list("SpatialTransformerSupp" = list(
-          jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Start
-          jnp$array(t(runif(nWidth_ImageRep,-sqrt(6/nWidth_ImageRep),sqrt(6/nWidth_ImageRep)))), # Stop
+          jax$random$uniform(key = jax$random$PRNGKey(ai(333324L + seed +  d_)), minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
+          jax$random$uniform(key = jax$random$PRNGKey(ai(3332124L + seed +  d_)),minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
                      num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
@@ -303,39 +303,39 @@ GetImageRepresentations <- function(
     StateList <- ModelList <- replicate(nDepth_ImageRep, list())
     for(d_ in 1L:nDepth_ImageRep){
         if(d_ > 1){ strides <- 1L }
-      SeperableSpatial_jax <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
+      SeperableSpatial <- eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
                                          num_spatial_dims = 2L, stride = c(strides, strides),
                                          in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
                                          out_channels = dimsSpatial, use_bias = F,
                                          groups = dimsSpatial,
                                          key = jax$random$PRNGKey(4L+d_+seed))
-      SeperableFeature_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
+      SeperableFeature <- eq$nn$Conv(in_channels = dimsSpatial, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
                                          key = jax$random$PRNGKey(50L+d_+seed))
-      SeperableFeature2_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+      SeperableFeature2 <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
                                          key = jax$random$PRNGKey(530L+d_+seed))
-      SeperableFeature3_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+      SeperableFeature3 <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
                                           key = jax$random$PRNGKey(5340L+d_+seed))
-      SeperableFeature4_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+      SeperableFeature4 <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
                                           key = jax$random$PRNGKey(53140L+d_+seed))
-      ResidualTm1Path_jax <- eq$nn$Conv(in_channels = dimsSpatial, 
+      ResidualTm1Path <- eq$nn$Conv(in_channels = dimsSpatial, 
                                         out_channels = nWidth_ImageRep,
                                         groups = 1L,
                                         kernel_size = c(1L,1L),
                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
                                         key = jax$random$PRNGKey(3250L+d_+seed))
-      ResidualTPath_jax <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
+      ResidualTPath <- eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                       out_channels = nWidth_ImageRep,
                                       groups = 1L,
                                       kernel_size = c(1L,1L),
@@ -344,11 +344,11 @@ GetImageRepresentations <- function(
 
         # reset weights with Xavier/Glorot
         if(T == F){ 
-        SeperableSpatial_jax <- eq$tree_at(function(l){l$weight}, SeperableSpatial_jax,
+        SeperableSpatial <- eq$tree_at(function(l){l$weight}, SeperableSpatial,
                                            jax$random$uniform(key=jax$random$PRNGKey(5L+d_+seed),
                                                               minval = -sqrt(6/(dimsSpatial+dimsSpatial)),
                                                               maxval = sqrt(6/(dimsSpatial+dimsSpatial)),
-                                                              shape = jax$tree_util$tree_leaves(SeperableSpatial_jax)[[1]]$shape) )
+                                                              shape = jax$tree_util$tree_leaves(SeperableSpatial)[[1]]$shape) )
         }
 
         # setup bn for CNN block
@@ -363,13 +363,13 @@ GetImageRepresentations <- function(
           momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)
         StateList[[d_]] <- eval(parse(text = sprintf("list('BNState_ImRep1_d%s'=list(eq$nn$State( LayerBN1 )),
                                                         'BNState_ImRep2_d%s'=list(eq$nn$State( LayerBN2 )))", d_, d_)))
-        ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_jax_d%s" = SeperableSpatial_jax,
-                                  "SeperableFeature_jax_d%s" = SeperableFeature_jax,
-                                  "SeperableFeature2_jax_d%s" = SeperableFeature2_jax, 
-                                  "SeperableFeature3_jax_d%s" = SeperableFeature3_jax, 
-                                  "SeperableFeature4_jax_d%s" = SeperableFeature4_jax, 
-                                  "ResidualTm1Path_jax_d%s" = ResidualTm1Path_jax,
-                                  "ResidualTPath_jax_d%s" = ResidualTPath_jax,
+        ModelList[[d_]] <- eval(parse(text = sprintf('list("SeperableSpatial_d%s" = SeperableSpatial,
+                                  "SeperableFeature_d%s" = SeperableFeature,
+                                  "SeperableFeature2_d%s" = SeperableFeature2, 
+                                  "SeperableFeature3_d%s" = SeperableFeature3, 
+                                  "SeperableFeature4_d%s" = SeperableFeature4, 
+                                  "ResidualTm1Path_d%s" = ResidualTm1Path,
+                                  "ResidualTPath_d%s" = ResidualTPath,
                                   "SpatialResidualWts_d%s" = list(InvSoftPlus( NonLinearScaler ),InvSoftPlus( NonLinearScaler )),
                                   "BN_ImRep1_d%s" = list(LayerBN1, jnp$array(rep(1.,times=BatchNormDim1)) ),
                                   "BN_ImRep2_d%s" = list(LayerBN2, jnp$array(rep(1.,times=BatchNormDim2)) ))', d_, d_, d_, d_, d_, d_, d_, d_, d_, d_ )))
@@ -411,13 +411,15 @@ GetImageRepresentations <- function(
                                                "TemporalFF_d%s" = TemporalFF_d)', dt_,dt_,dt_,dt_)))
       }
       ModelList[[length(ModelList)+1]] <- list("TemporalTransformerSupp" = list(
-                            jnp$array(t(runif(nWidth_VideoRep,-sqrt(6/nWidth_VideoRep),sqrt(6/nWidth_VideoRep)))), # Start
-                            jnp$array(t(runif(nWidth_VideoRep,-sqrt(6/nWidth_VideoRep),sqrt(6/nWidth_VideoRep)))), # Stop
-                            jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
-                            jnp$array(0.), # unused  in temporal
-                            eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
-                                         use_bias = F, key = jax$random$PRNGKey(999L+d_+seed  ))
-                            ))
+                  jax$random$uniform(key = jax$random$PRNGKey(ai(33932124L + seed +  dt_)),
+                                     minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # start 
+                  jax$random$uniform(key = jax$random$PRNGKey(ai(3324L + seed +  dt_)), 
+                                     minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # stop
+                  jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
+                  jnp$array(0.), # unused  in temporal
+                  eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
+                               use_bias = F, key = jax$random$PRNGKey(1999L+dt_+seed  ))
+                  ))
     }
 
     # m <- InitImageProcess( jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
@@ -436,13 +438,13 @@ GetImageRepresentations <- function(
             mtm1 <- m
             
             # seperable spatial convolution   
-            m <- LE(ModelList,sprintf("SeperableFeature_jax_d%s",d__))(
-                    LE(ModelList,sprintf("SeperableSpatial_jax_d%s",d__))(m))
+            m <- LE(ModelList,sprintf("SeperableFeature_d%s",d__))(
+                    LE(ModelList,sprintf("SeperableSpatial_d%s",d__))(m))
 
             if(! optimizeImageRep){
               #m <- jax$nn$swish( 
-                #LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m) )  * LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              # m <- LE(ModelList,sprintf("SeperableFeature4_jax_d%s",d__))(m)
+                #LE(ModelList,sprintf("SeperableFeature2_d%s",d__))(m) )  * LE(ModelList,sprintf("SeperableFeature3_d%s",d__))(m)
+              # m <- LE(ModelList,sprintf("SeperableFeature4_d%s",d__))(m)
               # hist(np$array(m$val)) 
               
               m <- jnp$concatenate(list(mx_ <- jnp$max(m, c(1L:2L)), 
@@ -461,9 +463,9 @@ GetImageRepresentations <- function(
               }
               
               # swiglu act fxn
-              m <- jax$nn$swish(  LE(ModelList,sprintf("SeperableFeature2_jax_d%s",d__))(m) )  *
-                              LE(ModelList,sprintf("SeperableFeature3_jax_d%s",d__))(m)
-              m <- LE(ModelList,sprintf("SeperableFeature4_jax_d%s",d__))(m)
+              m <- jax$nn$swish(  LE(ModelList,sprintf("SeperableFeature2_d%s",d__))(m) )  *
+                              LE(ModelList,sprintf("SeperableFeature3_d%s",d__))(m)
+              m <- LE(ModelList,sprintf("SeperableFeature4_d%s",d__))(m)
               
               if( T == F ){  print("CNN BN (post swiglu)")
                 m <- LE(ModelList, sprintf("BN_ImRep2_d%s",d__))[[1]](m, state = LE(StateList, sprintf("BNState_ImRep2_d%s",d__))[[1]], inference = inference)
@@ -476,18 +478,18 @@ GetImageRepresentations <- function(
               # adaptive max pooling 
               if(d__ %% 2 %in% c(0,1)){ 
                 m <- eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), ai(m$shape[[3]]*SpatialShrinkRate)))( m ) 
-                m <- LE(ModelList,sprintf("ResidualTPath_jax_d%s",d__))(m)
+                m <- LE(ModelList,sprintf("ResidualTPath_d%s",d__))(m)
               }
               
               if(T == F){ 
                 hist(c(np$array(mtm1$val))); apply(np$array(mtm1$val),2,sd)
                 hist(c(np$array(m$val))); apply(np$array(m$val),2,sd)
-                hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1))$val)))
+                hist(c(np$array( eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))( LE(ModelList,sprintf("ResidualTm1Path_d%s",d__))(mtm1))$val)))
               }
               
               # residual connection 
               m <- eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))(
-                            LE(ModelList,sprintf("ResidualTm1Path_jax_d%s",d__))(mtm1)) +  
+                            LE(ModelList,sprintf("ResidualTm1Path_d%s",d__))(mtm1)) +  
                          m * jax$nn$softplus( LE(ModelList,sprintf("SpatialResidualWts_d%s",d_))[[2]]$astype(jnp$float32) )$astype(mtm1$dtype)
             }
           }
