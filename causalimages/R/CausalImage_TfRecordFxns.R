@@ -44,6 +44,7 @@ WriteTfRecord <- function(file,
   }
 
   # helper fxns
+  print2("Initializing tfrecord helpers...")
   {
     # see https://towardsdatascience.com/a-practical-guide-to-tfrecords-584536bc786c
     my_bytes_feature <- function(value){
@@ -91,6 +92,7 @@ WriteTfRecord <- function(file,
   }
 
   # for clarity, set file to tf_record_name
+  print2("Starting save run...")
   tf_record_name <- file
   if( !grepl(tf_record_name, pattern = "/") ){
     tf_record_name <- paste("./",tf_record_name, sep = "")

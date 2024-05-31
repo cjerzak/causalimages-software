@@ -658,6 +658,15 @@ GetImageRepresentations <- function(
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       # plot(representation_[1,],np$array(LE(ModelList,"SpatialTransformerSupp")[[1]]))
       # plot(representation_[sample(1:4,1),],np$array(LE(ModelList,"TemporalTransformerSupp")[[1]]))
+      if(T == F){ 
+        # sanity checks
+        batch_inference[[1]]$shape
+        tmp <- np$array(jnp$take(jnp$array(batch_inference[[1]]),(iCheck <- 8L)-1L,axis=0L))
+        image2(tmp[,,1])
+        image2(tmp[1,,,1])
+        cbind(lat[which(imageKeysOfUnits %in% batch_keys[ iCheck ])], long[which(imageKeysOfUnits %in% batch_keys[ iCheck ])])
+        # dim( tmp  ) 
+      }
       if("try-error" %in% class(representation_)){ browser() }
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
