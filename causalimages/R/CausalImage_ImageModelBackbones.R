@@ -621,7 +621,6 @@ GetImageRepresentations <- function(
         }
         if(!"FeatureExtractor" %in% ls() & grepl(pretrainedModel,pattern="videomae")){ 
             # https://huggingface.co/docs/transformers/en/model_doc/videomae
-            #videoModelName <- "videomae-base-ssv2"
             videoModelName <- "MCG-NJU/videomae-base"
             #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
             
