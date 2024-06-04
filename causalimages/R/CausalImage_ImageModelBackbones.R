@@ -593,6 +593,7 @@ GetImageRepresentations <- function(
       #representation_ <- try( np$array( ImageRepArm_batch_R(ModelList, # uncomment for debugging
 
       if( !is.null(pretrainedModel) ){
+        InitImageProcess_orig <- InitImageProcess
         InitImageProcess <- function(m, seed, inference){ 
         if(!"TransformersModule" %in% ls()){ TransformersModule <<- reticulate::import("transformers") } 
         if(!grepl(pretrainedModel,pattern="video")){
@@ -605,27 +606,73 @@ GetImageRepresentations <- function(
           my_image_np <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
           #my_image <- Image$fromarray(  my_image_np ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
           
-          if(!"FeatureExtractor" %in% ls() & pretrainedModel == "vit-base"){ 
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('google/vit-base-patch16-224-in21k')
+          if( pretrainedModel == "vit-base" ){ 
+            if(!"FeatureExtractor" %in% ls()){
+              FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
+              TransformersModel <<- TransformersModule$ViTModel$from_pretrained('google/vit-base-patch16-224-in21k')
+            }
             inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
             m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
           }
-          if(!"FeatureExtractor" %in% ls() & pretrainedModel == "dino"){ 
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('facebook/dino-vitb16')
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('facebook/dino-vitb16')
+          if( pretrainedModel == "clay" ){ 
+            # https://clay-foundation.github.io/model/clay-v1-wall-to-wall.html#
+            
+            browser()
+            if(!"ClayModel" %in% ls()){
+              
+              # Convert to POSIXct
+              theDate <- ( as.POSIXct("2004-06-12 12:00:00", format="%Y-%m-%d %H:%M:%S") )
+              
+              torch <<- import("torch")
+              normalize_timestamp <<- reticulate::import("stacchip.processors.prechip")$normalize_timestamp
+              src <<- import("src")
+              ClayModel <<- src$model$ClayMAEModule$load_from_checkpoint(
+                                                                    "~/Documents/Clay/mae_v0.5.7_epoch-13_val-loss-0.3098.ckpt", 
+                                                                    metadata_path="~/Documents/model/configs/metadata.yaml", 
+                                                                    shuffle=F, 
+                                                                    mask_ratio=0)
+              ClayModel$eval()
+            }
+            
+            # get place embeddings 
+            latlong_embed <- cbind(lat[batch_indices] * pi / 180, long[batch_indices] * pi / 180)
+            latlong_embed <-  cbind(sin(latlong_embed[,1]),cos(latlong_embed[,1]),
+                                   sin(latlong_embed[,2]),cos(latlong_embed[,2]))
+            time_embed <- t(replicate(length(batch_indices),{c(-0.1205, -0.9927,  0.2588, -0.9659)}))
+            timeEmbed <- normalize_timestamp( theDate  )
+            
+            datacube <- dict("platform" = "cpu", # platform 
+                             "time" = torch$tensor( time_embed ), # temporal embedding 
+                             "latlon" = torch$tensor( latlong_embed ), # lat long embedding 
+                             "pixels" = torch$tensor( my_image_np ), # normalized image 
+                             "gsd" = torch$tensor(rep(30,times = np$array(my_image_np$shape)[1])),  # resolution 
+                             'waves' = torch$tensor(t(replicate(c(0.4930, 0.5600, 0.6650),
+                                                        n = np$array(my_image_np$shape)[2]))) ) # wavelength in micrometers?, this assumes RBG
+                             )
+            m <- model$model$encoder(datacube)
+            
+            # The first embedding is the [CLS], which is a global embedding
+            m = m[[1]]$detach()$numpy()[,1,]
+          }
+          if(pretrainedModel == "dino"){ 
+            if(!"FeatureExtractor" %in% ls()){
+              FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('facebook/dino-vitb16')
+              TransformersModel <<- TransformersModule$ViTModel$from_pretrained('facebook/dino-vitb16')
+            }
             inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
             m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
           }
           if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
         }
-        if(!"FeatureExtractor" %in% ls() & grepl(pretrainedModel,pattern="videomae")){ 
-            # https://huggingface.co/docs/transformers/en/model_doc/videomae
-            videoModelName <- "MCG-NJU/videomae-base"
-            #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
-            
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(videoModelName)
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(videoModelName)
+        if(grepl(pretrainedModel,pattern="videomae")){ 
+            if(!"FeatureExtractor" %in% ls() ){ 
+              # https://huggingface.co/docs/transformers/en/model_doc/videomae
+              videoModelName <<- "MCG-NJU/videomae-base"
+              #videoModelName <<- "MCG-NJU/videomae-base-finetuned-kinetics"
+              
+              FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(videoModelName)
+              TransformersModel <<- TransformersModule$ViTModel$from_pretrained(videoModelName)
+            }
             
             m_rep <- c(); for(j_ in 1L:m$shape[[1]]){ 
               m_ <- jnp$take(m, j_-1L, axis = 0L)
@@ -642,7 +689,6 @@ GetImageRepresentations <- function(
         }
           return( m ) 
         }
-        # InitImageProcess( jnp$array(batch_inference[[1]]) )$shape
       }
       
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
