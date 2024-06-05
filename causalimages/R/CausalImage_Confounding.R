@@ -108,10 +108,9 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
-    # tf$config$get_visible_devices() # confirm CPU only
-    # try(tf$config$experimental$set_visible_devices(list(), "GPU"), T)
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
-
+    
+    # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
 
     # set float type
     library( tensorflow );
