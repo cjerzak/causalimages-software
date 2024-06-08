@@ -586,7 +586,7 @@ GetImageRepresentations <- function(
            m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
         } 
         if( grepl(pretrainedModel, pattern="clay") ){ 
-          m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
+          m <- reticulate::np_array( tf$constant(m), dtype = np$float16)
         }
         #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
         
@@ -596,14 +596,14 @@ GetImageRepresentations <- function(
             RunOnDevice <<- ifelse(torch$cuda$is_available(), 
                                   yes = list(torch$device("cuda")), 
                                   no = list(torch$device("cpu")))[[1]] 
-            RunDtype <- torch$float16
+            RunDtype <<- torch$float16
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained(
                                           'google/vit-base-patch16-224-in21k')$to(RunOnDevice)$half()
           }
           m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(
                                          RunDtype)$to(RunOnDevice)
           #TransformersModel <- torch$compile(TransformersModel)
-          system.time( m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() )
+          m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
           py_gc$collect()
         }
         if( grepl(pretrainedModel, pattern = "clay") ){ 
@@ -655,7 +655,6 @@ GetImageRepresentations <- function(
             
             #export LD_LIBRARY_PATH="/path/to/mkl/lib:$LD_LIBRARY_PATH"
             #Sys.setenv(LD_LIBRARY_PATH = "/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH")
-            browser()
             #oldwd <- getwd(); setwd("~/Documents/model/");
             #ClayModel <<- reticulate::import_from_path("model", path = "./src")
             #setwd(oldwd)
@@ -666,17 +665,22 @@ GetImageRepresentations <- function(
                 metadata_path="/Users/cjerzak/Documents/model/configs/metadata.yaml", 
                 shuffle=F,  mask_ratio=0, batch_first = T)
             }
-            browser()
-            if( Sys.info()["machine"] == "x86_64" ){ 
+            if( Sys.info()["machine"] == "x86_64" & T == F ){ 
               ClayModel <<- ClayModel$ClayMAEModule$load_from_checkpoint(
-                "/home/cjerzak/Documents/Clay/Clay_v0.1_epoch-24_val-loss-0.46.ckpt", 
+                "/home/cjerzak/Documents/Clay/clay-v1-base.ckpt", 
                 metadata_path="/home/cjerzak/Documents/model/configs/metadata.yaml", 
-                shuffle=F,  mask_ratio=0, torch_dtype=torch$float16)
+                shuffle=F,  mask_ratio=0) #$torch_dtype=torch$float16)
             }
             #})
             # ClayModel <- ClayModel$to( torch$float16 )
             #ClayModel <- ClayModel$half()# run model in half precision
             #ClayModel <- ClayModel$bfloat16()
+            
+            RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                   yes = list(torch$device("cuda")), 
+                                   no = list(torch$device("cpu")))[[1]] 
+            RunDtype <<- torch$float16
+            ClayModel <<- ClayModel$to(RunOnDevice)$half()
           }
           
           # get place embeddings 
@@ -698,16 +702,28 @@ GetImageRepresentations <- function(
           # torch$tensor( time_embed )$dtype; torch$Tensor( time_embed )$dtype
           # torch$tensor( time_embed, dtype = torch$float16 )
           
+          
+          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(
+            RunDtype)$to(RunOnDevice)
+          #TransformersModel <- torch$compile(TransformersModel)
+          m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
+          
+          
           # obtain data cube & embeddings 
           #system.time(
-          m <- ClayModel$model$encoder( dict("platform" = "landsat-c2l1", # platform
+          M2 <- ClayModel$model$encoder$to(RunOnDevice)
+          #m <- ClayModel$model$encoder(
+          m <- M2(
+                                          dict("platform" = "landsat-c2l1",  # platform
           #m <- ClayModel$half()$model$encoder( dict("platform" = "landsat-c2l1", # platform 
           #m <- ClayModel$model$encoder$half()( dict("platform" = "landsat-c2l1", # platform
-                                             "time" = torch$tensor( time_embed, dtype = myDtype), # temporal embedding 
-                                             "latlon" = torch$tensor( latlong_embed, dtype = myDtype ), # lat long embedding 
-                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = myDtype ), # normalized image 
-                                             "gsd" = torch$tensor(30, dtype = myDtype),  # resolution 
-                                             'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = myDtype) ) )  # wavelength in micrometers?, this assumes RBG
+                                             "time" = torch$tensor( time_embed, dtype = myDtype)$to(RunOnDevice), # temporal embedding 
+                                             "latlon" = torch$tensor( latlong_embed, dtype = myDtype )$to(RunOnDevice), # lat long embedding 
+                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = myDtype )$to(RunOnDevice), # normalized image 
+                                             "gsd" = torch$tensor(30, dtype = myDtype)$to(RunOnDevice),  # resolution 
+                                             'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = myDtype)$to(RunOnDevice) 
+          ) # wavelength in micrometers?, this assumes RBG
+          )  
           #)                                
           # The first embedding is the [CLS], which is a global embedding
           m = jnp$array(  m[[1]]$detach()$numpy()[,1,] ) 
