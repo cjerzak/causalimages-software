@@ -95,12 +95,18 @@ AnalyzeImageConfounding <- function(
                                    atError = "stop", # stop or debug
                                    seed = NULL){
   {
+    library(reticulate)
+    #print("TEST"); source("~/Downloads/scratch_fix_claygpu.R", local = sourceLocal)
+    
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
     # note: for balanced training, generate two tf records
-    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
+    if(!is.null(Sys.setenv_text)){ 
+      #eval(parse(text = Sys.setenv_text)) 
+      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
+    }
     jax <<- reticulate::import("jax")
     jnp <<- reticulate::import("jax.numpy")
     np <<- reticulate::import("numpy")
@@ -109,7 +115,6 @@ AnalyzeImageConfounding <- function(
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
-    
     # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
 
     # set float type

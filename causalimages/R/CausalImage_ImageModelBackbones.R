@@ -63,11 +63,14 @@ GetImageRepresentations <- function(
     seed = NULL){
 
   # initialize tensorflow if not already initialized
-  if(   !"logical" %in% class(try(as.numeric(np$array(jnp$square(1.)))==1,T))  | !all(c("gc", "jax", "numpy", "numpy", "jax.numpy", "jmp", "optax", "equinox") %in% ls()) ){
+  if(   !"logical" %in% class(try(as.numeric(np$array(jnp$square(1.)))==1,T)) ){
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(tensorflow); 
     if(!is.null(conda_env)){ try(reticulate::use_condaenv(conda_env, required = conda_env_required),T) }
-    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
+    if(!is.null(Sys.setenv_text)){ 
+      #eval(parse(text = Sys.setenv_text)) 
+      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
+    }
     py_gc <- reticulate::import("gc")
     (jax <<- reticulate::import("jax"))$config$update("jax_enable_x64", FALSE);
     jnp <<- reticulate::import("jax.numpy")
@@ -557,7 +560,17 @@ GetImageRepresentations <- function(
   if( !is.null(pretrainedModel) ){
     InitImageProcess_orig <- InitImageProcess
     InitImageProcess <- function(m, seed, inference){ 
-      if(!"TransformersModule" %in% ls() & !grepl(pretrainedModel,pattern="clay")){ TransformersModule <<- reticulate::import("transformers") } 
+      if(!"TransformersModule" %in% ls() & !grepl(pretrainedModel,pattern="clay")){ 
+        "
+        conda create -n hface python=3.11 
+        conda activate hface 
+        python3 -m pip install --upgrade transformers torch tensorflow tensorflow_datasets pillow
+        pip install -U 'jax[cuda12]'
+        python3 -m pip install --upgrade jmp optax equinox 
+        "
+        TransformersModule <<- reticulate::import("transformers") 
+        torch <<- reticulate::import("torch") 
+      } 
       if(grepl(pretrainedModel,pattern="clay")){ # normalize for clay, don't normalize for other pt models which take raw images 
         m <- InitImageProcess_orig(m, jax$random$PRNGKey(1L), T) 
       } 
@@ -570,34 +583,96 @@ GetImageRepresentations <- function(
         if(m$shape[[4]] > 3L){ m <- jnp$take(m,0L:2L,axis=3L) }
         
         if( !grepl(pretrainedModel ,pattern="clay") ){ 
-           my_image_np <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
+           m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
         } 
         if( grepl(pretrainedModel, pattern="clay") ){ 
-          my_image_np <- reticulate::np_array( tf$constant(m), dtype = np$float32)
+          m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
         }
-        #my_image <- Image$fromarray(  my_image_np ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
+        #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
         
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls()){
             FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('google/vit-base-patch16-224-in21k')
+            RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                  yes = list(torch$device("cuda")), 
+                                  no = list(torch$device("cpu")))[[1]] 
+            RunDtype <- torch$float16
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(
+                                          'google/vit-base-patch16-224-in21k')$to(RunOnDevice)$half()
           }
-          inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
-          m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
+          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(
+                                         RunDtype)$to(RunOnDevice)
+          #TransformersModel <- torch$compile(TransformersModel)
+          system.time( m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() )
+          py_gc$collect()
         }
         if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
+          
+          #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
+
           if(!"ClayModel" %in% ls()){
+            # recipe 
+            # install git-lfs
+            # https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md
+            # clone model wts 
+            "
+            cd ~/Documents 
+            git clone https://huggingface.co/made-with-clay/Clay
+            
+            cd ~/Documents
+            git clone https://github.com/Clay-foundation/model
+            cd model
+
+            # on mac: 
+            conda create --name claymodel python=3.11 conda-lock=2.5.6
+            conda activate claymodel
+            
+            conda-lock install --name claymodel conda-lock.yml
+
+            python3 -m pip install tensorflow tensorflow_datasets 
+
+            pip install -U 'jax[cuda12]'
+            python3 -m pip install --upgrade jmp optax equinox 
+            python3 -m pip install --upgrade torch torchvision
+            "
+            # then find ld env via 
+            # sudo find / -name 'libmkl_intel_lp64.so*'
+            # add lib folders to LD paths in sysenv call
+            
             torch <<- import("torch")
             #torch$set_default_dtype( myDtype <- torch$float16 ); torch$set_default_tensor_type( torch$HalfTensor )
             torch$set_default_dtype( myDtype <- torch$float32 );#  torch$set_default_tensor_type( torch$FloatTensor )
-            oldwd <- getwd(); setwd("~/Documents/model/");src <<- import("src"); setwd( oldwd )
+            #oldwd <- getwd(); setwd("~/Documents/model/");src <<- reticulate::import("src");  setwd( oldwd )
+            #.libPaths(c("..", .libPaths()))
+            #if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
             #normalize_timestamp <<- reticulate::import("stacchip.processors.prechip")$normalize_timestamp
             #ClayModel2 <- with( torch$amp$autocast(device_type='cpu', dtype=torch$bfloat16), {
-            ClayModel <<- src$model$ClayMAEModule$load_from_checkpoint(
-              "/Users/cjerzak/Documents/Clay/Clay-1.0.5.7_epoch-13_val-loss-0.3098.ckpt", 
-              metadata_path="/Users/cjerzak/Documents/model/configs/metadata.yaml", 
-              shuffle=F,  mask_ratio=0, batch_first = T)
+            #src$model
+            # needed to do this
+            # Add the repo root to the sys path for the model import below
+            #import sys; sys.path.append(".."); from src.model import ClayMAEModule
+            
+            #export LD_LIBRARY_PATH="/path/to/mkl/lib:$LD_LIBRARY_PATH"
+            #Sys.setenv(LD_LIBRARY_PATH = "/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH")
+            browser()
+            #oldwd <- getwd(); setwd("~/Documents/model/");
+            #ClayModel <<- reticulate::import_from_path("model", path = "./src")
+            #setwd(oldwd)
+            
+            if( !Sys.info()["machine"] == "x86_64"){ 
+              ClayModel2 <<- ClayModel$ClayMAEModule$load_from_checkpoint(
+                "/Users/cjerzak/Documents/Clay/Clay-1.0.5.7_epoch-13_val-loss-0.3098.ckpt", 
+                metadata_path="/Users/cjerzak/Documents/model/configs/metadata.yaml", 
+                shuffle=F,  mask_ratio=0, batch_first = T)
+            }
+            browser()
+            if( Sys.info()["machine"] == "x86_64" ){ 
+              ClayModel <<- ClayModel$ClayMAEModule$load_from_checkpoint(
+                "/home/cjerzak/Documents/Clay/Clay_v0.1_epoch-24_val-loss-0.46.ckpt", 
+                metadata_path="/home/cjerzak/Documents/model/configs/metadata.yaml", 
+                shuffle=F,  mask_ratio=0, torch_dtype=torch$float16)
+            }
             #})
             # ClayModel <- ClayModel$to( torch$float16 )
             #ClayModel <- ClayModel$half()# run model in half precision
@@ -612,7 +687,7 @@ GetImageRepresentations <- function(
             latlong_embed <- np$array( jnp$reshape(jnp$concatenate( list(jnp$expand_dims(jnp$array(latlong_embed),1L), 
                                                    jnp$expand_dims(jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
           }
-          time_embed <- t(replicate(np$array(my_image_np$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)}))
+          time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)}))
           # tmp <- jnp$array( array(1:20,dim=c(2,3,5)) ) 
           # tmp2 <- np$array(  tmp$reshape(2L,3L,5L) ) 
           # tmp3 <- np$array(  tmp$reshape(2L,3L,5L)$reshape(6L,5L) ) 
@@ -630,7 +705,7 @@ GetImageRepresentations <- function(
           #m <- ClayModel$model$encoder$half()( dict("platform" = "landsat-c2l1", # platform
                                              "time" = torch$tensor( time_embed, dtype = myDtype), # temporal embedding 
                                              "latlon" = torch$tensor( latlong_embed, dtype = myDtype ), # lat long embedding 
-                                             "pixels" = torch$tensor( my_image_np$transpose(c(0L,3L,1L,2L)), dtype = myDtype ), # normalized image 
+                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = myDtype ), # normalized image 
                                              "gsd" = torch$tensor(30, dtype = myDtype),  # resolution 
                                              'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = myDtype) ) )  # wavelength in micrometers?, this assumes RBG
           #)                                
@@ -643,7 +718,7 @@ GetImageRepresentations <- function(
             FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('facebook/dino-vitb16')
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained('facebook/dino-vitb16')
           }
-          inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
+          inputs <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)
           m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
         }
         if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
@@ -662,8 +737,8 @@ GetImageRepresentations <- function(
           if(m_$shape[[4]] == 1L){ m_ <- m_ * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
           if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
           m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
-          my_image_np <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
-          inputs <- FeatureExtractor(images = my_image_np, return_tensors="pt", do_resize = T)
+          m <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
+          inputs <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)
           m_ <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
           m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
           #m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))

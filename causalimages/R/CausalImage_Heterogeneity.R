@@ -113,7 +113,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
     library(tensorflow); if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
-    if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
+    if(!is.null(Sys.setenv_text)){ 
+      #eval(parse(text = Sys.setenv_text)) 
+      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
+    }
     py_gc <- reticulate::import("gc")
     jax <<- reticulate::import("jax")
     np <<- reticulate::import("numpy")
