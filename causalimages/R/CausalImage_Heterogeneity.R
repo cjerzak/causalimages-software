@@ -129,6 +129,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # tf$config$get_visible_devices(); tf$config$experimental$set_visible_devices(list(), "GPU")
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
     gc(); py_gc$collect()
+    
+    # set memory growth for tf 
+    for(device_ in tf$config$list_physical_devices()){ try(tf$config$experimental$set_memory_growth(device_, T),T) }
 
     # image dtype management
     c2f <- jmp$cast_to_full
@@ -138,7 +141,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     cnst <- function( ar ){ jnp$array(ar, jnp$float16) }
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
-    if(is.null(seed)){ seed <- ai(runif(1,1,100000)) } 
+    if(is.null(seed)){ seed <- ai(runif(1,1,100000)) }
   }
   if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
   

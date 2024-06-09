@@ -123,6 +123,11 @@ AnalyzeImageConfounding <- function(
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
     obsW <- f2n(obsW); obsY <- f2n(obsY)
+    
+    # set memory growth for tensorflow 
+    for(device_ in tf$config$list_physical_devices()){
+       try(tf$config$experimental$set_memory_growth(device_, T),T)
+    }
   }
 
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",

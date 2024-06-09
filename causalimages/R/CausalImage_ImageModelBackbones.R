@@ -78,6 +78,9 @@ GetImageRepresentations <- function(
     jmp <<- reticulate::import("jmp")
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
+    
+    # set memory growth for tensorflow 
+    for(device_ in tf$config$list_physical_devices()){ try(tf$config$experimental$set_memory_growth(device_, T),T) }
   }
   gc(); try(py_gc$collect(), T)
   if(is.null(seed)){ seed <- as.integer(runif(1,1,10000)) }
@@ -586,25 +589,25 @@ GetImageRepresentations <- function(
            m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
         } 
         if( grepl(pretrainedModel, pattern="clay") ){ 
-          m <- reticulate::np_array( tf$constant(m), dtype = np$float16)
+          m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
         }
         #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
         
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
-          if(!"FeatureExtractor" %in% ls()){
-            print("Loading model...")
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
+          if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
+            print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+            PretrainedImageModelName <<- 'google/vit-base-patch16-224-in21k'
+            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedImageModelName)
             torch$set_default_device(
               RunOnDevice <<- ifelse(torch$cuda$is_available(), 
                                      yes = list(torch$device("cuda")), 
                                      no = list(torch$device("cpu")))[[1]] 
             )
             torch$set_default_dtype( RunDtype <<- torch$float16 )
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(
-                                          'google/vit-base-patch16-224-in21k')$to(RunOnDevice)$half()
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
+            #TransformersModel <- torch$compile(TransformersModel)
           }
           m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
-          #TransformersModel <- torch$compile(TransformersModel)
           m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
           py_gc$collect()
         }
@@ -613,8 +616,8 @@ GetImageRepresentations <- function(
           
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
 
-          if(!"ClayModel" %in% ls()){
-            print("Loading model...")
+          if(!"ClayModel" %in% ls(.GlobalEnv)){
+            print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
             # recipe 
             # install git-lfs
             # https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md
@@ -644,7 +647,6 @@ GetImageRepresentations <- function(
             # add lib folders to LD paths in sysenv call
             
             torch <<- import("torch")
-            
             if( !Sys.info()["machine"] == "x86_64" ){ 
               oldwd <- getwd(); setwd("~/Documents/model/");
               ClayModel <<- reticulate::import_from_path("model", path = "./src")
@@ -661,19 +663,15 @@ GetImageRepresentations <- function(
                 shuffle=F,  mask_ratio=0) #$torch_dtype=torch$float16)
             }
             #})
-            # ClayModel <- ClayModel$to( torch$float16 )
-            #ClayModel <- ClayModel$half()# run model in half precision
-            #ClayModel <- ClayModel$bfloat16()
-            
           }
-          if(!"RunOnDevice" %in% ls()){
+          if(!"RunOnDevice" %in% ls(.GlobalEnv)){
             torch$set_default_device(
               RunOnDevice <<- ifelse(torch$cuda$is_available(), 
                                      yes = list(torch$device("cuda")), 
                                      no = list(torch$device("cpu")))[[1]] 
             )
-            torch$set_default_dtype( RunDtype <<- torch$float16 );#torch$set_default_tensor_type( torch$HalfTensor )
-            ClayModel <<- ClayModel$to(RunOnDevice)$half()
+            torch$set_default_dtype( RunDtype <<- torch$float32 );#torch$set_default_tensor_type( torch$HalfTensor )
+            ClayModel <<- ClayModel$to(RunOnDevice)
           }
           
           # get place embeddings 
@@ -685,19 +683,8 @@ GetImageRepresentations <- function(
                                                    jnp$expand_dims(jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
           }
           time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)}))
-          # tmp <- jnp$array( array(1:20,dim=c(2,3,5)) ) 
-          # tmp2 <- np$array(  tmp$reshape(2L,3L,5L) ) 
-          # tmp3 <- np$array(  tmp$reshape(2L,3L,5L)$reshape(6L,5L) ) 
-          # tmp2[1,,]
-          # tmp2[2,,]
-          # tmp3[1:6,]
-          # patches, waves_encoded = self.patch_embedding(cube, waves)  # -> problem here
-          # torch$nn$Parameter( torch$rand(list(1L)) * 0.02)$dtype 
-          # torch$rand(list(1L))$dtype
-          
+
           # obtain embeddings 
-          # torch$tensor(1.)$dtype
-          # ClayModel$model$metadata$`landsat-c2l1` <- 1 
           # ClayModel$model$metadata$`landsat-c2l1`
           # waves = torch$tensor( list(ClayModel$metadata["landsat-c2l1"]$bands$wavelength$values()) )
           m <- ClayModel$model$encoder(
@@ -713,24 +700,27 @@ GetImageRepresentations <- function(
           m = jnp$array(  m[[1]]$cpu()$detach()$numpy()[,1,] ) 
           # plot(np$array(m)[,sample(1:10,2)])
         }
-        if( grepl(pretrainedModel, pattern = "dino") & T == F ){ 
-          if(!"FeatureExtractor" %in% ls()){
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('facebook/dino-vitb16')
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained('facebook/dino-vitb16')
-          }
-          inputs <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)
-          m <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
-        }
         if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
       }
       if(grepl(pretrainedModel,pattern="videomae")){ 
-        if(!"FeatureExtractor" %in% ls() ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
-          print("Loading model...")
-          videoModelName <<- "MCG-NJU/videomae-base"
+        if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
+          print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+          PretrainedVideoModelName <<- "MCG-NJU/videomae-base"
           #videoModelName <<- "MCG-NJU/videomae-base-finetuned-kinetics"
           
-          FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(videoModelName)
-          TransformersModel <<- TransformersModule$ViTModel$from_pretrained(videoModelName)
+          # set device and dtypes
+          torch$set_default_device(
+            RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                   yes = list(torch$device("cuda")), 
+                                   no = list(torch$device("cpu")))[[1]] 
+          )
+          torch$set_default_dtype( RunDtype <<- torch$float16 )
+
+          # load models
+          py_gc$collect()
+          FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
+          TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
+                                                                            torch_dtype = torch$float16)$half()$to(RunOnDevice)
         }
         
         m_rep <- c(); for(j_ in 1L:m$shape[[1]]){ 
@@ -738,9 +728,13 @@ GetImageRepresentations <- function(
           if(m_$shape[[4]] == 1L){ m_ <- m_ * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
           if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
           m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
-          m <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
-          inputs <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)
-          m_ <- TransformersModel(inputs["pixel_values"])$pooler_output$detach()$numpy()
+          m_ <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
+          
+          # run model
+          m_ <- FeatureExtractor(images = m_, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+          m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
+          
+          # save final data 
           m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
           #m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
         }
