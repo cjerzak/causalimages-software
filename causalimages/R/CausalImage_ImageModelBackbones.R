@@ -592,16 +592,18 @@ GetImageRepresentations <- function(
         
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls()){
+            print("Loading model...")
             FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained('google/vit-base-patch16-224-in21k')
-            RunOnDevice <<- ifelse(torch$cuda$is_available(), 
-                                  yes = list(torch$device("cuda")), 
-                                  no = list(torch$device("cpu")))[[1]] 
-            RunDtype <<- torch$float16
+            torch$set_default_device(
+              RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                     yes = list(torch$device("cuda")), 
+                                     no = list(torch$device("cpu")))[[1]] 
+            )
+            torch$set_default_dtype( RunDtype <<- torch$float16 )
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained(
                                           'google/vit-base-patch16-224-in21k')$to(RunOnDevice)$half()
           }
-          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(
-                                         RunDtype)$to(RunOnDevice)
+          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           #TransformersModel <- torch$compile(TransformersModel)
           m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
           py_gc$collect()
@@ -612,6 +614,7 @@ GetImageRepresentations <- function(
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
 
           if(!"ClayModel" %in% ls()){
+            print("Loading model...")
             # recipe 
             # install git-lfs
             # https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md
@@ -641,26 +644,12 @@ GetImageRepresentations <- function(
             # add lib folders to LD paths in sysenv call
             
             torch <<- import("torch")
-            #torch$set_default_dtype( myDtype <- torch$float16 ); torch$set_default_tensor_type( torch$HalfTensor )
-            torch$set_default_dtype( myDtype <- torch$float32 );#  torch$set_default_tensor_type( torch$FloatTensor )
-            #oldwd <- getwd(); setwd("~/Documents/model/");src <<- reticulate::import("src");  setwd( oldwd )
-            #.libPaths(c("..", .libPaths()))
-            #if(!is.null(Sys.setenv_text)){ eval(parse(text = Sys.setenv_text)) }
-            #normalize_timestamp <<- reticulate::import("stacchip.processors.prechip")$normalize_timestamp
-            #ClayModel2 <- with( torch$amp$autocast(device_type='cpu', dtype=torch$bfloat16), {
-            #src$model
-            # needed to do this
-            # Add the repo root to the sys path for the model import below
-            #import sys; sys.path.append(".."); from src.model import ClayMAEModule
             
-            #export LD_LIBRARY_PATH="/path/to/mkl/lib:$LD_LIBRARY_PATH"
-            #Sys.setenv(LD_LIBRARY_PATH = "/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH")
-            #oldwd <- getwd(); setwd("~/Documents/model/");
-            #ClayModel <<- reticulate::import_from_path("model", path = "./src")
-            #setwd(oldwd)
-            
-            if( !Sys.info()["machine"] == "x86_64"){ 
-              ClayModel2 <<- ClayModel$ClayMAEModule$load_from_checkpoint(
+            if( !Sys.info()["machine"] == "x86_64" ){ 
+              oldwd <- getwd(); setwd("~/Documents/model/");
+              ClayModel <<- reticulate::import_from_path("model", path = "./src")
+              setwd(oldwd)
+              ClayModel <<- ClayModel$ClayMAEModule$load_from_checkpoint(
                 "/Users/cjerzak/Documents/Clay/Clay-1.0.5.7_epoch-13_val-loss-0.3098.ckpt", 
                 metadata_path="/Users/cjerzak/Documents/model/configs/metadata.yaml", 
                 shuffle=F,  mask_ratio=0, batch_first = T)
@@ -676,10 +665,14 @@ GetImageRepresentations <- function(
             #ClayModel <- ClayModel$half()# run model in half precision
             #ClayModel <- ClayModel$bfloat16()
             
-            RunOnDevice <<- ifelse(torch$cuda$is_available(), 
-                                   yes = list(torch$device("cuda")), 
-                                   no = list(torch$device("cpu")))[[1]] 
-            RunDtype <<- torch$float16
+          }
+          if(!"RunOnDevice" %in% ls()){
+            torch$set_default_device(
+              RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                     yes = list(torch$device("cuda")), 
+                                     no = list(torch$device("cpu")))[[1]] 
+            )
+            torch$set_default_dtype( RunDtype <<- torch$float16 );#torch$set_default_tensor_type( torch$HalfTensor )
             ClayModel <<- ClayModel$to(RunOnDevice)$half()
           }
           
@@ -698,35 +691,26 @@ GetImageRepresentations <- function(
           # tmp2[1,,]
           # tmp2[2,,]
           # tmp3[1:6,]
-
-          # torch$tensor( time_embed )$dtype; torch$Tensor( time_embed )$dtype
-          # torch$tensor( time_embed, dtype = torch$float16 )
+          # patches, waves_encoded = self.patch_embedding(cube, waves)  # -> problem here
+          # torch$nn$Parameter( torch$rand(list(1L)) * 0.02)$dtype 
+          # torch$rand(list(1L))$dtype
           
-          
-          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(
-            RunDtype)$to(RunOnDevice)
-          #TransformersModel <- torch$compile(TransformersModel)
-          m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
-          
-          
-          # obtain data cube & embeddings 
-          #system.time(
-          M2 <- ClayModel$model$encoder$to(RunOnDevice)
-          #m <- ClayModel$model$encoder(
-          m <- M2(
+          # obtain embeddings 
+          # torch$tensor(1.)$dtype
+          # ClayModel$model$metadata$`landsat-c2l1` <- 1 
+          # ClayModel$model$metadata$`landsat-c2l1`
+          # waves = torch$tensor( list(ClayModel$metadata["landsat-c2l1"]$bands$wavelength$values()) )
+          m <- ClayModel$model$encoder(
                                           dict("platform" = "landsat-c2l1",  # platform
-          #m <- ClayModel$half()$model$encoder( dict("platform" = "landsat-c2l1", # platform 
-          #m <- ClayModel$model$encoder$half()( dict("platform" = "landsat-c2l1", # platform
-                                             "time" = torch$tensor( time_embed, dtype = myDtype)$to(RunOnDevice), # temporal embedding 
-                                             "latlon" = torch$tensor( latlong_embed, dtype = myDtype )$to(RunOnDevice), # lat long embedding 
-                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = myDtype )$to(RunOnDevice), # normalized image 
-                                             "gsd" = torch$tensor(30, dtype = myDtype)$to(RunOnDevice),  # resolution 
-                                             'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = myDtype)$to(RunOnDevice) 
-          ) # wavelength in micrometers?, this assumes RBG
+                                             "time" = torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
+                                             "latlon" = torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
+                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = RunDtype )$to(RunOnDevice), # normalized image 
+                                             "gsd" = torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
+                                             'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RBG
+                )
           )  
-          #)                                
           # The first embedding is the [CLS], which is a global embedding
-          m = jnp$array(  m[[1]]$detach()$numpy()[,1,] ) 
+          m = jnp$array(  m[[1]]$cpu()$detach()$numpy()[,1,] ) 
           # plot(np$array(m)[,sample(1:10,2)])
         }
         if( grepl(pretrainedModel, pattern = "dino") & T == F ){ 
@@ -741,6 +725,7 @@ GetImageRepresentations <- function(
       }
       if(grepl(pretrainedModel,pattern="videomae")){ 
         if(!"FeatureExtractor" %in% ls() ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
+          print("Loading model...")
           videoModelName <<- "MCG-NJU/videomae-base"
           #videoModelName <<- "MCG-NJU/videomae-base-finetuned-kinetics"
           
