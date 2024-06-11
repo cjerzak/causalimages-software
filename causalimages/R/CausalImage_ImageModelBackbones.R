@@ -174,7 +174,7 @@ GetImageRepresentations <- function(
                                                                            optimizeImageRep == F ))
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "vit-base"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "dino"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
-    if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 3L*768L } }  
+    if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "clay"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     
     # rotary embedding setup
@@ -735,8 +735,8 @@ GetImageRepresentations <- function(
           m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
           
           # save final data 
-          m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
-          #m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
+          # m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
+          m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
         }
         m <- jnp$array( m_rep )
       }
