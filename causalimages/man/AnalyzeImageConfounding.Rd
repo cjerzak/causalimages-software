@@ -10,6 +10,8 @@ AnalyzeImageConfounding(
   X = NULL,
   file = NULL,
   imageKeysOfUnits = NULL,
+  fileTransport = NULL,
+  imageKeysOfUnitsTransport = NULL,
   nBoot = 10L,
   inputAvePoolingSize = 1L,
   useTrainingPertubations = T,
@@ -27,11 +29,11 @@ AnalyzeImageConfounding(
   optimizeImageRep = T,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
-  temporalKernelSize = 2L,
   kernelSize = 5L,
   nWidth_Dense = 64L,
   nDepth_Dense = 1L,
   imageModelClass = "VisionTransformer",
+  pretrainedModel = NULL,
   strides = 2L,
   nDepth_TemporalRep = 3L,
   patchEmbedDim = 16L,
@@ -41,6 +43,7 @@ AnalyzeImageConfounding(
   testFrac = 0.05,
   TfRecords_BufferScaler = 4L,
   learningRateMax = 0.001,
+  TFRecordControl = NULL,
   dataType = "image",
   image_dtype = "float16",
   atError = "stop",
@@ -83,8 +86,6 @@ AnalyzeImageConfounding(
 \item{nWidth_ImageRep}{Integer specifying width of image model representation.}
 
 \item{nDepth_ImageRep}{Integer specifying depth of image model representation.}
-
-\item{temporalKernelSize}{Dimensions used in temporal convolutions (if `dataType = "video"``)}
 
 \item{kernelSize}{Dimensions used in spatial convolutions.}
 

@@ -79,6 +79,19 @@ r2const <- function(x, dtype){
   return( x )
 }
 
+#' print2 
+#'
+#' A function prints a string with date and time. 
+#'
+#' @param x Character string to be printed, with date and time. 
+#'
+#' @return Prints with date and time. 
+#'
+#' @examples
+#' print2("Hello world")
+#' @export
+#' @md
+#'
 print2 <- function(text, quiet = F){
   if(!quiet){ print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) ) }
 }

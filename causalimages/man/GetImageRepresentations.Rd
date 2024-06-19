@@ -14,19 +14,19 @@ GetImageRepresentations(
   imageModelClass = "VisionTransformer",
   Sys.setenv_text = NULL,
   InitImageProcess = NULL,
+  pretrainedModel = NULL,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
   nDepth_TemporalRep = 1L,
   batchSize = 16L,
   optimizeImageRep = T,
   strides = 1L,
-  temporalKernelSize = 2L,
   kernelSize = 3L,
   patchEmbedDim = 16L,
   TfRecords_BufferScaler = 10L,
   dropoutRate,
   dataType = "image",
-  bn_momentum = 0.9,
+  bn_momentum = 0.99,
   inputAvePoolingSize = 1L,
   seed = NULL
 )
@@ -48,9 +48,7 @@ GetImageRepresentations(
 
 \item{strides}{Integer specifying the strides used in the convolutional layers.}
 
-\item{temporalKernelSize}{Dimensions used in the temporal part of the convolution kernels if using image sequences.}
-
-\item{kernelSize}{Dimensif(ions used in the convolution kernels.}
+\item{kernelSize}{Dimensions used in the convolution kernels.}
 
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 

@@ -2,7 +2,7 @@
 % Please edit documentation in R/CausalImage_Heterogeneity.R
 \name{AnalyzeImageHeterogeneity}
 \alias{AnalyzeImageHeterogeneity}
-\title{Decompose treatment effect heterogeneity by  \%>\%}
+\title{Decompose treatment effect heterogeneity by image or image sequence}
 \usage{
 AnalyzeImageHeterogeneity(
   obsW,
@@ -30,9 +30,9 @@ AnalyzeImageHeterogeneity(
   nDepth_TemporalRep = 1L,
   useTrainingPertubations = T,
   strides = 2L,
+  pretrainedModel = NULL,
   testFrac = 0.1,
   kernelSize = 5L,
-  temporalKernelSize = 2L,
   learningRateMax = 0.005,
   patchEmbedDim = 16L,
   nSGD = 500L,
@@ -93,8 +93,6 @@ AnalyzeImageHeterogeneity(
 \item{strides}{Integer specifying the strides used in the convolutional layers.=}
 
 \item{kernelSize}{Dimensions used in spatial convolutions.}
-
-\item{temporalKernelSize}{imensions used in temporal convolutions (if `dataType = "video"``)}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations.}
 
