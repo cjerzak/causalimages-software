@@ -180,9 +180,7 @@ GetImageRepresentations <- function(
     # rotary embedding setup
     if(T == F){ 
       theta_vals_patch <-  10000^( -(2*( 1:(nWidth_ImageRep/2) )) / nWidth_ImageRep ) # p. 5
-      theta_vals_patch <- unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))
-      theta_vals_patch <- jnp$expand_dims(jnp$array(theta_vals_patch), 0L)
-
+      theta_vals_patch <- jnp$expand_dims(jnp$array(unlist(sapply(theta_vals_patch,function(z){list(c(z,z))}))), 0L)
       position_patch <- jnp$expand_dims( jnp$arange(1L, (ai(nTimeSteps_patch <- ai(nPatches_side^2))) +3L), 1L)  # + 3L for stop, start
       cos_terms_patch <- jnp$cos( pos_times_theta_patch <- (position_patch *  theta_vals_patch) ) # p. 7
       sin_terms_patch <- jnp$sin( pos_times_theta_patch )
@@ -682,18 +680,21 @@ GetImageRepresentations <- function(
             latlong_embed <- np$array( jnp$reshape(jnp$concatenate( list(jnp$expand_dims(jnp$array(latlong_embed),1L), 
                                                    jnp$expand_dims(jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
           }
-          time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)}))
+          time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)})) 
 
           # obtain embeddings 
           # ClayModel$model$metadata$`landsat-c2l1`
-          # waves = torch$tensor( list(ClayModel$metadata["landsat-c2l1"]$bands$wavelength$values()) )
+          # RGB means: 10678.0, 10563.0, 11083.0
+          # RGB stds: 9578.0, 9408.0, 10144.0
+          # ClayModel$model$metadata$`landsat-c2l2-sr`
           m <- ClayModel$model$encoder(
                                           dict("platform" = "landsat-c2l1",  # platform
                                              "time" = torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
                                              "latlon" = torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
                                              "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = RunDtype )$to(RunOnDevice), # normalized image 
                                              "gsd" = torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
-                                             'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RBG
+                                             'waves' = torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
+                                             #'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
                 )
           )  
           # The first embedding is the [CLS], which is a global embedding

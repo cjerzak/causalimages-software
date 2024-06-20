@@ -398,7 +398,7 @@ AnalyzeImageConfounding <- function(
           if(!is.null(fileTransport)){
             setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
               file = fileTransport,
-              # file = file, # for debugging 
+              # file = file, # uncomment for debugging 
               dataType = dataType,
               InitImageProcess = InitImageProcessFn,
               nWidth_ImageRep = nWidth_ImageRep,
