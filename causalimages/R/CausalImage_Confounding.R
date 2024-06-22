@@ -394,6 +394,7 @@ AnalyzeImageConfounding <- function(
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
           ImageRepArm_batch_R <- ImageRepresentations$ImageRepArm_batch_R
+          nParamsRep <- ImageRepresentations$nParamsRep
           
           if(!is.null(fileTransport)){
             setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
@@ -580,7 +581,7 @@ AnalyzeImageConfounding <- function(
 
           # model partition, setup state, perform parameter count
           opt_state <- optax_optimizer$init(   eq$partition(ModelList, eq$is_array)[[1]] )
-          print2(sprintf("Total trainable parameter count: %s", nTrainable <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
+          print2(sprintf("Total trainable parameter count: %s", nParamsRep <- nTrainable <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
           # unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size}))
 
           # jit update fxns
@@ -1221,7 +1222,8 @@ AnalyzeImageConfounding <- function(
       "ImageRepresentations_df" = ImageRepresentations_df, 
       "ImageRepresentations_df_transport" = ImageRepresentations_df_transport, 
       "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
-      "nTrainableParameters" = nTrainable,
+      "nTrainableParameters" = nTrainable, # parameters actually trained 
+      "nParamsRep" = nParamsRep, # parameters in representation 
       "trainIndices" = trainIndices,
       "testIndices" = testIndices
     ) )

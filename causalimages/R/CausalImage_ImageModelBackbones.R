@@ -34,7 +34,6 @@
 #' @export
 #' @md
 
-
 GetImageRepresentations <- function(
     imageKeysOfUnits = NULL,
     file = NULL,
@@ -603,6 +602,7 @@ GetImageRepresentations <- function(
             )
             torch$set_default_dtype( RunDtype <<- torch$float16 )
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
+            nParameters_Pretrained <- TransformersModel$num_parameters()
             #TransformersModel <- torch$compile(TransformersModel)
           }
           m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
@@ -670,6 +670,7 @@ GetImageRepresentations <- function(
             )
             torch$set_default_dtype( RunDtype <<- torch$float32 );#torch$set_default_tensor_type( torch$HalfTensor )
             ClayModel <<- ClayModel$to(RunOnDevice)
+            nParameters_Pretrained <<- TransformersModel$num_parameters()
           }
           
           # get place embeddings 
@@ -722,6 +723,7 @@ GetImageRepresentations <- function(
           FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
           TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
                                                                             torch_dtype = torch$float16)$half()$to(RunOnDevice)
+          nParameters_Pretrained <<- TransformersModel$num_parameters()
         }
         
         m_rep <- c(); for(j_ in 1L:m$shape[[1]]){ 
@@ -814,14 +816,31 @@ GetImageRepresentations <- function(
   setwd(  orig_wd  )
 
   ImageModel_And_State_And_MPPolicy_List = list(ModelList, StateList, MPList);
-  rm(ModelList, StateList, MPList); gc()
+  
+  # approximate parameter count 
+  nParamsRep <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))
+  if(!is.null(pretrainedModel)){
+    if(optimizeImageRep == F){ nParamsRep <- nParamsRep }
+    
+    if(optimizeImageRep == "clay" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
+    if(optimizeImageRep == "clay" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
+    
+    if(optimizeImageRep == "videomae" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
+    if(optimizeImageRep == "videomae" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
+    
+    if(optimizeImageRep == "vit-base" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
+    if(optimizeImageRep == "vit-base" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
+  }
 
+  rm(ModelList, StateList, MPList); gc()
+  
   if(returnContents){
    return( list( "ImageRepresentations"= Representations,
                  "ImageRepArm_batch_R" = ImageRepArm_batch_R,
                  "ImageRepArm_batch" = ImageRepArm_batch,
                  "ImageModel_And_State_And_MPPolicy_List" = ImageModel_And_State_And_MPPolicy_List,
-                 "InitImageProcess" = InitImageProcess
+                 "InitImageProcess" = InitImageProcess,
+                 "nParamsRep" = nParamsRep
                  ) )
   }
 }
