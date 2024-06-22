@@ -602,7 +602,7 @@ GetImageRepresentations <- function(
             )
             torch$set_default_dtype( RunDtype <<- torch$float16 )
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
-            nParameters_Pretrained <- TransformersModel$num_parameters()
+            nParameters_Pretrained <<- TransformersModel$num_parameters()
             #TransformersModel <- torch$compile(TransformersModel)
           }
           m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
@@ -670,7 +670,15 @@ GetImageRepresentations <- function(
             )
             torch$set_default_dtype( RunDtype <<- torch$float32 );#torch$set_default_tensor_type( torch$HalfTensor )
             ClayModel <<- ClayModel$to(RunOnDevice)
-            nParameters_Pretrained <<- TransformersModel$num_parameters()
+            
+            nParameters_Pretrained <<- reticulate::as_iterator(  ClayModel$model$encoder$parameters() )
+            nParameters_Pretrained_ <- 0; 
+            DoneLoop <- F; while(!DoneLoop){ 
+              theNextN <- try(reticulate::iter_next( nParameters_Pretrained )$numel(), T)
+              if('integer' %in% class(theNextN)){ nParameters_Pretrained_ <- nParameters_Pretrained_ + theNextN  }
+              if(!'integer' %in% class(theNextN)){ DoneLoop <- T }
+            }
+            nParameters_Pretrained <<- nParameters_Pretrained_
           }
           
           # get place embeddings 
