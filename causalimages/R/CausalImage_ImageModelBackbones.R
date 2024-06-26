@@ -827,17 +827,10 @@ GetImageRepresentations <- function(
   
   # approximate parameter count 
   nParamsRep <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))
-  if(!is.null(pretrainedModel)){
-    if(optimizeImageRep == F){ nParamsRep <- nParamsRep }
-    
-    if(optimizeImageRep == "clay" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
-    if(optimizeImageRep == "clay" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
-    
-    if(optimizeImageRep == "videomae" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
-    if(optimizeImageRep == "videomae" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
-    
-    if(optimizeImageRep == "vit-base" & dataType == "image"){ nParamsRep <- nParameters_Pretrained }
-    if(optimizeImageRep == "vit-base" & dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
+  if(is.null(pretrainedModel) & optimizeImageRep == F){ nParamsRep <- nParamsRep }
+  if(!is.null(pretrainedModel) & optimizeImageRep == F){
+    if(dataType == "image"){ nParamsRep <- nParameters_Pretrained }
+    if(dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
   }
 
   rm(ModelList, StateList, MPList); gc()
