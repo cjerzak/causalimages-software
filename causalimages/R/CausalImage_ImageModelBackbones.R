@@ -825,7 +825,7 @@ GetImageRepresentations <- function(
 
   ImageModel_And_State_And_MPPolicy_List = list(ModelList, StateList, MPList);
   
-  # approximate parameter count 
+  print2("Obtaining approximate parameter count...")
   nParamsRep <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ nParamsRep <- nParamsRep }
   if(!is.null(pretrainedModel) ){
