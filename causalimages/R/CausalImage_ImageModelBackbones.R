@@ -731,6 +731,7 @@ GetImageRepresentations <- function(
           FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
           TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
                                                                             torch_dtype = torch$float16)$half()$to(RunOnDevice)
+          browser()
           nParameters_Pretrained <<- TransformersModel$num_parameters()
         }
         
@@ -828,7 +829,7 @@ GetImageRepresentations <- function(
   # approximate parameter count 
   nParamsRep <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ nParamsRep <- nParamsRep }
-  if(!is.null(pretrainedModel) & optimizeImageRep == F){
+  if(!is.null(pretrainedModel) ){
     if(dataType == "image"){ nParamsRep <- nParameters_Pretrained }
     if(dataType == "video"){ nParamsRep <- nParamsRep + nParameters_Pretrained }
   }
