@@ -17,6 +17,8 @@ AnalyzeImageConfounding(
   useTrainingPertubations = T,
   orthogonalize = F,
   transportabilityMat = NULL,
+  latTransport = NULL,
+  longTransport = NULL,
   lat = NULL,
   long = NULL,
   conda_env = "CausalImagesEnv",

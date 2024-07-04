@@ -15,6 +15,8 @@ GetImageRepresentations(
   Sys.setenv_text = NULL,
   InitImageProcess = NULL,
   pretrainedModel = NULL,
+  lat = NULL,
+  long = NULL,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
   nDepth_TemporalRep = 1L,
