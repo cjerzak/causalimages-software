@@ -197,7 +197,7 @@ Here are a few tips for using the `AnalyzeImageHeterogeneity` function:
 We thank [James Bailie](https://jameshbailie.github.io/), [Devdatt Dubhashi](https://sites.google.com/view/devdattdubhashi/home), [Felipe Jordan](http://www.felipejordanc.com/), [Mohammad Kakooei](https://www.chalmers.se/en/persons/kakooei/), [Eagon Meng](https://independent.academia.edu/EagonMeng), [Xiao-Li Meng](https://statistics.fas.harvard.edu/people/xiao-li-meng), and [Markus Pettersson](https://www.chalmers.se/en/persons/markpett/) for valuable feedback on this project. We thank [Xiaolong Yang](https://xiaolong-yang.com/) for excellent research assistance. Special thanks to [Cindy Conlin](https://www.linkedin.com/in/cindy-conlin-540197/) for being our intrepid first package user and for many invaluable suggestions for improvement. 
 
 # References<a id="references"></a>
-[1.] [Connor T. Jerzak](https://github.com/cjerzak/), Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 213: 531-552, 2023. [\[Article PDF\]](https://proceedings.mlr.press/v213/jerzak23a/jerzak23a.pdf) [\[Summary PDF\]](https://connorjerzak.com/wp-content/uploads/2023/04/ImageHeterogeneitySummary.pdf)  [\[Replication Data\]](https://doi.org/10.7910/DVN/O8XOSF) [\[Replication Data Tutorial\]](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) 
+[1.] [Connor T. Jerzak](https://github.com/cjerzak/), [Fredrik Johansson](https://github.com/fredjoha), [Adel Daoud](https://github.com/adeldaoud). Image-based Treatment Effect Heterogeneity. *Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)*, 213: 531-552, 2023. [\[Article PDF\]](https://proceedings.mlr.press/v213/jerzak23a/jerzak23a.pdf) [\[Summary PDF\]](https://connorjerzak.com/wp-content/uploads/2023/04/ImageHeterogeneitySummary.pdf)  [\[Replication Data\]](https://doi.org/10.7910/DVN/O8XOSF) [\[Replication Data Tutorial\]](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) 
 
 ```
 @article{JJD-Heterogeneity,
@@ -210,7 +210,7 @@ We thank [James Bailie](https://jameshbailie.github.io/), [Devdatt Dubhashi](htt
 }
 ```
 
-[2.] [Connor T. Jerzak](https://github.com/cjerzak/), Fredrik Johansson, Adel Daoud. Integrating
+[2.] [Connor T. Jerzak](https://github.com/cjerzak/), [Fredrik Johansson](https://github.com/fredjoha), [Adel Daoud](https://github.com/adeldaoud). Integrating
 Earth Observation Data into Causal Inference: Challenges and
 Opportunities. *ArXiv
 Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.12985.pdf)
@@ -227,7 +227,7 @@ Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.129
 }
 ```
 
-[3.] [Connor T. Jerzak](https://github.com/cjerzak/), Adel Daoud. CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2310.00233.pdf)
+[3.] [Connor T. Jerzak](https://github.com/cjerzak/), [Adel Daoud](https://github.com/adeldaoud). CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2310.00233.pdf)
 ```
 @article{JerDao2023,
   title={CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images},
