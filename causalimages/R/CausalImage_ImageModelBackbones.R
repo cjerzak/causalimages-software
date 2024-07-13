@@ -772,7 +772,8 @@ GetImageRepresentations <- function(
 
       # checks for last / batch size corrections
       if(last_i == length(unique(imageKeysOfUnits))){ ok <- T }
-      batchSizeOneCorrection <- F; if(length(batch_indices) == 1){ batchSizeOneCorrection <- T }
+      batchSizeOneCorrection <- F; 
+      if(length(batch_indices) == 1){ batchSizeOneCorrection <- T }
 
       # get the data
       setwd(orig_wd); batch_inference <- GetElementFromTfRecordAtIndices( uniqueKeyIndices = batch_indices,
@@ -785,6 +786,7 @@ GetImageRepresentations <- function(
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]] ); setwd(new_wd)
       if(batchSizeOneCorrection){
+          batch_indices <- c(batch_indices,batch_indices)
           batch_inference[[1]][[1]] <- tf$concat(list(tf$expand_dims(batch_inference[[1]][[1]],0L),
                                                       tf$expand_dims(batch_inference[[1]][[1]],0L)), 0L)
       }
@@ -793,6 +795,7 @@ GetImageRepresentations <- function(
       batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
 
       gc(); try(py_gc$collect(), T) # collect memory
+      # im <- jnp$array(batch_inference[[1]]); seed <- jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
       representation_ <- try( np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]),
                                                                            jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
