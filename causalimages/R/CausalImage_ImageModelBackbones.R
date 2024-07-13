@@ -612,9 +612,7 @@ GetImageRepresentations <- function(
         }
         if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
-          
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
-
           if(!"ClayModel" %in% ls(.GlobalEnv)){
             print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
             # recipe 
@@ -687,8 +685,13 @@ GetImageRepresentations <- function(
           latlong_embed <-  cbind(sin(latlong_embed[,1]),cos(latlong_embed[,1]),
                                   sin(latlong_embed[,2]),cos(latlong_embed[,2]))
           if(dataType == "video"){
-            latlong_embed <- np$array( jnp$reshape(jnp$concatenate( list(jnp$expand_dims(jnp$array(latlong_embed),1L), 
-                                                   jnp$expand_dims(jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
+            latlong_embed <- do.call(rbind, unlist(apply(latlong_embed,1,function(zer){
+              list(cbind(rep(zer[1], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
+                    rep(zer[2], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
+                    rep(zer[3], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
+                    rep(zer[4], times = np$array(m$shape)[1]/m_shape_orig[[1]])))
+            }), recursive = F))
+            #latlong_embed <- np$array( jnp$reshape(jnp$concatenate( list(jnp$expand_dims(jnp$array(latlong_embed),1L), jnp$expand_dims(jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
           }
           time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)})) 
 
@@ -698,7 +701,7 @@ GetImageRepresentations <- function(
           # RGB stds: 9578.0, 9408.0, 10144.0
           # ClayModel$model$metadata$`landsat-c2l2-sr`
           m <- ClayModel$model$encoder(
-                                          dict("platform" = "landsat-c2l1",  # platform
+                                        dict("platform" = "landsat-c2l1",  # platform
                                              "time" = torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
                                              "latlon" = torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
                                              "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = RunDtype )$to(RunOnDevice), # normalized image 
