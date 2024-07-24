@@ -817,7 +817,7 @@ GetImageRepresentations <- function(
         cbind(lat[which(imageKeysOfUnits %in% batch_keys[ iCheck ])], long[which(imageKeysOfUnits %in% batch_keys[ iCheck ])])
         # dim( tmp  ) 
       }
-      if("try-error" %in% class(representation_)){ print("Error Statement:");print(representation_); browser() }
+      if("try-error" %in% class(representation_)){ print2("Error Statement:");print(representation_); browser() }
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
