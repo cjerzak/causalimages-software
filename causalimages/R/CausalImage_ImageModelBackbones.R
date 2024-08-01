@@ -706,12 +706,12 @@ GetImageRepresentations <- function(
                                              "latlon" = torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
                                              "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = RunDtype )$to(RunOnDevice), # normalized image 
                                              "gsd" = torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
-                                             'waves' = torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
-                                             #'waves' = torch$tensor(c(0.4930, 0.5600, 0.6650), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
+                                             'waves' = torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RGB
+                                             #'waves' = torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
                 )
-          )  
+          )[[1]]  
           # The first embedding is the [CLS], which is a global embedding
-          m = jnp$array(  m[[1]]$cpu()$detach()$numpy()[,1,] ) 
+          m = jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
           # plot(np$array(m)[,sample(1:10,2)])
         }
         if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
