@@ -269,7 +269,7 @@ AnalyzeImageConfounding <- function(
 
     # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
-    NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1:(momentCalIters<-20)){
+    NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1L:(momentCalIters<-34L)){
       # get a data batch 
       ds_next_train <- ds_iterator_train$`next`()
       
@@ -357,8 +357,9 @@ AnalyzeImageConfounding <- function(
           y = as.matrix(obsW[indices_forTraining]),
           nfolds = 5,
           alpha = 0, # alpha = 0 is the ridge penalty
-          type.measure = "auc", 
-          family = "binomial"), T)
+          type.measure = ifelse(length(unique(obsW))==2,yes="auc",no="default"),
+          family = ifelse(length(unique(obsW))==2,yes="binomial",no="gaussian")
+          ), T)
         if("try-error" %in% class(myGlmnet_)){ browser() }
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
         prW_est_ <- predict(myGlmnet_, s = "lambda.min",
