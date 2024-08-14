@@ -176,6 +176,7 @@ GetImageRepresentations <- function(
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "dino"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "clay"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
+    if(!is.null(pretrainedModel)){ if(pretrainedModel == "clip-rsicd"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     
     # rotary embedding setup
     if(T == F){ 
@@ -590,7 +591,30 @@ GetImageRepresentations <- function(
           m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
         }
         #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
-        
+        if( grepl(pretrainedModel, pattern = "clip-rsicd") ){
+          # https://huggingface.co/flax-community/clip-rsicd-v2
+            if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
+              print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+              
+              PretrainedImageModelName <<- "flax-community/clip-rsicd-v2"
+              FeatureExtractor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
+              torch$set_default_device(
+                RunOnDevice <<- ifelse(torch$cuda$is_available(), 
+                                       yes = list(torch$device("cuda")), 
+                                       no = list(torch$device("cpu")))[[1]] 
+              )
+              torch$set_default_dtype( RunDtype <<- torch$float16 )
+              TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
+              nParameters_Pretrained <<- TransformersModel$num_parameters()
+              #TransformersModel <- torch$compile(TransformersModel)
+            }
+            
+            # m_start <- m 
+            # m <- m_start
+            m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+            m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
+            py_gc$collect()
+        }
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
