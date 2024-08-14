@@ -176,7 +176,7 @@ GetImageRepresentations <- function(
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "dino"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
     if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
     if(!is.null(pretrainedModel)){ if(pretrainedModel == "clay"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
-    if(!is.null(pretrainedModel)){ if(pretrainedModel == "clip-rsicd"){ nWidth_ImageRep <- nWidth_VideoRep <- 768L } }  
+    if(!is.null(pretrainedModel)){ if(pretrainedModel == "clip-rsicd"){ nWidth_ImageRep <- nWidth_VideoRep <- 512L } }  
     
     # rotary embedding setup
     if(T == F){ 
