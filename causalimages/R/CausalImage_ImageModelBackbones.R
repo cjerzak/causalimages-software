@@ -764,12 +764,11 @@ GetImageRepresentations <- function(
           if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
           m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
           m_ <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
-          browser()
           
           # run model
           m_ <- FeatureExtractor(images = m_, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
-          
+
           # save final data 
           m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
         }
