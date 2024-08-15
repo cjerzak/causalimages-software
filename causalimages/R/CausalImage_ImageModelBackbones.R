@@ -606,11 +606,7 @@ GetImageRepresentations <- function(
               torch$set_default_dtype( RunDtype <<- torch$float16 )
               TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
               nParameters_Pretrained <<- TransformersModel$num_parameters()
-              #TransformersModel <- torch$compile(TransformersModel)
             }
-            
-            # m_start <- m 
-            # m <- m_start
             m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
             m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
             py_gc$collect()
@@ -768,13 +764,13 @@ GetImageRepresentations <- function(
           if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
           m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
           m_ <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
+          browser()
           
           # run model
           m_ <- FeatureExtractor(images = m_, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
           
           # save final data 
-          # m_rep <- rbind( m_rep, c(m_[nrow(m_),], colMeans(m_), apply(m_,2,sd) ))
           m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
         }
         m <- jnp$array( m_rep )
