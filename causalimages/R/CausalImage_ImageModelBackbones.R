@@ -166,7 +166,6 @@ GetImageRepresentations <- function(
     nPatches = ai(nPatches_side^2)
     InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
     
-    
     # adjust widths as needed 
     nWidth_VideoRep <- ifelse(optimizeImageRep,
                               yes = nWidth_ImageRep,
@@ -269,10 +268,10 @@ GetImageRepresentations <- function(
           if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
 
           # multihead attention block
-          m <- try(LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
+          m <- LE(ModelList,sprintf("%sMultihead_d%s",type,d_))(
                       query = m_pos,
                       key_  = m_pos,
-                      value = m), T) #key = seed, # breaks in GPU mode
+                      value = m) #key = seed, # breaks in GPU mode
 
           # residual connection
           mtm1 <- m <- mtm1 + m*jax$nn$softplus( LE(ModelList,sprintf("%sResidualWts_d%s",type,d_))[[1]]$astype(jnp$float32) )$astype(mtm1$dtype)
@@ -573,7 +572,8 @@ GetImageRepresentations <- function(
         TransformersModule <<- reticulate::import("transformers") 
         torch <<- reticulate::import("torch") 
       } 
-      if(grepl(pretrainedModel,pattern="clay")){ # normalize for clay, don't normalize for other pt models which take raw images 
+      if(grepl(pretrainedModel,pattern="clay") | grepl(pretrainedModel,pattern="vit") | 
+         grepl(pretrainedModel,pattern="video") |  grepl(pretrainedModel,pattern="clip") ){ # normalize for these models
         m <- InitImageProcess_orig(m, jax$random$PRNGKey(1L), T) 
       } 
       if(!grepl(pretrainedModel,pattern="video")){
@@ -587,7 +587,7 @@ GetImageRepresentations <- function(
         if( !grepl(pretrainedModel ,pattern="clay") ){ 
            m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
         } 
-        if( grepl(pretrainedModel, pattern="clay") ){ 
+        if( grepl(pretrainedModel, pattern="vit-base") ){ 
           m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
         }
         #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
@@ -604,7 +604,7 @@ GetImageRepresentations <- function(
                                        no = list(torch$device("cpu")))[[1]] 
               )
               torch$set_default_dtype( RunDtype <<- torch$float16 )
-              TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
+              TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
               nParameters_Pretrained <<- TransformersModel$num_parameters()
             }
             m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
@@ -622,11 +622,11 @@ GetImageRepresentations <- function(
                                      no = list(torch$device("cpu")))[[1]] 
             )
             torch$set_default_dtype( RunDtype <<- torch$float16 )
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)$half()
+            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
             nParameters_Pretrained <<- TransformersModel$num_parameters()
             #TransformersModel <- torch$compile(TransformersModel)
           }
-          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
           py_gc$collect()
         }
@@ -754,7 +754,7 @@ GetImageRepresentations <- function(
           py_gc$collect()
           FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
           TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
-                                                                            torch_dtype = torch$float16)$half()$to(RunOnDevice)
+                                                                            torch_dtype = torch$float16)$#half()$to(RunOnDevice)
           nParameters_Pretrained <<- TransformersModel$num_parameters()
         }
         
@@ -813,16 +813,18 @@ GetImageRepresentations <- function(
       batch_inference <- batch_inference[[1]]
       batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
 
-      gc(); try(py_gc$collect(), T) # collect memory
+      gc(); py_gc$collect() # collect memory
       # im <- jnp$array(batch_inference[[1]]); seed <- jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
-      representation_ <- try( np$array( ImageRepArm_batch(ModelList,
+      # plot( np$array( jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
+      # batch_inference[[1]][3,,,1] # check image inputs 
+      representation_ <-  np$array( ImageRepArm_batch(ModelList,
                                                           InitImageProcess(jnp$array(batch_inference[[1]]),
                                                                            jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
                                                           StateList,
                                                           jax$random$PRNGKey(ai(last_i + seed)),
                                                           MPList, 
                                                           T # inference 
-                                                          )[[1]]  ), T)
+                                                          )[[1]]  )
       # plot(representation_[,sample(1:20)])
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       # plot(representation_[1,],np$array(LE(ModelList,"SpatialTransformerSupp")[[1]]))
@@ -836,7 +838,9 @@ GetImageRepresentations <- function(
         cbind(lat[which(imageKeysOfUnits %in% batch_keys[ iCheck ])], long[which(imageKeysOfUnits %in% batch_keys[ iCheck ])])
         # dim( tmp  ) 
       }
+      if(any(is.na(representation_))){stop("Stopping due to missingness in intermediary representation_ [Code reference: ImageModelBackbone.R]")}
       if("try-error" %in% class(representation_)){ print2("Error Statement:");print(representation_); browser() }
+      
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
@@ -861,6 +865,9 @@ GetImageRepresentations <- function(
   }
 
   rm(ModelList, StateList, MPList); gc()
+  
+  # sanity check 
+  if(any(is.na(Representations))){stop("Stopping due to missingness in output Representations [Code reference: ImageModelBackbone.R]")}
   
   if(returnContents){
    return( list( "ImageRepresentations"= Representations,

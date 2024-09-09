@@ -145,6 +145,7 @@ AnalyzeImageConfounding <- function(
     figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd)
   }
   if(!dir.exists(figuresPath)){ dir.create(figuresPath) }
+  figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
 
   if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
@@ -181,7 +182,7 @@ AnalyzeImageConfounding <- function(
         return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
       }
 
-      # setup iterators - skip the first test_size observations 
+      print2("Setting up iterators...") # - skip the first test_size observations 
       if(!is.null(TFRecordControl)){
         getParsed_tf_dataset_train_Select <- function( tf_dataset ){
           return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
@@ -264,10 +265,6 @@ AnalyzeImageConfounding <- function(
         return( im  )
     })
 
-    # some hyperparameters parameters
-    figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
-
-    # get first iter batch for initializations
     print2("Calibrating first moments for input data normalization...")
     NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1L:(momentCalIters<-34L)){
       # get a data batch 
@@ -276,6 +273,9 @@ AnalyzeImageConfounding <- function(
       # setup normalizations
       ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
 
+      # sanity check 
+      # causalimages::image2( as.array(ds_next_train[[1]])[2,,,1] ) 
+      
       # update normalizations
       NORM_SD <- rbind(NORM_SD, apply(as.array(ds_next_train[[1]]),ApplyAxis,sd))
       NORM_MEAN <- rbind(NORM_MEAN, apply(as.array(ds_next_train[[1]]),ApplyAxis,mean))
@@ -296,20 +296,23 @@ AnalyzeImageConfounding <- function(
     prW_est <- rep(NA,times = length(obsW))
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
-      # define train/test indices based on out of sample keys
+      print2("Note: Not optimizing image/video representation...")
+      
+      print2("Define train/test indices based on out of sample keys...") 
       imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
       outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
                           max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
-                   sample(names(imageKeysByTreatment[imageKeysByTreatment <= 0.5]), 
+                       sample(names(imageKeysByTreatment[imageKeysByTreatment <= 0.5]), 
                           max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2)), T)
       if("try-error" %in% class(outKeys)){ 
         outKeys <- sample(unique(imageKeysOfUnits), 
-                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+                          max(c(2,length(unique(imageKeysOfUnits))*testFrac))) 
       }
       inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
+      print2("Starting generation of image/video representation + outcome prediction [bootstrap done for uncertainty estimation]...")
       for(jr in 1L:(nBoot+1L)){
         if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
         if(jr != (nBoot+1L)){ bindices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
@@ -347,23 +350,24 @@ AnalyzeImageConfounding <- function(
           ImageRepresentations_df <- as.data.frame(  ImageRepresentations$ImageRepresentations )
           row.names(ImageRepresentations_df) <- as.character(unique(imageKeysOfUnits))
           ImageRepresentations_df <- ImageRepresentations_df[as.character(imageKeysOfUnits),]
-        }
+       }
         # subset indices for training
         indices_forTraining <- bindices_[bindices_ %in% trainIndices]
         glmnetInput <- ifelse(XisNull, yes = list(ImageRepresentations_df),
                                        no = list(cbind(as.matrix(X), ImageRepresentations_df)))[[1]]
-        myGlmnet_ <- try(glmnet::cv.glmnet(
+        if(any(is.na(glmnetInput))){ stop("Stopping due to NA in glmnetInput [Code ref: Confounding.R]") }
+        myGlmnet_ <- glmnet::cv.glmnet(
           x = as.matrix(glmnetInput[indices_forTraining,]),
           y = as.matrix(obsW[indices_forTraining]),
           nfolds = 5,
           alpha = 0, # alpha = 0 is the ridge penalty
           type.measure = ifelse(length(unique(obsW))==2,yes="auc",no="default"),
           family = ifelse(length(unique(obsW))==2,yes="binomial",no="gaussian")
-          ), T)
-        if("try-error" %in% class(myGlmnet_)){ browser() }
+          )
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
         prW_est_ <- predict(myGlmnet_, s = "lambda.min",
-                            newx = as.matrix(glmnetInput[bindices_,]), type = "response")
+                            newx = as.matrix(glmnetInput[bindices_,]), 
+                            type = "response")
         # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_)); tapply(prW_est_, obsW_, mean)
         # plot(obsW[indices_forTraining], c(predict(myGlmnet_, s ="lambda.min",newx = as.matrix(glmnetInput[indices_forTraining,]), type = "response")))
 
@@ -559,7 +563,7 @@ AnalyzeImageConfounding <- function(
         }
 
         gc(); py_gc$collect()
-        # set state and model lists
+        print2( "Set state and model lists..." ) 
         GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]], DenseList)
         StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
@@ -574,7 +578,7 @@ AnalyzeImageConfounding <- function(
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
 
-        # define optimizer and training step
+        print2("Define optimizer and training step...") 
         {
           LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(100L, nSGD))),
                                                             decay_steps = max(c(101L, nSGD-nWarmup)),
@@ -679,7 +683,7 @@ AnalyzeImageConfounding <- function(
           # training step
           # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
           t1 <- Sys.time()
-          GradientUpdatePackage <- try(GradAndLossAndAux(
+          GradientUpdatePackage <- GradAndLossAndAux(
             MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
             #ModelList, ModelList_fixed,
             InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
@@ -689,11 +693,10 @@ AnalyzeImageConfounding <- function(
             StateList, # StateList
             jax$random$PRNGKey( 123L+i ), # seed
             MPList, # MPlist
-            F), T) # inference
-          if("try-error" %in% class(GradientUpdatePackage)){
-            print( GradientUpdatePackage ); if(atError == "stop"){ stop() }; if(atError == "debug"){ browser() }
-          }
-          if(!"try-error" %in% class(GradientUpdatePackage)){
+            F) # inference
+          
+          # perform gradient updates 
+          {
             # get updated state
             StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
 
@@ -725,8 +728,8 @@ AnalyzeImageConfounding <- function(
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             
             # get update norm 
-            GradNorm_vec[i] <- mean( WeightGrads <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  ) 
-            # plot(WeightGrads)
+            GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  ) 
+            # plot(GradVec)
 
             # update parameters if finite gradients
             DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
@@ -756,7 +759,6 @@ AnalyzeImageConfounding <- function(
               StateList <- StateList_tmp
               rm(StateList_tmp, GradientUpdatePackage)
             }
-            # print diagnostics
             i_ <- i ; if(i %% 10 == 0 | i < 10 ){
               print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
                              i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
@@ -788,7 +790,6 @@ AnalyzeImageConfounding <- function(
         })
 
         inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
-        #KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.33) ))
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
         ImageRepArm_batch_jit <- eq$filter_jit( ImageRepArm_batch_R )
