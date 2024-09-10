@@ -581,7 +581,6 @@ GetImageRepresentations <- function(
         torch <<- reticulate::import("torch") 
       } 
       
-      
       # normalize for this/these models
       if( grepl(pretrainedModel,pattern="clay")  ){ 
         m <- InitImageProcess_orig(m, jax$random$PRNGKey(1L), T) 
@@ -779,7 +778,8 @@ GetImageRepresentations <- function(
                                         dict("platform" = "landsat-c2l1",  # platform
                                              "time" = torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
                                              "latlon" = torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
-                                             "pixels" = torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = RunDtype )$to(RunOnDevice), # normalized image 
+                                             #"pixels" = torch$tensor( reticulate::np_array(m$transpose(c(0L,3L,1L,2L))), dtype = RunDtype )$to(RunOnDevice), # normalized image 
+                                             "pixels" = torch$tensor( reticulate::np_array(tf$constant(m$transpose(c(0L,3L,1L,2L)))), dtype = torch$float32),
                                              "gsd" = torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
                                              'waves' = torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RGB
                                              #'waves' = torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
