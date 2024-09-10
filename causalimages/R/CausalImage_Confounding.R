@@ -132,6 +132,13 @@ AnalyzeImageConfounding <- function(
     }
   }
 
+  print2("Setting input types ...") 
+  if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
+  if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
+  if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
+  if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
+  
+  # figure name info 
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
@@ -324,6 +331,8 @@ AnalyzeImageConfounding <- function(
             file = file,
             dataType = dataType,
             InitImageProcess = InitImageProcessFn,
+            NORM_MEAN = NORM_MEAN, 
+            NORM_SD = NORM_SD, 
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
             strides = strides,
@@ -412,6 +421,8 @@ AnalyzeImageConfounding <- function(
               # file = file, # uncomment for debugging 
               dataType = dataType,
               InitImageProcess = InitImageProcessFn,
+              NORM_MEAN = NORM_MEAN, 
+              NORM_SD = NORM_SD, 
               nWidth_ImageRep = nWidth_ImageRep,
               nDepth_ImageRep = nDepth_ImageRep,
               strides = strides,
@@ -446,6 +457,8 @@ AnalyzeImageConfounding <- function(
         file = file,
         dataType = dataType,
         InitImageProcess = InitImageProcessFn,
+        NORM_MEAN = NORM_MEAN, 
+        NORM_SD = NORM_SD, 
         nWidth_ImageRep = nWidth_ImageRep,
         nDepth_ImageRep = nDepth_ImageRep,
         strides = strides,

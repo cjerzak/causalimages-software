@@ -42,6 +42,8 @@ GetImageRepresentations <- function(
     returnContents = T,
     getRepresentations = T,
     imageModelClass = "VisionTransformer",
+    NORM_MEAN = NULL, 
+    NORM_SD = NULL, 
     Sys.setenv_text = NULL,
 
     InitImageProcess = NULL,
@@ -88,6 +90,12 @@ GetImageRepresentations <- function(
   # image dtype
   image_dtype <- jnp$float16
   image_dtype_tf <- tf$float16
+  
+  print2("Setting input types ...") 
+  if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
+  if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
+  if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
+  if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
 
   if( batchSize > length( unique(imageKeysOfUnits) )){
     batchSize <- length( unique(imageKeysOfUnits)  )
@@ -572,10 +580,14 @@ GetImageRepresentations <- function(
         TransformersModule <<- reticulate::import("transformers") 
         torch <<- reticulate::import("torch") 
       } 
-      if(grepl(pretrainedModel,pattern="clay") | grepl(pretrainedModel,pattern="vit") | 
-         grepl(pretrainedModel,pattern="video") |  grepl(pretrainedModel,pattern="clip") ){ # normalize for these models
+      
+      
+      # normalize for this/these models
+      if( grepl(pretrainedModel,pattern="clay")  ){ 
         m <- InitImageProcess_orig(m, jax$random$PRNGKey(1L), T) 
-      } 
+      }
+      
+      # model specific transformations 
       if(!grepl(pretrainedModel,pattern="video")){
         if( dataType == "video" ){ 
           m_shape_orig <- m$shape
@@ -583,18 +595,11 @@ GetImageRepresentations <- function(
         }
         if(m$shape[[4]] == 1L){ m <- m * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
         if(m$shape[[4]] > 3L){ m <- jnp$take(m,0L:2L,axis=3L) }
-        
-        if( !grepl(pretrainedModel ,pattern="clay") ){ 
-           m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
-        } 
-        if( grepl(pretrainedModel, pattern="vit-base") ){ 
-          m <- reticulate::np_array( tf$constant(m), dtype = np$float32)
-        }
-        #my_image <- Image$fromarray(  m ); my_image$save('../../../Downloads/tmp.jpg', 'JPEG')
-        if( grepl(pretrainedModel, pattern = "clip-rsicd") ){
+      }
+      if( grepl(pretrainedModel, pattern = "clip-rsicd") ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
             if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-              print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+              print("Loading pre-trained model (clip-rsicd)...")
               
               PretrainedImageModelName <<- "flax-community/clip-rsicd-v2"
               FeatureExtractor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
@@ -603,17 +608,40 @@ GetImageRepresentations <- function(
                                        yes = list(torch$device("cuda")), 
                                        no = list(torch$device("cpu")))[[1]] 
               )
-              torch$set_default_dtype( RunDtype <<- torch$float16 )
+              torch$set_default_dtype( RunDtype <<- torch$float32 ); 
               TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
               nParameters_Pretrained <<- TransformersModel$num_parameters()
+              
+              # from examining FeatureExtractor (?)
+              MEAN_RESCALER <<- jnp$array(c(0, 0,0))
+              MEAN_RESCALER <<- jnp$reshape(MEAN_RESCALER,list(1L,3L,1L,1L))
+              
+              SD_RESCALER <<- jnp$array(c(1,1,1))
+              SD_RESCALER <<- jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
+              
+              NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
+              NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,3L))
             }
-            m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+        
+
+            # stretch and re-normalize. see FeatureExtractor for details 
+            m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
+            m <- jax$image$resize(
+              image=m,
+              shape=c(m$shape[[1]], 224L, 224L, 3L),
+              method="bilinear")
+            m <- jnp$transpose(m, c(0L,3L,1L,2L))
+            m <- (m*SD_RESCALER)+MEAN_RESCALER
+            # jnp$mean(jnp$array(m), axis = c(0L,2L:3L)); jnp$std(jnp$array(m), axis =  c(0L,2L:3L)) 
+            m <- torch$tensor( reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32), dtype = torch$float32)
+            # m <- reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32)
+            # m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
             m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
             py_gc$collect()
         }
-        if( grepl(pretrainedModel, pattern = "vit-base") ){ 
+      if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+            print("Loading pre-trained model (vit-base)...")
             PretrainedImageModelName <<- 'google/vit-base-patch16-224-in21k'
             FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedImageModelName)
             torch$set_default_device(
@@ -621,20 +649,46 @@ GetImageRepresentations <- function(
                                      yes = list(torch$device("cuda")), 
                                      no = list(torch$device("cpu")))[[1]] 
             )
-            torch$set_default_dtype( RunDtype <<- torch$float16 )
+            torch$set_default_dtype( RunDtype <<- torch$float32 ); 
             TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
             nParameters_Pretrained <<- TransformersModel$num_parameters()
             #TransformersModel <- torch$compile(TransformersModel)
+            
+            MEAN_RESCALER <<- jnp$array(c(0.5,0.5,0.5))
+            MEAN_RESCALER <<- jnp$reshape(MEAN_RESCALER,list(1L,3L,1L,1L))
+            
+            SD_RESCALER <<- jnp$array(c(0.5,0.5,0.5))
+            SD_RESCALER <<- jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
+            
+            NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
+            NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,3L))
           }
-          m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+
+          # Images are resized/rescaled to the same resolution (224x224)
+          # and normalized across the RGB channels with mean (0.5, 0.5, 0.5) 
+          # and standard deviation (0.5, 0.5, 0.5)
+          # evidence: https://huggingface.co/google/vit-base-patch16-224-in21k  
+          # (see preprocessing)
+          # m_orig <- m
+          # jnp$mean(jnp$array(m), axis = c(0L:2L)); jnp$std(jnp$array(m), axis =  c(0L:2L)) 
+          m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
+          m <- jax$image$resize(
+                  image=m,
+                  shape=c(m$shape[[1]], 224L, 224L, 3L),
+                  method="bilinear")
+          #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+          m <- jnp$transpose(m, c(0L,3L,1L,2L))
+          m <- (m*SD_RESCALER)+MEAN_RESCALER
+          # jnp$mean(jnp$array(m), axis = c(0L,2L:3L)); jnp$std(jnp$array(m), axis =  c(0L,2L:3L)) 
+          m <- torch$tensor( reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32), dtype = torch$float32)
           m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
           py_gc$collect()
         }
-        if( grepl(pretrainedModel, pattern = "clay") ){ 
+      if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
           if(!"ClayModel" %in% ls(.GlobalEnv)){
-            print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+            print("Loading pre-trained model (Clay)...")
             # recipe 
             # install git-lfs
             # https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md
@@ -687,7 +741,8 @@ GetImageRepresentations <- function(
                                      yes = list(torch$device("cuda")), 
                                      no = list(torch$device("cpu")))[[1]] 
             )
-            torch$set_default_dtype( RunDtype <<- torch$float32 );#torch$set_default_tensor_type( torch$HalfTensor )
+            torch$set_default_dtype( RunDtype <<- torch$float32 ); 
+            #torch$set_default_tensor_type( torch$HalfTensor )
             ClayModel <<- ClayModel$to(RunOnDevice)
             
             nParameters_Pretrained <<- reticulate::as_iterator(  ClayModel$model$encoder$parameters() )
@@ -734,11 +789,13 @@ GetImageRepresentations <- function(
           m = jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
           # plot(np$array(m)[,sample(1:10,2)])
         }
-        if( dataType == "video" ){ m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) } 
-      }
+      if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
+        # reshape if not using videomae
+        m <- jnp$reshape(jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) 
+      } 
       if(grepl(pretrainedModel,pattern="videomae")){ 
         if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
-          print(sprintf("Loading pre-trained model (%s)...", pretrainedModel))
+          print("Loading pre-trained model (videomae)...")
           PretrainedVideoModelName <<- "MCG-NJU/videomae-base"
           #videoModelName <<- "MCG-NJU/videomae-base-finetuned-kinetics"
           
@@ -748,25 +805,47 @@ GetImageRepresentations <- function(
                                    yes = list(torch$device("cuda")), 
                                    no = list(torch$device("cpu")))[[1]] 
           )
-          torch$set_default_dtype( RunDtype <<- torch$float16 )
+          torch$set_default_dtype( RunDtype <<- torch$float32 ); 
 
           # load models
           py_gc$collect()
           FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
           TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
-                                                                            torch_dtype = torch$float16)$#half()$to(RunOnDevice)
+                                                                            torch_dtype = torch$float16)#half()$to(RunOnDevice)
           nParameters_Pretrained <<- TransformersModel$num_parameters()
+          
+          MEAN_RESCALER <<- jnp$array(c(1,1,1))
+          MEAN_RESCALER <<- jnp$reshape(MEAN_RESCALER,list(1L,1L,1L,1L,3L))
+          
+          SD_RESCALER <<- jnp$array(c(1,1,1))
+          SD_RESCALER <<- jnp$reshape(SD_RESCALER,list(1L,1L,1L,1L,3L))
+          
+          NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,1L,3L))
+          NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,1L, 3L))
         }
+        #m <- reticulate::np_array( tf$constant(m), dtype = np$uint8)
         
-        m_rep <- c(); for(j_ in 1L:m$shape[[1]]){ 
+        m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
+        m <- jax$image$resize(
+          image=m,
+          shape=c(m$shape[[1]], m$shape[[2]],  224L, 224L, 3L),
+          method="bilinear")
+        #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+        m <- (m*SD_RESCALER)+MEAN_RESCALER
+        # jnp$mean(jnp$array(m), axis = c(0L,2L:3L)); jnp$std(jnp$array(m), axis =  c(0L,2L:3L)) 
+        
+        #m <- jnp$array(m, dtype = np$uint8)
+        m_rep <- c(); for(j_ in 1L:as.integer(m$shape[[1]]) ){ # iterate over the batch dimension? 
           m_ <- jnp$take(m, j_-1L, axis = 0L)
           if(m_$shape[[4]] == 1L){ m_ <- m_ * jnp$expand_dims(jnp$expand_dims(jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
           if(m_$shape[[4]] > 3L){ m_ <- jnp$take(m,0L:2L,axis=3L) }
           m_ <- jnp$transpose(  m_, c(0L,3L,1L,2L))
-          m_ <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
+          m_ <- torch$tensor( reticulate::np_array( tf$constant(m_, tf$float32), dtype = np$float32), dtype = torch$float32)
+          #m_ <- reticulate::np_array( tf$constant(m_), dtype = np$uint8)
           
           # run model
-          m_ <- FeatureExtractor(images = m_, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+          #m_ <- FeatureExtractor(images = m_,  do_rescale = F,  return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
+          # output of extractor is T by C by W by H
           m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
 
           # save final data 
