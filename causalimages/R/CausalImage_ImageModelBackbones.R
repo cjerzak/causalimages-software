@@ -637,7 +637,7 @@ GetImageRepresentations <- function(
             # m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
             m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
             py_gc$collect()
-        }
+      }
       if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             print("Loading pre-trained model (vit-base)...")
@@ -671,10 +671,26 @@ GetImageRepresentations <- function(
           # m_orig <- m
           # jnp$mean(jnp$array(m), axis = c(0L:2L)); jnp$std(jnp$array(m), axis =  c(0L:2L)) 
           m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
+          
+          # resize information: 
+          #the output shape, as a sequence of integers with length equal to
+          #the number of dimensions of `image`. Note that :func:`resize` does not
+          #distinguish spatial dimensions from batch or channel dimensions, so this
+          #includes all dimensions of the image. To represent a batch or a channel
+          #dimension, simply leave that element of the shape unchanged.
+          
+          # sanity checks 
+          #image2(np$array(m[1,,,1]))
+          #image2(np$array(jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")[1,,,1]))
+          #image2(np$array(jax$image$resize( image=m, shape=c(m$shape[[1]], 64L, 64L, 3L), method="bilinear")[1,,,1]))
+          #image2(np$array(jax$image$resize( image=m, shape=c(m$shape[[1]], 32L, 32L, 3L), method="bilinear")[1,,,1]))
+          
+          # run resizing 
           m <- jax$image$resize(
-                  image=m,
-                  shape=c(m$shape[[1]], 224L, 224L, 3L),
-                  method="bilinear")
+            image=m,
+            shape=c(m$shape[[1]], 224L, 224L, 3L),
+            method="bilinear")
+          
           #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m <- jnp$transpose(m, c(0L,3L,1L,2L))
           m <- (m*SD_RESCALER)+MEAN_RESCALER
@@ -809,6 +825,7 @@ GetImageRepresentations <- function(
 
           # load models
           py_gc$collect()
+          # use VideoMAEImageProcessor? 
           FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
           TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
                                                                             torch_dtype = torch$float16)#half()$to(RunOnDevice)
