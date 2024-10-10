@@ -97,16 +97,14 @@ AnalyzeImageConfounding <- function(
                                    atError = "stop", # stop or debug
                                    seed = NULL){
   {
-    library(reticulate)
-    #print("TEST"); source("~/Downloads/scratch_fix_claygpu.R", local = sourceLocal)
-    
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
+    library(reticulate)
+    conda_env <- "jax_cpu"; conda_env_required <- T
     if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
     # note: for balanced training, generate two tf records
     if(!is.null(Sys.setenv_text)){ 
-      #eval(parse(text = Sys.setenv_text)) 
       eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
     }
     jax <<- reticulate::import("jax")
@@ -116,6 +114,8 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
+    reticulate::import("torch")
+    browser()
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
     # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
 
@@ -273,28 +273,9 @@ AnalyzeImageConfounding <- function(
     })
 
     print2("Calibrating first moments for input data normalization...")
-    NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1L:(momentCalIters<-34L)){
-      # get a data batch 
-      ds_next_train <- ds_iterator_train$`next`()
-      
-      # setup normalizations
-      ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
-
-      # sanity check 
-      # causalimages::image2( as.array(ds_next_train[[1]])[2,,,1] ) 
-      
-      # update normalizations
-      NORM_SD <- rbind(NORM_SD, apply(as.array(ds_next_train[[1]]),ApplyAxis,sd))
-      NORM_MEAN <- rbind(NORM_MEAN, apply(as.array(ds_next_train[[1]]),ApplyAxis,mean))
-    }
-    NORM_SD <- apply(NORM_SD,2,median)
-    NORM_MEAN <- apply(NORM_MEAN,2,mean)
-    NORM_MEAN_array <- jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
-    NORM_SD_array <- jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
-    if(dataType == "video"){
-      NORM_MEAN_array <- jnp$expand_dims(NORM_MEAN_array, 0L)
-      NORM_SD_array <- jnp$expand_dims(NORM_SD_array, 0L)
-    }
+    NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
+    NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
+    NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- jnp$array(0.05)
     py_gc$collect()
 

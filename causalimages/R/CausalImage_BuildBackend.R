@@ -17,18 +17,13 @@
 BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
   # Create a new conda environment
   reticulate::conda_create(envname = conda_env,
-                           conda = conda, python_version = "3.11")
+                           conda = conda, python_version = "3.12")
 
   # Install Python packages within the environment
-  reticulate::py_install(c("tensorflow", "optax", "equinox", "jmp", "tensorflow-probability"),
+  reticulate::py_install(c("tensorflow", "optax", "jax","torch","transformers","pillow",
+                           "equinox", "jmp", "tensorflow-probability"),
                            conda = conda, pip = TRUE,
                            envname = conda_env)
-  if(Sys.info()["sysname"] == "Darwin"){
-      reticulate::py_install("jax", conda = conda, pip = TRUE, envname = conda_env)
-  }
-  if(Sys.info()["sysname"] == "Windows"){
-      reticulate::py_install("jax", conda = conda, pip = TRUE, envname = conda_env)
-  }
   if(Sys.info()["sysname"] == "Linux"){
     # pip install --upgrade jax jaxlib==0.1.69+cuda111 -f https://storage.googleapis.com/jax-releases/jax_releases.html
     try_ <- try(system(sprintf("'%s' -m pip install --upgrade --no-user %s",

@@ -16,4 +16,4 @@ Encoding: UTF-8
 LazyData: true
 Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
 Imports: tensorflow, latex2exp, keras, reticulate, viridis, geosphere, raster, animation, rrapply, glmnet, sf, data.table, grf, pROC, devtools
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2

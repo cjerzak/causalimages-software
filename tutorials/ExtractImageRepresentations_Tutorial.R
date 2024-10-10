@@ -3,6 +3,9 @@
 ################################
 # Image and image-sequence embeddings tutorial using causalimages
 ################################
+  
+# start with a clean environment 
+rm(list=ls()); options(error = NULL)
 
 # remote install latest version of the package if needed
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
@@ -15,7 +18,7 @@
 
 # load in package
 library( causalimages  )
-
+  
 # load in tutorial data
 data(  CausalImagesTutorialData )
 
@@ -44,7 +47,7 @@ X <- apply(X,2,function(zer){
   return( zer )
 })
 
-# select observation subset to make tutorial analyses run faster
+# select observation subset to make tutorial analyses run fast 
 take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 50) }) )
 
 # write tf record
@@ -53,20 +56,46 @@ causalimages::WriteTfRecord(  file =  TfRecord_name,
                 uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
                 acquireImageFxn = acquireImageFromMemory  )
 
-# obtain image representation
-MyImageEmbeddings <- causalimages::GetImageRepresentations(
+# obtain image representation (random neural projection)
+MyImageEmbeddings_RandomProj <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageKeysOfUnits = KeysOfObservations[ take_indices ],
   nDepth_ImageRep = 1L,
-  nWidth_ImageRep = 128L )
+  nWidth_ImageRep = 128L,
+  CleanupEnv = T)
+
+# sanity check - # of rows in MyImageEmbeddings matches # of image keys
+nrow(MyImageEmbeddings_RandomProj$ImageRepresentations) == length(KeysOfObservations[ take_indices ])
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location
-dim(  MyImageEmbeddings$ImageRepresentations )
-plot( MyImageEmbeddings$ImageRepresentations  )
+plot( MyImageEmbeddings_RandomProj$ImageRepresentations  )
+
+# obtain image representation (pre-trained ViT) 
+MyImageEmbeddings_ViT <- causalimages::GetImageRepresentations(
+  file  = TfRecord_name,
+  pretrainedModel = "vit-base",
+  imageKeysOfUnits = KeysOfObservations[ take_indices ],
+  CleanupEnv = T)
+
+# analyze ViT representations 
+plot( MyImageEmbeddings_ViT$ImageRepresentations  )
+
+# obtain image representation (pre-trained CLIP-RCSID) 
+MyImageEmbeddings_Clip <- causalimages::GetImageRepresentations(
+  file  = TfRecord_name,
+  pretrainedModel = "clip-rsicd",
+  imageKeysOfUnits = KeysOfObservations[ take_indices ],
+  CleanupEnv = T)
+
+# analyze Clip representations 
+plot( MyImageEmbeddings_Clip$ImageRepresentations  )
+
+# sanity check - # of rows in MyImageEmbeddings matches # of image keys
+nrow(MyImageEmbeddings_Clip$ImageRepresentations) == length(KeysOfObservations[ take_indices ])
 
 # other output quantities include the image model functions and model parameters
-names(  MyImageEmbeddings  )[-1]
+names(  MyImageEmbeddings_Clip  )[-1]
 
 print("Done with image representations tutorial!")
 }

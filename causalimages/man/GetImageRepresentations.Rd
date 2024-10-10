@@ -12,6 +12,8 @@ GetImageRepresentations(
   returnContents = T,
   getRepresentations = T,
   imageModelClass = "VisionTransformer",
+  NORM_MEAN = NULL,
+  NORM_SD = NULL,
   Sys.setenv_text = NULL,
   InitImageProcess = NULL,
   pretrainedModel = NULL,

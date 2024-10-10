@@ -62,18 +62,18 @@ GetImageRepresentations <- function(
     dataType = "image",
     bn_momentum = 0.99,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
+    CleanupEnv = FALSE, 
     seed = NULL){
 
   # initialize tensorflow if not already initialized
   if(   !"logical" %in% class(try(as.numeric(np$array(jnp$square(1.)))==1,T)) ){
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library(tensorflow); 
+    library( tensorflow ); 
     if(!is.null(conda_env)){ try(reticulate::use_condaenv(conda_env, required = conda_env_required),T) }
     if(!is.null(Sys.setenv_text)){ 
-      #eval(parse(text = Sys.setenv_text)) 
       eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
     }
-    py_gc <- reticulate::import("gc")
+    py_gc <<- reticulate::import("gc")
     (jax <<- reticulate::import("jax"))$config$update("jax_enable_x64", FALSE);
     jnp <<- reticulate::import("jax.numpy")
     np <<- reticulate::import("numpy")
@@ -577,8 +577,8 @@ GetImageRepresentations <- function(
         pip install -U 'jax[cuda12]'
         python3 -m pip install --upgrade jmp optax equinox 
         "
-        TransformersModule <<- reticulate::import("transformers") 
         torch <<- reticulate::import("torch") 
+        TransformersModule <<- reticulate::import("transformers") 
       } 
       
       # normalize for this/these models
@@ -621,7 +621,6 @@ GetImageRepresentations <- function(
               NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
               NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,3L))
             }
-        
 
             # stretch and re-normalize. see FeatureExtractor for details 
             m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
@@ -874,6 +873,13 @@ GetImageRepresentations <- function(
     }
   }
   
+  # get norm stats if needed 
+  if(is.null(NORM_MEAN)){ 
+    NORM_MEAN <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
+    NORM_SD <- NORM_MEAN$NORM_SD_array
+    NORM_MEAN <- NORM_MEAN$NORM_MEAN
+  }
+  
   Representations <- NULL; if(getRepresentations){
   Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
                             ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, 
@@ -961,6 +967,11 @@ GetImageRepresentations <- function(
   }
 
   rm(ModelList, StateList, MPList); gc()
+  
+  if(CleanupEnv){
+    suppressWarnings( rm(PretrainedImageModelName, FeatureExtractor, ClayModel,
+                         TransformersModel, nParameters_Pretrained, pos = .GlobalEnv) ) 
+  }
   
   # sanity check 
   if(any(is.na(Representations))){stop("Stopping due to missingness in output Representations [Code reference: ImageModelBackbone.R]")}
