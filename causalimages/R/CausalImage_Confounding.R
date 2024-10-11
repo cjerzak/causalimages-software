@@ -114,8 +114,6 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
-    reticulate::import("torch")
-    browser()
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
     # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 {
   # clear workspace
-  rm(list=ls())
+  rm(list=ls()); options(error = NULL)
 
   ################################
   # Image confounding tutorial using causalimages
