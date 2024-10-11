@@ -114,7 +114,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
     if(!is.null(Sys.setenv_text)){ 
-      #eval(parse(text = Sys.setenv_text)) 
       eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
     }
     py_gc <- reticulate::import("gc")
@@ -131,7 +130,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     gc(); py_gc$collect()
     
     # set memory growth for tf 
-    for(device_ in tf$config$list_physical_devices()){ try(tf$config$experimental$set_memory_growth(device_, T),T) }
+    for(device_ in tf$config$list_physical_devices()){ 
+      try(tf$config$experimental$set_memory_growth(device_, T),T) 
+    }
 
     # image dtype management
     c2f <- jmp$cast_to_full
@@ -154,7 +155,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   BN_EP <- (0.001); bn_momentum <- (.90)
   if(grepl(heterogeneityModelType,pattern = "variational")){ bn_momentum <- bn_momentum^1/nMonte_variational }
 
-  # define base tf record + train/test fxns
+  print2("tfrecord + train/test fxns")
   changed_wd <- F; {
     print2("Establishing connection with tfrecord")
     tf_record_name <- file
@@ -293,7 +294,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # setup iterator 
       {
         # select a tf record indexed to (1:kFolds([!1:kFolds %in% kf_] (skip indices bounded by cf_keys_toSkip_bounds)
-        # 1 2 3 4 * 5 6 7 8 * 9 10 11 12, K = 3 
         if(kf_ == 1){ 
           tf_dataset_train <- getParsed_tf_dataset_train_Select(
             tf_dataset_master_$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) )$`repeat`(-1L) 
@@ -302,13 +302,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(kf_ == kFolds){ 
           tf_dataset_train <- getParsed_tf_dataset_train_Select(
             tf_dataset_master_$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) )$`repeat`(-1L) 
-          # take 1 2 3 4 * 5 6 7 8
         }
         if(kf_ > 1 & kf_ < kFolds){ 
            tf_dataset_train <- getParsed_tf_dataset_train_Select(
              tf_dataset_master_$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) )$concatenate(
                tf_dataset_master_$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ))$`repeat`(-1L) # repeat to avoid out of sequence errors 
-           # 1:4, skip 1:8
         }
         tf_dataset_train <- getParsed_tf_dataset_train_BatchAndShuffle( tf_dataset_train )
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )

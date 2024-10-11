@@ -3,6 +3,9 @@
 ################################
 # Image heterogeneity tutorial using causalimages
 ################################
+  
+# clean environment
+rm(list = ls()); options( error = NULL )
 
 # remote install latest version of the package
 # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
@@ -64,8 +67,8 @@ UgandaDataProcessed$Wobs
 # (not just experimental context, use for constructing transportability maps)
 UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
 
-# set outcome to an income index
-UgandaDataProcessed$Yobs <- UgandaDataProcessed$income_index_e_RECREATED
+# set outcome
+UgandaDataProcessed$Yobs <- UgandaDataProcessed$human_capital_index_e
 
 # drop observations with NAs in key variables
 # (you can also use a multiple imputation strategy)
@@ -163,7 +166,7 @@ for(optimizeImageRep in c(T, F)){
     transportabilityMat = NULL, #
 
     # other modeling options
-    ImageModelClass  = ImageModelClass,
+    imageModelClass  = ImageModelClass,
     nSGD = 5L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
@@ -229,7 +232,7 @@ for(optimizeImageRep in c(T, F)){
     transportabilityMat = NULL, #
 
     # other modeling options
-    ImageModelClass = ImageModelClass,
+    imageModelClass = ImageModelClass,
     nSGD = 5L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^5),
@@ -241,5 +244,5 @@ for(optimizeImageRep in c(T, F)){
   }
   }
 }
-print("Done with image heterogeneity tutorial!")
+causalimages::print2("Done with image heterogeneity tutorial!")
 }
