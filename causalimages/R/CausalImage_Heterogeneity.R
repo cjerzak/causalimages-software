@@ -807,7 +807,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
     
         # define optimizer and training step
-        {
+        if(T == F){
           #LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(100, nSGD))), decay_steps = max(c(51, nSGD-nWarmup)),
                                                             #init_value = learningRateMax/100, peak_value = learningRateMax, 
                                                             #end_value =  learningRateMax/100)
@@ -827,6 +827,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           jit_apply_updates <- eq$filter_jit(optax$apply_updates)
           jit_get_update <- eq$filter_jit(optax_optimizer$update)
         }
+        print2("Define optimizer and training step...")
+        LocalFxnSource(TrainDefine, evaluation_environment = environment())
     
         keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
         if(BAYES_STEP == 2){
@@ -841,7 +843,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
         keysUsedInTraining <- tauMeans <- c();
         justCheckCrossFitter <- F
         if(DoTraining <- T){ 
-        n_sgd_iters <- nSGD; i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
+          LocalFxnSource(TrainDo, evaluation_environment = environment())
+          if(T == F){ 
+          n_sgd_iters <- nSGD; i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
             t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
     
             ds_next_train <- try(ds_iterator_train$`next`(),T)
@@ -972,6 +976,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           }
         }
         } # end for(i in i_:nSGD){
+          }
         }
       }
       

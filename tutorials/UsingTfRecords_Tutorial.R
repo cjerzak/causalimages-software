@@ -74,18 +74,22 @@
                   uniqueImageKeys = unique( as.character(KeysOfObservations)[ take_indices ] ),
                   acquireImageFxn = acquireImageFromMemory )
 
-  # perform causal inference with image and tabular confounding -- toy example for illustration purposes
+  # perform causal inference with image and tabular confounding
+  # toy example for illustration purposes where 
+  # treatment is truly randomized 
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
     X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
     long = LongLat$geo_long[ take_indices ],
     lat = LongLat$geo_lat[ take_indices ],
-    batchSize = 8L,
+    batchSize = 16L,
     imageKeysOfUnits = as.character(KeysOfObservations)[ take_indices ],
     file = tfrecord_loc, # point to tfrecords file
 
-    nSGD = 500L,
+    nSGD = 500L, 
+    imageModelClass = "CNN",
+    #imageModelClass = "VisionTransformer", 
     plotBands = c(1,2,3),
     figuresTag = "TutorialExample",
     figuresPath = "~/Downloads/TFRecordTutorial" # figures saved here (use absolute file paths)
@@ -100,7 +104,3 @@
   # see figuresPath for image analysis output
   causalimages::print2("Done with TfRecords tutorial!")
 }
-
-
-xxx 
-remove all reference to LE( )

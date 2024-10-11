@@ -10,7 +10,7 @@
 #'
 #' @examples
 #' # (Not run)
-#' 
+#' # GetMoments(iterator, dataType, image_dtype, momentCalIters = 34L)
 #' @export
 #' @md
 #'

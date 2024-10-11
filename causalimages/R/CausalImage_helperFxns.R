@@ -231,3 +231,9 @@ LinearizeNestedList <- function (NList,
 ai <- as.integer
 
 se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
+
+LocalFxnSource <- function(fxn, evaluation_environment){ 
+  fxn_text <- paste(deparse(fxn), collapse="\n")
+  fxn_text <- gsub(fxn_text,pattern="function \\(\\)", replace="")
+  eval( parse( text = fxn_text ), envir = evaluation_environment )
+}

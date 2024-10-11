@@ -3,7 +3,12 @@
   ################################
   # Image confounding tutorial using causalimages
   ################################
-  setwd("~/Downloads/")
+  
+  # clean workspace 
+  rm(list=ls()); options(error = NULL)
+  
+  # setup environment 
+  setwd("~/Downloads/"); 
 
   # remote install latest version of the package if needed
   # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
@@ -11,14 +16,14 @@
   # local install for development team
   # install.packages("~/Documents/causalimages-software/causalimages",repos = NULL, type = "source",force = F)
 
-  # build backend you haven't ready:
+  # build backend you haven't ready (run this only once upon (re)installing causalimages!)
   # causalimages::BuildBackend()
 
   # load in package
   library( causalimages )
 
   # resave TfRecords?
-  reSaveTFRecord <- F
+  reSaveTFRecord <- T
 
   # load in tutorial data
   data(  CausalImagesTutorialData )
@@ -41,8 +46,8 @@
       # refers to the unit-associated image keys
       # we also tweak the image dimensions for testing purposes
       #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),1:2] # test with two channels
-      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),] # test with three channels
-      m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),c(1:3,1:2)] # test with five channels
+      m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),] # test with three channels
+      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),c(1:3,1:2)] # test with five channels
 
       # if keys == 1, add the batch dimension so output dims are always consistent
       # (here in image case, dims are batch by height by width by channel)
@@ -60,6 +65,8 @@
       acquireImageFxn = acquireImageFxn)
   }
 
+  # perform causal inference with image-based and tabular confounding
+  if(T == T){ 
   for(ImageModelClass in (c("VisionTransformer","CNN"))){
   for(optimizeImageRep in c(T,F)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
@@ -75,10 +82,10 @@
     batchSize = 16L,
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
-    ImageModelClass = ImageModelClass,
+    imageModelClass = ImageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
-    LEARNING_RATE_BASE = 0.001, nSGD = 10L, #
+    learningRateMax = 0.001, nSGD = 10L, #
     dropoutRate = NULL, # 0.1,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
@@ -87,20 +94,19 @@
   #ImageConfoundingAnalysis$ModelEvaluationMetrics
   }
   }
-
-  # ATE estimate (image confounder adjusted)
-  ImageConfoundingAnalysis$tauHat_propensityHajek
-
-  # ATE se estimate (image confounder adjusted)
-  ImageConfoundingAnalysis$tauHat_propensityHajek_se
-
-  # some out-of-sample evaluation metrics
-  ImageConfoundingAnalysis$ModelEvaluationMetrics
-
+    # ATE estimate (image confounder adjusted)
+    ImageConfoundingAnalysis$tauHat_propensityHajek
+    
+    # ATE se estimate (image confounder adjusted)
+    ImageConfoundingAnalysis$tauHat_propensityHajek_se
+    
+    # some out-of-sample evaluation metrics
+    ImageConfoundingAnalysis$ModelEvaluationMetrics
+  }
 }
 
-  # perform causal inference with image *sequence*  and tabular confounding
-  {
+  # perform causal inference with image sequence and tabular confounding
+  if(T == T){
   acquireVideoRep <- function(keys) {
       # Note: this is a toy function generating image representations
       # that simply reuse a single temporal slice. In practice, we will
@@ -149,10 +155,10 @@
       # model specifics
       batchSize = 16L,
       optimizeImageRep = optimizeImageRep,
-      ImageModelClass = ImageModelClass,
+      imageModelClass = ImageModelClass,
       nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
       nWidth_ImageRep = as.integer(2L^7),
-      LEARNING_RATE_BASE = 0.001, nSGD = 50L, #
+      learningRateMax = 0.001, nSGD = 300L, #
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
