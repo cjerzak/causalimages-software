@@ -177,7 +177,7 @@ TrainDo <- function(){
         suppressWarnings( rm(StateList_tmp, GradientUpdatePackage,BNInfo) )
       }
       i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total time (s): %.2f - Grad time (s): %.2f",
+        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f",
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
                        (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA

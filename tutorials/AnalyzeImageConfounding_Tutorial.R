@@ -66,7 +66,7 @@
   }
 
   # perform causal inference with image-based and tabular confounding
-  if(T == T){ 
+  if(T == F){ 
   for(ImageModelClass in (c("VisionTransformer","CNN"))){
   for(optimizeImageRep in c(T,F)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))

@@ -367,7 +367,6 @@ GetImageRepresentations <- function(
 
         # setup bn for CNN block
         LayerBN1 <- eq$nn$BatchNorm(
-          #input_size = (BatchNormDim1 <- dimsSpatial), # input norm
           input_size = (BatchNormDim1 <- nWidth_ImageRep), # post-process norm
           axis_name = batch_axis_name,
           momentum = bn_momentum, eps = (BN_ep <- 0.01^2), channelwise_affine = F)
@@ -942,7 +941,7 @@ GetImageRepresentations <- function(
         cbind(lat[which(imageKeysOfUnits %in% batch_keys[ iCheck ])], long[which(imageKeysOfUnits %in% batch_keys[ iCheck ])])
         # dim( tmp  ) 
       }
-      if(any(is.na(representation_))){ 
+      if(any(is.na(representation_)) &  !initializingFxns){ 
         stop("Stopping due to missingness in intermediary representation_ [Code reference: ImageModelBackbone.R]") 
       }
       if("try-error" %in% class(representation_)){
