@@ -272,10 +272,8 @@ AnalyzeImageConfounding <- function(
 
     print2("Calibrating first moments for input data normalization...")
     NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
-    NORM_SD <- NORM_MEAN_array$NORM_SD
-    NORM_MEAN <- NORM_MEAN_array$NORM_MEAN
-    NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
-    NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
+    NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
+    NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- jnp$array(0.05)
     py_gc$collect()
 
@@ -455,6 +453,7 @@ AnalyzeImageConfounding <- function(
         TfRecords_BufferScaler = 3L,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
+        initializingFxns = T, 
         bn_momentum = 0.99,
         conda_env = conda_env,
         conda_env_required = conda_env_required,
@@ -722,12 +721,12 @@ AnalyzeImageConfounding <- function(
             # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
             
             # get update norm 
-            GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  ) 
-            # plot(GradVec)
+            GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),
+                                                               function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  )
 
             # update parameters if finite gradients
             DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
-                        !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-5)
+                           !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-10)
             if(! DoUpdate ){ print2("Warning: Not updating parameters due to zero or non-finite gradients in mixed-precision training...") }
             if( DoUpdate ){
               DoneUpdates <- DoneUpdates + 1
@@ -736,9 +735,16 @@ AnalyzeImageConfounding <- function(
               GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
               
               # get updates
-              GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
+              browser()
+              GradientUpdatePackage <- jit_get_update( 
+                                                      updates = GradientUpdatePackage,
+                                                       #updates = eq$partition(GradientUpdatePackage, eq$is_array)[[1]], 
                                                        state = opt_state,
-                                                       params = eq$partition(ModelList, eq$is_array)[[1]])
+                                                       params = eq$partition(ModelList, eq$is_array)[[1]] )
+              
+              jax$tree_util$tree_structure(GradientUpdatePackage)
+              jax$tree_util$tree_structure(eq$partition(ModelList, eq$is_array)[[1]])
+              
 
               # separate updates from state
               opt_state <- GradientUpdatePackage[[2]]

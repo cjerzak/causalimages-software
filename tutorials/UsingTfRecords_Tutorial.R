@@ -68,20 +68,12 @@
   # uncomment for a larger n analysis
   #take_indices <- 1:length( obsY )
 
-  # set tfrecord save location (safest using absolute path)
+  # set tfrecord save location (best to use absolute paths, but relative paths should in general work too)
   tfrecord_loc <- "~/Downloads/ExampleRecord.tfrecord"
-
-  # tfrecord_loc <- "ExampleRecord.tfrecord"
-
-  # you may use relative paths like this:
-  # tfrecord_loc <- "./Downloads/test1/test2/test3/ExampleRecord.tfrecord"
-
-  # or absolute paths like this:
-  # tfrecord_loc <- "~/Downloads/test1/test2/test3/ExampleRecord.tfrecord"
 
   # write a tf records repository
   causalimages::WriteTfRecord(  file = tfrecord_loc,
-                  uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
+                  uniqueImageKeys = unique( as.character(KeysOfObservations)[ take_indices ] ),
                   acquireImageFxn = acquireImageFromMemory )
 
   # perform causal inference with image and tabular confounding -- toy example for illustration purposes
@@ -91,10 +83,11 @@
     X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
     long = LongLat$geo_long[ take_indices ],
     lat = LongLat$geo_lat[ take_indices ],
-    imageKeysOfUnits = KeysOfObservations[ take_indices ],
+    batchSize = 8L,
+    imageKeysOfUnits = as.character(KeysOfObservations)[ take_indices ],
     file = tfrecord_loc, # point to tfrecords file
 
-    nSGD = 200L,
+    nSGD = 500L,
     plotBands = c(1,2,3),
     figuresTag = "TutorialExample",
     figuresPath = "~/Downloads/TFRecordTutorial" # figures saved here (use absolute file paths)
@@ -107,6 +100,9 @@
   ImageConfoundingAnalysis$tauHat_propensityHajek_se
 
   # see figuresPath for image analysis output
-  print("Done with TfRecords tutorial!")
+  causalimages::print2("Done with TfRecords tutorial!")
 }
 
+
+xxx 
+remove all reference to LE( )

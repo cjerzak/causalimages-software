@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
 {
+  # clear workspace 
+  rm(list = ls()); options(error = NULL)
+  
   # remote install latest version of the package
   # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
 
