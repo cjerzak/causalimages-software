@@ -18,7 +18,7 @@ rm(list = ls()); options( error = NULL )
 
 # run code if downloading data for the first time
 download_folder <- "~/Downloads/UgandaAnalysis.zip"
-reSaveTfRecords <- F
+reSaveTfRecords <- T
 if( reDownloadRawData <- F  ){
   # specify uganda data URL
   uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
@@ -129,57 +129,59 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
   set.seed(144L); UgandaDataProcessed <- UgandaDataProcessed[sample(1:nrow(UgandaDataProcessed)),]
 }
 
-# Image heterogeneity example with tfrecords
-# write a tf records repository
-# whenever changes are made to the input data to AnalyzeImageHeterogeneity, WriteTfRecord() should be re-run
-# to ensure correct ordering of data
-tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
-if( reSaveTfRecords ){
-    causalimages::WriteTfRecord(
-                    file = tfrecord_loc,
-                    uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
-                    acquireImageFxn = acquireImageRep )
+# Image heterogeneity example 
+if(T == ){ 
+  # write a tf records repository
+  # whenever changes are made to the input data to AnalyzeImageHeterogeneity, WriteTfRecord() should be re-run
+  # to ensure correct ordering of data
+  tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
+  if( reSaveTfRecords ){
+      causalimages::WriteTfRecord(
+                      file = tfrecord_loc,
+                      uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
+                      acquireImageFxn = acquireImageRep )
+  }
+  
+  for(ImageModelClass in c("VisionTransformer","CNN")){
+  for(optimizeImageRep in c(T, F)){
+    print(sprintf("Image hetero analysis & optimizeImageRep: %s",optimizeImageRep))
+    # perform image heterogeneity analysis (toy example)
+    ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
+      # data inputs
+      obsW =  UgandaDataProcessed$Wobs,
+      obsY = UgandaDataProcessed$Yobs,
+      X = matrix(rnorm(length(UgandaDataProcessed$Yobs)*10),ncol=10),
+      imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
+      file = tfrecord_loc, # location of tf record (use absolute file paths)
+      lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+      long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
+  
+      # inputs to control where visual results are saved as PDF or PNGs
+      # (these image grids are large and difficult to display in RStudio's interactive mode)
+      plotResults = T,
+      figuresPath = "~/Downloads/HeteroTutorial", # where to write analysis figures
+      figuresTag = "HeterogeneityImTutorial",plotBands = 1L:3L,
+  
+      # optional arguments for generating transportability maps
+      # here, we leave those NULL for simplicity
+      transportabilityMat = NULL, #
+  
+      # other modeling options
+      imageModelClass  = ImageModelClass,
+      nSGD = 5L, # make this larger for real applications (e.g., 2000L)
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+      nWidth_ImageRep = as.integer(2L^6),
+      optimizeImageRep = optimizeImageRep,
+      batchSize = 8L, # make this larger for real application (e.g., 50L)
+      kClust_est = 2 # vary depending on problem. Usually < 5
+      )
+      try(dev.off(), T)
+  }
+  }
 }
 
-for(ImageModelClass in c("VisionTransformer","CNN")){
-for(optimizeImageRep in c(T, F)){
-  print(sprintf("Image hetero analysis & optimizeImageRep: %s",optimizeImageRep))
-  # perform image heterogeneity analysis (toy example)
-  ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
-    # data inputs
-    obsW =  UgandaDataProcessed$Wobs,
-    obsY = UgandaDataProcessed$Yobs,
-    X = matrix(rnorm(length(UgandaDataProcessed$Yobs)*10),ncol=10),
-    imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
-    file = tfrecord_loc, # location of tf record (use absolute file paths)
-    lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
-    long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
-
-    # inputs to control where visual results are saved as PDF or PNGs
-    # (these image grids are large and difficult to display in RStudio's interactive mode)
-    plotResults = T,
-    figuresPath = "~/Downloads/HeteroTutorial", # where to write analysis figures
-    figuresTag = "HeterogeneityImTutorial",plotBands = 1L:3L,
-
-    # optional arguments for generating transportability maps
-    # here, we leave those NULL for simplicity
-    transportabilityMat = NULL, #
-
-    # other modeling options
-    imageModelClass  = ImageModelClass,
-    nSGD = 5L, # make this larger for real applications (e.g., 2000L)
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-    nWidth_ImageRep = as.integer(2L^6),
-    optimizeImageRep = optimizeImageRep,
-    batchSize = 8L, # make this larger for real application (e.g., 50L)
-    kClust_est = 2 # vary depending on problem. Usually < 5
-    )
-    try(dev.off(), T)
-}
-}
-
-# video heterogeneity example
-{
+# image sequence example 
+if(T == T){
   acquireVideoRep <- function(keys) {
     # Get image data as an array from disk
     tmp <- acquireImageRep(keys)
@@ -198,7 +200,7 @@ for(optimizeImageRep in c(T, F)){
 
     return(tmp)
   }
-
+  
   # write the tf records repository
   tfrecord_loc_imSeq <- "~/Downloads/UgandaExampleVideo.tfrecord"
   if(reSaveTfRecords){
@@ -244,5 +246,6 @@ for(optimizeImageRep in c(T, F)){
   }
   }
 }
+
 causalimages::print2("Done with image heterogeneity tutorial!")
 }

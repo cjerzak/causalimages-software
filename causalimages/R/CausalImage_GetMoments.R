@@ -33,6 +33,7 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
       NORM_MEAN <- rbind(NORM_MEAN, apply(as.array(ds_next_[[1]]),ApplyAxis,mean))
     }
   }
+
   NORM_SD <- apply(NORM_SD,2,median)
   NORM_MEAN <- apply(NORM_MEAN,2,mean)
   NORM_MEAN_array <- jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
