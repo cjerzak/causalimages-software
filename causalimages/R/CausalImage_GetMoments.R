@@ -45,5 +45,7 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
   }
   
   return(list("NORM_MEAN_array"=NORM_MEAN_array,
-              "NORM_SD_array"=NORM_SD_array))
+              "NORM_SD_array"=NORM_SD_array, 
+              "NORM_MEAN" = NORM_MEAN, 
+              "NORM_SD" = NORM_SD))
 }

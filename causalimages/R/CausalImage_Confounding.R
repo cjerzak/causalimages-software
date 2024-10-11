@@ -272,6 +272,8 @@ AnalyzeImageConfounding <- function(
 
     print2("Calibrating first moments for input data normalization...")
     NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
+    NORM_SD <- NORM_MEAN_array$NORM_SD
+    NORM_MEAN <- NORM_MEAN_array$NORM_MEAN
     NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- jnp$array(0.05)
