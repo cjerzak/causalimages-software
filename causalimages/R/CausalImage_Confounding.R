@@ -383,7 +383,7 @@ AnalyzeImageConfounding <- function(
             if(XisNull){
               x_m <- jnp$concatenate(list( jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
-            my_probs <- jax$nn$sigmoid(  jnp$matmul(x_m, LE( ModelList, "myGlmnet_coefs_tf" ) )  )
+            my_probs <- jax$nn$sigmoid(  jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) )
             my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
             return( list(my_probs, StateList) )
           }
@@ -473,31 +473,40 @@ AnalyzeImageConfounding <- function(
                                       use_bias = T, key = jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
           LayerBN_d  <- eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
                                          momentum = 0.99, eps = 0.001, channelwise_affine = F)
-          DenseStateList[[d_]] <- eval(parse(text = sprintf("list('BNState_d%s' = eq$nn$State( LayerBN_d ))", d_)))
-          DenseList[[d_]] <- eval(parse(text = sprintf('list("DenseProj_d%s" = DenseProj_d,
-                                                              "BN_%s" = LayerBN_d)', d_, d_ )))
+          DenseStateList[[d_]] <- list('BNState' = eq$nn$State( LayerBN_d ))
+          DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
+                                  "BN" = LayerBN_d)
         }
+        names(DenseList) <- names(DenseStateList) <- paste0("Dense", 1:nDepth_Dense)
 
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
                                     vseed, StateList, seed, MPList, inference){
+          print2("Starting GetDense_OneObs()")
+          
           if(!XisNull){  m <- jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
-            m <-  LE(ModelList, sprintf("DenseProj_d%s",d__))(  m  )
+            eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
+            eval(parse(text = sprintf("StateDenseList_d <- StateList$DenseStateList$Dense%s",d__)))
+            
+            m <- DenseList_d$DenseProj(  m  )
 
             # BN + non-linearity
             if(d__ < nDepth_Dense){
-              m <- LE(ModelList, sprintf("BN_d%s", d__))(m, state = StateList[[d__]], inference = inference)
-              StateIndex <- LE_index(StateList, sprintf("BNState_d%s", d__))
-              StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
-              eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex)))
+              m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)
+              #StateIndex <- LE_index(StateList, sprintf("BNState_d%s", d__))
+              #StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
+              #eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex)))
+              eval(parse(text = sprintf("StateList$DenseList$Dense%s <- m[[2]]", d__)))
               m <- m[[1]]
 
               # Non-linearity
               m <- jax$nn$swish(  m   )
             }
           }
+          
+          print2("Returning output and state in GetDense_OneObs()...")
           return( list(m, StateList)  )
         }
         GetDense_batch <- jax$vmap(  function(
@@ -558,8 +567,8 @@ AnalyzeImageConfounding <- function(
         gc(); py_gc$collect()
         print2( "Set state and model lists..." ) 
         GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-        ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]], DenseList)
-        StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
+        ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
+        StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
         ModelList_fixed <- jnp$array(0.)
         MPList <- list(jmp$Policy(compute_dtype="float16", 
                                   param_dtype="float32", 
@@ -676,6 +685,7 @@ AnalyzeImageConfounding <- function(
           # training step
           # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
           t1 <- Sys.time()
+          browser()
           GradientUpdatePackage <- GradAndLossAndAux(
             MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
             #ModelList, ModelList_fixed,

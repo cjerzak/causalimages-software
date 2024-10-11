@@ -4,9 +4,7 @@
   rm(list=ls()); options(error = NULL)
 
   ################################
-  # Image confounding tutorial using causalimages
-  # and tfrecords for faster results
-  ################################
+  # Image confounding tutorial using causalimages & tfrecords 
 
   # remote install latest version of the package if needed
   # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")

@@ -249,7 +249,6 @@ GetImageRepresentations <- function(
     }
     TransformerBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
       if(type == "Spatial"){ # patch embed
-        brwoser()
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(jnp$transpose(m, c(2L, 0L, 1L)))
           m <- jnp$transpose(jnp$reshape(m, list(m$shape[[1]],-1L)))
           print2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
@@ -305,12 +304,13 @@ GetImageRepresentations <- function(
       # path control -- only executed in final pass over sequences
       if( (dataType == "image" & type == "Spatial") |  (dataType == "video" & type == "Temporal") ){
         # final norm
-        m <- jnp$squeeze(LayerNorm( jnp$expand_dims(m,0L) )*
+        m <- jnp$squeeze( LayerNorm( jnp$expand_dims(m,0L) ) *
                            eval(parse(text = sprintf("ModelList$%sTransformerSupp$FinalNormScaler",type))) )
 
         # linear proj, note: dense starts with linear projection  
         m <- eval(parse(text = sprintf("ModelList$%sTransformerSupp$FinalProj",type)))( m )  
       }
+    print2(sprintf("Returning output in TransformerBackbone() [type: %s]",type))
     return( list(m, StateList) )
     }
     if(imageModelClass == "CNN"){
@@ -929,13 +929,13 @@ GetImageRepresentations <- function(
       # plot( np$array( jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
       # batch_inference[[1]][3,,,1] # check image inputs 
       representation_ <-  np$array( ImageRepArm_batch(ModelList,
-                                                          InitImageProcess(jnp$array(batch_inference[[1]]),
-                                                                           jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
-                                                          StateList,
-                                                          jax$random$PRNGKey(ai(last_i + seed)),
-                                                          MPList, 
-                                                          T # inference 
-                                                          )[[1]]  )
+                                                      InitImageProcess(jnp$array(batch_inference[[1]]),
+                                                                       jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
+                                                      StateList,
+                                                      jax$random$PRNGKey(ai(last_i + seed)),
+                                                      MPList, 
+                                                      T # inference 
+                                                      )[[1]]  )
       # plot(representation_[,sample(1:20)])
       # hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 
