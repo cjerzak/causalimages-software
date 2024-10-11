@@ -90,7 +90,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       pretrainedModel = NULL, 
                                       testFrac = 0.1,
                                       kernelSize = 5L,
-                                      learningRateMax = 0.005,
+                                      learningRateMax = 0.001,
+                                      TFRecordControl = NULL, 
                                       patchEmbedDim = 16L,
                                       nSGD  = 500L,
                                       batchSize = 16L,
@@ -116,7 +117,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(!is.null(Sys.setenv_text)){ 
       eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
     }
-    py_gc <- reticulate::import("gc")
+    py_gc <<- reticulate::import("gc")
     jax <<- reticulate::import("jax")
     np <<- reticulate::import("numpy")
     jnp <<- reticulate::import("jax.numpy")
@@ -136,9 +137,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     # image dtype management
     c2f <- jmp$cast_to_full
-    image_dtype <- jnp$float16
-    image_dtype_tf <- tf$float16
-    variable_dtype <- jnp$float32
+    image_dtype <- "float16"
+    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
+    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
+    variable_dtype <- jnp$float32; image_dtype_tf <- tf$float16
 
     cnst <- function( ar ){ jnp$array(ar, jnp$float16) }
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
@@ -181,15 +183,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # setup k-fold cross-fitting
     {
       getParsed_tf_dataset_train_Select <- function( tf_dataset ){
-        return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                num_parallel_calls = tf$data$AUTOTUNE) ) 
+        tf_dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, 
+                                                                     readVideo = useVideoIndicator, 
+                                                                     image_dtype = image_dtype_tf)},
+                        num_parallel_calls = tf$data$AUTOTUNE) 
+        return(  tf_dataset ) 
       }
       getParsed_tf_dataset_train_Shuffle <- function( tf_dataset ){
-        tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+        tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),
+                                                                   dtype=tf$int64),
                                          reshuffle_each_iteration = F)
+        return(tf_dataset)
       }
       getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-        tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+        tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),
+                                                                   dtype=tf$int64),
                                          reshuffle_each_iteration = T) 
         tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
         tf_dataset <- tf_dataset$prefetch( tf$data$AUTOTUNE ) 
@@ -209,26 +217,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   print2("Getting channel normalization parameters...")
-  tmp <- replicate(30, {
-        tmp <- jnp$array( ds_iterator_inference$`next`()[[1]]  )
-        if(length(tmp$shape) == 4){
-          l_ <- list("NORM_MEAN" = as.array(tf$cast(jnp$mean(tmp, 0L:2L),tf$float32)),
-                     "NORM_SD" = as.array(tf$cast(jnp$mean(tmp, 0L:2L),tf$float32)  ))
-        }
-        if(length(tmp$shape) == 5){
-          l_ <- list("NORM_MEAN" = as.array(tf$cast(jnp$mean(tmp, 0L:3L),tf$float32)),
-                     "NORM_SD" = as.array(tf$cast(jnp$std(tmp, 0L:3L),tf$float32))  )
-        }
-        return( l_  )
-    })
-  NORM_MEAN <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_MEAN",])),
-                                                                           dtype = image_dtype)),0L),0L), 0L)
-  NORM_SD <- jnp$expand_dims( jnp$expand_dims(jnp$expand_dims(jnp$array(tf$constant(colMeans(do.call(rbind,tmp["NORM_SD",])),
-                                                                         dtype = image_dtype)),0L),0L), 0L)
-  if(length(dim(tmp)) == 5){
-      NORM_MEAN <- jnp$expand_dims( NORM_MEAN, 0L)
-      NORM_SD <- jnp$expand_dims( NORM_SD, 0L)
-  }
+  NORM_MEAN_array <- GetMoments( reticulate::as_iterator( getParsed_tf_dataset_train_BatchAndShuffle( 
+                        getParsed_tf_dataset_train_Select(getParsed_tf_dataset_train_Shuffle( tf_dataset_master )  ))), 
+                                dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
+  NORM_SD <- NORM_MEAN_array$NORM_SD_array; 
+  #NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
+  NORM_MEAN <- NORM_MEAN_array$NORM_MEAN_array; 
+  #NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
   
   # reset inference iterator 
   ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
@@ -297,7 +292,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(kf_ == 1){ 
           tf_dataset_train <- getParsed_tf_dataset_train_Select(
             tf_dataset_master_$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) )$`repeat`(-1L) 
-            # skip 1:4
         }
         if(kf_ == kFolds){ 
           tf_dataset_train <- getParsed_tf_dataset_train_Select(
@@ -333,6 +327,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             lat = lat[tmp_i], 
             long = long[tmp_i], 
             returnContents = T,
+            initializingFxns = T, 
             bn_momentum = bn_momentum,
             InitImageProcess = InitImageProcessFn,
             seed = seed + ai(trainCounter) # seed 
@@ -490,28 +485,30 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                  yes = mean(obsY[obsW == 1]) - mean(obsY[obsW == 0]), 
                                                  no = 0.))
                   NonLinearScalerDense <- 3^2
-                  eval(parse(text = sprintf("DenseList$%s_d%s <- list(
-                  
-                                          list(eq$nn$BatchNorm( input_size = InputDim, axis_name = batch_axis_name, momentum = bn_momentum, eps = ep_BN, channelwise_affine = F),
-                                               jnp$array(rep(1., times = InputDim))), 
-                                          list(jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (1) 
-                                               jnp$array(matrix(rnorm(InputDim*HiddenDim,sd=0.0001, mean = -8), nrow = InputDim))), 
+                  DenseList_d <- list(  "BNLayer"=list('BN'=eq$nn$BatchNorm( input_size = InputDim, axis_name = batch_axis_name, 
+                                                                               momentum = bn_momentum, eps = ep_BN, channelwise_affine = F),
+                                                         'BNRescaler'= jnp$array(rep(1., times = InputDim))), 
+                                          "FF" = list('FFWide1' = jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (1) 
+                                                      'FFWide1Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0.0001, mean = -8), nrow = HiddenDim)), 
                                                
-                                          list(jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (2) 
-                                               jnp$array(matrix(rnorm(InputDim*HiddenDim,sd=0.0001, mean = -8), nrow = InputDim))),
-                                          list(jnp$array(matrix(rnorm(HiddenDim*OutputDim)*sqrt(2/InputDim), nrow = HiddenDim)), # output proj wts
-                                               jnp$array(matrix(rnorm(HiddenDim*OutputDim,sd=0.0001, mean = -8), nrow = HiddenDim))),
+                                                      'FFWide2' = jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (2) 
+                                                      'FFWide2Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0.0001, mean = -8), nrow = HiddenDim)),
+                                                     
+                                                      'FFNarrow'=jnp$array(matrix(rnorm(HiddenDim*OutputDim)*sqrt(2/InputDim), nrow = HiddenDim)), # output proj wts
+                                                      'FFNarrowBias'=jnp$array(matrix(rnorm(OutputDim,sd=0.0001, mean = -8), nrow = OutputDim))),
                                                
-                                          jnp$array(rep(BiasInit, times = OutputDim)), # bias 
-                                          list(jnp$array(matrix(rnorm(InputDim*OutputDim)*sqrt(2/InputDim), nrow = InputDim)), # resid proj wts
-                                               jnp$array(matrix(rnorm(InputDim*OutputDim,sd=0.0001, mean = -8), nrow = InputDim))),
+                                          'OutputBias' = jnp$array(rep(BiasInit, times = OutputDim)), # bias 
+                                          
+                                          'ResidProj' = jnp$array(matrix(rnorm(InputDim*OutputDim)*sqrt(2/InputDim), nrow = InputDim)), # resid proj wts
+                                          'ResidBias' = jnp$array(matrix(rnorm(InputDim*OutputDim,sd=0.0001, mean = -8), nrow = InputDim)),
                                                
-                                          InvSoftPlus(jnp$array(1./sqrt( NonLinearScalerDense * nDepth_Dense ))) # residual wt 
-                                          )", arm_, dense_ )))
+                                          'RightWt1' = InvSoftPlus(jnp$array(1./sqrt( NonLinearScalerDense * nDepth_Dense ))) # residual wt 
+                                          )
+                  eval(parse(text = sprintf("DenseList$%s_d%s <- DenseList_d", arm_, dense_ ))); rm(DenseList_d)
                   eval(parse(text = sprintf("DenseList_Prior$%s_d%s <- list(
                                           jnp$array(matrix(rnorm(OutputDim*InputDim)*sqrt(2/InputDim), nrow = InputDim)),
                                           jnp$array(matrix(rnorm(OutputDim*InputDim,sd=0.0001, mean = -8), nrow = InputDim)))", arm_, dense_ )))
-                  eval(parse(text = sprintf("DenseStateList$BNState_%s_d%s <- eq$nn$State(  DenseList$%s_d%s[[1]][[1]]  )", arm_, dense_, arm_, dense_ )))
+                  eval(parse(text = sprintf("DenseStateList$BNState_%s_d%s <- eq$nn$State(  DenseList$%s_d%s$BNLayer$BN  )", arm_, dense_, arm_, dense_ )))
             }; rm( dense_ )
           }
           print2("Initializing cluster projection...")
@@ -556,39 +553,36 @@ AnalyzeImageHeterogeneity <- function(obsW,
             m <- jnp$expand_dims(m, 0L)
             for(d__ in 1L:nDepth_Dense){
               print(sprintf("Depth %s of %s (type = %s)", d__, nDepth_Dense, type))
+              eval(parse(text = sprintf("ModelList_d <- ModelList$%s_d%s",type, d__)))
               mtm1 <- m; 
               if(d__ < nDepth_Dense){
-                if(T == F){ # if using bnorm
-                  m <- LE(ModelList, sprintf("%s_d%s",type, d__))[[1]][[1]](m, state = StateList[[2]][[d__]], inference = inference)
-                  StateIndex <- LE_index(StateList, sprintf("%s_d%s",type, d__))
-                  StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
-                  eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex))); m <- m[[1]]
-                }
-                if(grepl(heterogeneityModelType,pattern="variational")){  
-                  Wts <- MPList[[1]]$cast_to_compute( oryx$distributions$Normal( 
-                                            c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
-                           jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) ) )$sample(seed = jnp$add(40L, seed) ) )
-                }
-                if(grepl(heterogeneityModelType,pattern="tarnet")){  # just take mean 
-                  m <- jax$nn$swish( jnp$matmul(m, LE(ModelList, sprintf("%s_d%s",type, d__))[[2]] [[1]] ) ) * 
-                              jnp$matmul( m, LE(ModelList, sprintf("%s_d%s",type, d__))[[3]][[1]] )
-                }
+                #if(grepl(heterogeneityModelType,pattern="variational")){  
+                #  Wts <- MPList[[1]]$cast_to_compute( oryx$distributions$Normal( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
+                #           jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) )  )$sample(seed = jnp$add(40L, seed) ) )
+                #}
+                #if(grepl(heterogeneityModelType,pattern="tarnet")){  # just take mean 
+                  m <- jax$nn$swish( jnp$matmul(m, ModelList_d$FF$FFWide1 ) )  * 
+                              jnp$matmul( m, ModelList_d$FF$FFWide2 )
+                #}
               }
               
               # main projection 
-              m <- jnp$matmul( m, LE(ModelList, sprintf("%s_d%s",type, d__))[[4]] [[1]] ) +  LE(ModelList, sprintf("%s_d%s",type, d__))[[5]]
+              m <- jnp$matmul( m, ModelList_d$FF$FFNarrow) + ModelList_d$FF$FFNarrowBias
               
               # resid path 
               if(d__ < nDepth_Dense){
-                m <- jnp$matmul( mtm1, LE(ModelList, sprintf("%s_d%s",type, d__))[[6]] [[1]] ) +
-                        m*jax$nn$softplus( LE(ModelList, sprintf("%s_d%s",type, d__))[[7]]$astype(jnp$float32) )$astype(mtm1$dtype)
+                m <- jnp$matmul( mtm1, ModelList_d$ResidProj ) +
+                        m * jax$nn$softplus( ModelList_d$RightWt1$astype(jnp$float32) )$astype(mtm1$dtype)
               }
           }
     
           if( type == "Tau" & grepl(heterogeneityModelType,pattern="variational") ){  
             m <- jnp$concatenate(list( MPList[[1]]$cast_to_compute( jnp$zeros(list(1L,1L)) ), m), 1L)
+            m <- jnp$squeeze( m, axis = 0L)
+          } else {
+            m <- jnp$squeeze( m, axis = 1L)
           }
-          return( list(jnp$squeeze( m, 0L), StateList)  )
+          return( list(m, StateList)  )
         }
         for(type_ in c("EY0","Tau")){
           eval(parse(text =  sprintf("Get%s_batch <- jax$vmap( Get%s <- function(
@@ -604,8 +598,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
         if(grepl(heterogeneityModelType, pattern = "variational")){
           getClusterSamp_logitInput <- function(logits_, seed_){
-            return( oryx$distributions$RelaxedOneHotCategorical(temperature = c2f(temperature),
-                      logits =  logits_ )$sample(seed = jnp$add(452L, seed_)) )
+            return( oryx$distributions$RelaxedOneHotCategorical(
+                      temperature = c2f(temperature),
+                      logits =  logits_ 
+                      )$sample(seed = jnp$add(452L, seed_)) )
           }
           if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
             GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
@@ -617,12 +613,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
               ETau_draw <-  oryx$distributions$Normal(
                               c2f(getTau_means(ModelList)),
                         jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = jnp$add(10L,seed))
-              Etau_ <- jnp$sum(jnp$multiply(ETau_draw, clustT), axis = 1L, keepdims=T)
+              Etau_ <- jnp$sum( ETau_draw*clustT, axis = 1L, keepdims=T)
               return( EY0 + Etau_ )
             }
           }
-          getTau_means <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_Mean1"), LE(ModelList, "Tau_Mean2") )) )  }
-          getTau_sds <- function(ModelList){ return(  jnp$stack(list(LE(ModelList, "Tau_SD1"), LE(ModelList, "Tau_SD2") )) )  }
+          getTau_means <- function(ModelList){ return(  jnp$stack(list(ModelList$Tau_Mean1, ModelList$Tau_Mean2 )) )  }
+          getTau_sds <- function(ModelList){ return(  jnp$stack(list( ModelList$Tau_SD1, ModelList$Tau_SD2 )) )  }
         }
         getSDY_params <- function(ModelList, qname, pname){ return(
           jnp$stack(list(LE(ModelList, sprintf("%s_%s1", qname, pname)),
@@ -749,8 +745,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
     
         GetLoss <- function(ModelList, ModelList_fixed,
-                            m, treat, y, vseed,
-                            StateList, seed, MPList){
+                            m, x, treat, y, vseed,
+                            StateList, seed, MPList, inference){
             ModelList <- MPList[[1]]$cast_to_compute( ModelList )
             ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
             StateList <- MPList[[1]]$cast_to_compute( StateList )
@@ -758,7 +754,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             # likelihood and state updates
             Elik <- GetExpectedLikelihood(ModelList, ModelList_fixed,
                                           m, treat, y, vseed,
-                                          StateList, seed, MPList, F) # note: inference = F
+                                          StateList, seed, MPList, inference) # note: inference = F
             StateList <- Elik[[2]]; Elik <- Elik[[1]]
     
             # minimize negative log likelihood and positive KL term
@@ -785,15 +781,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
         gc(); py_gc$collect()
         GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
         if(!optimizeImageRep){
-          ModelList <- list(DenseList, CausalList)
+          ModelList <- c(DenseList, CausalList)
           ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
         }
         if(optimizeImageRep){
-          ModelList <- list(ImageModel_And_State_And_MPPolicy_List[[1]],
+          ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]],
                             DenseList, CausalList)
           ModelList_fixed <- jnp$array(0.)
         }
-        StateList <- list(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
+        StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
         MPList <- list(jmp$Policy(compute_dtype = (ComputeDtype <- jnp$float16), 
                                   param_dtype = jnp$float32,
                                   output_dtype= (OutputDtype <- jnp$float16)),
@@ -803,28 +799,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
-    
-        # define optimizer and training step
-        if(T == F){
-          #LR_schedule <- optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(100, nSGD))), decay_steps = max(c(51, nSGD-nWarmup)),
-                                                            #init_value = learningRateMax/100, peak_value = learningRateMax, 
-                                                            #end_value =  learningRateMax/100)
-          LR_schedule <- optax$cosine_onecycle_schedule(transition_steps = nSGD, peak_value = learningRateMax)
-          plot( np$array( jax$vmap(function(i_){LR_schedule(i_)},0L)(jnp$array(as.matrix(1L:nSGD)))) ) 
-          optax_optimizer <-  optax$chain(
-            optax$clip(1), 
-            optax$adaptive_grad_clip(clipping = 0.5),
-            optax$adabelief( learning_rate = LR_schedule, eps=1e-8, eps_root=1e-8, b1 = 0.90, b2 = 0.999)
-          )
-    
-          # model partition, setup state, perform parameter count
-          opt_state <- optax_optimizer$init( eq$partition(ModelList, eq$is_array)[[1]] )
-          print2(sprintf("Total trainable parameter count: %s", nParams <- sum(unlist(lapply(jax$tree_leaves( eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
-    
-          # jit update fxns
-          jit_apply_updates <- eq$filter_jit(optax$apply_updates)
-          jit_get_update <- eq$filter_jit(optax_optimizer$update)
-        }
+
         print2("Define optimizer and training step...")
         LocalFxnSource(TrainDefine, evaluation_environment = environment())
     
@@ -842,139 +817,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
         justCheckCrossFitter <- F
         if(DoTraining <- T){ 
           LocalFxnSource(TrainDo, evaluation_environment = environment())
-          if(T == F){ 
-          n_sgd_iters <- nSGD; i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
-            t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
-    
-            ds_next_train <- try(ds_iterator_train$`next`(),T)
-            if("try-error" %in% class(ds_next_train)){browser()}
-    
-            # if we run out of observations, reset iterator
-            RestartedIterator <- F; if( is.null(ds_next_train) ){
-                print2("Re-setting iterator! (type 1)")
-                ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-                ds_next_train <-  ds_iterator_train$`next`(); py_gc$collect()
-            }
-    
-              # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-            if(!RestartedIterator){ if(length(ds_next_train[[3]]) != batchSize){
-                  print2("Re-setting iterator! (type 2)")
-                  ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-                  ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
-            } }
-    
-            # select batch indices based on keys
-            batch_keys <- unlist(  lapply( p2l(ds_next_train[[3]]$numpy()), as.character) )
-            batch_indices <- sapply(batch_keys, function(key_){
-              f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-            ds_next_train <- ds_next_train[[1]]
-            if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
-    
-        # training step
-        if( justCheckCrossFitter ){ print("Just checking cross-fitter...") }
-        if( !justCheckCrossFitter ){ 
-            t1 <- Sys.time();
-            # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
-            # i_<-1; image2(np$array(InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F))[i_,1,,,1])
-            # image2(np$array(InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F))[i_,2,,,1])
-            # SwappedRowsIndicator[batch_indices]
-            # obsW[batch_indices]
-            # obsY[batch_indices]
-            GradientUpdatePackage <- GradAndLossAndAux(
-                                                     MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-                                                     InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-                                                     jnp$array(as.matrix(obsW[batch_indices]),dtype = jnp$float16), # treat
-                                                     jnp$array(as.matrix(obsY[batch_indices]),dtype = jnp$float16), # y
-                                                     jax$random$split(jax$random$PRNGKey( 500L+i ),batchSize),  # vseed
-                                                     StateList, # StateList
-                                                     jax$random$PRNGKey( 123L+i ), # seed
-                                                     MPList # MPlist
-                                                     )
-    
-            if(!"try-error" %in% class(GradientUpdatePackage)){
-              # get updated state
-              StateList_tmp <- GradientUpdatePackage[[1]][[2]] # state
-    
-              # get loss + grad
-              loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
-              GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
-              GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
-              GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
-    
-              # unscale + adjust loss scale is some non-finite or NA
-              if(i == 1){
-                Map2Zero <- eq$filter_jit(function(input){
-                  jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
-                AllFinite <- jax$jit( jmp$all_finite )
-              }
-              GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
-              AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
-              MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-    
-              # update parameters if finite gradients
-              DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & !is.infinite(myLoss_fromGrad)
-              if(! DoUpdate ){ print2("Note: Not updating parameters due to non-finite gradients in mixed-precision training...") }
-              if( DoUpdate ){
-                DoneUpdates <- DoneUpdates + 1
-    
-                # get updates
-                GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
-                GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage,
-                                                         state = opt_state,
-                                                         params =  eq$partition(ModelList, eq$is_array)[[1]] )
-    
-                # separate updates from state
-                opt_state <- GradientUpdatePackage[[2]]
-                GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], GradientUpdatePackage_aux)
-    
-                # perform update
-                ModelList <- eq$combine( jit_apply_updates(
-                              params = GlobalPartition( eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
-                              updates = GlobalPartition(GradientUpdatePackage,PartFxn)[[1]] ),
-                          eq$partition(ModelList, eq$is_array)[[2]])
-    
-                # feed in updates for state and model
-                StateList <- StateList_tmp
-                rm(GradientUpdatePackage, StateList_tmp)
-              }
-           } #
-    
-          # print diagnostics
-          i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-            print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - Total time (s): %.2f - Grad time (s): %.2f",
-                           i, n_sgd_iters,
-                           loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
-                           (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ))
-            loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-            try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
-            if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
-          }
-          if(BAYES_STEP == 1){
-          if(abs(i - n_sgd_iters - 1) <= (nWindow <- 20)){
-            windowCounter <- windowCounter + 1; z_counter <- 0
-            if(T == F){
-             for(z in trainable_variables){
-              z_counter <- z_counter + 1
-              z_name_orig <- z_name_ <- z$name
-              z_name_ <- gsub(z_name_, pattern = ":",replacement = "XCOLX")
-              z_name_ <- gsub(z_name_, pattern = "/",replacement = "XDASHX")
-              if(windowCounter == 1){
-                eval(parse(text = sprintf("SZ_%s <- jnp$zeros(jnp$shape(z), dtype = jnp$float32)", z_name_)))
-                eval(parse(text = sprintf("SZ2_%s <- jnp$zeros(jnp$shape(z), dtype = jnp$float32)", z_name_)))
-              }
-              try(eval(parse(text = sprintf("SZ_%s <- my_grads[[z_counter]] + SZ_%s", z_name_, z_name_))), T)
-              try(eval(parse(text = sprintf("SZ2_%s <- jnp$square( my_grads[[z_counter]] ) + SZ2_%s", z_name_, z_name_))), T)
-              if(i == n_sgd_iters){
-                #eval(parse(text = sprintf("RollMean_%s <- (SZ_%s)/nWindow", z_name_, z_name_)))
-                try(eval(parse(text = sprintf("RollVar_%s <- tf$cast(1/tf$maximum(0.5,length(obsY)*SZ2_%s/nWindow),dtype=jnp$float32)", z_name_,z_name_))), T)
-              }
-            }
-            }
-          }
-          }
-        }
-        } # end for(i in i_:nSGD){
-          }
         }
       }
       
@@ -1013,10 +855,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ClusterProbs_est_ <- jnp$mean(ClusterProbs_est_,0L)
           ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
     
-          return( list(y0_, y1_,
-                      ClusterProbs_est_,
-                      ClusterProbs_lower_conf_,
-                      ClusterProbs_std_) )
+          return( list("y0_"=y0_, 
+                       "y1_"=y1_,
+                      "ClusterProbs_est_"=ClusterProbs_est_,
+                      "ClusterProbs_lower_conf_"=ClusterProbs_lower_conf_,
+                      "ClusterProbs_std_"=ClusterProbs_std_) )
         })
     
         inference_counter <- 0; nUniqueKeys <- length(unique(imageKeysOfUnits))
@@ -1052,17 +895,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                           InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(ai(runif(1,0, 10000))), inference = T),
                                           jax$random$split(jax$random$PRNGKey(ai(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                           StateList, jax$random$PRNGKey(ai(runif(1,0,100000))), MPList)
-          ret_list <- list("y0_" = as.matrix2(GottenSummaries[[1]]),
-                           "y1_" = as.matrix2(GottenSummaries[[2]]),
-                           "ClusterProbs_est_" = as.matrix2(GottenSummaries[[3]]),
-                           "ClusterProbs_lower_conf_" = as.matrix2(GottenSummaries[[4]]),
-                           "ClusterProbs_std_" = as.matrix2(GottenSummaries[[5]]),
+
+          ret_list <- list("y0_" = as.matrix2(GottenSummaries$y0_),
+                           "y1_" = as.matrix2(GottenSummaries$y1_),
+                           "ClusterProbs_est_" = as.matrix2(GottenSummaries$ClusterProbs_est_),
+                           "ClusterProbs_lower_conf_" = as.matrix2(GottenSummaries$ClusterProbs_lower_conf_),
+                           "ClusterProbs_std_" = as.matrix2(GottenSummaries$ClusterProbs_std_),
                            "key" = as.matrix( key_) )
           Results_by_keys[[inference_counter]] <- ret_list
         }
         print2("Done getting predicted quantities...")
         Results_by_keys_list <- Results_by_keys
-        Results_by_keys <- apply(do.call(rbind, Results_by_keys_list), 2, function(zer){(do.call(rbind,zer))})
+        Results_by_keys <- apply(do.call(rbind, Results_by_keys_list), 2, 
+                                 function(zer){(do.call(rbind,zer))})
     
         # re-order data
         if(!"matrix" %in% class(Results_by_keys)){
@@ -1081,26 +926,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         Y1_est_mat <- cbind(Y1_est_mat, Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T))
         Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW)
         tau_est_mat <- cbind(tau_est_mat,  tau_est <- ( Y1_est - Y0_est))# Y(w)_est already re-scaled 
-        browser()
-        # hist( Results_by_keys$y0_ ) 
-        # hist(obsY[obsW==0])
-        # cor(Results_by_keys$y0_[obsW==0],obsY[obsW==0])
-        # LE(ModelList, sprintf("%s_d%s","EY0", nDepth_Dense))[[3]]
-        # LE(ModelList, sprintf("%s_d%s","EY0", nDepth_Dense))[[1]]
-        
-        # hist( Results_by_keys$y1_ ) 
-        # cor( Results_by_keys$y1_[obsW==1],obsY[obsW==1] )
-        # hist( obsY[obsW==1] )
-        
-        # hist(tau_est)
-        # hist(Results_by_keys$y1_-Results_by_keys$y0_)
-        # plot(tau_est, SwappedRowsIndicator)
-        # cor(tau_est, SwappedRowsIndicator)
-        # summary(lm(SwappedRowsIndicator~tau_est))
-        # LE(ModelList, sprintf("%s_d%s","Tau", nDepth_Dense))[[3]]
-        # mean((obsY[obsW==1])) - mean((obsY[obsW==0]))
-        # mean(Rescale(obsY[obsW==1],doMean = T)) - mean(Rescale(obsY[obsW==0],doMean = T))
-    
+
         Yobs_est_out <- Yobs_est[ testIndices ]
         Loss_out_baseline_vec <- c(Loss_out_baseline_vec,
                                    Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[ trainIndices ]))^2 )^0.5)
@@ -1149,7 +975,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # process cluster data
     ClusterProbs_lower_conf <- Results_by_keys$ClusterProbs_lower_conf_
     ClusterProbs_std <- Results_by_keys$ClusterProbs_std_
-    ClusterProbs_est_full <-  Results_by_keys$ClusterProbs_est_
+    
+    ClusterProbs_est_full <-  as.matrix(Results_by_keys$ClusterProbs_est_)
     ClusterProbs_est <- ClusterProbs_est_full[,2]
     Clust_probs_marginal_final <- colMeans( ClusterProbs_est_full )
     gc(); py_gc$collect()
@@ -1227,13 +1054,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # perform plots
   if( changed_wd ){ setwd(  orig_wd  ) }
   if( plotResults == T){
-    CausalImageHeterogeneity_plot <- paste(deparse(CausalImageHeterogeneity_plot),collapse="\n")
-    CausalImageHeterogeneity_plot <- gsub(CausalImageHeterogeneity_plot,pattern="function \\(\\)",replace="")
-    eval( parse( text = CausalImageHeterogeneity_plot ), envir = environment() )
+    LocalFxnSource(CausalImageHeterogeneity_plot, evaluation_environment = environment())
   }
   try(setwd(orig_wd), T)
-  
-  browser()
   
   return( list(
                  "clusterTaus_mean" = as.numeric2(Tau_mean_return_vec),

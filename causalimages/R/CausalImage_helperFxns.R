@@ -237,3 +237,5 @@ LocalFxnSource <- function(fxn, evaluation_environment){
   fxn_text <- gsub(fxn_text,pattern="function \\(\\)", replace="")
   eval( parse( text = fxn_text ), envir = evaluation_environment )
 }
+
+FilterBN <- function(l_){ eq$partition(l_, function(l__){"first_time_index" %in% names(l__)}) }

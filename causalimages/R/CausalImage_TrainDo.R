@@ -94,18 +94,19 @@ TrainDo <- function(){
     # training step
     # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
     t1 <- Sys.time()
+    
     GradientUpdatePackage <- GradAndLossAndAux(
-      MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed),
-      #ModelList, ModelList_fixed,
+      MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
       InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
       jnp$array(X[batch_indices,], dtype = jnp$float16), # x
-      jnp$array(obsW[batch_indices], dtype = jnp$float16), # treat
-      jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed
+      jnp$array(as.matrix(obsW[batch_indices]), dtype = jnp$float16), # treat
+      jnp$array(as.matrix(obsY[batch_indices]), dtype = jnp$float16), # y 
+      jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
       jax$random$PRNGKey( 123L+i ), # seed
       MPList, # MPlist
       F) # inference
-    
+
     # perform gradient updates 
     {
       # get updated state
@@ -151,7 +152,6 @@ TrainDo <- function(){
         
         # cast updates to param 
         GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
-        
         
         # get gradient updates 
         BNInfo <- FilterBN( ModelList )[[2]]

@@ -20,7 +20,6 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
     # get a data batch 
     #ds_next_ <- try(iterator$`next`(),T) # depreciated 
     ds_next_ <- try(iterator$get_next(),T) 
-    if(momentCalIter == 1){ orig_shape <- ds_next_[[1]]$shape } 
     
     if(!"try-error" %in% class(ds_next_)){
       # setup normalizations

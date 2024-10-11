@@ -279,7 +279,6 @@ AnalyzeImageConfounding <- function(
 
     # set up holders
     sigmoid <- function(x){1/(1+exp(-x))}
-    FilterBN <- function(l_){ eq$partition(l_, function(l__){"first_time_index" %in% names(l__)}) }
     prW_est <- rep(NA,times = length(obsW))
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
@@ -541,7 +540,7 @@ AnalyzeImageConfounding <- function(
         }
 
         GetLoss <-  function( ModelList, ModelList_fixed,
-                              m, x, treat, vseed,
+                              m, x, treat, y, vseed,
                               StateList, seed, MPList, inference ){
           ModelList <- MPList[[1]]$cast_to_compute( ModelList ) # compute to output dtype
           ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) # compute to output dtype
@@ -550,7 +549,7 @@ AnalyzeImageConfounding <- function(
           m <- GetTreatProb_batch( ModelList, ModelList_fixed,
                                    m, x, vseed,
                                    StateList, seed, MPList, inference )
-          StateList <- m[[2]]; m <- jnp$squeeze( m[[1]] )
+          StateList <- m[[2]]; m <-  m[[1]]
 
           # compute negative log-likelihood loss
           m <- MPList[[1]]$cast_to_output( m )
@@ -746,7 +745,7 @@ AnalyzeImageConfounding <- function(
       for(pos_ in 2L:3L){
         dLogProb_d <- jax$grad(function(ModelList, ModelList_fixed,
                                         m, x, vseed,
-                                        StateList, seed, MPList){
+                                        StateList, seed, MPList, inference){
                     ModelList <- MPList[[1]]$cast_to_param( ModelList )
                     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
                     StateList <- MPList[[1]]$cast_to_param( StateList )
