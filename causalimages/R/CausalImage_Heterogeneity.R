@@ -117,7 +117,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     if(!is.null(Sys.setenv_text)){ 
       eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
     }
-    py_gc <<- reticulate::import("gc")
     jax <<- reticulate::import("jax")
     np <<- reticulate::import("numpy")
     jnp <<- reticulate::import("jax.numpy")
@@ -125,6 +124,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     optax <<- reticulate::import("optax")
     oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
     eq <<- reticulate::import("equinox")
+    py_gc <<- reticulate::import("gc")
     jax$config$update("jax_enable_x64", FALSE);
     # tf$config$get_visible_devices(); tf$config$experimental$set_visible_devices(list(), "GPU")
     print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
@@ -137,8 +137,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     # image dtype management
     c2f <- jmp$cast_to_full
-    image_dtype <- "float16"
-    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
+    image_dtype <- "float32" # determines compute dtype 
+    if((image_dtype_char <- image_dtype) == "float32"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float32 }
+    if(image_dtype_char == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
     variable_dtype <- jnp$float32; image_dtype_tf <- tf$float16
 
@@ -217,13 +218,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
 
   print2("Getting channel normalization parameters...")
-  NORM_MEAN_array <- GetMoments( reticulate::as_iterator( getParsed_tf_dataset_train_BatchAndShuffle( 
+  NORM_MEAN <- GetMoments( reticulate::as_iterator( getParsed_tf_dataset_train_BatchAndShuffle( 
                         getParsed_tf_dataset_train_Select(getParsed_tf_dataset_train_Shuffle( tf_dataset_master )  ))), 
                                 dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
-  NORM_SD <- NORM_MEAN_array$NORM_SD_array; 
-  #NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
-  NORM_MEAN <- NORM_MEAN_array$NORM_MEAN_array; 
-  #NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
+  NORM_SD <- NORM_MEAN$NORM_SD_array; 
+  NORM_MEAN <- NORM_MEAN$NORM_MEAN_array; 
   
   # reset inference iterator 
   ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
@@ -315,6 +314,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
             dataType = dataType,
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
+            NORM_MEAN = NORM_MEAN, 
+            NORM_SD = NORM_SD, 
+            InitImageProcess = InitImageProcessFn,
             strides = strides,
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
@@ -329,12 +331,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
             returnContents = T,
             initializingFxns = T, 
             bn_momentum = bn_momentum,
-            InitImageProcess = InitImageProcessFn,
             seed = seed + ai(trainCounter) # seed 
             ); setwd(new_wd)
             ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
             ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
             ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+            InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
     
             print2("Done initializing image representation function...")
             rm(ImageRepresentations); gc(); py_gc$collect()
@@ -465,7 +467,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           Y1_sd_priorMean <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
         }
     
-        print2("Building clustering model...")
+        print2("Building causal model...")
         {
           batch_axis_name <- "batch"; bn_momentum <- 0.9; ep_BN <- 0.001
           DenseList_Prior <- DenseStateList <- DenseList <- list()
@@ -475,7 +477,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   # arm_ <- "Tau"; dense_ <- 1L
                   InputDim <- ai( ifelse(dense_==1, yes = nWidth_ImageRep, no = nWidth_Dense) )
                   HiddenDim <- ai( ifelse(dense_ < nDepth_Dense, 
-                                          yes = ai( nWidth_Dense*(HiddenWidthDense <- 3.) ), no = nWidth_ImageRep) )
+                                          yes = ai( nWidth_Dense*(HiddenWidthDense <- 3.) ), 
+                                          no = nWidth_ImageRep) )
                   OutputDim <- ai( ifelse(dense_==nDepth_Dense,
                                              yes = ifelse(arm_ == "Tau", yes = kClust_est-1L, no = 1L),
                                              no = nWidth_Dense))
@@ -484,26 +487,25 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                      no = ifelse(dense_ == nDepth_Dense & arm_ == "Tau" & heterogeneityModelType == "tarnet", 
                                                  yes = mean(obsY[obsW == 1]) - mean(obsY[obsW == 0]), 
                                                  no = 0.))
-                  NonLinearScalerDense <- 3^2
+                  LeftNarrowProjDim <- ifelse(dense_ < nDepth_Dense, yes = HiddenDim, no = InputDim)
                   DenseList_d <- list(  "BNLayer"=list('BN'=eq$nn$BatchNorm( input_size = InputDim, axis_name = batch_axis_name, 
                                                                                momentum = bn_momentum, eps = ep_BN, channelwise_affine = F),
-                                                         'BNRescaler'= jnp$array(rep(1., times = InputDim))), 
+                                                        'BNRescaler'= jnp$array(rep(1., times = InputDim))), 
                                           "FF" = list('FFWide1' = jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (1) 
-                                                      'FFWide1Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0.0001, mean = -8), nrow = HiddenDim)), 
+                                                      'FFWide1Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0, mean = 0), nrow = HiddenDim)), 
                                                
                                                       'FFWide2' = jnp$array(matrix(rnorm(InputDim*HiddenDim)*sqrt(2/InputDim), nrow = InputDim)), # swiglu proj wts (2) 
-                                                      'FFWide2Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0.0001, mean = -8), nrow = HiddenDim)),
+                                                      'FFWide2Bias' = jnp$array(matrix(rnorm(HiddenDim,sd=0, mean = 0), nrow = HiddenDim)),
                                                      
-                                                      'FFNarrow'=jnp$array(matrix(rnorm(HiddenDim*OutputDim)*sqrt(2/InputDim), nrow = HiddenDim)), # output proj wts
-                                                      'FFNarrowBias'=jnp$array(matrix(rnorm(OutputDim,sd=0.0001, mean = -8), nrow = OutputDim))),
-                                               
-                                          'OutputBias' = jnp$array(rep(BiasInit, times = OutputDim)), # bias 
-                                          
+                                                      'FFNarrow'=jnp$array(matrix(rnorm(LeftNarrowProjDim*OutputDim)*sqrt(2/InputDim), nrow = LeftNarrowProjDim)), # output proj wts
+                                                      #'FFNarrowBias'=jnp$array(matrix(rnorm(OutputDim,sd=0, mean = BiasInit), ncol = OutputDim))
+                                                      'FFNarrowBias'=jnp$array(matrix(rnorm(OutputDim,sd=0, mean = 0), ncol = OutputDim))
+                                                       ),        
                                           'ResidProj' = jnp$array(matrix(rnorm(InputDim*OutputDim)*sqrt(2/InputDim), nrow = InputDim)), # resid proj wts
-                                          'ResidBias' = jnp$array(matrix(rnorm(InputDim*OutputDim,sd=0.0001, mean = -8), nrow = InputDim)),
-                                               
-                                          'RightWt1' = InvSoftPlus(jnp$array(1./sqrt( NonLinearScalerDense * nDepth_Dense ))) # residual wt 
-                                          )
+                                          'ResidBias' = jnp$array(matrix(rnorm(InputDim*OutputDim,sd=0, mean = 0), ncol = OutputDim)),
+                                                           
+                                          'RightWt1' = InvSoftPlus(jnp$array(1./sqrt( 3^2 * nDepth_Dense ))) # residual wt 
+                                      )
                   eval(parse(text = sprintf("DenseList$%s_d%s <- DenseList_d", arm_, dense_ ))); rm(DenseList_d)
                   eval(parse(text = sprintf("DenseList_Prior$%s_d%s <- list(
                                           jnp$array(matrix(rnorm(OutputDim*InputDim)*sqrt(2/InputDim), nrow = InputDim)),
@@ -545,8 +547,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
         names(SDDist_Y0) <- paste("Y0_", names(SDDist_Y0),sep = "")
         names(SDDist_Y1) <- paste("Y1_", names(SDDist_Y1),sep = "")
         CausalList <- c(MeanDist_tau, SDDist_Y0, SDDist_Y1)
-        PriorCausalList <- CausalList[grepl(names(CausalList),pattern = "Prior")]
-        CausalList <- CausalList[!grepl(names(CausalList),pattern = "Prior")]
+        PriorCausalList <- CausalList[ grepl(names(CausalList),pattern = "Prior") ]
+        CausalList <- CausalList[ !grepl(names(CausalList),pattern = "Prior") ]
     
         GetDenseNet <- function(ModelList, ModelList_fixed, m,
                                 vseed, StateList, seed, MPList, inference, type){
@@ -554,20 +556,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
             for(d__ in 1L:nDepth_Dense){
               print(sprintf("Depth %s of %s (type = %s)", d__, nDepth_Dense, type))
               eval(parse(text = sprintf("ModelList_d <- ModelList$%s_d%s",type, d__)))
-              mtm1 <- m; 
-              if(d__ < nDepth_Dense){
-                #if(grepl(heterogeneityModelType,pattern="variational")){  
-                #  Wts <- MPList[[1]]$cast_to_compute( oryx$distributions$Normal( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[1]]),
-                #           jax$nn$softplus( c2f( LE(ModelList, sprintf("%s_d%s",type, d__))[[2]]) )  )$sample(seed = jnp$add(40L, seed) ) )
-                #}
-                #if(grepl(heterogeneityModelType,pattern="tarnet")){  # just take mean 
-                  m <- jax$nn$swish( jnp$matmul(m, ModelList_d$FF$FFWide1 ) )  * 
+              
+              # nonlinearity
+              mtm1 <- m;  if( d__ < nDepth_Dense ){
+                m <- jax$nn$swish( jnp$matmul( m, ModelList_d$FF$FFWide1 ) )  * 
                               jnp$matmul( m, ModelList_d$FF$FFWide2 )
-                #}
               }
               
-              # main projection 
-              m <- jnp$matmul( m, ModelList_d$FF$FFNarrow) + ModelList_d$FF$FFNarrowBias
+              # output projection 
+              m <- jnp$matmul( m, ModelList_d$FF$FFNarrow ) + ModelList_d$FF$FFNarrowBias
               
               # resid path 
               if(d__ < nDepth_Dense){
@@ -637,9 +634,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                             ModelList, ModelList_fixed,
                                             m, treat, y, vseed,
                                             StateList, seed, MPList, inference){
-          # image representation model
           if(SharedImageRepresentation){
-            print2("Getting image representation...")
+            print2("Getting image representation in GetLikelihoodDraw_batch()...")
             m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                     m, StateList, seed, MPList, inference)
             StateList <- m[[2]]; m <- m[[1]]
@@ -679,22 +675,19 @@ AnalyzeImageHeterogeneity <- function(obsW,
             EY1Uncert_draw <- MPList[[1]]$cast_to_compute( jax$nn$softplus( EY1Uncert_draw ) )
       
             # setup likelihood
-            #Etau_ <- jnp$sum( jnp$multiply(ETau_draw, clustT), 1L , keepdims=F)
-            #Sigma2_Y0_i <- jnp$sum(jnp$multiply( EY0SD_draw^cnst(2), clustT),1L,keepdims=F)
-            #Sigma2_Y1_i <- jnp$sum(jnp$multiply( EY1SD_draw^cnst(2), clustT),1L,keepdims=F)
             Etau_ <- jnp$sum( jnp$multiply(ETau_draw, clustT), keepdims=F)
             EY0Uncert_draw <- jnp$sum(jnp$multiply( EY0Uncert_draw, clustT),keepdims=F)
             EY1Uncert_draw <- jnp$sum(jnp$multiply( EY1Uncert_draw, clustT),keepdims=F)
           } 
           
-          Y_Sigma <- ( cnst(1) - treat) * EY0Uncert_draw  + treat * EY1Uncert_draw 
-          Y_Mean <- ( cnst(1) - treat) * EY0_i  + treat * (EY0_i + Etau_)
+          #Y_Sigma <- ( cnst(1) - treat) * EY0Uncert_draw  + treat * EY1Uncert_draw 
+          Y_Mean <- EY0_i + treat*Etau_
     
           # some commented analyses to triple-check code correctness re: initialization
           # lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = c2f(Y_Mean), scale = c2f(Y_Sigma) )$log_prob(c2f(y)) )
     
           # simplify by uncommenting
-          lik_dist_draw <- jnp$negative(  jnp$mean( (Y_Mean - y)^2) ) # later we - to min the sum of squares
+          lik_dist_draw <- jnp$negative(  jnp$mean( (Y_Mean - y)^2) ) # minimize sum of squared errors 
     
           # return
           return(list(lik_dist_draw, StateList));
@@ -734,7 +727,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                             m, treat, y, vseed,
                                             StateList, seed, MPList, inference){
           Elik <- jnp$zeros(list(), dtype = jnp$float16)
-          for(mi_ in 1L:nMonte_variational){
+          for(mi_ in 1L:nMonte_variational){ # this should be vmapped 
             LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
                                                     m, treat, y, jnp$add(vseed, mi_),
                                                     StateList, jnp$add(seed, mi_), MPList, inference)
@@ -763,7 +756,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     
             print2("Returning loss + state...")
             minThis <- MPList[[1]]$cast_to_output( minThis ) # compute to output dtype
-            minThis <- MPList[[2]]$scale( minThis ) # scale loss
+            if(image_dtype_char == "float16"){ 
+              minThis <- MPList[[2]]$scale( minThis ) # scale loss
+            }
     
             StateList <- MPList[[1]]$cast_to_param( StateList ) # cast to param dtype
             return( list(minThis, StateList)  )
@@ -771,9 +766,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     
         CombineLikelihoodWithKL <- ( function(lik_, kl_){
           minThis <- tf$negative(jnp$sum( lik_ ))
-          if(BAYES_STEP == 2){
-            minThis <- minThis + KL_wt * kl_ # combine likelihood with prior
-          }
+          if(BAYES_STEP == 2){minThis <- minThis + KL_wt * kl_ }
           minThis <- minThis / cnst(as.numeric(batchSize)) # normalize
         })
     
@@ -785,14 +778,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
         }
         if(optimizeImageRep){
-          ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]],
-                            DenseList, CausalList)
+          ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], DenseList, CausalList)
           ModelList_fixed <- jnp$array(0.)
         }
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
-        MPList <- list(jmp$Policy(compute_dtype = (ComputeDtype <- jnp$float16), 
+        MPList <- list(jmp$Policy(compute_dtype = (ComputeDtype <- image_dtype), 
                                   param_dtype = jnp$float32,
-                                  output_dtype= (OutputDtype <- jnp$float16)),
+                                  output_dtype= (OutputDtype <- jnp$float32)),
                        jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = OutputDtype),
                                             min_loss_scale = jnp$array(1.,dtype = OutputDtype),
                                             period = 50L))
@@ -814,8 +806,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
         L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
         keysUsedInTraining <- tauMeans <- c();
-        justCheckCrossFitter <- F
-        if(DoTraining <- T){ 
+        justCheckCrossFitter <- F; if(DoTraining <- T){ 
           LocalFxnSource(TrainDo, evaluation_environment = environment())
         }
       }
@@ -920,17 +911,24 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 as.character(unlist(  Results_by_keys[,"key"] ))),] ) 
           Results_by_keys[,1:4] <- apply(Results_by_keys[,1:4], 2, f2n)
         }
+        
+        # mean(as.character(Results_by_keys$key) == as.character(imageKeysOfUnits)) # sanity value of 1 
   
         # process all outcomes
         Y0_est_mat <- cbind(Y0_est_mat, Y0_est <- Rescale(unlist(Results_by_keys$y0_), doMean = T))
         Y1_est_mat <- cbind(Y1_est_mat, Y1_est <- Rescale(unlist(Results_by_keys$y1_), doMean = T))
         Yobs_est <- Y1_est * obsW + Y0_est * (1-obsW)
         tau_est_mat <- cbind(tau_est_mat,  tau_est <- ( Y1_est - Y0_est))# Y(w)_est already re-scaled 
+        
+        # diagnostics 
+        plot(Rescale(obsY, doMean = T), Yobs_est, col = obsW + 1 ); abline(a=0,b=1)
+        print( summary(lm(obsY~Yobs_est)) ) 
 
         Yobs_est_out <- Yobs_est[ testIndices ]
         Loss_out_baseline_vec <- c(Loss_out_baseline_vec,
                                    Loss_baseline_out <- mean( (Yobs_est_out - mean(Yobs_est[ trainIndices ]))^2 )^0.5)
-        Loss_out_vec <- c(Loss_out_vec, Loss_out <- mean( (Yobs_est_out - mean(Yobs_est_out))^2)^0.5)
+        Loss_out_vec <- c(Loss_out_vec, 
+                          Loss_out <- mean( (Yobs_est_out - obsY_orig[testIndices] )^2)^0.5)
     }
   
         # save test indices 
@@ -949,7 +947,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Y1_est_cf[TestIndices_list[[theIt]],theIt] <- (Y1_est_mat[TestIndices_list[[theIt]],theIt] )
       tau_est_cf[TestIndices_list[[theIt]],theIt] <- (tau_est_mat[TestIndices_list[[theIt]],theIt] )
     }
-    print("Sanity 1?")
     print( mean( 1:length(obsY) %in% unlist(TestIndices_list) ))  # sanity value = 1 
     print( sprintf("Sanity %s?",cf_iters) )
     print( table( table(unlist(TestIndices_list)) ) ) 
@@ -958,7 +955,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     tau_est_se <- (rowMeans(tau_est_cf^2,na.rm=T) - rowMeans(tau_est_cf,na.rm=T)^2)^0.5
     
     tau_est <- rowMeans(tau_est_cf, na.rm = T) 
-    # plot(tau_est-tau_est_se);abline(h=0)
     # hist(tau_est)
     # plot(tau_est, SwappedRowsIndicator); cor(tau_est, SwappedRowsIndicator)
     Y0_est <- rowMeans(Y0_est_cf, na.rm = T) 
@@ -1000,8 +996,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       MeanDist_Tau_post = (oryx$distributions$Normal(Tau_mean_vec, Tau_sd_vec <- jax$nn$softplus(getTau_sds(ModelList))))
       Tau_sd_vec_ <- as.numeric2(tf$sqrt(tf$math$reduce_variance(MeanDist_Tau_post$sample(
                               100L, seed = jax$random$PRNGKey(45L)),0L)))
-      Tau_sd_vec <- sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
-      Tau_sd_vec <- Tau_sd_vec * Y_sd
+      Tau_sd_vec <- Y_sd*sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
     }
   }
 

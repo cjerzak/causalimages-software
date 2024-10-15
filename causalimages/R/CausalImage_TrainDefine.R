@@ -28,15 +28,14 @@ TrainDefine <- function(){
                                                       end_value =  learningRateMax/100)
     plot(np$array(LR_schedule(jnp$array(1:nSGD))),xlab = "Iteration", ylab="Learning rate")
     optax_optimizer <-  optax$chain(
-      optax$clip(1), 
-      optax$adaptive_grad_clip(clipping = 0.05),
+      #optax$adaptive_grad_clip(clipping = 0.05, eps = 0.01),
       optax$adabelief( learning_rate = LR_schedule )
+      #optax$adam( learning_rate = LR_schedule )
     )
     
     # model partition, setup state, perform parameter count
     opt_state <- optax_optimizer$init(   eq$partition(ModelList, eq$is_array)[[1]] )
     print2(sprintf("Total trainable parameter count: %s", nParamsRep <- nTrainable <- sum(unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size})))))
-    # unlist(lapply(jax$tree_leaves(eq$partition(ModelList, eq$is_array)[[1]]), function(zer){zer$size}))
     
     # jit update fxns
     jit_apply_updates <- eq$filter_jit( optax$apply_updates )

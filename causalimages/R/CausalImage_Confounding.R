@@ -119,8 +119,8 @@ AnalyzeImageConfounding <- function(
 
     # set float type
     library( tensorflow );
-    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
-    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
+    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; ComputeDtype <- image_dtype <- jnp$float16 }
+    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; ComputeDtype <- image_dtype <- jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
     obsW <- f2n(obsW); obsY <- f2n(obsY)
     
@@ -393,6 +393,7 @@ AnalyzeImageConfounding <- function(
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
           ImageRepArm_batch_R <- ImageRepresentations$ImageRepArm_batch_R
+          InitImageProcessFn <-  ImageRepresentations[["InitImageProcessFn"]]
           nParamsRep <- ImageRepresentations$nParamsRep
           
           if(!is.null(fileTransport)){
@@ -463,6 +464,7 @@ AnalyzeImageConfounding <- function(
         seed = ai(4003L + seed)  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+        InitImageProcessFn <-  ImageRepresentations[["InitImageProcessFn"]]
         rm( ImageRepresentations )
 
         batch_axis_name <- "batch"
@@ -572,11 +574,11 @@ AnalyzeImageConfounding <- function(
         ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
         ModelList_fixed <- jnp$array(0.)
-        MPList <- list(jmp$Policy(compute_dtype="float16", 
+        MPList <- list(jmp$Policy(compute_dtype=ComputeDtype, 
                                   param_dtype="float32", 
-                                  output_dtype=(outputDtype <- "float16")),
-                       jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
-                                            min_loss_scale = jnp$array(2^2.,dtype = eval(parse(text = paste0("jnp$",outputDtype)))),
+                                  output_dtype=(outputDtype <- ComputeDtype)),
+                       jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = ComputeDtype ),
+                                            min_loss_scale = jnp$array(2^1.,dtype = ComputeDtype ),
                                             period = 50L))
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )

@@ -19,6 +19,7 @@
 #' @export
 #' @md
 TrainDo <- function(){
+  par(mfrow=c(1,2))
   keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
   GradNorm_vec <- loss_vec <- rep(NA,times=nSGD)
   keysUsedInTraining <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
@@ -92,16 +93,28 @@ TrainDo <- function(){
     if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
     
     # training step
-    # rm(GradAndLossAndAux); GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
     t1 <- Sys.time()
+    if(i == 1){ # initial forward pass in non-jitted mode for debugging 
+      GetLoss(
+        MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
+        InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
+        jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = jnp$float16), # x
+        jnp$array(as.matrix(obsW[batch_indices]), dtype = jnp$float16), # treat
+        jnp$array(as.matrix(obsY[batch_indices]), dtype = jnp$float16), # y 
+        jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
+        StateList, # StateList
+        jax$random$PRNGKey( 123L+i ), # seed
+        MPList, # MPlist
+        F) 
+    }
     
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
       InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-      jnp$array(X[batch_indices,], dtype = jnp$float16), # x
-      jnp$array(as.matrix(obsW[batch_indices]), dtype = jnp$float16), # treat
-      jnp$array(as.matrix(obsY[batch_indices]), dtype = jnp$float16), # y 
-      jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
+      jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]], dtype = ComputeDtype), # x
+      jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat
+      jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
+      jax$random$split(jax$random$PRNGKey( 50L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
       jax$random$PRNGKey( 123L+i ), # seed
       MPList, # MPlist
@@ -146,7 +159,7 @@ TrainDo <- function(){
       # update parameters if finite gradients
       DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
         !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-10)
-      if(! DoUpdate ){ print2("Warning: Not updating parameters due to zero or non-finite gradients in mixed-precision training...") }
+      if(! DoUpdate ){ print2("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...") }
       if( DoUpdate ){
         DoneUpdates <- DoneUpdates + 1
         
@@ -159,7 +172,6 @@ TrainDo <- function(){
           updates = FilterBN(GradientUpdatePackage)[[1]],
           state = optax_optimizer$init(   FilterBN(eq$partition(ModelList, eq$is_array)[[1]] )[[1]] ) ,
           params = FilterBN(eq$partition(ModelList, eq$is_array)[[1]] )[[1]])
-        #GradientUpdatePackage <- jit_get_update( updates = GradientUpdatePackage, state = opt_state, params = eq$partition(ModelList, eq$is_array)[[1]] )
         
         # separate updates from state
         opt_state <- GradientUpdatePackage[[2]]
@@ -168,25 +180,26 @@ TrainDo <- function(){
         
         # perform updates
         ModelList <- eq$combine( jit_apply_updates(
-          #params = GlobalPartition(eq$partition(ModelList, eq$is_array)[[1]], PartFxn)[[1]],
           params = FilterBN(eq$partition(ModelList, eq$is_array)[[1]])[[1]],
           updates = GradientUpdatePackage),
           eq$partition(ModelList, eq$is_array)[[2]])
-        ModelList <- eq$combine(ModelList,BNInfo)
+        ModelList <- eq$combine(ModelList, BNInfo)
         StateList <- StateList_tmp
         suppressWarnings( rm(StateList_tmp, GradientUpdatePackage,BNInfo) )
       }
-      i_ <- i ; if(i %% 10 == 0 | i < 10 ){
-        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f",
+      i_ <- i ; if( (i %% 10 == 0 | i < 10) & 
+                    (length(loss_vec[!is.na(loss_vec) & !is.infinite(loss_vec)]) > 5) ){
+        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f - Grad norm: %.3f - Grads zero %%: %.1f%%",
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
-                       (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]] ) )
+                       (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]],
+                       mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T) ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-        par(mfrow=c(1,2))
-        try(plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number"), T)
-        if(i > 10){ try_ <- try(points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5),T) }
-        try(plot(na.omit(GradNorm_vec), cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number"), T)
+        plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number")
+        if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5) }
+        plot(GradNorm_vec[!is.infinite(GradNorm_vec) & !is.na(GradNorm_vec)], cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number")
       }
     }
   } # end for(i in i_:nSGD){
+  par(mfrow=c(1,1))
 }
 
