@@ -60,6 +60,7 @@ AnalyzeImageConfounding <- function(
                                    nBoot = 10L,
                                    inputAvePoolingSize = 1L,
                                    useTrainingPertubations = T,
+                                   useScalePertubations = F,
 
                                    orthogonalize = F,
                                    transportabilityMat = NULL,
@@ -99,7 +100,6 @@ AnalyzeImageConfounding <- function(
   {
     print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
     library(reticulate)
-    conda_env <- "jax_cpu"; conda_env_required <- T
     if(!is.null(conda_env)){
       try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
     }
@@ -234,15 +234,32 @@ AnalyzeImageConfounding <- function(
     }
 
     if(useTrainingPertubations){
-      trainingPertubations_OneObs <- function(im_, key){
+      trainingPertubations <- jax$vmap( trainingPertubations_OneObs <- function(im_, key){
+         browser()
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
          im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
          im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
          im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
          return( im_ )
-      } 
-      trainingPertubations <- jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
+      }, in_axes = list(0L,0L)) 
+    }
+    if(useScalePertubations){
+      GetImSquare <- function(m,TargetWidth){ 
+        CurentWidth = image$shape[1]  # Assumes image is n x n
+        start = (CurentWidth - TargetWidth) %/% 2 # %/% is integer division 
+        end = start + TargetWidth
+        m <- image[start:end, start:end,]
+        return(  ) 
+      }
+      scalePertubations <- jax$vmap( scalePertubations_OneObs <- function(im_, scales, key){
+        AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
+        which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+        return( im_ )
+      }, in_axes = list(0L,0L)) 
     }
 
     InitImageProcessFn <- jax$jit(function(im, key, inference){
@@ -262,10 +279,12 @@ AnalyzeImageConfounding <- function(
         
         # training pertubations
         if(useTrainingPertubations){
-          im <- jax$lax$cond(inference, 
-                             true_fun = function(){ im }, 
-                             false_fun = function(){  trainingPertubations(im, 
+          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){  trainingPertubations(im, 
                                                               jax$random$split(key,im$shape[[1]])) } )
+        }
+        if(useScalePertubations){
+          im <- jax$lax$cond(inference, true_fun = function(){ im },  false_fun = function(){  scalePertubations(im, 
+                                                                           jax$random$split(key,im$shape[[1]])) } )
         }
         return( im  )
     })
@@ -354,7 +373,8 @@ AnalyzeImageConfounding <- function(
           family = ifelse(length(unique(obsW))==2,yes="binomial",no="gaussian")
           )
         obsW_ <- obsW[bindices_]; obsY_ <- obsY[bindices_]
-        prW_est_ <- predict(myGlmnet_, s = "lambda.min",
+        prW_est_ <- predict(myGlmnet_, 
+                            s = "lambda.min",
                             newx = as.matrix(glmnetInput[bindices_,]), 
                             type = "response")
         # plot(obsW_, c(prW_est_)); cor(obsW_, c(prW_est_)); tapply(prW_est_, obsW_, mean)

@@ -108,6 +108,10 @@ TrainDo <- function(){
         F) 
     }
     
+    #function(ModelList, ModelList_fixed,
+             #m, x, treat, y, vseed,
+             #StateList, seed, MPList, inference){
+    
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
       InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
@@ -194,8 +198,8 @@ TrainDo <- function(){
                        (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]],
                        mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T) ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
-        plot(rank(na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function Rank",xlab="SGD Iteration Number")
-        if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( rank(na.omit(loss_vec) )), col="red",type = "l",lwd=5) }
+        plot( (na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function",xlab="SGD Iteration Number")
+        if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) )), col="red",type = "l",lwd=5) }
         plot(GradNorm_vec[!is.infinite(GradNorm_vec) & !is.na(GradNorm_vec)], cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number")
       }
     }

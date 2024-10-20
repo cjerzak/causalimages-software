@@ -137,13 +137,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
     # image dtype management
     c2f <- jmp$cast_to_full
-    image_dtype <- "float32" # determines compute dtype 
+    image_dtype <- "float16" 
     if((image_dtype_char <- image_dtype) == "float32"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float32 }
     if(image_dtype_char == "float16"){  image_dtype_tf <- tf$float16; image_dtype <- jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; image_dtype <- jnp$bfloat16 }
-    variable_dtype <- jnp$float32; image_dtype_tf <- tf$float16
+    ComputeDtype <- jnp$float32; 
+    variable_dtype <- jnp$float32; 
+    image_dtype_tf <- tf$float16; 
 
-    cnst <- function( ar ){ jnp$array(ar, jnp$float16) }
+    cnst <- function( ar ){ jnp$array(ar, ComputeDtype) }
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
     if(is.null(seed)){ seed <- ai(runif(1,1,100000)) }
   }
@@ -328,6 +330,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             imageKeysOfUnits = imageKeysOfUnits[tmp_i <- sample(1:length(imageKeysOfUnits),2*batchSize)],
             lat = lat[tmp_i], 
             long = long[tmp_i], 
+            image_dtype = image_dtype, 
+            image_dtype_tf = image_dtype_tf, 
             returnContents = T,
             initializingFxns = T, 
             bn_momentum = bn_momentum,
@@ -687,7 +691,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
           # lik_dist_draw <- jnp$mean( oryx$distributions$Normal(loc = c2f(Y_Mean), scale = c2f(Y_Sigma) )$log_prob(c2f(y)) )
     
           # simplify by uncommenting
-          lik_dist_draw <- jnp$negative(  jnp$mean( (Y_Mean - y)^2) ) # minimize sum of squared errors 
+          #lik_dist_draw <- jnp$negative(  jnp$mean( (Y_Mean - y)^2) ) # minimize sum of squared errors 
+          
+          #log(cosh(x)) is approximately (x**2) / 2 for small x and abs(x) - log(2) for large x. It is a twice differentiable alternative to the Huber loss.
+          lik_dist_draw <- jnp$negative( jnp$mean(optax$log_cosh(Y_Mean, y)) )
     
           # return
           return(list(lik_dist_draw, StateList));
@@ -726,13 +733,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
         GetExpectedLikelihood <-  function(ModelList, ModelList_fixed,
                                             m, treat, y, vseed,
                                             StateList, seed, MPList, inference){
-          Elik <- jnp$zeros(list(), dtype = jnp$float16)
+          Elik <- jnp$zeros(list(), dtype = ComputeDtype)
           for(mi_ in 1L:nMonte_variational){ # this should be vmapped 
             LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
                                                     m, treat, y, jnp$add(vseed, mi_),
                                                     StateList, jnp$add(seed, mi_), MPList, inference)
             StateList <- LikContrib[[2]]; LikContrib <- LikContrib[[1]]
-            Elik <- Elik + LikContrib / jnp$array(f2n(nMonte_variational), jnp$float16)
+            Elik <- Elik + LikContrib / jnp$array(f2n(nMonte_variational), ComputeDtype)
           }
           return( list(Elik, StateList) )
         }
@@ -742,16 +749,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
                             StateList, seed, MPList, inference){
             ModelList <- MPList[[1]]$cast_to_compute( ModelList )
             ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
+            m <- MPList[[1]]$cast_to_compute( m )
+            x <- MPList[[1]]$cast_to_compute( x )
+            treat <- MPList[[1]]$cast_to_compute( treat )
+            y <- MPList[[1]]$cast_to_compute( y )
             StateList <- MPList[[1]]$cast_to_compute( StateList )
     
             # likelihood and state updates
             Elik <- GetExpectedLikelihood(ModelList, ModelList_fixed,
                                           m, treat, y, vseed,
-                                          StateList, seed, MPList, inference) # note: inference = F
+                                          StateList, seed, MPList, inference)
             StateList <- Elik[[2]]; Elik <- Elik[[1]]
     
             # minimize negative log likelihood and positive KL term
-            if(BAYES_STEP == 1){ minThis <- jnp$negative( Elik ) }
+            if(BAYES_STEP == 1){ minThis <- jnp$negative( Elik ) } # minimize sum of squares (-- = +)
             if(BAYES_STEP == 2){ minThis <- CombineLikelihoodWithKL( Elik, klContrib ) }
     
             print2("Returning loss + state...")
@@ -759,8 +770,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
             if(image_dtype_char == "float16"){ 
               minThis <- MPList[[2]]$scale( minThis ) # scale loss
             }
-    
-            StateList <- MPList[[1]]$cast_to_param( StateList ) # cast to param dtype
             return( list(minThis, StateList)  )
         }
     
@@ -782,7 +791,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ModelList_fixed <- jnp$array(0.)
         }
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], DenseStateList)
-        MPList <- list(jmp$Policy(compute_dtype = (ComputeDtype <- image_dtype), 
+        MPList <- list(jmp$Policy(compute_dtype = ComputeDtype, 
                                   param_dtype = jnp$float32,
                                   output_dtype= (OutputDtype <- jnp$float32)),
                        jmp$DynamicLossScale(loss_scale = jnp$array(2^12,dtype = OutputDtype),
@@ -821,6 +830,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
       GetSummaries <- eq$filter_jit(function(ModelList, ModelList_fixed,
                                                m, vseed,
                                                StateList, seed, MPList){
+          ModelList <- MPList[[1]]$cast_to_compute( ModelList )
+          ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
+          m <- MPList[[1]]$cast_to_compute( m )
+          StateList <- MPList[[1]]$cast_to_compute( StateList )
+        
           # image representation model
           if(SharedImageRepresentation){
             m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],

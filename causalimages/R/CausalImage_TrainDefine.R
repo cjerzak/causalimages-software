@@ -28,7 +28,8 @@ TrainDefine <- function(){
                                                       end_value =  learningRateMax/100)
     plot(np$array(LR_schedule(jnp$array(1:nSGD))),xlab = "Iteration", ylab="Learning rate")
     optax_optimizer <-  optax$chain(
-      #optax$adaptive_grad_clip(clipping = 0.05, eps = 0.01),
+      #optax$clip(1.),
+      optax$adaptive_grad_clip(clipping = 0.02, eps = 0.001),
       optax$adabelief( learning_rate = LR_schedule )
       #optax$adam( learning_rate = LR_schedule )
     )
