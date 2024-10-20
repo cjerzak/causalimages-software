@@ -453,15 +453,13 @@ GetImageRepresentations <- function(
           # RGB means: 10678.0, 10563.0, 11083.0
           # RGB stds: 9578.0, 9408.0, 10144.0
           # ClayModel$model$metadata$`landsat-c2l2-sr`
-          browser()
+
           # resize to 256 if image is greater in size 
-          if(m$shape > 256L){
-            jax$image$resize(
-              image=m,
-              shape=c(m$shape[[1]], m$shape[[2]],  224L, 224L, 3L),
-              method="bilinear")
-            
-          }
+          #if(m$shape[[2]] > 256L){
+            #m <- jax$image$resize(
+              #image=m, shape=c(m$shape[[1]],  256L, 256L, m$shape[[3]]),
+              #method="bilinear")
+          #}
           
           m <- ClayModel$model$encoder(
             dict("platform" = "landsat-c2l1",  # platform
