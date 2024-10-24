@@ -275,18 +275,18 @@ GetImageRepresentations <- function(
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             print2("Setting up swin model...")
             TransformersModule <<- import("transformers")
+            nParameters_Pretrained <<- 1L
             
             # didn't get working (uses haiku)
             #FeatureExtractor <<- (jax_models <<- import("jax_models",convert = T))$load_model('swin-tiny-224', num_classes=1000L, attach_head=FALSE, pretrained=TRUE)
             #Processor <<- TransformersModule$Swin2SRImageProcessor('swin-tiny-224')
             
-            nParameters_Pretrained <<- 1L
+            torch <<- import("torch")
             torch$set_default_device( RunOnDevice <<- ifelse(torch$cuda$is_available(), 
                                      yes = list(torch$device("cuda")),  no = list(torch$device("cpu")))[[1]]  )
             torch$set_default_dtype( RunDtype <<- torch$float32 ); 
             FeatureExtractor <<- TransformersModule$Swinv2Model$from_pretrained(PretrainedImageModelName <<- "microsoft/swinv2-tiny-patch4-window8-256")$to(RunOnDevice)
             Processor <<- TransformersModule$AutoImageProcessor$from_pretrained(PretrainedImageModelName)
-            torch <<- import("torch")
               
             # got working (uses flax)
             #jax_models$list_models()
