@@ -319,6 +319,7 @@ GetImageRepresentations <- function(
           
           #m <- 1 * (m - m$min(axis = 1L:3L,keepdims=T)) /  (m$max(axis = 1L:3L,keepdims=T) - m$min(axis = 1L:3L,keepdims=T))
           m <- 1 * (m - m$min()) /  (m$max() - m$min())
+          m <- torch$from_numpy( np$array(m) ) 
           m <- Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
           
           #tmp <- FeatureExtractor$get_image_features(pixel_values =  jnp$transpose(jax$image$resize( image=m,shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear"), c(0L,3L,1L,2L)), params = FeatureExtractor$params, train = !inference )
