@@ -154,7 +154,7 @@ GetImageRepresentations <- function(
   
   if(grepl(pretrainedModel,pattern="clay")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
   if(grepl(pretrainedModel,pattern="clip")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
-  if(grepl(pretrainedModel,pattern="swin")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
+  if(grepl(pretrainedModel,pattern="swin")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
 
   # setup jax model
   {
@@ -274,15 +274,22 @@ GetImageRepresentations <- function(
         if(  grepl(pretrainedModel, pattern = "swin") ){
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             print2("Setting up swin model...")
-            #FTModule <<- (jax_models <<- import("jax_models"))$load_model(
-                                                                          #'swin-tiny-224', num_classes=1000L, attach_head=FALSE, 
-                                                                          #'pvit',# num_classes=1000L, attach_head=TRUE, 
-                                                                          #pretrained=TRUE)
-            #jax_models$list_models()
-            nParameters_Pretrained <<- 1L
             TransformersModule <<- import("transformers")
-            FeatureExtractor <<- TransformersModule$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <<- "flax-community/clip-rsicd-v2")
-            Processor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
+            
+            # didn't get working (uses haiku)
+            #FeatureExtractor <<- (jax_models <<- import("jax_models",convert = T))$load_model('swin-tiny-224', num_classes=1000L, attach_head=FALSE, pretrained=TRUE)
+            #Processor <<- TransformersModule$Swin2SRImageProcessor('swin-tiny-224')
+            
+            nParameters_Pretrained <<- 1L
+            #FeatureExtractor <<- TransformersModule$Swin2SRModel$from_pretrained(PretrainedImageModelName <<- "caidas/swin2SR-classical-sr-x2-64")
+            FeatureExtractor <<- TransformersModule$Swinv2Model$from_pretrained(PretrainedImageModelName <<- "microsoft/swinv2-tiny-patch4-window8-256")
+            Processor <<- TransformersModule$AutoImageProcessor$from_pretrained(PretrainedImageModelName)
+            torch <<- import("torch")
+              
+            # got working (uses flax)
+            #jax_models$list_models()
+            #FeatureExtractor <<- TransformersModule$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <<- "flax-community/clip-rsicd-v2")
+            #Processor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
             #FeatureExtractor <<- TransformersModule$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <<- "openai/clip-vit-base-patch32")
             
             #nWidth_ImageRep <<- nWidth_VideoRep <<- 768L
@@ -310,7 +317,7 @@ GetImageRepresentations <- function(
           
           #m <- 1 * (m - m$min(axis = 1L:3L,keepdims=T)) /  (m$max(axis = 1L:3L,keepdims=T) - m$min(axis = 1L:3L,keepdims=T))
           m <- 1 * (m - m$min()) /  (m$max() - m$min())
-          m_ <- Processor(images = m, return_tensors="jax", padding=F,do_rescale = F)$data$pixel_values
+          m <- Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
           
           #tmp <- FeatureExtractor$get_image_features(pixel_values =  jnp$transpose(jax$image$resize( image=m,shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear"), c(0L,3L,1L,2L)), params = FeatureExtractor$params, train = !inference )
           #tmp1 <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params, train = !inference )
@@ -318,13 +325,9 @@ GetImageRepresentations <- function(
           #plot(c(np$array(tmp)),np$array(tmp1)); abline(a=0,b=1)
           
           if(pretrainedModel != "swin-ft"){ 
-            #m <- FeatureExtractor(pixel_values = m, 
-            m <- FeatureExtractor$get_image_features(pixel_values = m_, 
-                                  params = FeatureExtractor$params,
-                                  dropout_rng = seed,
-                                  train = !inference
-                                  )
-                                  #)$pooler_output
+            m <- jnp$array(FeatureExtractor( torch$as_tensor( m, dtype= torch$float32) )$pooler_output$detach()$numpy())
+            #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference) # for flax models  
+            #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference))$pooler_output # for flax models  (vae)
           }
           py_gc$collect()
         }
