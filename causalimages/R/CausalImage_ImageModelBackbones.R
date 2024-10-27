@@ -263,8 +263,9 @@ GetImageRepresentations <- function(
           m <- ScaleResizeTranspose(m)
           # m <- (m*SD_RESCALER)+MEAN_RESCALER
           # jnp$mean(jnp$array(m), axis = c(0L,2L:3L)); jnp$std(jnp$array(m), axis =  c(0L,2L:3L)) 
-          m <- TransformersProcessor(m, do_rescale = F)
-          m <- torch$tensor( reticulate::np_array( tf$constant(m$pixel_values, tf$float32), dtype = np$float32), dtype = torch$float32)
+          m <- torch$tensor( reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32), 
+                             dtype = torch$float32)
+          m <- TransformersProcessor(m, do_rescale = F, return_tensors="pt")['pixel_values']
           # m <- reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32)
           # m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
