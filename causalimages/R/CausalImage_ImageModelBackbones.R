@@ -358,10 +358,18 @@ GetImageRepresentations <- function(
             SD_RESCALER <<- jnp$array(c(0.5,0.5,0.5))
             SD_RESCALER <<- jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
             
+            if(length(NORM_MEAN) == 1){ 
+              OrigImDim <- 1L
+              NORM_MEAN <<- rep(NORM_MEAN,3); NORM_SD <<- rep(NORM_SD,3)
+            }
+            if(length(NORM_MEAN) == 2){ 
+              NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
+              NORM_SD <- c(NORM_SD,NORM_SD[1])
+            }
             NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
             NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,3L))
           }
-          
+
           # Images are resized/rescaled to the same resolution (224x224)
           # and normalized across the RGB channels with mean (0.5, 0.5, 0.5) 
           # and standard deviation (0.5, 0.5, 0.5)
@@ -369,6 +377,10 @@ GetImageRepresentations <- function(
           # (see preprocessing)
           # m_orig <- m
           # jnp$mean(jnp$array(m), axis = c(0L:2L)); jnp$std(jnp$array(m), axis =  c(0L:2L)) 
+          
+          # causalimages::image2( np$array(m[1,,,1]) )
+          # causalimages::image2( np$array(m[1,,,2]) )
+          # causalimages::image2( np$array(m[1,,,3]) )
           m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
           
           # resize information: 
