@@ -152,9 +152,12 @@ GetImageRepresentations <- function(
   rawChannelDims <- ai( dim(test_)[length(dim(test_))] )
   rawSpatialDims <- ai( dim(test_)[length(dim(test_))-1] )
   
-  if(grepl(pretrainedModel,pattern="clay")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
-  if(grepl(pretrainedModel,pattern="clip")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
-  if(grepl(pretrainedModel,pattern="swin")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
+  if(!is.null(pretrainedModel)){
+    if(grepl(pretrainedModel,pattern="clip")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
+    if(grepl(pretrainedModel,pattern="vit-base")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
+    if(grepl(pretrainedModel,pattern="clay")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
+    if(grepl(pretrainedModel,pattern="swin")){ nWidth_ImageRep <- nWidth_VideoRep <- 768L }
+  }
 
   # setup jax model
   {
