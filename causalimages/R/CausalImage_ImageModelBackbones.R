@@ -339,7 +339,7 @@ GetImageRepresentations <- function(
           #plot(c(np$array(tmp)),np$array(tmp1)); abline(a=0,b=1)
           
           if(pretrainedModel != "swin-ft"){ 
-            m <- jnp$array(FeatureExtractor( torch$as_tensor( m, dtype= torch$float32) )$pooler_output$detach()$numpy())
+            m <- jnp$array(FeatureExtractor( torch$as_tensor( m, dtype= torch$float32) )$pooler_output$cpu()$detach()$numpy())
             #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference) # for flax models  
             #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference))$pooler_output # for flax models  (vae)
           }
