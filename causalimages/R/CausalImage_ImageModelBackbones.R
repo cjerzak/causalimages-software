@@ -305,6 +305,15 @@ GetImageRepresentations <- function(
             SD_RESCALER <<- jnp$array(c(1,1,1))
             SD_RESCALER <<- jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
             
+            if(length(NORM_MEAN) == 1){ 
+              OrigImDim <- 1L
+              NORM_MEAN <<- rep(NORM_MEAN,3); NORM_SD <<- rep(NORM_SD,3)
+            }
+            if(length(NORM_MEAN) == 2){ 
+              NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
+              NORM_SD <- c(NORM_SD,NORM_SD[1])
+            }
+            
             NORM_MEAN_array_inner <<- jnp$reshape(jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
             NORM_SD_array_inner <<- jnp$reshape(jnp$array(NORM_SD),list(1L,1L,1L,3L))
             print2("Done setting up swin model!")
@@ -319,7 +328,8 @@ GetImageRepresentations <- function(
           #m <- (m*SD_RESCALER)+MEAN_RESCALER
           
           #m <- 1 * (m - m$min(axis = 1L:3L,keepdims=T)) /  (m$max(axis = 1L:3L,keepdims=T) - m$min(axis = 1L:3L,keepdims=T))
-          m <- 1 * (m - m$min()) /  (m$max() - m$min())
+          #m <- 1 * (m - m$min()) /  (0.001+m$max() - m$min())
+          m <- jnp$clip(1 * (m - 0.) /  (0.001 + 256.  - 0.), 0.001, 0.999) #m / 256. 
           m <-  torch$tensor( reticulate::np_array( tf$constant(m, tf$float32), dtype = np$float32), dtype = torch$float32)
           m <- Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
           
