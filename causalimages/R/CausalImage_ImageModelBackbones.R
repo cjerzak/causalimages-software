@@ -605,7 +605,10 @@ GetImageRepresentations <- function(
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
       print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
+          print(d_)
 
+        
+        ModelList$SpatialTransformerSupp      
           ModelList_d <- eval(parse(text = sprintf("ModelList$%s_d%s", type, d_) ))
           
           # standardize
@@ -729,7 +732,7 @@ GetImageRepresentations <- function(
                                                        "RightWt2"=InvSoftPlus(NonLinearScaler)),
                                   "TransformerRenormer" = TransformerRenormer_d)
       }
-      names(ModelList) <- names(StateList) <- paste0("Spatial_d",nDepth_ImageRep)
+      names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
       ModelList$SpatialTransformerSupp = list(
           "StartEmbed" = jax$random$uniform(key = jax$random$PRNGKey(ai(333324L + seed +  d_)), minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
           "StopEmbed" =jax$random$uniform(key = jax$random$PRNGKey(ai(3332124L + seed +  d_)),minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
@@ -811,7 +814,7 @@ GetImageRepresentations <- function(
                                   "BN1_ImRep" = list("BN" = LayerBN1, "BNRescaler" = jnp$array(rep(1.,times=BatchNormDim1)) ),
                                   "BN2_ImRep" = list("BN" = LayerBN2, "BNRescaler" = jnp$array(rep(1.,times=BatchNormDim2)) ))
     }
-    names(ModelList) <- names(StateList) <- paste0("Spatial_d",nDepth_ImageRep)
+    names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
     
     ModelList$SpatialTransformerSupp = list(
       "FinalCNNProj"=eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj

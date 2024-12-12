@@ -132,7 +132,7 @@ AnalyzeImageConfounding <- function(
 
   print2("Setting input types ...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
-  if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
+  if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
   if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
   
@@ -235,7 +235,6 @@ AnalyzeImageConfounding <- function(
 
     if(useTrainingPertubations){
       trainingPertubations <- jax$vmap( trainingPertubations_OneObs <- function(im_, key){
-         browser()
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
          im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
@@ -295,6 +294,7 @@ AnalyzeImageConfounding <- function(
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- jnp$array(0.05)
     py_gc$collect()
+    
 
     # set up holders
     sigmoid <- function(x){1/(1+exp(-x))}
@@ -302,8 +302,7 @@ AnalyzeImageConfounding <- function(
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
       print2("Note: Not optimizing image/video representation...")
-      
-      print2("Define train/test indices based on out of sample keys...") 
+      print2("Define train/test indices based on out of sample keys...")
       imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
       outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
                           max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
@@ -413,7 +412,7 @@ AnalyzeImageConfounding <- function(
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
           ImageRepArm_batch_R <- ImageRepresentations$ImageRepArm_batch_R
-          InitImageProcessFn <-  ImageRepresentations[["InitImageProcessFn"]]
+          InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
           nParamsRep <- ImageRepresentations$nParamsRep
           
           if(!is.null(fileTransport)){
@@ -484,7 +483,7 @@ AnalyzeImageConfounding <- function(
         seed = ai(4003L + seed)  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
-        InitImageProcessFn <-  ImageRepresentations[["InitImageProcessFn"]]
+        InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
         rm( ImageRepresentations )
 
         batch_axis_name <- "batch"
