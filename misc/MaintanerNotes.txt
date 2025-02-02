@@ -1,0 +1,4 @@
+# notes on jax-gpu: use python 3.10 or above
+# jax$nn$softplus creates segfault with float16
+# random sampling creates a segfault with float16
+# sample parameters with seeds not vseeds. tf$function(jit_compile=T) works with jax-metal
