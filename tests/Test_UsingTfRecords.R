@@ -107,6 +107,6 @@
   ImageConfoundingAnalysis$tauHat_propensityHajek_se
 
   # see figuresPath for image analysis output
-  print("Done with TfRecords tutorial!")
+  print("Done with TfRecords test!")
 }
 

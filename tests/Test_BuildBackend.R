@@ -11,5 +11,6 @@
   # you can find out a list of conda Python paths via:
   # system("which python")
   causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
+  print("Done with BuildBackend() test!")
 }
 

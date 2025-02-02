@@ -68,5 +68,5 @@ plot( MyImageEmbeddings$ImageRepresentations  )
 # other output quantities include the image model functions and model parameters
 names(  MyImageEmbeddings  )[-1]
 
-print("Done with image representations tutorial!")
+print("Done with image representations test!")
 }

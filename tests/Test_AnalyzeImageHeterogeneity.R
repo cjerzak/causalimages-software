@@ -239,5 +239,5 @@ for(optimizeImageRep in c(T, F)){
   }
   }
 }
-print("Done with image heterogeneity tutorial!")
+print("Done with image heterogeneity test!")
 }

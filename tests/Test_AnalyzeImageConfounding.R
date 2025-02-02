@@ -169,6 +169,6 @@
 
   # some out-of-sample evaluation metrics
   ImageSeqConfoundingAnalysis$ModelEvaluationMetrics
-  print("Done with confounding tutorial!")
+  print("Done with confounding test!")
 }
 }

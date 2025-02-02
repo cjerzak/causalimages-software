@@ -23,7 +23,8 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
   reticulate::py_install(c("tensorflow", "optax", "jax",
                            "torch","transformers","pillow","tf-keras", 
                            "equinox", "jmp", "tensorflow-probability"),
-                           conda = conda, pip = TRUE,
+                           conda = conda, 
+                           pip = TRUE,
                            envname = conda_env)
   if(Sys.info()["sysname"] == "Linux"){
     # pip install --upgrade jax jaxlib==0.1.69+cuda111 -f https://storage.googleapis.com/jax-releases/jax_releases.html
