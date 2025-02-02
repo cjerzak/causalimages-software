@@ -87,7 +87,7 @@ TrainDo <- function(){
       batch_keys <- c(unlist(  lapply( p2l(ds_next_train_control[[3]]$numpy()), as.character) ),
                       unlist(  lapply( p2l(ds_next_train_treated[[3]]$numpy()), as.character) ))
       batch_indices <- sapply(batch_keys,function(key_){ f2n( sample(as.character( keys2indices_list[[key_]] ), 1) ) })
-      ds_next_train <- tf$concat(list(ds_next_train_control[[1]],
+      ds_next_train <- cienv$tf$concat(list(ds_next_train_control[[1]],
                                       ds_next_train_treated[[1]]), 0L)
     }
     if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
@@ -97,13 +97,13 @@ TrainDo <- function(){
     if(i == 1){ # initial forward pass in non-jitted mode for debugging 
       GetLoss(
         MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
-        InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-        jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = jnp$float16), # x
-        jnp$array(as.matrix(obsW[batch_indices]), dtype = jnp$float16), # treat
-        jnp$array(as.matrix(obsY[batch_indices]), dtype = jnp$float16), # y 
-        jax$random$split(jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
+        InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
+        cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = cienv$jnp$float16), # x
+        cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = cienv$jnp$float16), # treat
+        cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = cienv$jnp$float16), # y 
+        cienv$jax$random$split(cienv$jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
         StateList, # StateList
-        jax$random$PRNGKey( 123L+i ), # seed
+        cienv$jax$random$PRNGKey( 123L+i ), # seed
         MPList, # MPlist
         F) 
     }
@@ -114,13 +114,13 @@ TrainDo <- function(){
     
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
-      InitImageProcessFn(jnp$array(ds_next_train),  jax$random$PRNGKey(600L+i), inference = F), # m
-      jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]], dtype = ComputeDtype), # x
-      jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat
-      jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
-      jax$random$split(jax$random$PRNGKey( 50L+i ),length(batch_indices)),  # vseed for observations 
+      InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
+      cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]], dtype = ComputeDtype), # x
+      cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat
+      cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
+      cienv$jax$random$split(cienv$jax$random$PRNGKey( 50L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
-      jax$random$PRNGKey( 123L+i ), # seed
+      cienv$jax$random$PRNGKey( 123L+i ), # seed
       MPList, # MPlist
       F) # inference
 
@@ -137,28 +137,28 @@ TrainDo <- function(){
         loss_vec[i] <- myLoss_fromGrad <- np$array( GradientUpdatePackage[[1]][[1]] )# value
       }
       GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
-      GradientUpdatePackage <- eq$partition(GradientUpdatePackage, eq$is_inexact_array)
+      GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_inexact_array)
       GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
       
       # unscale + adjust loss scale is some non-finite or NA
       if(i == 1){
-        Map2Zero <- eq$filter_jit(function(input){
-          jax$tree_map(function(x){ jnp$where(jnp$isnan(x), jnp$array(0), x)}, input) })
-        GetGetNorms <- eq$filter_jit(function(input){
-          jax$tree_map(function(x){ jnp$mean(jnp$abs(x)) }, input) })
-        AllFinite <- jax$jit( jmp$all_finite )
+        Map2Zero <- cienv$eq$filter_jit(function(input){
+          cienv$jax$tree_map(function(x){ cienv$jnp$where(cienv$jnp$isnan(x), cienv$jnp$array(0), x)}, input) })
+        GetGetNorms <- cienv$eq$filter_jit(function(input){
+          cienv$jax$tree_map(function(x){ cienv$jnp$mean(cienv$jnp$abs(x)) }, input) })
+        AllFinite <- cienv$jax$jit( cienv$jmp$all_finite )
       }
       if(image_dtype_char == "float16"){ 
         GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
       }
-      AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & jnp$squeeze(jnp$array(!is.infinite(myLoss_fromGrad)))
+      AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & cienv$jnp$squeeze(cienv$jnp$array(!is.infinite(myLoss_fromGrad)))
       MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-      # which(is.na( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
-      # which(is.infinite( c(unlist(lapply(jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
+      # which(is.na( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
+      # which(is.infinite( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
       
       # get update norm 
-      GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(jax$tree_leaves(GradientUpdatePackage),
-                                                         function(zer){ np$array(jnp$mean(jnp$abs(zer) )) }) )  )
+      GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(cienv$jax$tree_leaves(GradientUpdatePackage),
+                                                         function(zer){ np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
       
       # update parameters if finite gradients
       DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
@@ -174,20 +174,20 @@ TrainDo <- function(){
         BNInfo <- FilterBN( ModelList )[[2]]
         GradientUpdatePackage <- jit_get_update( 
           updates = FilterBN(GradientUpdatePackage)[[1]],
-          state = optax_optimizer$init(   FilterBN(eq$partition(ModelList, eq$is_array)[[1]] )[[1]] ) ,
-          params = FilterBN(eq$partition(ModelList, eq$is_array)[[1]] )[[1]])
+          state = optax_optimizer$init(   FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )[[1]] ) ,
+          params = FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )[[1]])
         
         # separate updates from state
         opt_state <- GradientUpdatePackage[[2]]
-        GradientUpdatePackage <- eq$combine(GradientUpdatePackage[[1]], 
+        GradientUpdatePackage <- cienv$eq$combine(GradientUpdatePackage[[1]], 
                                             GradientUpdatePackage_aux)
         
         # perform updates
-        ModelList <- eq$combine( jit_apply_updates(
-          params = FilterBN(eq$partition(ModelList, eq$is_array)[[1]])[[1]],
+        ModelList <- cienv$eq$combine( jit_apply_updates(
+          params = FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]])[[1]],
           updates = GradientUpdatePackage),
-          eq$partition(ModelList, eq$is_array)[[2]])
-        ModelList <- eq$combine(ModelList, BNInfo)
+          cienv$eq$partition(ModelList, cienv$eq$is_array)[[2]])
+        ModelList <- cienv$eq$combine(ModelList, BNInfo)
         StateList <- StateList_tmp
         suppressWarnings( rm(StateList_tmp, GradientUpdatePackage,BNInfo) )
       }

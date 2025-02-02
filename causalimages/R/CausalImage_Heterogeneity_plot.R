@@ -1,10 +1,10 @@
 CausalImageHeterogeneity_plot <- function(){
   print2("Plotting results...")
-  MPList <- list(jmp$Policy(compute_dtype="float32",
+  MPList <- list(cienv$jmp$Policy(compute_dtype="float32",
                             param_dtype="float32",
                             output_dtype="float32"),
-                 jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = jnp$float32),
-                                      min_loss_scale = jnp$array(1.,dtype = jnp$float32),
+                 cienv$jmp$DynamicLossScale(loss_scale = cienv$jnp$array(2^15,dtype = cienv$jnp$float32),
+                                      min_loss_scale = cienv$jnp$array(1.,dtype = cienv$jnp$float32),
                                       period = 20L))
   if(heterogeneityModelType == "variational_minimal"){
     Tau_mean_vec_n <- as.numeric2( Tau_mean_vec )
@@ -102,45 +102,45 @@ CausalImageHeterogeneity_plot <- function(){
   par(mfrow=c(1,1))
   gc(); py_gc$collect()
   plotting_coordinates_list <- list(); typePlot_counter <- 0
-  ep_LabelSmooth <- jnp$array(0.01)
+  ep_LabelSmooth <- cienv$jnp$array(0.01)
   
-  dLogProb_dImage <- jax$grad(LogProb_Image <- function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
+  dLogProb_dImage <- cienv$jax$grad(LogProb_Image <- function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
     if(SharedImageRepresentation){
-      m <- jnp$squeeze( ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                            jnp$expand_dims(m,0L),
+      m <- cienv$jnp$squeeze( ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
+                                            cienv$jnp$expand_dims(m,0L),
                                             StateList, seed, MPList, T)[[1]] ) 
     }
     
     PROBS_ <- sapply(1L:nMonte_salience, function(itr){
-      jnp$expand_dims(GetTau(ModelList, ModelList_fixed,
-                             m, jnp$add(jnp$expand_dims(vseed,0L),itr),
-                             StateList, jnp$add(seed,itr), MPList, T)[[1]],0L)
+      cienv$jnp$expand_dims(GetTau(ModelList, ModelList_fixed,
+                             m, cienv$jnp$add(cienv$jnp$expand_dims(vseed,0L),itr),
+                             StateList, cienv$jnp$add(seed,itr), MPList, T)[[1]],0L)
     })
-    PROBS_ <- jax$nn$softmax( jnp$concatenate(PROBS_,0L) )
-    PROBS_ <- jnp$add(jnp$multiply(jnp$subtract(jnp$array(1.), ep_LabelSmooth),PROBS_),
-                      jnp$divide(ep_LabelSmooth, jnp$array(2.))) # label smoothing
-    PROBS_ <- jnp$sum( jnp$multiply(jnp$array(c(1,rep(0,times = kClust_est-1))),
-                                    jnp$mean(jnp$log(PROBS_), 0L) )) # # log prob of cat 1
+    PROBS_ <- cienv$jax$nn$softmax( cienv$jnp$concatenate(PROBS_,0L) )
+    PROBS_ <- cienv$jnp$add(cienv$jnp$multiply(cienv$jnp$subtract(cienv$jnp$array(1.), ep_LabelSmooth),PROBS_),
+                      cienv$jnp$divide(ep_LabelSmooth, cienv$jnp$array(2.))) # label smoothing
+    PROBS_ <- cienv$jnp$sum( cienv$jnp$multiply(cienv$jnp$array(c(1,rep(0,times = kClust_est-1))),
+                                    cienv$jnp$mean(cienv$jnp$log(PROBS_), 0L) )) # # log prob of cat 1
     return(  PROBS_  ) # mean log prob
   }, 2L)
-  ImGrad_fxn <- eq$filter_jit( function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
+  ImGrad_fxn <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList){
     # cast to float32
     ModelList <- MPList[[1]]$cast_to_param( ModelList )
     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
     StateList <- MPList[[1]]$cast_to_param( StateList )
     m <- MPList[[1]]$cast_to_param( m )
-    m <- jax$device_put(m, jax$devices('cpu')[[1]])
+    m <- cienv$jax$device_put(m, cienv$jax$devices('cpu')[[1]])
     
     ImageGrad_o <- dLogProb_dImage(ModelList, ModelList_fixed,
                                    m, vseed,
                                    StateList, seed, MPList)
     reduceDim <- ifelse( dataType == "video", yes = 3L, no = 2L)
-    ImageGrad_L2 <- jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
-    ImageGrad_mean <- jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
+    ImageGrad_L2 <- cienv$jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
+    ImageGrad_mean <- cienv$jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
     return( list(ImageGrad_L2,  # salience magnitude
                  ImageGrad_mean) ) # salience direction
     
-  }, device = jax$devices('cpu')[[1]])
+  }, device = cienv$jax$devices('cpu')[[1]])
   video_plotting_fxn <- function(){
     print2("Image seq results plot...")
     plotting_coordinates_mat <- c()
@@ -210,7 +210,7 @@ CausalImageHeterogeneity_plot <- function(){
           image_dtype = image_dtype_tf,
           nObs = length(unique(imageKeysOfUnits)) ); setwd(new_wd)
         ds_next_in <- ds_next_in[[1]]
-        if(length(ds_next_in$shape) == 4){ ds_next_in <- tf$expand_dims(ds_next_in, 0L) }
+        if(length(ds_next_in$shape) == 4){ ds_next_in <- cienv$tf$expand_dims(ds_next_in, 0L) }
         
         PlotWithMean <- grepl(typePlot,pattern = "mean")
         animation::saveGIF({
@@ -220,10 +220,10 @@ CausalImageHeterogeneity_plot <- function(){
           nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
           IG <- np$array(  ImGrad_fxn(ModelList,
                                       ModelList_fixed,
-                                      InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                                      jax$random$PRNGKey(400L),
+                                      InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
+                                      cienv$jax$random$PRNGKey(400L),
                                       StateList,
-                                      jax$random$PRNGKey(430L),
+                                      cienv$jax$random$PRNGKey(430L),
                                       MPList)[[1]] )
           for (t_ in 1L:nTimeSteps) {
             plotRBG <- !(length(plotBands) < 3 | dim(ds_next_in)[length(dim(ds_next_in))] < 3)
@@ -243,11 +243,11 @@ CausalImageHeterogeneity_plot <- function(){
             }
             if(plotRBG){
               orig_scale_im_raster <- raster::brick(
-                0.0001 + (as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32) )) +
-                  0*runif(length(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands], tf$float32 ))),
+                0.0001 + (as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32) )) +
+                  0*runif(length(as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32 ))),
                           min = 0, max = 0.01) ) # with random jitter
               stretch <- ifelse(
-                any(apply(as.array(tf$cast(ds_next_in[1,t_, , ,plotBands],tf$float32)), 3,sd) < 1.),
+                any(apply(as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands],cienv$tf$float32)), 3,sd) < 1.),
                 yes = "", no = "lin")
               raster::plotRGB(  orig_scale_im_raster,
                                 margins = T,
@@ -400,8 +400,8 @@ CausalImageHeterogeneity_plot <- function(){
             readVideo = useVideoIndicator,
             image_dtype = image_dtype_tf,
             nObs = length(unique(imageKeysOfUnits)) ); setwd(new_wd)
-          ds_next_in <- jnp$array(  ds_next_in[[1]] )
-          if(length(ds_next_in$shape) == 3 ){ ds_next_in <- jnp$expand_dims(ds_next_in, 0L) }
+          ds_next_in <- cienv$jnp$array(  ds_next_in[[1]] )
+          if(length(ds_next_in$shape) == 3 ){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
           
           if(length(plotBands) < 3){
             orig_scale_im_raster <-  np$array(ds_next_in)[1,,,plotBands[1]]
@@ -445,10 +445,10 @@ CausalImageHeterogeneity_plot <- function(){
             {
               gc(); py_gc$collect()
               IG <- ImGrad_fxn(ModelList, ModelList_fixed,
-                               InitImageProcessFn(jnp$array(ds_next_in), jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                               jax$random$PRNGKey(400L),
+                               InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
+                               cienv$jax$random$PRNGKey(400L),
                                StateList,
-                               jax$random$PRNGKey(430L),
+                               cienv$jax$random$PRNGKey(430L),
                                MPList)
               IG[[1]] <- np$array(IG[[1]])[,,1] # magnitude
               IG[[2]] <- np$array(IG[[2]])[,,1] # direction

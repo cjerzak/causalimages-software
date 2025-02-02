@@ -114,19 +114,19 @@ AnalyzeImageConfounding <- function(
     optax <<- reticulate::import("optax")
     eq <<- reticulate::import("equinox")
     (py_gc <<- reticulate::import("gc"))$collect(); gc();
-    print2(sprintf("Default device: %s",jnp$array(0.)$devices()))
+    print2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
     # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
 
     # set float type
     library( tensorflow );
-    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- tf$float16; ComputeDtype <- image_dtype <- jnp$float16 }
-    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- tf$bfloat16; ComputeDtype <- image_dtype <- jnp$bfloat16 }
+    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
+    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; ComputeDtype <- image_dtype <- cienv$jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
     obsW <- f2n(obsW); obsY <- f2n(obsY)
     
     # set memory growth for tensorflow 
-    for(device_ in tf$config$list_physical_devices()){
-       try(tf$config$experimental$set_memory_growth(device_, T),T)
+    for(device_ in cienv$tf$config$list_physical_devices()){
+       try(cienv$tf$config$experimental$set_memory_growth(device_, T),T)
     }
   }
 
@@ -178,7 +178,7 @@ AnalyzeImageConfounding <- function(
       changed_wd <- T; setwd( new_wd )
 
       # define
-      tf_dataset <- tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+      tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
       
       # helper functions
       useVideoIndicator <- dataType == "video"
@@ -191,13 +191,13 @@ AnalyzeImageConfounding <- function(
       if(!is.null(TFRecordControl)){
         getParsed_tf_dataset_train_Select <- function( tf_dataset ){
           return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                     num_parallel_calls = tf$data$AUTOTUNE) ) 
+                                     num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
         }
         getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-          tf_dataset <- tf_dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+          tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64),
                                      reshuffle_each_iteration = T) 
           tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
-          tf_dataset <- tf_dataset$prefetch( tf$data$AUTOTUNE ) 
+          tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
           return( tf_dataset )
         }
         tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
@@ -215,16 +215,16 @@ AnalyzeImageConfounding <- function(
       if(is.null(TFRecordControl)){
         getParsed_tf_dataset_train <- function( tf_dataset ){
           dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                     num_parallel_calls = tf$data$AUTOTUNE)
-          dataset <- dataset$shuffle(buffer_size = tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=tf$int64),
+                                     num_parallel_calls = cienv$tf$data$AUTOTUNE)
+          dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64),
                                      reshuffle_each_iteration = F) # set false so same train/test split each re-initialization
           dataset <- dataset$batch(  ai(batchSize)   )
-          dataset <- dataset$prefetch( tf$data$AUTOTUNE ) 
+          dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
           return( dataset  )
         }
         
         # shuffle (generating different train/test splits)
-        tf_dataset <- tf$data$Dataset$shuffle(  tf_dataset, buffer_size = tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=tf$int64), reshuffle_each_iteration = F )
+        tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, buffer_size = cienv$tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64), reshuffle_each_iteration = F )
         tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
       }
@@ -234,12 +234,12 @@ AnalyzeImageConfounding <- function(
     }
 
     if(useTrainingPertubations){
-      trainingPertubations <- jax$vmap( trainingPertubations_OneObs <- function(im_, key){
+      trainingPertubations <- cienv$jax$vmap( trainingPertubations_OneObs <- function(im_, key){
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-         which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-         im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+         which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
          return( im_ )
       }, in_axes = list(0L,0L)) 
     }
@@ -251,39 +251,39 @@ AnalyzeImageConfounding <- function(
         m <- image[start:end, start:end,]
         return(  ) 
       }
-      scalePertubations <- jax$vmap( scalePertubations_OneObs <- function(im_, scales, key){
+      scalePertubations <- cienv$jax$vmap( scalePertubations_OneObs <- function(im_, scales, key){
         AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-        which_path <- jnp$squeeze(jax$random$categorical(key = key, logits = jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(0L)), true_fun = function(){ jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
-        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(2L)), true_fun = function(){ jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-        im_ <- jax$lax$cond(jnp$equal(which_path,jnp$array(3L)), true_fun = function(){ jnp$flip(jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+        which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
         return( im_ )
       }, in_axes = list(0L,0L)) 
     }
 
-    InitImageProcessFn <- jax$jit(function(im, key, inference){
+    InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
         # expand dims if needed
-        if(length(imageKeysOfUnits) == 1){ im <- jnp$expand_dims(im,0L) }
+        if(length(imageKeysOfUnits) == 1){ im <- cienv$jnp$expand_dims(im,0L) }
 
         # normalize
         im <- (im - NORM_MEAN_array) / NORM_SD_array
 
         # downshift resolution if desired
         if(inputAvePoolingSize > 1 & dataType == "image"){
-          im <- jax$vmap(function(imm){
-            jnp$transpose(  eq$nn$AvgPool2d(kernel_size = ai(c(inputAvePoolingSize,inputAvePoolingSize)),
+          im <- cienv$jax$vmap(function(imm){
+            cienv$jnp$transpose(  cienv$eq$nn$AvgPool2d(kernel_size = ai(c(inputAvePoolingSize,inputAvePoolingSize)),
                             stride = ai(c(inputAvePoolingSize,inputAvePoolingSize)))(
-                          jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
+                          cienv$jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
         }
         
         # training pertubations
         if(useTrainingPertubations){
-          im <- jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){  trainingPertubations(im, 
-                                                              jax$random$split(key,im$shape[[1]])) } )
+          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){  trainingPertubations(im, 
+                                                              cienv$jax$random$split(key,im$shape[[1]])) } )
         }
         if(useScalePertubations){
-          im <- jax$lax$cond(inference, true_fun = function(){ im },  false_fun = function(){  scalePertubations(im, 
-                                                                           jax$random$split(key,im$shape[[1]])) } )
+          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im },  false_fun = function(){  scalePertubations(im, 
+                                                                           cienv$jax$random$split(key,im$shape[[1]])) } )
         }
         return( im  )
     })
@@ -292,7 +292,7 @@ AnalyzeImageConfounding <- function(
     NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
     NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
-    EP_LSMOOTH <- jnp$array(0.05)
+    EP_LSMOOTH <- cienv$jnp$array(0.05)
     py_gc$collect()
     
 
@@ -398,16 +398,16 @@ AnalyzeImageConfounding <- function(
                                           StateList, seed, MPList, inference){
             ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, StateList, seed, MPList, inference)
             if(!XisNull){
-              x_m <- jnp$concatenate(list( jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
+              x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
             }
             if(XisNull){
-              x_m <- jnp$concatenate(list( jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
+              x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
-            my_probs <- jax$nn$sigmoid(  jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) )
+            my_probs <- cienv$jax$nn$sigmoid(  cienv$jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) )
             my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
             return( list(my_probs, StateList) )
           }
-          ModelList <- list("myGlmnet_coefs_tf" = jnp$array(myGlmnet_coefs, dtype = jnp$float32))
+          ModelList <- list("myGlmnet_coefs_tf" = cienv$jnp$array(myGlmnet_coefs, dtype = cienv$jnp$float32))
           ModelList_fixed <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[1]]
           StateList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[2]]
           MPList <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]][[3]]
@@ -489,14 +489,14 @@ AnalyzeImageConfounding <- function(
         batch_axis_name <- "batch"
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
         for(d_ in 1L:nDepth_Dense){
-          DenseProj_d <- eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
+          DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
                                                                             no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                             yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
-          LayerBN_d  <- eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
+                                      use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
+          LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
                                          momentum = 0.99, eps = 0.001, channelwise_affine = F)
-          DenseStateList[[d_]] <- list('BNState' = eq$nn$State( LayerBN_d ))
+          DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
           DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
                                   "BN" = LayerBN_d)
         }
@@ -507,7 +507,7 @@ AnalyzeImageConfounding <- function(
                                     vseed, StateList, seed, MPList, inference){
           print2("Starting GetDense_OneObs()")
           
-          if(!XisNull){  m <- jnp$concatenate(list(m,x))  }
+          if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
 
           for(d__ in 1:nDepth_Dense){
             eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
@@ -525,14 +525,14 @@ AnalyzeImageConfounding <- function(
               m <- m[[1]]
 
               # Non-linearity
-              m <- jax$nn$swish(  m   )
+              m <- cienv$jax$nn$swish(  m   )
             }
           }
           
           print2("Returning output and state in GetDense_OneObs()...")
           return( list(m, StateList)  )
         }
-        GetDense_batch <- jax$vmap(  function(
+        GetDense_batch <- cienv$jax$vmap(  function(
                   ModelList, ModelList_fixed,
                   m, x, vseed,
                   StateList, seed, MPList, inference){
@@ -541,7 +541,7 @@ AnalyzeImageConfounding <- function(
                 in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
-        GetDense_batch_jit <- eq$filter_jit(   GetDense_batch  )
+        GetDense_batch_jit <- cienv$eq$filter_jit(   GetDense_batch  )
         GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
@@ -554,7 +554,7 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]]; m <- m[[1]]
           
           # sigmoid & label smoothing to prevent NAs via log(0)
-          m <- (1. - EP_LSMOOTH) * jax$nn$sigmoid( m ) + EP_LSMOOTH/2.
+          m <- (1. - EP_LSMOOTH) * cienv$jax$nn$sigmoid( m ) + EP_LSMOOTH/2.
 
           # return contents
           return( list(m, StateList) )
@@ -574,7 +574,7 @@ AnalyzeImageConfounding <- function(
 
           # compute negative log-likelihood loss
           m <- MPList[[1]]$cast_to_output( m )
-          NegLL <-  jnp$mean( jnp$negative(  treat*jnp$log(m) +  (1-treat)*jnp$log(1-m) )  ) 
+          NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  treat*cienv$jnp$log(m) +  (1-treat)*cienv$jnp$log(1-m) )  ) 
 
           print2("Returning loss + state...")
           if(image_dtype_char == "float16"){ 
@@ -589,15 +589,15 @@ AnalyzeImageConfounding <- function(
 
         gc(); py_gc$collect()
         print2( "Set state and model lists..." ) 
-        GradAndLossAndAux <-  eq$filter_jit( eq$filter_value_and_grad( GetLoss, has_aux = T) )
+        GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
-        ModelList_fixed <- jnp$array(0.)
-        MPList <- list(jmp$Policy(compute_dtype=ComputeDtype, 
+        ModelList_fixed <- cienv$jnp$array(0.)
+        MPList <- list(cienv$jmp$Policy(compute_dtype=ComputeDtype, 
                                   param_dtype="float32", 
                                   output_dtype=(outputDtype <- ComputeDtype)),
-                       jmp$DynamicLossScale(loss_scale = jnp$array(2^15,dtype = ComputeDtype ),
-                                            min_loss_scale = jnp$array(2^1.,dtype = ComputeDtype ),
+                       cienv$jmp$DynamicLossScale(loss_scale = cienv$jnp$array(2^15,dtype = ComputeDtype ),
+                                            min_loss_scale = cienv$jnp$array(2^1.,dtype = ComputeDtype ),
                                             period = 50L))
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
@@ -610,7 +610,7 @@ AnalyzeImageConfounding <- function(
         LocalFxnSource(TrainDo, evaluation_environment = environment())
       
         print2("Getting predicted quantities...")
-        GetImageArm_OneX <- eq$filter_jit( function(ModelList, ModelList_fixed,
+        GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
                  m, vseed,
                  StateList, seed, MPList){
           # image representation model
@@ -618,7 +618,7 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]] ; m <- m[[1]]
           
           # sigmoid 
-          m <- jax$nn$sigmoid( m )
+          m <- cienv$jax$nn$sigmoid( m )
           
           # label smoothing to prevent NAs via log(0)
           m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
@@ -629,7 +629,7 @@ AnalyzeImageConfounding <- function(
         inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
-        ImageRepArm_batch_jit <- eq$filter_jit( ImageRepArm_batch_R )
+        ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
         usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
           # cut_ <- unique(KeyQuantCuts)[1]
           inference_counter <- inference_counter + 1
@@ -648,36 +648,36 @@ AnalyzeImageConfounding <- function(
                                                 return_iterator = T ); setwd(new_wd)
             passedIterator <- ds_next_in[[2]]
             key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-            ds_next_in <-  jnp$array( ds_next_in[[1]][[1]] )
+            ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
 
             # deal with batch 1 case here
-            if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- jnp$expand_dims(ds_next_in, 0L) }
-            if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- jnp$expand_dims(ds_next_in, 0L) }
+            if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+            if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
           }
 
           # get summaries and save
           usedKeys <- c(usedKeys, key_)
           obs_with_key <- which(imageKeysOfUnits %in% key_)
-          x <- jnp$expand_dims(jnp$array(  ifelse(length(obs_with_key) == 1, yes = list(t(X[obs_with_key,])),
+          x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, yes = list(t(X[obs_with_key,])),
                                                               no = list(X[obs_with_key,]))[[1]],
-                           dtype = jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
+                           dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(jnp$array(ds_next_in),  jax$random$PRNGKey(600L+i), inference = T),
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L+i), inference = T),
                                           StateList, seed, MPList, T)[[1]]
           GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
             m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                 m_ImageRep,
                                 x[r_-1L,],
-                                jax$random$split(jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                cienv$jax$random$split(cienv$jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                 StateList,
-                                jax$random$PRNGKey(as.integer(runif(1,0,100000))),
+                                cienv$jax$random$PRNGKey(as.integer(runif(1,0,100000))),
                                 MPList, T)[[1]]
-            m <- jax$nn$sigmoid( m )
+            m <- cienv$jax$nn$sigmoid( m )
             m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
             if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
             return( m )
           })
-          GottenSummaries <- as.matrix(np$array(jnp$concatenate(unlist(GottenSummaries),0L)))
+          GottenSummaries <- as.matrix(np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
           ret_list <- list("ProbW" = GottenSummaries,
                            "obsIndex" = as.matrix(obs_with_key),
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
@@ -764,23 +764,23 @@ AnalyzeImageConfounding <- function(
                          top_treated <- top_treated[1:showPerGroup] )
 
       for(pos_ in 2L:3L){
-        dLogProb_d <- jax$grad(function(ModelList, ModelList_fixed,
+        dLogProb_d <- cienv$jax$grad(function(ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
                     ModelList <- MPList[[1]]$cast_to_param( ModelList )
                     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
                     StateList <- MPList[[1]]$cast_to_param( StateList )
                     m <- MPList[[1]]$cast_to_param( m ); x <- MPList[[1]]$cast_to_param( x )
-                    m <- jax$device_put(m, jax$devices('cpu')[[1]])
+                    m <- cienv$jax$device_put(m, cienv$jax$devices('cpu')[[1]])
                     out_ <-  GetTreatProb_batch(ModelList, ModelList_fixed,
                                            m, x, vseed,
                                            StateList, seed, MPList, T)[[1]]  # scaling for non-zero gradients
-                    out_ <- jnp$log(out_ / (1-out_))
-                    return(  jnp$squeeze(out_)  ) }, pos_)
+                    out_ <- cienv$jnp$log(out_ / (1-out_))
+                    return(  cienv$jnp$squeeze(out_)  ) }, pos_)
         if(pos_ == 2L){ dLogProb_dImage <- dLogProb_d }
-        if(pos_ == 3L){ dLogProb_dX <- eq$filter_jit( dLogProb_d ) }
+        if(pos_ == 3L){ dLogProb_dX <- cienv$eq$filter_jit( dLogProb_d ) }
       }
-      ImGrad_fxn <- eq$filter_jit( function(ModelList, ModelList_fixed,
+      ImGrad_fxn <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
                                             m, x, vseed,
                                             StateList, seed, MPList){
         # cast to float32
@@ -788,17 +788,17 @@ AnalyzeImageConfounding <- function(
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         StateList <- MPList[[1]]$cast_to_param( StateList )
         m <- MPList[[1]]$cast_to_param( m ); x <- MPList[[1]]$cast_to_param( x )
-        m <- jax$device_put(m, jax$devices('cpu')[[1]])
-        ImageGrad_o <- jnp$squeeze(dLogProb_dImage(ModelList, ModelList_fixed,
+        m <- cienv$jax$device_put(m, cienv$jax$devices('cpu')[[1]])
+        ImageGrad_o <- cienv$jnp$squeeze(dLogProb_dImage(ModelList, ModelList_fixed,
                                        m, x, vseed, StateList, seed, MPList), 0L)
         reduceDim <- ifelse( dataType == "video", yes = 3L, no = 2L)
-        ImageGrad_L2 <- jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
-        ImageGrad_mean <- jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
+        ImageGrad_L2 <- cienv$jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
+        ImageGrad_mean <- cienv$jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
         return( list(ImageGrad_L2,  # salience magnitude
                      ImageGrad_mean) ) # salience direction
-      }, device = jax$devices('cpu')[[1]])
-      MPList <- list(jmp$Policy(compute_dtype="float32", param_dtype="float32", output_dtype="float32"),
-                      jmp$DynamicLossScale(jnp$array(2^15), 
+      }, device = cienv$jax$devices('cpu')[[1]])
+      MPList <- list(cienv$jmp$Policy(compute_dtype="float32", param_dtype="float32", output_dtype="float32"),
+                      cienv$jmp$DynamicLossScale(cienv$jnp$array(2^15), 
                                            period = 20L))
       makePlots <- function(){
         salience_try <- try({
@@ -833,26 +833,26 @@ AnalyzeImageConfounding <- function(
                                                     filename = file,
                                                     readVideo = useVideoIndicator,
                                                     nObs = length(imageKeysOfUnits) ); setwd(new_wd)
-            ds_next_in[[1]] <- jnp$array( ds_next_in[[1]] )
-            if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
-            if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+            ds_next_in[[1]] <- cienv$jnp$array( ds_next_in[[1]] )
+            if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
+            if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
 
             col_ <- ifelse(in_ %in% top_treated, yes = "black", no = "gray")
             in_counter <- in_counter + 1
             long_lat_in_ <- ""; if(  !is.null(lat)  ){ long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_])) }
 
-            im_orig <- im_ <- InitImageProcessFn( im = jnp$array(ds_next_in[[1]]), key = jax$random$PRNGKey(3L), inference = T )
-            XToConcat_values <- jnp$array(t(X[in_,]),jnp$float16)
-            im_ <- np$array(jnp$squeeze(im_,c(0L)))
+            im_orig <- im_ <- InitImageProcessFn( im = cienv$jnp$array(ds_next_in[[1]]), key = cienv$jax$random$PRNGKey(3L), inference = T )
+            XToConcat_values <- cienv$jnp$array(t(X[in_,]),cienv$jnp$float16)
+            im_ <- np$array(cienv$jnp$squeeze(im_,c(0L)))
 
             # calculate salience map using log probabilities
-            # m <- jmp$cast_to_full(im_orig); x <- jmp$cast_to_full(XToConcat_values); seed <- jax$random$PRNGKey(10L); vseed <- jnp$expand_dims(seed,0L)
+            # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$PRNGKey(10L); vseed <- cienv$jnp$expand_dims(seed,0L)
             salience_map <- np$array(  ImGrad_fxn(
-                                        jmp$cast_to_full(ModelList), jmp$cast_to_full(ModelList_fixed),
-                                        jmp$cast_to_full(im_orig),
-                                        jmp$cast_to_full(XToConcat_values),
-                                        jnp$expand_dims(jax$random$PRNGKey(10L),0L),
-                                        StateList, jax$random$PRNGKey(10L), MPList )[[1]] )
+                                        cienv$jmp$cast_to_full(ModelList), cienv$jmp$cast_to_full(ModelList_fixed),
+                                        cienv$jmp$cast_to_full(im_orig),
+                                        cienv$jmp$cast_to_full(XToConcat_values),
+                                        cienv$jnp$expand_dims(cienv$jax$random$PRNGKey(10L),0L),
+                                        StateList, cienv$jax$random$PRNGKey(10L), MPList )[[1]] )
             if(dataType == "image"){ salience_map <- salience_map[,,1] }
             if(dataType == "video"){ salience_map <- salience_map[,,,1] }
 
@@ -895,7 +895,7 @@ AnalyzeImageConfounding <- function(
               }
 
               # plot salience map
-              #optax$global_norm( eq$filter(ModelList, eq$is_array)[[1]] )
+              #cienv$optax$global_norm( cienv$eq$filter(ModelList, cienv$eq$is_array)[[1]] )
               try_salience <- try({salience_map[salience_map>0] <- salience_map[salience_map>0] / (0.001+sd(salience_map[salience_map>0]))},T)
               if("try-error" %in% class(try_salience)){
                 print( try_salience )
@@ -1013,17 +1013,17 @@ AnalyzeImageConfounding <- function(
                                                            filename = file,
                                                            readVideo = useVideoIndicator,
                                                            nObs = length(unique(imageKeysOfUnits) ) ); setwd(new_wd)
-          ds_next_in[[1]] <- jnp$array(ds_next_in[[1]])
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- tf$expand_dims(ds_next_in[[1]], 0L) }
+          ds_next_in[[1]] <- cienv$jnp$array(ds_next_in[[1]])
+          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
+          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
 
-          im_ <- InitImageProcessFn( jnp$array(ds_next_in[[1]]), jax$random$PRNGKey(432L), T)
-          x_ <- jnp$array(t(X[sampIndex_,]), jnp$float16)
+          im_ <- InitImageProcessFn( cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$PRNGKey(432L), T)
+          x_ <- cienv$jnp$array(t(X[sampIndex_,]), cienv$jnp$float16)
           SalienceX_contrib <- np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
-                        jmp$cast_to_full(im_),
-                        jmp$cast_to_full(x_),
-                        jax$random$split(jax$random$PRNGKey( 500L+i ),x_$shape[[1]]),
-                        StateList, jax$random$PRNGKey(10L), MPList ) )
+                        cienv$jmp$cast_to_full(im_),
+                        cienv$jmp$cast_to_full(x_),
+                        cienv$jax$random$split(cienv$jax$random$PRNGKey( 500L+i ),x_$shape[[1]]),
+                        StateList, cienv$jax$random$PRNGKey(10L), MPList ) )
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)

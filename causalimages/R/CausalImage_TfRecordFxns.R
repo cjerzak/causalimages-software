@@ -49,22 +49,22 @@ WriteTfRecord <- function(file,
     # see https://towardsdatascience.com/a-practical-guide-to-tfrecords-584536bc786c
     my_bytes_feature <- function(value){
       #"""Returns a bytes_list from a string / byte."""
-      #if(class(value) == class(tf$constant(0))){ # if value ist tensor
+      #if(class(value) == class(cienv$tf$constant(0))){ # if value ist tensor
       value = value$numpy() # get value of tensor
       #}
-      return( tf$train$Feature(bytes_list=tf$train$BytesList(value=list(value))))
+      return( cienv$tf$train$Feature(bytes_list=cienv$tf$train$BytesList(value=list(value))))
     }
 
     my_simple_bytes_feature <- function(value){
-      return( tf$train$Feature(bytes_list = tf$train$BytesList(value = list(value$numpy()))) )
+      return( cienv$tf$train$Feature(bytes_list = cienv$tf$train$BytesList(value = list(value$numpy()))) )
     }
 
     my_int_feature <- function(value){
       #"""Returns an int64_list from a bool / enum / int / uint."""
-      return( tf$train$Feature(int64_list=tf$train$Int64List(value=list(value))) )
+      return( cienv$tf$train$Feature(int64_list=cienv$tf$train$Int64List(value=list(value))) )
     }
 
-    my_serialize_array <- function(array){return( tf$io$serialize_tensor(array) )}
+    my_serialize_array <- function(array){return( cienv$tf$io$serialize_tensor(array) )}
 
     parse_single_image <- function(image, index, key){
        if(writeVideo == F){
@@ -86,7 +86,7 @@ WriteTfRecord <- function(file,
           "index" = my_int_feature(index),
           "key" = my_bytes_feature( my_serialize_array(key) ) )
       }
-        out <- tf$train$Example(  features = tf$train$Features(feature = data)  )
+        out <- cienv$tf$train$Example(  features = cienv$tf$train$Features(feature = data)  )
         return( out )
   }
   }
@@ -102,14 +102,14 @@ WriteTfRecord <- function(file,
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
   new_wd <- paste(tf_record_name[- length(tf_record_name) ],collapse = "/")
   setwd( new_wd )
-  tf_record_writer = tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
+  tf_record_writer = cienv$tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
   for(irz in 1:length(uniqueImageKeys)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s",
                                                   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
                                                   irz, length(uniqueImageKeys) ) ) }
     tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( uniqueImageKeys[irz]  ),
-                                                          eval(parse(text = sprintf("tf$%s",image_dtype)))),
+                                                          eval(parse(text = sprintf("cienv$tf$%s",image_dtype)))),
                                                  index = irz,
                                                  key = as.character(uniqueImageKeys[irz] ) )
     tf_record_writer$write( tf_record_write_output$SerializeToString()  )
@@ -148,8 +148,8 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
                                             conda_env = NULL, conda_env_required = F, image_dtype = "float16",
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
-  image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
-  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
+  image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype))), T)
+  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
 
   if(is.null(iterator)){
@@ -163,7 +163,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     setwd( new_wd )
 
     # Load the TFRecord file
-    dataset = tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
+    dataset = cienv$tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
     # Parse the tf.Example messages
     dataset <- dataset$map( function(x){ parse_tfr_element(x, readVideo = readVideo, image_dtype = image_dtype) }) # return
@@ -208,7 +208,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     if(length(uniqueKeyIndices) == 1){ return_list <- element }
     if(length(uniqueKeyIndices) > 1){
       for(li_ in 1:length(element)){
-        return_list[[li_]][[index_counter]] <- tf$expand_dims(element[[li_]],0L)
+        return_list[[li_]][[index_counter]] <- cienv$tf$expand_dims(element[[li_]],0L)
       }
     }
     if(index_counter %% 5==0){ try(py_gc$collect(),T) }
@@ -216,9 +216,9 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
 
   if(index_counter > 1){ for(li_ in 1:length(element)){
     return_list[[li_]] <- eval(parse(text =
-                      paste("tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
+                      paste("cienv$tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
     if(  any(diff(uniqueKeyIndices)<0)  ){ # re-order if needed
-      return_list[[li_]] <- tf$gather(return_list[[li_]],
+      return_list[[li_]] <- cienv$tf$gather(return_list[[li_]],
                                       indices = as.integer(match(uniqueKeyIndices,indices_sorted)-1L),
                                       axis = 0L)
     }
@@ -236,53 +236,53 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
 # parse tf elements
 parse_tfr_element <- function(element, readVideo = F, image_dtype){
   #use the same structure as above; it's kinda an outline of the structure we now want to create
-  image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype))), T)
-  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("tf$%s",image_dtype$name))), T) }
+  image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype))), T)
+  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) }
   image_dtype <- image_dtype_
 
   dict_init_val <- list()
   if(!readVideo){
     im_feature_description <- dict(
-      'height' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'width' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'channels' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'raw_image' = tf$io$FixedLenFeature(dict_init_val, tf$string),
-      'index' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'key' = tf$io$FixedLenFeature(dict_init_val, tf$string)
+      'height' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'width' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'channels' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'raw_image' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$string),
+      'index' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'key' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$string)
     )
   }
 
   if(readVideo){
     im_feature_description <- dict(
-      'time' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'height' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'width' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'channels' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'raw_image' = tf$io$FixedLenFeature(dict_init_val, tf$string),
-      'index' = tf$io$FixedLenFeature(dict_init_val, tf$int64),
-      'key'= tf$io$FixedLenFeature(dict_init_val, tf$string)
+      'time' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'height' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'width' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'channels' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'raw_image' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$string),
+      'index' = cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$int64),
+      'key'= cienv$tf$io$FixedLenFeature(dict_init_val, cienv$tf$string)
     )
   }
 
   # parse tf record
-  content <- tf$io$parse_single_example(element, im_feature_description)
+  content <- cienv$tf$io$parse_single_example(element, im_feature_description)
 
   # get 'feature' (e.g., image/image sequence)
-  feature <- tf$io$parse_tensor( content[['raw_image']],
+  feature <- cienv$tf$io$parse_tensor( content[['raw_image']],
                                  out_type = image_dtype )
 
   # get the key
-  key <- tf$io$parse_tensor( content[['key']],
-                             out_type = tf$string )
+  key <- cienv$tf$io$parse_tensor( content[['key']],
+                             out_type = cienv$tf$string )
 
   #  and reshape it appropriately
   if(!readVideo){
-    feature = tf$reshape(  feature, shape = c(content[['height']],
+    feature = cienv$tf$reshape(  feature, shape = c(content[['height']],
                                               content[['width']],
                                               content[['channels']])  )
   }
   if(readVideo){
-    feature = tf$reshape(  feature, shape = c(content[['time']],
+    feature = cienv$tf$reshape(  feature, shape = c(content[['time']],
                                               content[['height']],
                                               content[['width']],
                                               content[['channels']])  )

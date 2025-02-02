@@ -36,12 +36,12 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
 
   NORM_SD <- apply(NORM_SD,2,median)
   NORM_MEAN <- apply(NORM_MEAN,2,mean)
-  NORM_MEAN_array <- jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
-  NORM_SD_array <- jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
+  NORM_MEAN_array <- cienv$jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
+  NORM_SD_array <- cienv$jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
   
   if(dataType == "video"){
-    NORM_MEAN_array <- jnp$expand_dims(NORM_MEAN_array, 0L)
-    NORM_SD_array <- jnp$expand_dims(NORM_SD_array, 0L)
+    NORM_MEAN_array <- cienv$jnp$expand_dims(NORM_MEAN_array, 0L)
+    NORM_SD_array <- cienv$jnp$expand_dims(NORM_SD_array, 0L)
   }
   
   return(list("NORM_MEAN_array"=NORM_MEAN_array,

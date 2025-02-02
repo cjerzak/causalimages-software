@@ -70,9 +70,9 @@ SimulateImageSystem <- function(dag = NULL,...){
     library(reticulate);
     try(reticulate::use_python(python = "/Users/cjerzak/miniforge3/bin/python", required = T),T)
     try(reticulate::use_condaenv("tensorflow_m1", required = T, conda = "/opt/miniconda3/envs/tensorflow_m1"),T)
-    try(tf$sqrt(1.),T)
-    try(tf$config$list_physical_devices('CPU'),T)
-    try(tf$config$list_physical_devices('GPU'),T)
+    try(cienv$tf$sqrt(1.),T)
+    try(cienv$tf$config$list_physical_devices('CPU'),T)
+    try(cienv$tf$config$list_physical_devices('GPU'),T)
   }
 
   # obtain raw images
@@ -149,9 +149,9 @@ SimulateImageSystem <- function(dag = NULL,...){
     imageWidth <- imageHeight <- dim(ImageBlocks)[3]
     ImageBlocks_tf <- ImageBlocks[,1,,,BAND_SELECT]
     ImageBlocks_tf <- (ImageBlocks_tf - mean(ImageBlocks_tf)) / (0.01+sd(ImageBlocks_tf))
-    ImageBlocks_tf <- tf$cast(ImageBlocks_tf,dtype=tf$float32)
-    ImageBlocks_tf <- tf$expand_dims(ImageBlocks_tf,1L)
-    ImageBlocks_tf <- tf$expand_dims(ImageBlocks_tf,4L)
+    ImageBlocks_tf <- cienv$tf$cast(ImageBlocks_tf,dtype=cienv$tf$float32)
+    ImageBlocks_tf <- cienv$tf$expand_dims(ImageBlocks_tf,1L)
+    ImageBlocks_tf <- cienv$tf$expand_dims(ImageBlocks_tf,4L)
 
     # define convolution
     ConfoundingConv <- keras$layers$Conv2D(filters=1L,
@@ -183,7 +183,7 @@ SimulateImageSystem <- function(dag = NULL,...){
     ConvolveInit <- ProcessConvFxn( ConvolveInit )
     tmp_ <- replicate(1000,sum(rnorm(length(ConvolveInit))*c(ConvolveInit)))
     mean(tmp_); sd(tmp_)
-    ConfoundingConvTensor <- tf$expand_dims(tf$expand_dims(tf$cast(ConvolveInit,dtype=tf$float32),2L), 3L)
+    ConfoundingConvTensor <- cienv$tf$expand_dims(cienv$tf$expand_dims(cienv$tf$cast(ConvolveInit,dtype=cienv$tf$float32),2L), 3L)
     ConfoundingConv$kernel$assign(ConfoundingConvTensor)
 
     # fix convolution kernel for moderation
@@ -193,7 +193,7 @@ SimulateImageSystem <- function(dag = NULL,...){
                                       round(ncol(ResponseConvolveInit)*(0.5-tmp_)):
                                         round(ncol(ResponseConvolveInit)*(0.5+tmp_))] <- 1
     ResponseConvolveInit <- -1*ResponseConvolveInit
-    ResponseConvTensor <- tf$expand_dims(tf$expand_dims(tf$cast(ResponseConvolveInit,dtype=tf$float32),2L), 3L)
+    ResponseConvTensor <- cienv$tf$expand_dims(cienv$tf$expand_dims(cienv$tf$cast(ResponseConvolveInit,dtype=cienv$tf$float32),2L), 3L)
     ResponseConv$kernel$assign(ResponseConvTensor)
 
     # visualize convolution kernels
@@ -296,7 +296,7 @@ SimulateImageSystem <- function(dag = NULL,...){
           if(kernelWidth_true > 1){
             ConvolveInit <- ProcessConvFxn(ConvolveInit)
           }
-          ConfoundingConvTensor <- tf$expand_dims(tf$expand_dims(tf$cast(ConvolveInit,dtype=tf$float32),2L), 3L)
+          ConfoundingConvTensor <- cienv$tf$expand_dims(cienv$tf$expand_dims(cienv$tf$cast(ConvolveInit,dtype=cienv$tf$float32),2L), 3L)
           ConfoundingConv$kernel$assign(ConfoundingConvTensor)
           ConfoundingConvolvedImage <- ConfoundingConv(  ImageBlocks_tf )
 
@@ -312,7 +312,7 @@ SimulateImageSystem <- function(dag = NULL,...){
         # fix dimensions
         kernelWidth_max <- max(max(kernelWidth_true_seq),kernelWidth_est)
         takeIndices_withMax_1Indexed <- (kernelWidth_max/2):(imageHeight-kernelWidth_max/2)
-        takeIndices_withMax_0Indexed <- tf$constant(takeIndices_withMax_1Indexed - 1L,dtype=tf$int32)
+        takeIndices_withMax_0Indexed <- cienv$tf$constant(takeIndices_withMax_1Indexed - 1L,dtype=cienv$tf$int32)
 
         # generate treatment data
         {
@@ -322,11 +322,11 @@ SimulateImageSystem <- function(dag = NULL,...){
               ep_ <- rnorm(length(UnObsConf_),sd=ep_sd)
               WProb <- UnObsConf_;
               WProb[] <- 1/(1+exp(-(wtInWForU * UnObsConf_ + ep_ )))
-              list(tf$constant(WProb,dtype=tf$float32))
+              list(cienv$tf$constant(WProb,dtype=cienv$tf$float32))
             })
-            trueProbW <- as.array(  tf$stack(trueProbW,0L) )
+            trueProbW <- as.array(  cienv$tf$stack(trueProbW,0L) )
             trueProbW <- trueProbW[,takeIndices_withMax_1Indexed,takeIndices_withMax_1Indexed]
-            trueProbW_tf <- tf$constant(trueProbW,dtype=tf$float32)
+            trueProbW_tf <- cienv$tf$constant(trueProbW,dtype=cienv$tf$float32)
           }
           if(analysisType=="scene"){
             UnobservedConfounder <- sapply(1:nrow(UnobservedConfounder),function(zer){
@@ -343,17 +343,17 @@ SimulateImageSystem <- function(dag = NULL,...){
               ep_ <- rnorm(length(UnObsConf_),sd=ep_sd)
               WProb <- UnObsConf_;
               WProb[] <- 1/(1+exp(-  (wtInWForU * UnObsConf_ + ep_ )))
-              list(tf$constant(WProb,dtype=tf$float32))
+              list(cienv$tf$constant(WProb,dtype=cienv$tf$float32))
             })
-            trueProbW <- as.array(  tf$stack(trueProbW,0L) )
+            trueProbW <- as.array(  cienv$tf$stack(trueProbW,0L) )
             #trueProbW <- trueProbW[,takeIndices_withMax_1Indexed,takeIndices_withMax_1Indexed]
-            trueProbW_tf <- tf$constant(trueProbW,dtype=tf$float32)
+            trueProbW_tf <- cienv$tf$constant(trueProbW,dtype=cienv$tf$float32)
             #dim_orig <- dim( trueProbW )
-            #trueProbW <- as.array(trueProbW_tf <- GlobalPoolLayer(tf$expand_dims(trueProbW_tf,3L)))
+            #trueProbW <- as.array(trueProbW_tf <- GlobalPoolLayer(cienv$tf$expand_dims(trueProbW_tf,3L)))
           }
           obsW <- trueProbW
           obsW[] <- rbinom(length(trueProbW),size=1, prob = c(trueProbW))
-          obsW <- as.array( obW_tf <- tf$constant(obsW,tf$float32) )
+          obsW <- as.array( obW_tf <- cienv$tf$constant(obsW,cienv$tf$float32) )
 
           # generate outcome data
           obsY0 <- sapply(1:nImages,function(zer){
@@ -368,7 +368,7 @@ SimulateImageSystem <- function(dag = NULL,...){
             Yobs <- wtInYForU*UnObsConf_  + trueTau * W__ + rnorm(length(UnObsConf_),sd=ep_sd)
             return( list( Yobs ) )
           })
-          obsY <- as.array( obsY_tf <- tf$stack(obsY,0L) )
+          obsY <- as.array( obsY_tf <- cienv$tf$stack(obsY,0L) )
 
           # flatten and estimate ATE
           obsY_flat <- c(obsY <- obsY)
@@ -391,8 +391,8 @@ SimulateImageSystem <- function(dag = NULL,...){
           # tf model initialization
           BNLayer_Axis3 <- keras$layers$BatchNormalization(axis = 3L, center = T, scale = T, momentum = 0.9, epsilon = 0.001)
           BNLayer_Axis1 <- keras$layers$BatchNormalization(axis = 1L, center = T, scale = T, momentum = 0.9, epsilon = 0.001)
-          #Conv_Mean = keras$layers$Conv2D(filters=1L, kernel_initializer  = tf$ones, trainable = F, bias_initializer = tf$zeros, activation = 'linear', kernel_size=as.integer(c(kernelWidth_est_USE,kernelWidth_est_USE)),padding = 'same')
-          #getMeanConv <- tf_function( function(dar){ 1./kernelWidth_est_USE^2*tf$squeeze(Conv_Mean( tf$expand_dims(dar,3L) ),3L)} )
+          #Conv_Mean = keras$layers$Conv2D(filters=1L, kernel_initializer  = cienv$tf$ones, trainable = F, bias_initializer = cienv$tf$zeros, activation = 'linear', kernel_size=as.integer(c(kernelWidth_est_USE,kernelWidth_est_USE)),padding = 'same')
+          #getMeanConv <- tf_function( function(dar){ 1./kernelWidth_est_USE^2*cienv$tf$squeeze(Conv_Mean( cienv$tf$expand_dims(dar,3L) ),3L)} )
           PropensityConv <- keras$layers$Conv2D(filters=nFilters<-1L,
                                                 kernel_size=c(kernelWidth_est_USE,kernelWidth_est_USE),
                                                 activation="linear",
@@ -400,24 +400,24 @@ SimulateImageSystem <- function(dag = NULL,...){
           ConvAttnProj = keras$layers$Dense(1L, activation='linear')
           getTreatProb <- tf_function( function(datt,training = T){
             # convolution
-            if(nFilters >1){RawProj  <- tf$squeeze(ConvAttnProj(PropensityConv( tf$expand_dims(datt,3L) )),3L)}
-            if(nFilters==1){RawProj  <- tf$squeeze(PropensityConv( tf$expand_dims(datt,3L) ),3L)}
+            if(nFilters >1){RawProj  <- cienv$tf$squeeze(ConvAttnProj(PropensityConv( cienv$tf$expand_dims(datt,3L) )),3L)}
+            if(nFilters==1){RawProj  <- cienv$tf$squeeze(PropensityConv( cienv$tf$expand_dims(datt,3L) ),3L)}
 
             # fix dimensions
             #if(analysisType == "pixel"){
-            RawProj <- tf$gather(RawProj,indices = takeIndices_withMax_0Indexed, axis = 1L)
-            RawProj <- tf$gather(RawProj,indices = takeIndices_withMax_0Indexed, axis = 2L)
+            RawProj <- cienv$tf$gather(RawProj,indices = takeIndices_withMax_0Indexed, axis = 1L)
+            RawProj <- cienv$tf$gather(RawProj,indices = takeIndices_withMax_0Indexed, axis = 2L)
             #}
 
             # obtain probability
-            RawProj_n <- tf$squeeze(BNLayer_Axis3(tf$expand_dims(RawProj,3L), training = training),3L)
+            RawProj_n <- cienv$tf$squeeze(BNLayer_Axis3(cienv$tf$expand_dims(RawProj,3L), training = training),3L)
             if(analysisType=="scene"){
-              RawProj_n <- BNLayer_Axis1(GlobalPoolLayer(tf$expand_dims(RawProj_n,3L)),training = training)
+              RawProj_n <- BNLayer_Axis1(GlobalPoolLayer(cienv$tf$expand_dims(RawProj_n,3L)),training = training)
 
               # broadcast
-              #RawProj_n <- tf$expand_dims(RawProj_n,2L)+RawProj*0
+              #RawProj_n <- cienv$tf$expand_dims(RawProj_n,2L)+RawProj*0
             }
-            TreatProb <- tf$keras$activations$sigmoid( RawProj_n )
+            TreatProb <- cienv$tf$keras$activations$sigmoid( RawProj_n )
 
             # return
             return( TreatProb )
@@ -425,16 +425,16 @@ SimulateImageSystem <- function(dag = NULL,...){
           getLoss <- tf_function( function(datt,treatt){
             treatProb <- getTreatProb( datt )
             #hist(c(as.array( treatProb )))
-            #minThis <- tf$reduce_mean( tf$abs(treatt - treatProb ) )
-            treatt_r <- tf$cast(tf$reshape(treatt,list(-1L,1L)),dtype=tf$float32)
-            treatProb_r <- tf$reshape(treatProb,list(-1L,1L))
-            #minThis <-   -  tf$reduce_mean( tf$math$log(treatProb_r)*(treatt_r) + tf$math$log(1-treatProb_r)*(1-treatt_r) )
-            minThis <- tf$reduce_mean( tf$keras$losses$binary_crossentropy(treatt_r, treatProb_r))
-            #minThis <- tf$reduce_mean(tf$square(tf$subtract(treatt_r,treatProb_r)))
+            #minThis <- cienv$tf$reduce_mean( cienv$tf$abs(treatt - treatProb ) )
+            treatt_r <- cienv$tf$cast(cienv$tf$reshape(treatt,list(-1L,1L)),dtype=cienv$tf$float32)
+            treatProb_r <- cienv$tf$reshape(treatProb,list(-1L,1L))
+            #minThis <-   -  cienv$tf$reduce_mean( cienv$tf$math$log(treatProb_r)*(treatt_r) + cienv$tf$math$log(1-treatProb_r)*(1-treatt_r) )
+            minThis <- cienv$tf$reduce_mean( cienv$tf$keras$losses$binary_crossentropy(treatt_r, treatProb_r))
+            #minThis <- cienv$tf$reduce_mean(cienv$tf$square(cienv$tf$subtract(treatt_r,treatProb_r)))
             return( minThis )
           })
 
-          with(tf$GradientTape() %as% tape, {
+          with(cienv$tf$GradientTape() %as% tape, {
             myLoss_forGrad <- getLoss( datt = as.array(ImageBlocks_tf)[,1,,,],
                                        treatt = obsW )  })
           trainable_variables <- c(  PropensityConv$trainable_variables ,
@@ -443,15 +443,15 @@ SimulateImageSystem <- function(dag = NULL,...){
                                      BNLayer_Axis3$trainable_variables )
 
           # define optimizer and training step
-          optimizer_tf = tf$optimizers$Nadam(clipnorm=10.)
+          optimizer_tf = cienv$tf$optimizers$Nadam(clipnorm=10.)
           trainStep <-  (function(dat, truth){
-            with(tf$GradientTape() %as% tape, {
-              myLoss_forGrad <<- getLoss( datt = tf$constant(dat,tf$float32),
-                                          treatt = tf$constant(truth,tf$float32))   })
+            with(cienv$tf$GradientTape() %as% tape, {
+              myLoss_forGrad <<- getLoss( datt = cienv$tf$constant(dat,cienv$tf$float32),
+                                          treatt = cienv$tf$constant(truth,cienv$tf$float32))   })
             my_grads <<- tape$gradient( myLoss_forGrad, trainable_variables )
-            optimizer_tf$learning_rate$assign(   LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+
+            optimizer_cienv$tf$learning_rate$assign(   LEARNING_RATE_BASE*abs(cos(i/nSGD*widthCycle)  )*(i<=nSGD/2)+
                                                    LEARNING_RATE_BASE*(i>nSGD/2)/(0.001+abs(i-nSGD/2)^0.2 ))
-            optimizer_tf$apply_gradients( rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ])
+            optimizer_cienv$tf$apply_gradients( rzip(my_grads, trainable_variables)[!unlist(lapply(my_grads,is.null)) ])
           })
 
           # perform training

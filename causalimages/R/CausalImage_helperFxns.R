@@ -60,8 +60,8 @@ rzip<-function(l1,l2){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(
 # reshapes
 reshape_fxn_DEPRECIATED <- function(input_){
     ## DEPRECIATED
-    tf$reshape(input_, list(tf$shape(input_)[1],
-                            tf$reduce_prod(tf$shape(input_)[2:5])))
+    cienv$tf$reshape(input_, list(cienv$tf$shape(input_)[1],
+                            cienv$tf$reduce_prod(cienv$tf$shape(input_)[2:5])))
 }
 
 fixZeroEndings <- function(zr,roundAt=2){
@@ -74,8 +74,8 @@ fixZeroEndings <- function(zr,roundAt=2){
   }) ) }
 
 r2const <- function(x, dtype){
-  if("tensorflow.tensor" %in% class( x )){ x <- tf$cast(x, dtype = dtype  ) }
-  if(!"tensorflow.tensor" %in% class( x )){ x <- tf$constant(x, dtype = dtype  ) }
+  if("tensorflow.tensor" %in% class( x )){ x <- cienv$tf$cast(x, dtype = dtype  ) }
+  if(!"tensorflow.tensor" %in% class( x )){ x <- cienv$tf$constant(x, dtype = dtype  ) }
   return( x )
 }
 
@@ -238,4 +238,6 @@ LocalFxnSource <- function(fxn, evaluation_environment){
   eval( parse( text = fxn_text ), envir = evaluation_environment )
 }
 
-FilterBN <- function(l_){ eq$partition(l_, function(l__){"first_time_index" %in% names(l__)}) }
+FilterBN <- function(l_){ cienv$eq$partition(l_, function(l__){"first_time_index" %in% names(l__)}) }
+
+cienv <- new.env( parent = emptyenv() )
