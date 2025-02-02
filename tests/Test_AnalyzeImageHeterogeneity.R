@@ -29,7 +29,7 @@ if( reDownloadRawData <- F  ){
 }
 
 # load in package
-library( causalimages  )
+library( causalimages  ); options(error = NULL)
 
 # set new wd
 setwd(sprintf('%s/Public Replication Data, YOP Experiment/',

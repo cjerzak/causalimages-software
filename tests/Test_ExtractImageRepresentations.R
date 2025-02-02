@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 {
 ################################
 # Image and image-sequence embeddings tutorial using causalimages
@@ -14,7 +13,7 @@
 # causalimages::BuildBackend()
 
 # load in package
-library( causalimages  )
+library( causalimages  ); options(error = NULL)
 
 # load in tutorial data
 data(  CausalImagesTutorialData )
@@ -56,9 +55,10 @@ causalimages::WriteTfRecord(  file =  TfRecord_name,
 # obtain image representation
 MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
-  imageKeysOfUnits = KeysOfObservations[ take_indices ],
-  nDepth_ImageRep = 1L,
-  nWidth_ImageRep = 128L )
+  imageModelClass = "VisionTransformer",
+  pretrainedModel = "clip-rsicd",
+  imageKeysOfUnits = KeysOfObservations[ take_indices ] 
+)
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location

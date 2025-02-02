@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 #' Visualizing matrices as heatmaps with correct north-south-east-west orientation
 #'
 #' A function for generating a heatmap representation of a matrix with correct spatial orientation.

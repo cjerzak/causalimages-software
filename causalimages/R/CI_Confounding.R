@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 #' Perform causal estimation under image confounding
 #'
 #' @param obsW A numeric vector where `0`'s correspond to control units and `1`'s to treated units.
@@ -281,7 +280,7 @@ AnalyzeImageConfounding <- function(
     NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- cienv$jnp$array(0.05)
-    py_gc$collect()
+    cienv$py_gc$collect()
     
 
     # set up holders
@@ -575,7 +574,7 @@ AnalyzeImageConfounding <- function(
           return( list(NegLL, StateList)  )
         }
 
-        gc(); py_gc$collect()
+        gc(); cienv$py_gc$collect()
         message("Set state and model lists..." ) 
         GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
@@ -622,7 +621,7 @@ AnalyzeImageConfounding <- function(
           # cut_ <- unique(KeyQuantCuts)[1]
           inference_counter <- inference_counter + 1
           zer <- which(cut_  ==  KeyQuantCuts)
-          #gc(); py_gc$collect()
+          #gc(); cienv$py_gc$collect()
           atP <- max(zer)/nUniqueKeys
           if( any(zer %% 10 == 0) | 1 %in% zer ){ message(sprintf("Proportion done: %.3f", atP)) }
           {
@@ -665,7 +664,7 @@ AnalyzeImageConfounding <- function(
             if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
             return( m )
           })
-          GottenSummaries <- as.matrix(np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
+          GottenSummaries <- as.matrix(cienv$np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
           ret_list <- list("ProbW" = GottenSummaries,
                            "obsIndex" = as.matrix(obs_with_key),
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
@@ -812,7 +811,7 @@ AnalyzeImageConfounding <- function(
         # generate rest of plot
           plot_index_counter <- 0; for(in_ in plot_indices){
             print(c(text_, in_))
-            gc(); py_gc$collect()
+            gc(); cienv$py_gc$collect()
             plot_index_counter <- plot_index_counter + 1
 
             # get data
@@ -831,11 +830,11 @@ AnalyzeImageConfounding <- function(
 
             im_orig <- im_ <- InitImageProcessFn( im = cienv$jnp$array(ds_next_in[[1]]), key = cienv$jax$random$PRNGKey(3L), inference = T )
             XToConcat_values <- cienv$jnp$array(t(X[in_,]),cienv$jnp$float16)
-            im_ <- np$array(cienv$jnp$squeeze(im_,c(0L)))
+            im_ <- cienv$np$array(cienv$jnp$squeeze(im_,c(0L)))
 
             # calculate salience map using log probabilities
             # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$PRNGKey(10L); vseed <- cienv$jnp$expand_dims(seed,0L)
-            salience_map <- np$array(  ImGrad_fxn(
+            salience_map <- cienv$np$array(  ImGrad_fxn(
                                         cienv$jmp$cast_to_full(ModelList), cienv$jmp$cast_to_full(ModelList_fixed),
                                         cienv$jmp$cast_to_full(im_orig),
                                         cienv$jmp$cast_to_full(XToConcat_values),
@@ -858,7 +857,8 @@ AnalyzeImageConfounding <- function(
             # plot results
             par(mar = (mar_vec <- c(2,1,3,1)))
             if(dataType == "image"){
-              plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
+              dim_ <- dim(orig_scale_im_)
+              plotRBG <- !(length(plotBands) < 3 | dim_[length(dim_)] < 3)
               if(!plotRBG){
                 causalimages::image2(
                   as.matrix( orig_scale_im_[,,plotBands[1]] ),
@@ -899,7 +899,8 @@ AnalyzeImageConfounding <- function(
               # GIF part 1 --- all in outer time step loop
               for (t_ in 1:nTimeSteps){
               par(mfrow = c(1,2));
-              plotRBG <- !(length(plotBands) < 3 | dim(orig_scale_im_)[length(dim(orig_scale_im_))] < 3)
+              dim_ <- dim(salience_map)
+              plotRBG <- !(length(plotBands) < 3 | dim_[length(dim_)] < 3)
               par(mar = margins_gif <- c(5,5,2,1))
               if(!plotRBG){
                 par(mar = margins_gif)
@@ -1007,7 +1008,7 @@ AnalyzeImageConfounding <- function(
 
           im_ <- InitImageProcessFn( cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$PRNGKey(432L), T)
           x_ <- cienv$jnp$array(t(X[sampIndex_,]), cienv$jnp$float16)
-          SalienceX_contrib <- np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
+          SalienceX_contrib <- cienv$np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
                         cienv$jmp$cast_to_full(im_),
                         cienv$jmp$cast_to_full(x_),
                         cienv$jax$random$split(cienv$jax$random$PRNGKey( 500L+i ),x_$shape[[1]]),

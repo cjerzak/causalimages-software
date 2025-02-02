@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 #' Write an image corpus as a .tfrecord file
 #'
 #' Writes an image corpus to a `.tfrecord` file for rapid reading of images into memory for fast ML training.
@@ -66,22 +65,22 @@ WriteTfRecord <- function(file,
     parse_single_image <- function(image, index, key){
        if(writeVideo == F){
           data <- dict(
-                      "height" = my_int_feature(image$shape[[2]]),
-                      "width" = my_int_feature( image$shape[[3]] ),
-                      "channels" = my_int_feature( image$shape[[4]] ),
+                      "height"    = my_int_feature( image$shape[[1]] ), # note: zero indexed 
+                      "width"     = my_int_feature( image$shape[[2]] ),
+                      "channels"  = my_int_feature( image$shape[[3]] ),
                       "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
-                      "index" = my_int_feature( index ),
-                      "key" = my_bytes_feature( my_serialize_array(key) ))
+                      "index"     = my_int_feature( index ),
+                      "key"       = my_bytes_feature( my_serialize_array(key) ))
        }
       if(writeVideo == T){
         data <- dict(
-          "time" = my_int_feature(image$shape[[2]]),
-          "height" = my_int_feature(image$shape[[3]]),
-          "width" = my_int_feature(image$shape[[4]]),
-          "channels" = my_int_feature(image$shape[[5]]),
+          "time"      = my_int_feature( image$shape[[1]] ), # note: zero indexed 
+          "height"    = my_int_feature( image$shape[[2]] ),
+          "width"     = my_int_feature( image$shape[[3]] ),
+          "channels"  = my_int_feature( image$shape[[4]] ),
           "raw_image" = my_bytes_feature( my_serialize_array( image ) ),
-          "index" = my_int_feature(index),
-          "key" = my_bytes_feature( my_serialize_array(key) ) )
+          "index"     = my_int_feature( index ),
+          "key"       = my_bytes_feature( my_serialize_array(key) ) )
       }
         out <- cienv$tf$train$Example(  features = cienv$tf$train$Features(feature = data)  )
         return( out )

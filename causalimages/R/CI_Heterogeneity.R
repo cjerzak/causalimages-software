@@ -324,7 +324,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
     
             message("Done initializing image representation function...")
-            rm(ImageRepresentations); gc(); py_gc$collect()
+            rm(ImageRepresentations); gc(); cienv$py_gc$collect()
       }
     
       # set environment of image sampling functions
@@ -761,7 +761,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         })
     
         # set state and model lists
-        gc(); py_gc$collect()
+        gc(); cienv$py_gc$collect()
         GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         if(!optimizeImageRep){
           ModelList <- c(DenseList, CausalList)
@@ -791,7 +791,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         }
     
         # training loop
-        gc(); py_gc$collect()
+        gc(); cienv$py_gc$collect()
         IndicesByW <- tapply(1:length(obsW),obsW,c)
         UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
         L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
@@ -970,7 +970,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     ClusterProbs_est_full <-  as.matrix(Results_by_keys$ClusterProbs_est_)
     ClusterProbs_est <- ClusterProbs_est_full[,2]
     Clust_probs_marginal_final <- colMeans( ClusterProbs_est_full )
-    gc(); py_gc$collect()
+    gc(); cienv$py_gc$collect()
 
   # get cluster probs
   if(grepl(heterogeneityModelType, pattern = "variational")){
@@ -1003,7 +1003,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(grepl(heterogeneityModelType, pattern = "tarnet")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( GetTau(m,inference = T),0L) }}
       full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
-        gc(); py_gc$collect()
+        gc(); cienv$py_gc$collect()
         atP <- max(  zer / nrow(transportabilityMat))
         if((round(atP,2)*100) %% 10 == 0){ message(atP) }
         {
@@ -1018,7 +1018,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           ds_next_in <- ds_next_in[[1]]
         }
         im_keys <-  InitImageProcessFn( cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L), inference = T)
-        pred_ <- replicate(nMonte_predictive,as.array(GetProbAndExpand(im_keys) ))
+        pred_ <- replicate(nMonte_predictive,cienv$np$array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))
       })

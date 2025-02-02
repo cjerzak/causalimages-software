@@ -21,7 +21,7 @@ initialize_jax <- function(conda_env = "cienv",
     cienv$np  <- reticulate::import("numpy")
     cienv$jmp  <- reticulate::import("jmp")
     cienv$optax  <- reticulate::import("optax")
-    cienv$oryx  <- reticulate::import("tensorflow_probability.substrates.jax")
+    #cienv$oryx  <- reticulate::import("tensorflow_probability.substrates.jax")
     cienv$eq  <- reticulate::import("equinox")
     cienv$py_gc  <- reticulate::import("gc")
   }
@@ -38,7 +38,8 @@ initialize_torch <- function(conda_env = "cienv",
                            conda_env_required = TRUE,
                            Sys.setenv_text = NULL) {
   # Import Python packages once, storing them in cienv
-  if (!exists("jax", envir = cienv, inherits = FALSE)) {
+  if (!exists("torch", envir = cienv, inherits = FALSE)) {
     cienv$torch <- reticulate::import("torch")
+    cienv$transformers <- reticulate::import("transformers")
   }
 }

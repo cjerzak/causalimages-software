@@ -79,6 +79,7 @@ GetImageRepresentations <- function(
     image_dtype_tf <- cienv$tf$float16
   }
   NeuralizeScale <- FALSE; nScalePatches <- ai(3L^2)
+  seed <- as.integer(runif(1,1,10^8))
   
   message("Setting input types ...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
@@ -126,14 +127,16 @@ GetImageRepresentations <- function(
   }
 
   # acquire image to set dimensions
-  setwd(orig_wd); test_ <- cienv$tf$expand_dims(GetElementFromTfRecordAtIndices( uniqueKeyIndices = 1L,
+  setwd(orig_wd); test_ <- cienv$tf$expand_dims(GetElementFromTfRecordAtIndices( 
+                                                             uniqueKeyIndices = 1L,
                                                              filename = file,
                                                              readVideo = useVideo,
                                                              image_dtype = image_dtype_tf,
                                                              nObs = length(unique(imageKeysOfUnits)))[[1]],0L); setwd(new_wd)
-  imageDims <- ai( length( dim(test_) ) - 2L )
-  rawChannelDims <- ai( dim(test_)[length(dim(test_))] )
-  rawSpatialDims <- ai( dim(test_)[length(dim(test_))-1] )
+  rawShape <- cienv$np$array(test_$shape)
+  imageDims <- ai( length( rawShape ) - 2L )
+  rawSpatialDims <- ai( rawShape[length(rawShape)-1] )
+  rawChannelDims <- ai( rawShape[length(rawShape)] )
   
   if(!is.null(pretrainedModel)){
     if(grepl(pretrainedModel,pattern="clip")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
@@ -209,34 +212,34 @@ GetImageRepresentations <- function(
         if( pretrainedModel == "clip-rsicd" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            print("Loading pre-trained model (clip-rsicd)...")
+            message("Loading a pre-trained model (clip-rsicd)...")
+            initialize_torch(conda_env = conda_env,
+                             conda_env_required = conda_env_required,
+                             Sys.setenv_text = Sys.setenv_text)
             
-            TransformersModule <<- reticulate::import("transformers") 
-            torch <<- reticulate::import("torch") 
-            
-            PretrainedImageModelName <<- "flax-community/clip-rsicd-v2"
-            FeatureExtractor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
+            PretrainedImageModelName <- "flax-community/clip-rsicd-v2"
+            cienv$FeatureExtractor <- cienv$transformers$CLIPProcessor$from_pretrained(PretrainedImageModelName)
             cienv$torch$set_default_device(
-              RunOnDevice <<- ifelse(cienv$torch$cuda$is_available(), 
+              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
                                      yes = list(cienv$torch$device("cuda")), 
                                      no = list(cienv$torch$device("cpu")))[[1]] 
             )
-            cienv$torch$set_default_dtype( RunDtype <<- cienv$torch$float32 ); 
-            TransformersModel <<- TransformersModule$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
-            TransformersProcessor <<- TransformersModule$CLIPImageProcessor$from_pretrained(PretrainedImageModelName)
-            nParameters_Pretrained <<- TransformersModel$num_parameters()
+            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
+            cienv$TransformersModel <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
+            cienv$TransformersProcessor <- cienv$transformers$CLIPImageProcessor$from_pretrained(PretrainedImageModelName)
+            cienv$nParameters_Pretrained <- cienv$TransformersModel$num_parameters()
 
             # from examining FeatureExtractor (?)
-            MEAN_RESCALER <<- cienv$jnp$array(c(0, 0,0))
-            MEAN_RESCALER <<- cienv$jnp$reshape(MEAN_RESCALER,list(1L,3L,1L,1L))
+            cienv$MEAN_RESCALER <- cienv$jnp$array(c(0, 0,0))
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,list(1L,3L,1L,1L))
             
-            SD_RESCALER <<- cienv$jnp$array(c(1,1,1))
-            SD_RESCALER <<- cienv$jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
+            cienv$SD_RESCALER <- cienv$jnp$array(c(1,1,1))
+            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,list(1L,3L,1L,1L))
             
-            NORM_MEAN_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
-            NORM_SD_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
+            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
+            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
             
-            ScaleResizeTranspose <<- cienv$jax$jit(function(m){
+            cienv$ScaleResizeTranspose <- cienv$jax$jit(function(m){
               # m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
               m <- cienv$jnp$clip((m / 255.) ,0.0001,0.9999)
               m <- cienv$jax$image$resize( image=m,
@@ -246,62 +249,63 @@ GetImageRepresentations <- function(
           }
           
           # stretch and re-normalize. see FeatureExtractor for details 
-          m <- ScaleResizeTranspose(m)
+          m <- cienv$ScaleResizeTranspose(m)
           # m <- (m*SD_RESCALER)+MEAN_RESCALER
           # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L,2L:3L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L,2L:3L)) 
-          m <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = np$float32), 
-                             dtype = cienv$torch$float32)
-          m <- TransformersProcessor(m, do_rescale = F, return_tensors="pt")['pixel_values']
-          # m <- reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = np$float32)
+          #m <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32), 
+          m <- cienv$torch$tensor( m,  dtype = cienv$torch$float32)
+          m <- cienv$TransformersProcessor(m, do_rescale = F, return_tensors="pt")['pixel_values']
+          # m <- reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32)
           # m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
-          m <- TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
+          m <- cienv$TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
           # plot(m[,1:10])
-          py_gc$collect()
+          cienv$py_gc$collect()
         }
         if(  grepl(pretrainedModel, pattern = "swin") ){
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             message("Setting up swin model...")
-            TransformersModule <<- import("transformers")
-            nParameters_Pretrained <<- 1L
+            initialize_torch(conda_env = conda_env,
+                             conda_env_required = conda_env_required,
+                             Sys.setenv_text = Sys.setenv_text)
+            cienv$nParameters_Pretrained <- 1L
             
             # didn't get working (uses haiku)
-            #FeatureExtractor <<- (jax_models <<- import("jax_models",convert = T))$load_model('swin-tiny-224', num_classes=1000L, attach_head=FALSE, pretrained=TRUE)
-            #Processor <<- TransformersModule$Swin2SRImageProcessor('swin-tiny-224')
-            
-            torch <<- import("torch")
-            cienv$torch$set_default_device( RunOnDevice <<- ifelse(cienv$torch$cuda$is_available(), 
+            #cienv$FeatureExtractor <- (jax_models <- import("jax_models",convert = T))$load_model('swin-tiny-224', num_classes=1000L, attach_head=FALSE, pretrained=TRUE)
+            #cienv$Processor <- cienv$transformers$Swin2SRImageProcessor('swin-tiny-224')
+
+            cienv$torch$set_default_device( RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
                                      yes = list(cienv$torch$device("cuda")),  no = list(cienv$torch$device("cpu")))[[1]]  )
-            cienv$torch$set_default_dtype( RunDtype <<- cienv$torch$float32 ); 
-            FeatureExtractor <<- TransformersModule$Swinv2Model$from_pretrained(PretrainedImageModelName <<- "microsoft/swinv2-tiny-patch4-window8-256")$to(RunOnDevice)
-            Processor <<- TransformersModule$AutoImageProcessor$from_pretrained(PretrainedImageModelName)
+            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
+            cienv$FeatureExtractor <- cienv$transformers$Swinv2Model$from_pretrained(PretrainedImageModelName <- "microsoft/swinv2-tiny-patch4-window8-256")$to(RunOnDevice)
+            cienv$Processor <- cienv$transformers$AutoImageProcessor$from_pretrained(PretrainedImageModelName)
               
             # got working (uses flax)
             #jax_models$list_models()
-            #FeatureExtractor <<- TransformersModule$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <<- "flax-community/clip-rsicd-v2")
-            #Processor <<- TransformersModule$CLIPProcessor$from_pretrained(PretrainedImageModelName)
-            #FeatureExtractor <<- TransformersModule$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <<- "openai/clip-vit-base-patch32")
+            #cienv$FeatureExtractor <- cienv$transformers$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <- "flax-community/clip-rsicd-v2")
+            #cienv$Processor <- cienv$transformers$CLIPProcessor$from_pretrained(PretrainedImageModelName)
+            #cienv$FeatureExtractor <- cienv$transformers$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <- "openai/clip-vit-base-patch32")
             
-            #nWidth_ImageRep <<- nWidth_VideoRep <<- 768L
-            #FeatureExtractor <<- TransformersModule$FlaxViTModel$from_pretrained(PretrainedImageModelName <<- "facebook/vit-mae-base")
+            #cienv$nWidth_ImageRep <- cienv$nWidth_VideoRep <- 768L
+            #cienv$FeatureExtractor <- cienv$transformers$FlaxViTModel$from_pretrained(PretrainedImageModelName <- "facebook/vit-mae-base")
 
             # stretch and renormalization setups 
-            MEAN_RESCALER <<- cienv$jnp$array(c(0,0,0))
-            MEAN_RESCALER <<- cienv$jnp$reshape(MEAN_RESCALER,list(1L,3L,1L,1L))
+            cienv$MEAN_RESCALER <- cienv$jnp$array(c(0,0,0))
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,list(1L,3L,1L,1L))
             
-            SD_RESCALER <<- cienv$jnp$array(c(1,1,1))
-            SD_RESCALER <<- cienv$jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
+            cienv$SD_RESCALER <- cienv$jnp$array(c(1,1,1))
+            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,list(1L,3L,1L,1L))
             
             if(length(NORM_MEAN) == 1){ 
               OrigImDim <- 1L
-              NORM_MEAN <<- rep(NORM_MEAN,3); NORM_SD <<- rep(NORM_SD,3)
+              cienv$NORM_MEAN <- rep(NORM_MEAN,3); cienv$NORM_SD <- rep(NORM_SD,3)
             }
             if(length(NORM_MEAN) == 2){ 
               NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
               NORM_SD <- c(NORM_SD,NORM_SD[1])
             }
             
-            NORM_MEAN_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
-            NORM_SD_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
+            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
+            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
             message("Done setting up swin model!")
           }
           
@@ -311,59 +315,63 @@ GetImageRepresentations <- function(
             m <- cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")
           }
           m <- cienv$jnp$transpose(m, c(0L,3L,1L,2L))
-          #m <- (m*SD_RESCALER)+MEAN_RESCALER
+          #m <- (m*SD_RESCALER)+cienv$MEAN_RESCALER
           
           #m <- 1 * (m - m$min(axis = 1L:3L,keepdims=T)) /  (m$max(axis = 1L:3L,keepdims=T) - m$min(axis = 1L:3L,keepdims=T))
           #m <- 1 * (m - m$min()) /  (0.001+m$max() - m$min())
           m <- cienv$jnp$clip(1 * (m - 0.) /  (0.001 + 256.  - 0.), 0.001, 0.999) #m / 256. 
-          m <-  cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = np$float32), dtype = cienv$torch$float32)
-          m <- Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
+          #m <-  cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
+          m <-  cienv$torch$tensor( m, dtype = cienv$torch$float32)
+          m <- cienv$Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
           
-          #tmp <- FeatureExtractor$get_image_features(pixel_values =  cienv$jnp$transpose(cienv$jax$image$resize( image=m,shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear"), c(0L,3L,1L,2L)), params = FeatureExtractor$params, train = !inference )
-          #tmp1 <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params, train = !inference )
-          #hist(np$array(tmp)); hist(np$array(tmp1))
-          #plot(c(np$array(tmp)),np$array(tmp1)); abline(a=0,b=1)
+          #tmp <- cienv$FeatureExtractor$get_image_features(pixel_values =  cienv$jnp$transpose(cienv$jax$image$resize( image=m,shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear"), c(0L,3L,1L,2L)), params = cienv$FeatureExtractor$params, train = !inference )
+          #tmp1 <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params, train = !inference )
+          #hist(cienv$np$array(tmp)); hist(cienv$np$array(tmp1))
+          #plot(c(cienv$np$array(tmp)),cienv$np$array(tmp1)); abline(a=0,b=1)
           
           if(pretrainedModel != "swin-ft"){ 
             m <- cienv$jnp$array(FeatureExtractor( cienv$torch$as_tensor( m, dtype= cienv$torch$float32) )$pooler_output$cpu()$detach()$numpy())
-            #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference) # for flax models  
-            #m <- FeatureExtractor$get_image_features(pixel_values = m, params = FeatureExtractor$params,dropout_rng = seed,train = !inference))$pooler_output # for flax models  (vae)
+            #m <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params,dropout_rng = seed,train = !inference) # for flax models  
+            #m <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params,dropout_rng = seed,train = !inference))$pooler_output # for flax models  (vae)
           }
-          py_gc$collect()
+          cienv$py_gc$collect()
         }
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            print("Loading pre-trained model (vit-base)...")
-            TransformersModule <<- reticulate::import("transformers") 
-            torch <<- reticulate::import("torch") 
-            PretrainedImageModelName <<- 'google/vit-base-patch16-224-in21k'
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedImageModelName)
+            message("Loading a pre-trained model (vit-base)...")
+            initialize_torch(conda_env = conda_env,
+                             conda_env_required = conda_env_required,
+                             Sys.setenv_text = Sys.setenv_text)
+            
+            
+            PretrainedImageModelName <- 'google/vit-base-patch16-224-in21k'
+            cienv$FeatureExtractor <- cienv$transformers$ViTImageProcessor$from_pretrained(PretrainedImageModelName)
             cienv$torch$set_default_device(
-              RunOnDevice <<- ifelse(cienv$torch$cuda$is_available(), 
+              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
                                      yes = list(cienv$torch$device("cuda")), 
                                      no = list(cienv$torch$device("cpu")))[[1]] 
             )
-            cienv$torch$set_default_dtype( RunDtype <<- cienv$torch$float32 ); 
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
-            nParameters_Pretrained <<- TransformersModel$num_parameters()
-            nWidth_ImageRep <<- nWidth_VideoRep <<- 768L
+            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
+            cienv$TransformersModel <- cienv$transformers$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
+            cienv$nParameters_Pretrained <- cienv$TransformersModel$num_parameters()
+            cienv$nWidth_ImageRep <- cienv$nWidth_VideoRep <- 768L
             
-            MEAN_RESCALER <<- cienv$jnp$array(c(0.5,0.5,0.5))
-            MEAN_RESCALER <<- cienv$jnp$reshape(MEAN_RESCALER,list(1L,3L,1L,1L))
+            cienv$MEAN_RESCALER <- cienv$jnp$array(c(0.5,0.5,0.5))
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,list(1L,3L,1L,1L))
             
-            SD_RESCALER <<- cienv$jnp$array(c(0.5,0.5,0.5))
-            SD_RESCALER <<- cienv$jnp$reshape(SD_RESCALER,list(1L,3L,1L,1L))
+            cienv$SD_RESCALER <- cienv$jnp$array(c(0.5,0.5,0.5))
+            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,list(1L,3L,1L,1L))
             
             if(length(NORM_MEAN) == 1){ 
               OrigImDim <- 1L
-              NORM_MEAN <<- rep(NORM_MEAN,3); NORM_SD <<- rep(NORM_SD,3)
+              cienv$NORM_MEAN <- rep(NORM_MEAN,3); cienv$NORM_SD <- rep(NORM_SD,3)
             }
             if(length(NORM_MEAN) == 2){ 
               NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
               NORM_SD <- c(NORM_SD,NORM_SD[1])
             }
-            NORM_MEAN_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
-            NORM_SD_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
+            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
+            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
           }
 
           # Images are resized/rescaled to the same resolution (224x224)
@@ -374,9 +382,9 @@ GetImageRepresentations <- function(
           # m_orig <- m
           # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L:2L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L:2L)) 
           
-          # causalimages::image2( np$array(m[1,,,1]) )
-          # causalimages::image2( np$array(m[1,,,2]) )
-          # causalimages::image2( np$array(m[1,,,3]) )
+          # causalimages::image2( cienv$np$array(m[1,,,1]) )
+          # causalimages::image2( cienv$np$array(m[1,,,2]) )
+          # causalimages::image2( cienv$np$array(m[1,,,3]) )
           m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
           
           # resize information: 
@@ -387,10 +395,10 @@ GetImageRepresentations <- function(
           #dimension, simply leave that element of the shape unchanged.
           
           # sanity checks 
-          #image2(np$array(m[1,,,1]))
-          #image2(np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")[1,,,1]))
-          #image2(np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 64L, 64L, 3L), method="bilinear")[1,,,1]))
-          #image2(np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 32L, 32L, 3L), method="bilinear")[1,,,1]))
+          #image2(cienv$np$array(m[1,,,1]))
+          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")[1,,,1]))
+          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 64L, 64L, 3L), method="bilinear")[1,,,1]))
+          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 32L, 32L, 3L), method="bilinear")[1,,,1]))
           
           # run resizing 
           m <- cienv$jax$image$resize(
@@ -400,29 +408,33 @@ GetImageRepresentations <- function(
           
           #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
           m <- cienv$jnp$transpose(m, c(0L,3L,1L,2L))
-          m <- (m*SD_RESCALER)+MEAN_RESCALER
-          # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L,2L:3L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L,2L:3L)) 
-          m <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = np$float32), dtype = cienv$torch$float32)
+          m <- ( m*cienv$SD_RESCALER) + cienv$MEAN_RESCALER
+          #m <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
+          m <- cienv$torch$tensor( m, dtype = cienv$torch$float32)
           m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
-          py_gc$collect()
+          cienv$py_gc$collect()
         }
         if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
           if(!"ClayModel" %in% ls(.GlobalEnv)){
-            print("Loading pre-trained model (Clay)...")
-            torch <<- import("torch")
+            message("Loading a pre-trained model (Clay)...")
+            initialize_torch(conda_env = conda_env, 
+                           conda_env_required = conda_env_required,
+                           Sys.setenv_text = Sys.setenv_text) 
+            
+            
             if( !Sys.info()["machine"] == "x86_64" ){ 
               oldwd <- getwd(); setwd("~/Documents/model/");
-              ClayModel <<- reticulate::import_from_path("model", path = "./src")
+              cienv$ClayModel <- reticulate::import_from_path("model", path = "./src")
               setwd(oldwd)
-              ClayModel <<- ClayModel$ClayMAEModule$load_from_checkpoint(
+              cienv$ClayModel <- cienv$ClayModel$ClayMAEModule$load_from_checkpoint(
                 "/Users/cjerzak/Documents/Clay/Clay-1.0.5.7_epoch-13_val-loss-0.3098.ckpt", 
                 metadata_path="/Users/cjerzak/Documents/model/configs/metadata.yaml", 
                 shuffle=F,  mask_ratio=0, batch_first = T)
             }
             if( Sys.info()["machine"] == "x86_64" & T == F ){ 
-              ClayModel <<- ClayModel$ClayMAEModule$load_from_checkpoint(
+              cienv$ClayModel <- cienv$ClayModel$ClayMAEModule$load_from_checkpoint(
                 "/home/cjerzak/Documents/Clay/clay-v1-base.ckpt", 
                 metadata_path="/home/cjerzak/Documents/model/configs/metadata.yaml", 
                 shuffle=F,  mask_ratio=0) 
@@ -431,21 +443,21 @@ GetImageRepresentations <- function(
           }
           if(!"RunOnDevice" %in% ls(.GlobalEnv)){
             cienv$torch$set_default_device(
-              RunOnDevice <<- ifelse(cienv$torch$cuda$is_available(), 
+              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
                                      yes = list(cienv$torch$device("cuda")), 
                                      no = list(cienv$torch$device("cpu")))[[1]] 
             )
-            cienv$torch$set_default_dtype( RunDtype <<- cienv$torch$float32 ); 
-            ClayModel <<- ClayModel$to(RunOnDevice)
+            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
+            cienv$ClayModel <- cienv$ClayModel$to(RunOnDevice)
             
-            nParameters_Pretrained <<- reticulate::as_iterator(  ClayModel$model$encoder$parameters() )
+            cienv$nParameters_Pretrained <- reticulate::as_iterator(  cienv$ClayModel$model$encoder$parameters() )
             nParameters_Pretrained_ <- 0; 
             DoneLoop <- F; while(!DoneLoop){ 
-              theNextN <- try(reticulate::iter_next( nParameters_Pretrained )$numel(), T)
+              theNextN <- try(reticulate::iter_next( cienv$nParameters_Pretrained )$numel(), T)
               if('integer' %in% class(theNextN)){ nParameters_Pretrained_ <- nParameters_Pretrained_ + theNextN  }
               if(!'integer' %in% class(theNextN)){ DoneLoop <- T }
             }
-            nParameters_Pretrained <<- nParameters_Pretrained_
+            cienv$nParameters_Pretrained <- nParameters_Pretrained_
           }
           
           # get place embeddings 
@@ -454,20 +466,20 @@ GetImageRepresentations <- function(
                                   sin(latlong_embed[,2]),cos(latlong_embed[,2]))
           if(dataType == "video"){
             latlong_embed <- do.call(rbind, unlist(apply(latlong_embed,1,function(zer){
-              list(cbind(rep(zer[1], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
-                         rep(zer[2], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
-                         rep(zer[3], times = np$array(m$shape)[1]/m_shape_orig[[1]]),
-                         rep(zer[4], times = np$array(m$shape)[1]/m_shape_orig[[1]])))
+              list(cbind(rep(zer[1], times = cienv$np$array(m$shape)[1]/m_shape_orig[[1]]),
+                         rep(zer[2], times = cienv$np$array(m$shape)[1]/m_shape_orig[[1]]),
+                         rep(zer[3], times = cienv$np$array(m$shape)[1]/m_shape_orig[[1]]),
+                         rep(zer[4], times = cienv$np$array(m$shape)[1]/m_shape_orig[[1]])))
             }), recursive = F))
-            #latlong_embed <- np$array( cienv$jnp$reshape(cienv$jnp$concatenate( list(cienv$jnp$expand_dims(cienv$jnp$array(latlong_embed),1L), cienv$jnp$expand_dims(cienv$jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
+            #latlong_embed <- cienv$np$array( cienv$jnp$reshape(cienv$jnp$concatenate( list(cienv$jnp$expand_dims(cienv$jnp$array(latlong_embed),1L), cienv$jnp$expand_dims(cienv$jnp$array(latlong_embed),1L)), 1L), list(-1L,4L) )) 
           }
-          time_embed <- t(replicate(np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)})) 
+          time_embed <- t(replicate(cienv$np$array(m$shape)[1],{c(-0.1205, -0.9927,  0.2588, -0.9659)})) 
           
           # obtain embeddings 
-          # ClayModel$model$metadata$`landsat-c2l1`
+          # cienv$ClayModel$model$metadata$`landsat-c2l1`
           # RGB means: 10678.0, 10563.0, 11083.0
           # RGB stds: 9578.0, 9408.0, 10144.0
-          # ClayModel$model$metadata$`landsat-c2l2-sr`
+          # cienv$ClayModel$model$metadata$`landsat-c2l2-sr`
 
           # resize to 256 if image is greater in size 
           #if(m$shape[[2]] > 256L){
@@ -476,12 +488,13 @@ GetImageRepresentations <- function(
               #method="bilinear")
           #}
           
-          m <- ClayModel$model$encoder(
+          m <- cienv$ClayModel$model$encoder(
             dict("platform" = "landsat-c2l1",  # platform
                  "time" = cienv$torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
                  "latlon" = cienv$torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
                  #"pixels" = cienv$torch$tensor( reticulate::np_array(m$transpose(c(0L,3L,1L,2L))), dtype = RunDtype )$to(RunOnDevice), # normalized image 
-                 "pixels" = cienv$torch$tensor( reticulate::np_array(cienv$tf$constant(m$transpose(c(0L,3L,1L,2L)))), dtype = cienv$torch$float32),
+                 #"pixels" = cienv$torch$tensor( reticulate::np_array(cienv$tf$constant(m$transpose(c(0L,3L,1L,2L)))), dtype = cienv$torch$float32),
+                 "pixels" = cienv$torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = cienv$torch$float32),
                  "gsd" = cienv$torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
                  'waves' = cienv$torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RGB
                  #'waves' = cienv$torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
@@ -489,7 +502,7 @@ GetImageRepresentations <- function(
           )[[1]]  
           # The first embedding is the [CLS], which is a global embedding
           m = cienv$jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
-          # plot(np$array(m)[,sample(1:10,2)])
+          # plot(cienv$np$array(m)[,sample(1:10,2)])
         }
         if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
           # reshape if not using videomae
@@ -497,39 +510,42 @@ GetImageRepresentations <- function(
         } 
         if(grepl(pretrainedModel,pattern="videomae")){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
-            print("Loading pre-trained model (videomae)...")
-            PretrainedVideoModelName <<- "MCG-NJU/videomae-base"
-            #videoModelName <<- "MCG-NJU/videomae-base-finetuned-kinetics"
+            message("Loading a pre-trained model (videomae)...")
+            PretrainedVideoModelName <- "MCG-NJU/videomae-base"
+            #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
             
-            TransformersModule <<- reticulate::import("transformers") 
-            torch <<- reticulate::import("torch") 
+            initialize_torch(conda_env = conda_env,
+                             conda_env_required = conda_env_required,
+                             Sys.setenv_text = Sys.setenv_text)
             
             # set device and dtypes
             cienv$torch$set_default_device(
-              RunOnDevice <<- ifelse(cienv$torch$cuda$is_available(), 
+              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
                                      yes = list(cienv$torch$device("cuda")), 
                                      no = list(cienv$torch$device("cpu")))[[1]] 
             )
-            cienv$torch$set_default_dtype( RunDtype <<- cienv$torch$float32 ); 
+            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
             
             # load models
-            py_gc$collect()
+            cienv$py_gc$collect()
             # use VideoMAEImageProcessor? 
-            FeatureExtractor <<- TransformersModule$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
-            TransformersModel <<- TransformersModule$ViTModel$from_pretrained(PretrainedVideoModelName, 
+            cienv$FeatureExtractor <- cienv$transformers$ViTImageProcessor$from_pretrained(PretrainedVideoModelName)
+            cienv$TransformersModel <- cienv$transformers$ViTModel$from_pretrained(PretrainedVideoModelName, 
                                                                               torch_dtype = cienv$torch$float16)#half()$to(RunOnDevice)
-            nParameters_Pretrained <<- TransformersModel$num_parameters()
+            cienv$nParameters_Pretrained <- cienv$TransformersModel$num_parameters()
             
-            MEAN_RESCALER <<- cienv$jnp$array(c(1,1,1))
-            MEAN_RESCALER <<- cienv$jnp$reshape(MEAN_RESCALER,list(1L,1L,1L,1L,3L))
+            cienv$MEAN_RESCALER <- cienv$jnp$array(c(1,1,1))
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,
+                                                     list(1L,1L,1L,1L,3L))
             
-            SD_RESCALER <<- cienv$jnp$array(c(1,1,1))
-            SD_RESCALER <<- cienv$jnp$reshape(SD_RESCALER,list(1L,1L,1L,1L,3L))
+            cienv$SD_RESCALER <- cienv$jnp$array(c(1,1,1))
+            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,
+                                                   list(1L,1L,1L,1L,3L))
             
-            NORM_MEAN_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,1L,3L))
-            NORM_SD_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,1L, 3L))
+            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,1L,3L))
+            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,1L, 3L))
           }
-          #m <- reticulate::np_array( cienv$tf$constant(m), dtype = np$uint8)
+          #m <- reticulate::np_array( cienv$tf$constant(m), dtype = cienv$np$uint8)
           
           m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
           m <- cienv$jax$image$resize(
@@ -540,13 +556,14 @@ GetImageRepresentations <- function(
           m <- (m*SD_RESCALER)+MEAN_RESCALER
           # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L,2L:3L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L,2L:3L)) 
           
-          #m <- cienv$jnp$array(m, dtype = np$uint8)
+          #m <- cienv$jnp$array(m, dtype = cienv$np$uint8)
           m_rep <- c(); for(j_ in 1L:as.integer(m$shape[[1]]) ){ # iterate over the batch dimension? 
             m_ <- cienv$jnp$take(m, j_-1L, axis = 0L)
             if(m_$shape[[4]] == 1L){ m_ <- m_ * cienv$jnp$expand_dims(cienv$jnp$expand_dims(cienv$jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
             if(m_$shape[[4]] > 3L){ m_ <- cienv$jnp$take(m,0L:2L,axis=3L) }
             m_ <- cienv$jnp$transpose(  m_, c(0L,3L,1L,2L))
-            m_ <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m_, cienv$tf$float32), dtype = np$float32), dtype = cienv$torch$float32)
+            #m_ <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m_, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
+            m_ <- cienv$torch$tensor( m, dtype = cienv$torch$float32)
             
             # run model
             # output of extractor is T by C by W by H
@@ -588,7 +605,7 @@ GetImageRepresentations <- function(
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
       message(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
-          print(d_)
+          message(d_)
 
         
         ModelList$SpatialTransformerSupp      
@@ -647,6 +664,7 @@ GetImageRepresentations <- function(
     }
     
     # Spatial backbone 
+    message("Setting up a spatial backbone...")
     DoFineTuning <- grepl(pretrainedModel,pattern="-ft")
     if(length(DoFineTuning) == 0){ DoFineTuning <- FALSE}
     if(DoFineTuning){
@@ -659,7 +677,7 @@ GetImageRepresentations <- function(
                                                                           iterator = NULL); setwd(new_wd)
       InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$PRNGKey(ai(2L+1 + seed)), inference = T);rm(batch_inference_)
       
-      ModelList <- c("FTParams"= list(FeatureExtractor$params),
+      ModelList <- c("FTParams"= list(cienv$FeatureExtractor$params),
                      "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))),
                      "FTParams_Proj"= cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
                                                    out_features = ai(nWidth_ImageRep),
@@ -669,7 +687,7 @@ GetImageRepresentations <- function(
       StateList <- list("None"=cienv$jnp$array(.0)) # initialize with 0's
       FTBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
         #m <- FeatureExtractor(
-        m <- FeatureExtractor$get_image_features(
+        m <- ciFeatureExtractorget_image_features(
                 pixel_values = cienv$jnp$expand_dims(m,0L),
                 params = ModelList$FTParams,
                 dropout_rng = seed,
@@ -689,13 +707,13 @@ GetImageRepresentations <- function(
       StateList <- ModelList <- replicate(nDepth_ImageRep, cienv$jnp$array(0.)) # initialize with 0's
       for(d_ in 1L:nDepth_ImageRep){
           TransformerRenormer_d <- list("NormScaler1"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
-                                               "NormScaler2"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
+                                        "NormScaler2"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
           Multihead_d <- cienv$eq$nn$MultiheadAttention(
                                     query_size = nWidth_ImageRep,
                                     output_size = nWidth_ImageRep,
                                     num_heads = 12L,
                                     use_output_bias = F,
-                                    key = cienv$jax$random$PRNGKey( 23453355L + seed + d_) )
+                                    key = cienv$jax$random$PRNGKey( ai(23453355L + seed + d_) ))
           FF_d <- list("FFWide1"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # hidden bias
@@ -717,16 +735,18 @@ GetImageRepresentations <- function(
       }
       names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
       ModelList$SpatialTransformerSupp = list(
-          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(333324L + seed +  d_)), minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
-          "StopEmbed" =cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(3332124L + seed +  d_)),minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
-          "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = c(patchEmbedDim, patchEmbedDim),
-                     num_spatial_dims = 2L, stride = c(patchEmbedDim,patchEmbedDim),
+          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(333324L + seed +  d_)),
+                                                  minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
+          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(3332124L + seed +  d_)),
+                                                minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
+          "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
+                     num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
                      padding_mode = "REFLECT",
                      in_channels = rawChannelDims, use_bias = F,
-                     out_channels = nWidth_ImageRep, key = cienv$jax$random$PRNGKey(4L+1040L+seed)), # patch embed
+                     out_channels = nWidth_ImageRep, key = cienv$jax$random$PRNGKey(ai(4L+1040L+seed))), # patch embed
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                        use_bias = F, key = cienv$jax$random$PRNGKey(999L + seed  ) ) # final dense proj
+                        use_bias = F, key = cienv$jax$random$PRNGKey(ai(999L + seed  ) )) # final dense proj
         )
     }
     
@@ -740,39 +760,39 @@ GetImageRepresentations <- function(
                                          in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
                                          out_channels = dimsSpatial, use_bias = F,
                                          groups = dimsSpatial,
-                                         key = cienv$jax$random$PRNGKey(4L+d_+seed))
+                                         key = cienv$jax$random$PRNGKey(ai(4L+d_+seed)))
       SeperableFeature <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
-                                         key = cienv$jax$random$PRNGKey(50L+d_+seed))
+                                         key = cienv$jax$random$PRNGKey(ai(50L+d_+seed)))
       SeperableFeature2 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                         key = cienv$jax$random$PRNGKey(530L+d_+seed))
+                                         key = cienv$jax$random$PRNGKey(ai(530L+d_+seed)))
       SeperableFeature3 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$PRNGKey(5340L+d_+seed))
+                                          key = cienv$jax$random$PRNGKey(ai(5340L+d_+seed)))
       SeperableFeature4 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$PRNGKey(53140L+d_+seed))
+                                          key = cienv$jax$random$PRNGKey(ai(53140L+d_+seed)))
       ResidualTm1Path <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
                                         out_channels = nWidth_ImageRep,
                                         groups = 1L,
                                         kernel_size = c(1L,1L),
                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                        key = cienv$jax$random$PRNGKey(3250L+d_+seed))
+                                        key = cienv$jax$random$PRNGKey(ai(3250L+d_+seed)))
       ResidualTPath <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                       out_channels = nWidth_ImageRep,
                                       groups = 1L,
                                       kernel_size = c(1L,1L),
                                       num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                      key = cienv$jax$random$PRNGKey(32520L+d_+seed))
+                                      key = cienv$jax$random$PRNGKey(ai(32520L+d_+seed)))
 
         # setup bn for CNN block
         LayerBN1 <- cienv$eq$nn$BatchNorm(
@@ -794,14 +814,16 @@ GetImageRepresentations <- function(
                                   "ResidualTPath" = ResidualTPath,
                                   "SpatialResidualWts" = list("RightWt1" = InvSoftPlus( NonLinearScaler ),
                                                               "RightWt2" = InvSoftPlus( NonLinearScaler )),
-                                  "BN1_ImRep" = list("BN" = LayerBN1, "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim1)) ),
-                                  "BN2_ImRep" = list("BN" = LayerBN2, "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim2)) ))
+                                  "BN1_ImRep" = list("BN" = LayerBN1, 
+                                                     "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim1)) ),
+                                  "BN2_ImRep" = list("BN" = LayerBN2, 
+                                                     "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim2)) ))
     }
     names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
     
     ModelList$SpatialTransformerSupp = list(
       "FinalCNNProj"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
-                          use_bias = F, key = cienv$jax$random$PRNGKey(9989L + seed  ) )  ,
+                          use_bias = F, key = cienv$jax$random$PRNGKey(ai(9989L + seed  ) ) ) ,
       "FinalCNNBN"= list("BN" = (LayerBN <- cienv$eq$nn$BatchNorm(input_size = nWidth_ImageRep,
                             axis_name = batch_axis_name,
                             momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)), 
@@ -813,6 +835,7 @@ GetImageRepresentations <- function(
     
     # Temporal backbone
     if(dataType == "video" | NeuralizeScale){
+      message("Setting up temporal backbone...")
       for(dt_ in 1L:nDepth_TemporalRep){
         TransformerRenormer_d <- list("NormScaler1" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                       "NormScaler2" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
@@ -821,7 +844,7 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_VideoRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
-                                    key = cienv$jax$random$PRNGKey( 2343355L + seed+dt_) )
+                                    key = cienv$jax$random$PRNGKey( ai(2343355L + seed+dt_) ))
         FF_d  <- list(
           "FFWide1" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
@@ -851,7 +874,7 @@ GetImageRepresentations <- function(
         "PatchEmbedder" =  cienv$jnp$array(0.), # unused  in temporal
         "FinalNormScaler" =  cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
         "FinalProj" =  cienv$eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
-                               use_bias = F, key = cienv$jax$random$PRNGKey(1999L+dt_+seed  ))
+                               use_bias = F, key = cienv$jax$random$PRNGKey(ai(1999L+dt_+seed  )))
         )
     }
     
@@ -929,7 +952,7 @@ GetImageRepresentations <- function(
         if(imageModelClass == "CNN" ){
             m <- cienv$jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
             for(d__ in 1:nDepth_ImageRep){
-              print(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
+              message(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
               
               eval(parse(text = sprintf("ModelList_d <- ModelList$Spatial_d%s", d__)))
               eval(parse(text = sprintf("StateList_d <- StateList$Spatial_d%s", d__)))
@@ -942,7 +965,7 @@ GetImageRepresentations <- function(
                          ModelList_d$SeperableSpatial( m ) )
   
               if(! optimizeImageRep){
-                # hist(np$array(m$val)) 
+                # hist(cienv$np$array(m$val)) 
                 
                 m <- cienv$jnp$concatenate(list(mx_ <- cienv$jnp$max(m, c(1L:2L)), 
                                           mn_ <- cienv$jnp$mean(m, c(1L:2L)), 
@@ -972,8 +995,8 @@ GetImageRepresentations <- function(
                 }
                 
                 if(T == F){ 
-                  hist(c(np$array(mtm1$val))); apply(np$array(mtm1$val),2,sd)
-                  hist(c(np$array(m$val))); apply(np$array(m$val),2,sd)
+                  hist(c(cienv$np$array(mtm1$val))); apply(cienv$np$array(mtm1$val),2,sd)
+                  hist(c(cienv$np$array(m$val))); apply(cienv$np$array(m$val),2,sd)
                 }
                 
                 # residual connection 
@@ -1000,7 +1023,7 @@ GetImageRepresentations <- function(
       return( list(m, StateList)  )
     }
     
-    #ImageRepArm_batch <-                (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ print("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
+    #ImageRepArm_batch <-                (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ message("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
     ImageRepArm_batch <- cienv$eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
@@ -1027,7 +1050,7 @@ GetImageRepresentations <- function(
         # unsqueeze temporal dim if needed
         if(dataType == "video" | NeuralizeScale){
           if( is.null(pretrainedModel) ){ m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) } 
-          # (np$array(m)[1:5,,sample(1:10,1)]); m$shape
+          # (cienv$np$array(m)[1:5,,sample(1:10,1)]); m$shape
           m <- cienv$jax$vmap(function(ModelList, m,
                                  StateList, seed, MPList, inference){
                       TransformerBackbone(ModelList, m,
@@ -1079,11 +1102,11 @@ GetImageRepresentations <- function(
       batch_inference <- batch_inference[[1]]
       batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
 
-      gc(); py_gc$collect() # collect memory
+      gc(); cienv$py_gc$collect() # collect memory
       # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
-      # plot( np$array( cienv$jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
+      # plot( cienv$np$array( cienv$jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
       # batch_inference[[1]][3,,,1] # check image inputs 
-      representation_ <-  np$array( ImageRepArm_batch(ModelList,
+      representation_ <-  cienv$np$array( ImageRepArm_batch(ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
                                                                        cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
                                                       StateList,
@@ -1095,7 +1118,7 @@ GetImageRepresentations <- function(
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 
         # sanity checks
-        tmp <- np$array(cienv$jnp$take(cienv$jnp$array(batch_inference[[1]]),(iCheck <- 8L)-1L,axis=0L))
+        tmp <- cienv$np$array(cienv$jnp$take(cienv$jnp$array(batch_inference[[1]]),(iCheck <- 8L)-1L,axis=0L))
         image2(tmp[,,1])
         cbind(lat[which(imageKeysOfUnits %in% batch_keys[ iCheck ])], long[which(imageKeysOfUnits %in% batch_keys[ iCheck ])])
       }
@@ -1103,14 +1126,14 @@ GetImageRepresentations <- function(
         stop("Stopping due to missingness in intermediary representation_ [Code reference: ImageModelBackbone.R]") 
       }
       if("try-error" %in% class(representation_)){
-        print(representation_)
+        message(representation_)
         stop("Stopping due to try-error in *intermediary* version of representation_ [Code reference: ImageModelBackbone.R]") 
       }
       
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
-      message(sprinf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
+      message(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
   }
   Representations <- Representations[match(as.character(imageKeysOfUnits), as.character(usedImageKeys) ),]
   message("Done getting image/video representations!")
@@ -1120,12 +1143,12 @@ GetImageRepresentations <- function(
   setwd(  orig_wd  )
   
   message("Obtaining approximate parameter count...")
-  nParamsRep <- sum(unlist(lapply(cienv$jax$tree_leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
-  if(is.null(pretrainedModel) & optimizeImageRep == F){ nParamsRep <- nParamsRep }
+  cienv$nParamsRep <- sum(unlist(lapply(cienv$jax$tree_leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
+  if(is.null(pretrainedModel) & optimizeImageRep == F){ cienv$nParamsRep <- cienv$nParamsRep }
   if(!is.null(pretrainedModel) ){
-    if(dataType == "image"){ nParamsRep <- nParameters_Pretrained }
-    if(dataType == "video" & !grepl(pretrainedModel,pattern="video")){ nParamsRep <- nParamsRep + nParameters_Pretrained }
-    if(dataType == "video" & grepl(pretrainedModel,pattern="video")){ nParamsRep <- nParameters_Pretrained }
+    if(dataType == "image"){ cienv$nParamsRep <- cienv$nParameters_Pretrained }
+    if(dataType == "video" & !grepl(pretrainedModel,pattern="video")){ cienv$nParamsRep <- cienv$nParamsRep + cienv$nParameters_Pretrained }
+    if(dataType == "video" & grepl(pretrainedModel,pattern="video")){ cienv$nParamsRep <- cienv$nParameters_Pretrained }
   }
 
   # sanity check 
@@ -1134,7 +1157,7 @@ GetImageRepresentations <- function(
   }
   
   if(CleanupEnv){
-    suppressWarnings( rm(PretrainedImageModelName, FeatureExtractor, ClayModel, TransformersModel, nParameters_Pretrained, pos = .GlobalEnv) ) 
+    suppressWarnings( rm(PretrainedImageModelName, FeatureExtractor, ClayModel, TransformersModel, cienv$nParameters_Pretrained, pos = .GlobalEnv) ) 
   }
   if(returnContents){
    return( list( "ImageRepresentations"= Representations,
@@ -1142,7 +1165,7 @@ GetImageRepresentations <- function(
                  "ImageRepArm_batch" = ImageRepArm_batch,
                  "ImageModel_And_State_And_MPPolicy_List" = list(ModelList, StateList, MPList), 
                  "InitImageProcess" = InitImageProcess,
-                 "nParamsRep" = nParamsRep
+                 "nParamsRep" = cienv$nParamsRep
                  ) )
   }
   suppressWarnings(rm(ModelList, StateList, MPList)); gc()

@@ -216,7 +216,7 @@ CausalImageHeterogeneity_plot <- function(){
         animation::saveGIF({
           # panel 1 of GIF
           par(mfrow=c(1,1+1*PlotWithMean))
-          orig_scale_im_raster <-  as.array( ds_next_in[1,,,,plotBands[1]] )
+          orig_scale_im_raster <-  cienv$np$array( ds_next_in[1,,,,plotBands[1]] )
           nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
           IG <- np$array(  ImGrad_fxn(ModelList,
                                       ModelList_fixed,
@@ -243,11 +243,11 @@ CausalImageHeterogeneity_plot <- function(){
             }
             if(plotRBG){
               orig_scale_im_raster <- raster::brick(
-                0.0001 + (as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32) )) +
-                  0*runif(length(as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32 ))),
+                0.0001 + (cienv$np$array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32) )) +
+                  0*runif(length(cienv$np$array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands], cienv$tf$float32 ))),
                           min = 0, max = 0.01) ) # with random jitter
               stretch <- ifelse(
-                any(apply(as.array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands],cienv$tf$float32)), 3,sd) < 1.),
+                any(apply(cienv$np$array(cienv$tf$cast(ds_next_in[1,t_, , ,plotBands],cienv$tf$float32)), 3,sd) < 1.),
                 yes = "", no = "lin")
               raster::plotRGB(  orig_scale_im_raster,
                                 margins = T,

@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 #' Build the environment for CausalImages models. Builds a conda environment in which jax, tensorflow, tensorflow-probability optax, equinox, and jmp are installed.
 #'
 #' @param conda_env (default = `"CausalImagesEnv"`) Name of the conda environment in which to place the backends.
@@ -20,9 +19,11 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                            conda = conda, python_version = "3.12")
 
   # Install Python packages within the environment
-  reticulate::py_install(c("tensorflow", "optax", "jax","tensorflow-datasets",
+  reticulate::py_install(c("tensorflow","optax","jax",
+                           #"tensorflow-datasets",
+                           #"tensorflow-probability",
                            "torch","transformers","pillow","tf-keras", 
-                           "equinox", "jmp", "tensorflow-probability"),
+                           "equinox","jmp"),
                            conda = conda, 
                            pip = TRUE,
                            envname = conda_env)

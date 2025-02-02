@@ -18,7 +18,6 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
   message("Calibrating moments for input data normalization...")
   NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1L:momentCalIters){
     # get a data batch 
-    #ds_next_ <- try(iterator$`next`(),T) # depreciated
     ds_next_ <- try(iterator$get_next(),T) 
     
     if(!"try-error" %in% class(ds_next_)){
@@ -26,11 +25,11 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
       ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
       
       # sanity check 
-      # causalimages::image2( as.array(ds_next_train[[1]])[2,,,1] ) 
+      # causalimages::image2( cienv$np$array((ds_next_train[[1]])[2,,,1] ) 
       
       # update normalizations
-      NORM_SD <- rbind(NORM_SD, apply(as.array(ds_next_[[1]]),ApplyAxis,sd))
-      NORM_MEAN <- rbind(NORM_MEAN, apply(as.array(ds_next_[[1]]),ApplyAxis,mean))
+      NORM_SD <- rbind(NORM_SD, apply(cienv$np$array(ds_next_[[1]]),ApplyAxis,sd))
+      NORM_MEAN <- rbind(NORM_MEAN, apply(cienv$np$array(ds_next_[[1]]),ApplyAxis,mean))
     }
   }
 

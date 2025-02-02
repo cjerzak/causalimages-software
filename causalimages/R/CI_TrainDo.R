@@ -23,7 +23,7 @@ TrainDo <- function(){
   keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
   GradNorm_vec <- loss_vec <- rep(NA,times=nSGD)
   keysUsedInTraining <- c();i_<-1L ; DoneUpdates <- 0L; for(i in i_:nSGD){
-    t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); py_gc$collect()}
+    t0 <- Sys.time(); if(i %% 5 == 0 | i == 1){gc(); cienv$py_gc$collect()}
     
     if(is.null(TFRecordControl)){ 
       # get next batch 
@@ -31,16 +31,16 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train) ){
-        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); cienv$py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-        ds_next_train <-  ds_iterator_train$`next`(); gc();py_gc$collect()
+        ds_next_train <-  ds_iterator_train$`next`(); gc();cienv$py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train[[1]])[1] != batchSize){
-        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-        ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
+        ds_next_train <-  ds_iterator_train$`next`(); gc(); cienv$py_gc$collect()
       } }
       
       # select batch indices based on keys
@@ -54,16 +54,16 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train_control) ){
-        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
-        ds_next_train_control <-  ds_iterator_train_control$`next`(); gc();py_gc$collect()
+        ds_next_train_control <-  ds_iterator_train_control$`next`(); gc();cienv$py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train_control[[1]])[1] != batchSize){
-        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
-        ds_next_train_control <-  ds_iterator_train_control$`next`(); gc(); py_gc$collect()
+        ds_next_train_control <-  ds_iterator_train_control$`next`(); gc(); cienv$py_gc$collect()
       } }
       
       # get next batch 
@@ -71,16 +71,16 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train_treated) ){
-        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
-        ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc();py_gc$collect()
+        ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc();cienv$py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train_treated[[1]])[1] != batchSize){
-        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
-        ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc(); py_gc$collect()
+        ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc(); cienv$py_gc$collect()
       } }
       
       # select batch indices based on keys
@@ -131,10 +131,10 @@ TrainDo <- function(){
       
       # get loss + grad
       if(image_dtype_char == "float16"){ 
-        loss_vec[i] <- myLoss_fromGrad <- np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
+        loss_vec[i] <- myLoss_fromGrad <- cienv$np$array( MPList[[2]]$unscale( GradientUpdatePackage[[1]][[1]] ) )# value
       }
       if(image_dtype_char != "float16"){ 
-        loss_vec[i] <- myLoss_fromGrad <- np$array( GradientUpdatePackage[[1]][[1]] )# value
+        loss_vec[i] <- myLoss_fromGrad <- cienv$np$array( GradientUpdatePackage[[1]][[1]] )# value
       }
       GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
       GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_inexact_array)
@@ -153,15 +153,15 @@ TrainDo <- function(){
       }
       AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & cienv$jnp$squeeze(cienv$jnp$array(!is.infinite(myLoss_fromGrad)))
       MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-      # which(is.na( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
-      # which(is.infinite( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){np$array(zer)}))) ) )
+      # which(is.na( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
+      # which(is.infinite( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
       
       # get update norm 
       GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(cienv$jax$tree_leaves(GradientUpdatePackage),
-                                                         function(zer){ np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
+                                                         function(zer){ cienv$np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
       
       # update parameters if finite gradients
-      DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
+      DoUpdate <- !is.na(myLoss_fromGrad) & cienv$np$array(AllFinite_DontAdjust) & 
         !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-10)
       if(! DoUpdate ){ message("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...") }
       if( DoUpdate ){
