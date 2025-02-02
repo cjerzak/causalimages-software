@@ -1,19 +1,51 @@
 Package: causalimages
-Title: causalimages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
-Version: 0.0.1
-Authors@R: c(person(given = "Connor", family = "Jerzak", 
-		    role = c("aut", "cre"),
-                    email = "connor.jerzak@gmail.com", 
-	            comment = c(ORCID = "0000-0003-1914-8905")),
-             person(given = "Fredrik", family = "Johansson", role = "aut", 
-	           comment = c(ORCID = "0000-0002-4323-3715")),
-             person(given = "Adel", family = "Daoud", role = "aut", 
-		    comment = c(ORCID = "0000-0001-7478-8345")) )
-Description: A system for performing causal inference with earth observation, bio-medical, and social science images and image sequences (i.e., videos). The causal AI models use a JAX backend; the package provides functions for establishing the backend in a conda environment with GPU or TPU acceleration when possible. 
+Title: Causal Inference with Earth Observation, Bio-medical,
+    and Social Science Images
+Version: 0.1
+Authors@R: 
+    c(person(given = "Connor",
+             family = "Jerzak",
+             role = c("aut", "cre"),
+             email = "connor.jerzak@gmail.com",
+             comment = c(ORCID = "0000-0003-1914-8905")),
+      person(given = "Adel",
+             family = "Daoud",
+             role = "aut",
+             comment = c(ORCID = "0000-0001-7478-8345")))
+Description: Provides a system for performing causal inference with earth observation,
+    bio-medical, and social science images and image sequences (videos). The package
+    uses a 'JAX' backend for GPU/TPU acceleration. Key functionalities include building
+    conda-based backends (e.g., via 'BuildBackend'), implementing image-based confounder
+    and heterogeneity analyses (e.g., 'AnalyzeImageConfounding', 'AnalyzeImageHeterogeneity'),
+    and writing/reading large image corpora as '.tfrecord' files for use in training 
+    (via 'WriteTfRecord' and 'GetElementFromTfRecordAtIndices'). This allows researchers
+    to scale causal inference to modern large-scale imagery data, bridging R with
+    hardware-accelerated Python libraries. The package is partly based on Jerzak
+    and Daoud (2023) <arXiv:2310.00233>.
+URL: https://github.com/cjerzak/causalimages-software
+BugReports: https://github.com/cjerzak/causalimages-software/issues
 Depends: R (>= 3.3.3)
 License: GPL-3
 Encoding: UTF-8
-LazyData: true
-Maintainer: 'Connor Jerzak' <connor.jerzak@gmail.com>
-Imports: tensorflow, latex2exp, keras, reticulate, viridis, geosphere, raster, animation, rrapply, glmnet, sf, data.table, grf, pROC, devtools
+LazyData: false
+Imports:
+    tensorflow,
+    latex2exp,
+    keras,
+    reticulate,
+    viridis,
+    geosphere,
+    raster,
+    animation,
+    rrapply,
+    glmnet,
+    sf,
+    data.table,
+    grf,
+    pROC,
+    devtools
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 RoxygenNote: 7.3.2
