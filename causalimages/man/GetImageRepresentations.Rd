@@ -61,8 +61,6 @@ GetImageRepresentations(
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{dataType}{String specifying whether to assume \code{"image"} or \code{"video"} data types. Default is \code{"image"}.}
-
-\item{seed}{Integer specifying the seed for pseudo random number generation.}
 }
 \value{
 A list containing two items:

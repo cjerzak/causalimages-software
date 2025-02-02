@@ -11,7 +11,8 @@ WriteTfRecord(
   writeVideo = F,
   image_dtype = "float16",
   conda_env = "CausalImagesEnv",
-  conda_env_required = T
+  conda_env_required = T,
+  Sys.setenv_text = NULL
 )
 }
 \arguments{
