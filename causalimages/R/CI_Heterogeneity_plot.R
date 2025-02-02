@@ -1,5 +1,5 @@
 CausalImageHeterogeneity_plot <- function(){
-  print2("Plotting results...")
+  message("Plotting results...")
   MPList <- list(cienv$jmp$Policy(compute_dtype="float32",
                             param_dtype="float32",
                             output_dtype="float32"),
@@ -142,7 +142,7 @@ CausalImageHeterogeneity_plot <- function(){
     
   }, device = cienv$jax$devices('cpu')[[1]])
   video_plotting_fxn <- function(){
-    print2("Image seq results plot...")
+    message("Image seq results plot...")
     plotting_coordinates_mat <- c()
     total_counter <- 0;
     for(k_ in 1:rows_){
@@ -306,7 +306,7 @@ CausalImageHeterogeneity_plot <- function(){
     return( plotting_coordinates_mat )
   }
   image_plotting_fxn <- function(){
-    print2("Image results plot...")
+    message("Image results plot...")
     pdf(sprintf("%s/VisualizeHeteroReal_%s_%s_%s_ExternalFigureKey%s.pdf", figuresPath, heterogeneityModelType,typePlot,orthogonalize,figuresTag),
         height = ifelse(grepl(typePlot,pattern = "mean"), yes = 4*rows_*3, no = 4),
         width = 4*nExamples)
@@ -336,7 +336,7 @@ CausalImageHeterogeneity_plot <- function(){
           gc(); py_gc$collect()
           #if(k_ == 2 & typePlot == "mean"){ }
           #if(k_ == 2 & i == 1){  }
-          print2(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
+          message(sprintf("Type Plot: %s; k_: %s, i: %s", typePlot, k_, i))
           total_counter <- total_counter + 1
           rfxn <- function(xer){xer}
           bad_counter <- 0;isUnique_ <- F; while(isUnique_ == F){
@@ -390,7 +390,7 @@ CausalImageHeterogeneity_plot <- function(){
                                        "key"=imageKeysOfUnits[im_i],
                                        "long" = coordinate_i[1],
                                        "lat" = coordinate_i[2]))
-          print2(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
+          message(sprintf("k: %i i: %i, im_i: %i, long/lat: %.3f, %.3f",
                          as.integer(k_), as.integer(i), as.integer(im_i),
                          long[im_i], lat[im_i]))
           # load in image
@@ -472,7 +472,7 @@ CausalImageHeterogeneity_plot <- function(){
               magPlot <- image(t(IG[[1]])[,nrow(IG[[1]]):1],
                                col = viridis::magma(nColors - 1),
                                breaks = gradMag_breaks, axes = F)
-              if("try-error" %in% class(magPlot)){ print2("magPlot broken") }
+              if("try-error" %in% class(magPlot)){ message("magPlot broken") }
               ylab_ <- ""; if(i==1){
                 try(axis(side = 2,at=0.5,labels = "Salience Magnitude",
                          pos=-0.,tick=F, cex.axis=3, col.axis=k_),T)
@@ -483,7 +483,7 @@ CausalImageHeterogeneity_plot <- function(){
                                col = c(hcl.colors(nColors/2-1L,"reds"),
                                        hcl.colors(nColors/2 ,"blues")),
                                breaks = c(neg_breaks,pos_breaks), axes = F)
-              if("try-error" %in% class(dirPlot)){print2("dirPlot broken")}
+              if("try-error" %in% class(dirPlot)){message("dirPlot broken")}
               ylab_ <- ""; if(i==1){
                 try( axis(side = 2,at=0.5,labels = "Salience Direction",
                           pos=-0.,tick=F, cex.axis=3, col.axis=k_),  T)
@@ -502,11 +502,11 @@ CausalImageHeterogeneity_plot <- function(){
     rows_ <- kClust_est; nExamples <- 5
     if(typePlot == "uncertainty"){ rows_ <- 1L }
     
-    print2("Starting plot routine...")
+    message("Starting plot routine...")
     plotting_coordinates_mat_ <- ifelse(dataType == "video", yes = list(video_plotting_fxn), no = list(image_plotting_fxn))[[1]]()
     
     if("try-error" %in% class(plotting_coordinates_mat_)){
-      print2('if("try-error" %in% class(plotting_coordinates_mat_)){')
+      message('if("try-error" %in% class(plotting_coordinates_mat_)){')
       browser()
     }
     try(dev.off(),T)

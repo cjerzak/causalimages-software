@@ -16,5 +16,5 @@ Prints with date and time.
 A function prints a string with date and time.
 }
 \examples{
-print2("Hello world")
+message("Hello world")
 }

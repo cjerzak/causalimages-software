@@ -109,32 +109,13 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # create directory if needed
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
+  if(!"jax" %in% ls(envir = cienv)) {
+    initialize_jax(conda_env = conda_env, 
+                   conda_env_required = conda_env_required,
+                   Sys.setenv_text = Sys.setenv_text) 
+  }
+  
   {
-    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library(tensorflow); if(!is.null(conda_env)){
-      try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
-    }
-    if(!is.null(Sys.setenv_text)){ 
-      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
-    }
-    jax <<- reticulate::import("jax")
-    np <<- reticulate::import("numpy")
-    jnp <<- reticulate::import("jax.numpy")
-    jmp <<- reticulate::import("jmp")
-    optax <<- reticulate::import("optax")
-    oryx <<- reticulate::import("tensorflow_probability.substrates.jax")
-    eq <<- reticulate::import("equinox")
-    py_gc <<- reticulate::import("gc")
-    cienv$jax$config$update("jax_enable_x64", FALSE);
-    # cienv$tf$config$get_visible_devices(); cienv$tf$config$experimental$set_visible_devices(list(), "GPU")
-    print2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
-    gc(); py_gc$collect()
-    
-    # set memory growth for tf 
-    for(device_ in cienv$tf$config$list_physical_devices()){ 
-      try(cienv$tf$config$experimental$set_memory_growth(device_, T),T) 
-    }
-
     # image dtype management
     c2f <- cienv$jmp$cast_to_full
     image_dtype <- "float16" 
@@ -151,7 +132,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
   }
   if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
   
-  print2("Setting up wd logic")
+  message("Setting up wd logic")
   orig_wd <- getwd()
   cond1 <- substr(figuresPath, start = 0, stop = 1) == "."
   if(cond1){ figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd) }
@@ -160,16 +141,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
   BN_EP <- (0.001); bn_momentum <- (.90)
   if(grepl(heterogeneityModelType,pattern = "variational")){ bn_momentum <- bn_momentum^1/nMonte_variational }
 
-  print2("tfrecord + train/test fxns")
+  message("tfrecord + train/test fxns")
   changed_wd <- F; {
-    print2("Establishing connection with tfrecord")
+    message("Establishing connection with tfrecord")
     tf_record_name <- file
     if( !grepl(tf_record_name, pattern = "/") ){
       tf_record_name <- paste("./",tf_record_name, sep = "")
     }
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
-    print2( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
+    message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
     tf_dataset_master <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
@@ -219,7 +200,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # ds_next_inference <- reticulate::iter_next( ds_iterator_inference )
   }
 
-  print2("Getting channel normalization parameters...")
+  message("Getting channel normalization parameters...")
   NORM_MEAN <- GetMoments( reticulate::as_iterator( getParsed_tf_dataset_train_BatchAndShuffle( 
                         getParsed_tf_dataset_train_Select(getParsed_tf_dataset_train_Shuffle( tf_dataset_master )  ))), 
                                 dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
@@ -286,7 +267,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     # start inner CF iteration 
     for(kf_ in 1:kFolds){
       trainCounter <- trainCounter + 1
-      print2(sprintf("Starting training at k = %s of %s (%s of %s)...",kf_, kFolds, cf_iter, cf_iters))
+      message(sprintf("Starting training at k = %s of %s (%s of %s)...",kf_, kFolds, cf_iter, cf_iters))
       # setup iterator 
       {
         # select a tf record indexed to (1:kFolds([!1:kFolds %in% kf_] (skip indices bounded by cf_keys_toSkip_bounds)
@@ -309,7 +290,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       
       # obtain image representation function
       {
-        print2("Initializing image representation functions...")
+        message("Initializing image representation functions...")
         SharedImageRepresentation <- T;
         setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
             file = file, conda_env = conda_env,
@@ -342,7 +323,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
             InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
     
-            print2("Done initializing image representation function...")
+            message("Done initializing image representation function...")
             rm(ImageRepresentations); gc(); py_gc$collect()
       }
     
@@ -353,7 +334,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # orthogonalize if specified
       whichNA_dropped <- c()
       if(orthogonalize){
-        print2("Orthogonalizing Potential Outcomes...")
+        message("Orthogonalizing Potential Outcomes...")
         if(is.null(X)){stop("orthogonalize set to TRUE, but no X specified to perform orthogonalization!")}
     
         # drop observations with NAs in their orthogonalized outcomes
@@ -412,7 +393,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       Y0_sd_initMean <-softplus_inverse(cnst((SD_scaling <- 1)*Y0_sd_raw))#<-SD_scaling*sd(obsY[obsW==0])))
       Y1_sd_initMean <-softplus_inverse(cnst(SD_scaling*Y1_sd_raw))#<-SD_scaling*sd(obsY[obsW==1])))
     
-      #for(BAYES_STEP in c(1,2)){if(BAYES_STEP == 1){ print2(ifelse(BAYES_STEP==1,yes="Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...", no="Empirical Bayes Estimation Step...")) }
+      #for(BAYES_STEP in c(1,2)){if(BAYES_STEP == 1){ cienv$eq$ifelse(BAYES_STEP==1,yes="Empirical Bayes Calibration Step (see  Krishnan et al. (2020))...", no="Empirical Bayes Estimation Step...")) }
       for(BAYES_STEP in c(1)){
         if(BAYES_STEP == 1){
           nSGD_ORIG <- nSGD
@@ -471,7 +452,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           Y1_sd_priorMean <- as.vector(SDDist_Y1[k_,"Mean"][[1]])
         }
     
-        print2("Building causal model...")
+        message("Building causal model...")
         {
           batch_axis_name <- "batch"; bn_momentum <- 0.9; ep_BN <- 0.001
           DenseList_Prior <- DenseStateList <- DenseList <- list()
@@ -517,11 +498,11 @@ AnalyzeImageHeterogeneity <- function(obsW,
                   eval(parse(text = sprintf("DenseStateList$BNState_%s_d%s <- cienv$eq$nn$State(  DenseList$%s_d%s$BNLayer$BN  )", arm_, dense_, arm_, dense_ )))
             }; rm( dense_ )
           }
-          print2("Initializing cluster projection...")
+          message("Initializing cluster projection...")
           Tau_mean_init <- mean(obsY[obsW==1]) - mean(obsY[obsW==0])
           Tau_means_init <- Tau_mean_init + .01*seq(-1,1,length.out=kClust_est)*max(0.01,abs(Tau_mean_init))
     
-          print2("Initializing cluster centers...")
+          message("Initializing cluster centers...")
           base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
           SDDist_Y1 <- SDDist_Y0 <- MeanDist_tau <- base_mat
           as.numeric2 <- function(x){ as.numeric(cienv$tf$cast(x,cienv$tf$float32)) }
@@ -639,17 +620,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                             m, treat, y, vseed,
                                             StateList, seed, MPList, inference){
           if(SharedImageRepresentation){
-            print2("Getting image representation in GetLikelihoodDraw_batch()...")
+            message("Getting image representation in GetLikelihoodDraw_batch()...")
             m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
                                     m, StateList, seed, MPList, inference)
             StateList <- m[[2]]; m <- m[[1]]
           }
           
-          print2("Getting baseline outcome...")
+          message("Getting baseline outcome...")
           EY0_i <- GetEY0_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
           StateList <- EY0_i[[2]]; EY0_i <- EY0_i[[1]]
           
-          print2("Getting cluster logits...")
+          message("Getting cluster logits...")
           clustT <- GetTau_batch(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference)
           StateList <- clustT[[2]]; clustT <- clustT[[1]]
           
@@ -765,7 +746,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             if(BAYES_STEP == 1){ minThis <- cienv$jnp$negative( Elik ) } # minimize sum of squares (-- = +)
             if(BAYES_STEP == 2){ minThis <- CombineLikelihoodWithKL( Elik, klContrib ) }
     
-            print2("Returning loss + state...")
+            message("Returning loss + state...")
             minThis <- MPList[[1]]$cast_to_output( minThis ) # compute to output dtype
             if(image_dtype_char == "float16"){ 
               minThis <- MPList[[2]]$scale( minThis ) # scale loss
@@ -801,7 +782,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList, CausalList )
 
-        print2("Define optimizer and training step...")
+        message("Define optimizer and training step...")
         LocalFxnSource(TrainDefine, evaluation_environment = environment())
     
         keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
@@ -825,7 +806,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
     
     if(!justCheckCrossFitter){ 
-      print2("Getting predicted quantities...")
+      message("Getting predicted quantities...")
       #print("DEBUG MODE IS ON IN GetSummaries()");GetSummaries <- (function(ModelList, ModelList_fixed,
       GetSummaries <- cienv$eq$filter_jit(function(ModelList, ModelList_fixed,
                                                m, vseed,
@@ -875,7 +856,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           inference_counter <- inference_counter + 1
           zer <- which(cut_ == KeyQuantCuts)
           atP <- max(zer) / nUniqueKeys
-          if( any(zer %% 50 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done (inference): %.3f", atP)) }
+          if( any(zer %% 50 == 0) | 1 %in% zer ){ message(sprintf("Proportion done (inference): %.3f", atP)) }
             {
               setwd(orig_wd);ds_next_in <- GetElementFromTfRecordAtIndices(
                                                              uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
@@ -909,7 +890,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                            "key" = as.matrix( key_) )
           Results_by_keys[[inference_counter]] <- ret_list
         }
-        print2("Done getting predicted quantities...")
+        message("Done getting predicted quantities...")
         Results_by_keys_list <- Results_by_keys
         Results_by_keys <- apply(do.call(rbind, Results_by_keys_list), 2, 
                                  function(zer){(do.call(rbind,zer))})
@@ -993,7 +974,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # get cluster probs
   if(grepl(heterogeneityModelType, pattern = "variational")){
-    print2("Summarizing results...")
+    message("Summarizing results...")
     SDDist_Y1_post <- oryx$distributions$Normal(getSDY_params(ModelList, "Y1", "Mean"),
                                 cienv$jax$nn$softplus(getSDY_params(ModelList, "Y1", "SD")))
     SDDist_Y0_post <- oryx$distributions$Normal(getSDY_params(ModelList, "Y0", "Mean"),
@@ -1016,7 +997,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   # transportability analysis
   cluster_prob_transport_means <- NULL; if(!is.null(transportabilityMat)){
-    print2("Getting posterior predictive mean probabilities for transportability analysis...")
+    message("Getting posterior predictive mean probabilities for transportability analysis...")
     {
       if(grepl(heterogeneityModelType, pattern = "variational")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( cienv$jax$nn$softmax(GetTau(m,inference = T)),0L) }}
       if(grepl(heterogeneityModelType, pattern = "tarnet")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( GetTau(m,inference = T),0L) }}
@@ -1024,7 +1005,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
         gc(); py_gc$collect()
         atP <- max(  zer / nrow(transportabilityMat))
-        if((round(atP,2)*100) %% 10 == 0){ print2(atP) }
+        if((round(atP,2)*100) %% 10 == 0){ message(atP) }
         {
           setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                          uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),

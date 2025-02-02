@@ -15,7 +15,7 @@
 #' @md
 #'
 GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
-  print2("Calibrating moments for input data normalization...")
+  message("Calibrating moments for input data normalization...")
   NORM_SD <- NORM_MEAN <- c(); for(momentCalIter in 1L:momentCalIters){
     # get a data batch 
     #ds_next_ <- try(iterator$`next`(),T) # depreciated

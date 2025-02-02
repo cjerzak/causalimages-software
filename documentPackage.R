@@ -1,5 +1,5 @@
 {
-  rm(list=ls())
+  rm(list=ls()); options(error = NULL)
   package_name <- "causalimages"
   setwd(sprintf("~/Documents/%s-software", package_name))
   
@@ -11,7 +11,7 @@
   
   # install.packages( sprintf("~/Documents/%s-software/%s",package_name,package_name),repos = NULL, type = "source")
   # library( causalimages ); data(  CausalImagesTutorialData )
-  log(sort( sapply(ls(),function(l_){object.size(eval(parse(text=l_)))})))
+  log(sort( sapply(ls(),function(l_){   object.size(eval(parse(text=l_)))  })))
   
   # Check package to ensure it meets CRAN standards.
   # devtools::check( package_path )

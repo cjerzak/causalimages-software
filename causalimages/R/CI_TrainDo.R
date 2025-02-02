@@ -31,14 +31,14 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train) ){
-        print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
         ds_next_train <-  ds_iterator_train$`next`(); gc();py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train[[1]])[1] != batchSize){
-        print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
         ds_next_train <-  ds_iterator_train$`next`(); gc(); py_gc$collect()
       } }
@@ -54,14 +54,14 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train_control) ){
-        print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_next_train_control <-  ds_iterator_train_control$`next`(); gc();py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train_control[[1]])[1] != batchSize){
-        print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_next_train_control <-  ds_iterator_train_control$`next`(); gc(); py_gc$collect()
       } }
@@ -71,14 +71,14 @@ TrainDo <- function(){
       
       # if we run out of observations, reset iterator
       RestartedIterator <- F; if( is.null(ds_next_train_treated) ){
-        print2("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 1)"); gc(); py_gc$collect()
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
         ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc();py_gc$collect()
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
       if(!RestartedIterator){ if(dim(ds_next_train_treated[[1]])[1] != batchSize){
-        print2("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
+        message("Re-setting iterator! (type 2)"); gc(); py_gc$collect()
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
         ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc(); py_gc$collect()
       } }
@@ -163,7 +163,7 @@ TrainDo <- function(){
       # update parameters if finite gradients
       DoUpdate <- !is.na(myLoss_fromGrad) & np$array(AllFinite_DontAdjust) & 
         !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-10)
-      if(! DoUpdate ){ print2("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...") }
+      if(! DoUpdate ){ message("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...") }
       if( DoUpdate ){
         DoneUpdates <- DoneUpdates + 1
         
@@ -193,7 +193,7 @@ TrainDo <- function(){
       }
       i_ <- i ; if( (i %% 10 == 0 | i < 10) & 
                     (length(loss_vec[!is.na(loss_vec) & !is.infinite(loss_vec)]) > 5) ){
-        print2(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f - Grad norm: %.3f - Grads zero %%: %.1f%%",
+        message(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f - Grad norm: %.3f - Grads zero %%: %.1f%%",
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
                        (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]],
                        mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T) ) )

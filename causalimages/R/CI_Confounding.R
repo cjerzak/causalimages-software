@@ -98,24 +98,12 @@ AnalyzeImageConfounding <- function(
                                    atError = "stop", # stop or debug
                                    seed = NULL){
   {
-    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library(reticulate)
-    if(!is.null(conda_env)){
-      try(reticulate::use_condaenv(conda_env, required = conda_env_required),T)
+    if(!"jax" %in% ls(envir = cienv)) {
+      initialize_jax(conda_env = conda_env, 
+                     conda_env_required = conda_env_required,
+                     Sys.setenv_text = Sys.setenv_text) 
     }
-    # note: for balanced training, generate two tf records
-    if(!is.null(Sys.setenv_text)){ 
-      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
-    }
-    jax <<- reticulate::import("jax")
-    jnp <<- reticulate::import("jax.numpy")
-    np <<- reticulate::import("numpy")
-    jmp <<- reticulate::import("jmp")
-    optax <<- reticulate::import("optax")
-    eq <<- reticulate::import("equinox")
-    (py_gc <<- reticulate::import("gc"))$collect(); gc();
-    print2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
-    # NB: Make sure tensorflow-datasets is also installed, otherwise tfrecords won't work
+    message(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
 
     # set float type
     library( tensorflow );
@@ -130,7 +118,7 @@ AnalyzeImageConfounding <- function(
     }
   }
 
-  print2("Setting input types ...") 
+  message("Setting input types ...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -157,7 +145,7 @@ AnalyzeImageConfounding <- function(
 
   XisNull <- is.null( X  )
   if(!XisNull){ if(!"matrix" %in% class(X)){
-    print2("Coercing X to matrix class..."); X <- as.matrix(  X )
+    message("Coercing X to matrix class..."); X <- as.matrix(  X )
   } }
 
   if( !XisNull ){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
@@ -167,14 +155,14 @@ AnalyzeImageConfounding <- function(
   {
     if(is.null(file)){stop("No file specified for tfrecord!")}
     changed_wd <- F; if(  !is.null(  file  )  ){
-      print2("Establishing connection with tfrecord")
+      message("Establishing connection with tfrecord")
       tf_record_name <- file
       if( !grepl(tf_record_name, pattern = "/") ){
         tf_record_name <- paste("./",tf_record_name, sep = "")
       }
       tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
       new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
-      print2( sprintf("Temporarily re-setting the wd to %s", new_wd ) )
+      message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
       changed_wd <- T; setwd( new_wd )
 
       # define
@@ -187,7 +175,7 @@ AnalyzeImageConfounding <- function(
         return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
       }
 
-      print2("Setting up iterators...") # - skip the first test_size observations 
+      message("Setting up iterators...") # - skip the first test_size observations 
       if(!is.null(TFRecordControl)){
         getParsed_tf_dataset_train_Select <- function( tf_dataset ){
           return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
@@ -288,7 +276,7 @@ AnalyzeImageConfounding <- function(
         return( im  )
     })
 
-    print2("Calibrating first moments for input data normalization...")
+    message("Calibrating first moments for input data normalization...")
     NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
     NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
@@ -301,8 +289,8 @@ AnalyzeImageConfounding <- function(
     prW_est <- rep(NA,times = length(obsW))
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
-      print2("Note: Not optimizing image/video representation...")
-      print2("Define train/test indices based on out of sample keys...")
+      message("Note: Not optimizing image/video representation...")
+      message("Define train/test indices based on out of sample keys...")
       imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
       outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
                           max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
@@ -316,9 +304,9 @@ AnalyzeImageConfounding <- function(
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
 
-      print2("Starting generation of image/video representation + outcome prediction [bootstrap done for uncertainty estimation]...")
+      message("Starting generation of image/video representation + outcome prediction [bootstrap done for uncertainty estimation]...")
       for(jr in 1L:(nBoot+1L)){
-        if(nBoot > 0L){ print2( sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
+        if(nBoot > 0L){ message(sprintf("Bootstrap iteration %s of %s", jr-1L, nBoot) ) } 
         if(jr != (nBoot+1L)){ bindices_ <- sample(1:length( imageKeysOfUnits ), length( imageKeysOfUnits ), replace = T) }
         if(jr == (nBoot+1L)){ bindices_ <- 1:length( imageKeysOfUnits ) }
 
@@ -505,7 +493,7 @@ AnalyzeImageConfounding <- function(
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
                                     vseed, StateList, seed, MPList, inference){
-          print2("Starting GetDense_OneObs()")
+          message("Starting GetDense_OneObs()")
           
           if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
 
@@ -529,7 +517,7 @@ AnalyzeImageConfounding <- function(
             }
           }
           
-          print2("Returning output and state in GetDense_OneObs()...")
+          message("Returning output and state in GetDense_OneObs()...")
           return( list(m, StateList)  )
         }
         GetDense_batch <- cienv$jax$vmap(  function(
@@ -576,7 +564,7 @@ AnalyzeImageConfounding <- function(
           m <- MPList[[1]]$cast_to_output( m )
           NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  treat*cienv$jnp$log(m) +  (1-treat)*cienv$jnp$log(1-m) )  ) 
 
-          print2("Returning loss + state...")
+          message("Returning loss + state...")
           if(image_dtype_char == "float16"){ 
             NegLL <- MPList[[1]]$cast_to_output( NegLL ) # compute to output dtype
             NegLL <- MPList[[2]]$scale( NegLL ) # scale loss
@@ -588,7 +576,7 @@ AnalyzeImageConfounding <- function(
         }
 
         gc(); py_gc$collect()
-        print2( "Set state and model lists..." ) 
+        message("Set state and model lists..." ) 
         GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
@@ -603,13 +591,13 @@ AnalyzeImageConfounding <- function(
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
         rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
         
-        print2("Define trainer...")
+        message("Define trainer...")
         LocalFxnSource(TrainDefine, evaluation_environment = environment())
         
-        print2("Starting training...")
+        message("Starting training...")
         LocalFxnSource(TrainDo, evaluation_environment = environment())
       
-        print2("Getting predicted quantities...")
+        message("Getting predicted quantities...")
         GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
                  m, vseed,
                  StateList, seed, MPList){
@@ -636,7 +624,7 @@ AnalyzeImageConfounding <- function(
           zer <- which(cut_  ==  KeyQuantCuts)
           #gc(); py_gc$collect()
           atP <- max(zer)/nUniqueKeys
-          if( any(zer %% 10 == 0) | 1 %in% zer ){ print2(sprintf("Proportion done: %.3f", atP)) }
+          if( any(zer %% 10 == 0) | 1 %in% zer ){ message(sprintf("Proportion done: %.3f", atP)) }
           {
             setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
@@ -743,7 +731,7 @@ AnalyzeImageConfounding <- function(
 
     # do some analysis with examples
     processedDims <- NULL; if( plotResults ){
-      print2("Plotting image confounding results...")
+      message("Plotting image confounding results...")
       indices_t <- (1:length(obsW))[which(obsW==1)]
       indices_c <- (1:length(obsW))[which(obsW==0)]
 
@@ -802,7 +790,7 @@ AnalyzeImageConfounding <- function(
                                            period = 20L))
       makePlots <- function(){
         salience_try <- try({
-        print2("Plotting salience maps...")
+        message("Plotting salience maps...")
         nrows_im <- 2
         eval(parse(text = ifelse(dataType == "image", yes = 'pdf(sprintf("%s/CSM_%s.pdf", figuresPath, FigNameAppend),
             width = length(plot_indices)*5+2,height = nrows_im*5)', no = "NULL") ))
@@ -975,7 +963,7 @@ AnalyzeImageConfounding <- function(
         }
 
         try({
-        print2("Plotting propensity histogram...")
+        message("Plotting propensity histogram...")
         pdf(sprintf("%s/Hist_%s.pdf", figuresPath, FigNameAppend))
         {
           par(mfrow=c(1,1))
@@ -1004,7 +992,7 @@ AnalyzeImageConfounding <- function(
         SalienceX <- c(); samp_counter <- 0
         for(keyNum_ in sample(1:length(unique(imageKeysOfUnits)), 25, replace = T)){
           samp_counter <- samp_counter + 1
-          if(samp_counter %% 5 == 0){  print2(sprintf("Tabular Salience Iteration %s of %s", samp_counter, 25)) }
+          if(samp_counter %% 5 == 0){  message(sprintf("Tabular salience iteration %s of %s", samp_counter, 25)) }
           sampIndex_ <- which(imageKeysOfUnits %in% unique(imageKeysOfUnits)[keyNum_])[1]
 
           # extract data
@@ -1052,7 +1040,7 @@ AnalyzeImageConfounding <- function(
     if(!is.null(SalienceX)){ names(SalienceX) <- colnames(X) }
     rm( InitImageProcessFn )
 
-    print2( "Done with image confounding analysis!" ); try(setwd(orig_wd), T)
+    message("Done with image confounding analysis!" ); try(setwd(orig_wd), T)
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
       "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),

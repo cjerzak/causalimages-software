@@ -47,7 +47,7 @@ GetAndSaveGeolocatedImages <- function(
   bad_indices <- c();observation_indices <- 1:length(long)
   counter_b <- 0; for(i in observation_indices){
     counter_b <- counter_b + 1
-    if(counter_b %% 10 == 0){print2(sprintf("At image %s of %s",counter_b,length(observation_indices)))}
+    if(counter_b %% 10 == 0){message(sprintf("At image %s of %s",counter_b,length(observation_indices)))}
     SpatialTarget_longlat <- c(long[i],lat[i])
 
     found_<-F;counter_ <- 0; while(found_ == F){
@@ -71,11 +71,11 @@ GetAndSaveGeolocatedImages <- function(
       }
     }
     if(bad_){
-      print2(sprintf("Failure at %s. Apparently, no .tif contains the reference point",i))
+      message(sprintf("Failure at %s. Apparently, no .tif contains the reference point",i))
       bad_indices <- c(bad_indices,i)
     }
     if(!bad_){
-      print2(sprintf("Success at %s - Extracting & saving image!", i))
+      message(sprintf("Success at %s - Extracting & saving image!", i))
       # available rows/cols
       rows_available <- nrow( MASTER_IMAGE_ )
       cols_available <- ncol( MASTER_IMAGE_ )
@@ -125,5 +125,5 @@ GetAndSaveGeolocatedImages <- function(
       }
     }
   }
-  print2("Done with GetAndSaveGeolocatedImages()!")
+  message("Done with GetAndSaveGeolocatedImages()!")
 }

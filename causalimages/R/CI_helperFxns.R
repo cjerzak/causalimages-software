@@ -88,7 +88,7 @@ r2const <- function(x, dtype){
 #' @return Prints with date and time. 
 #'
 #' @examples
-#' print2("Hello world")
+#' message("Hello world")
 #' @export
 #' @md
 #'

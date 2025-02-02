@@ -13,7 +13,6 @@
 #' @param batchSize Integer specifying batch size in obtaining representations.
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types. Default is `"image"`.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
-#' @param seed Integer specifying the seed for pseudo random number generation.
 #'
 #' @return A list containing two items:
 #' \itemize{
@@ -67,28 +66,12 @@ GetImageRepresentations <- function(
     CleanupEnv = FALSE, 
     initializingFxns = FALSE, 
     seed = NULL){
-
-  # initialize tensorflow if not already initialized
-  if(   !"logical" %in% class(try(as.numeric(np$array(cienv$jnp$square(1.)))==1,T)) ){
-    print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-    library( tensorflow ); 
-    if(!is.null(conda_env)){ try(reticulate::use_condaenv(conda_env, required = conda_env_required),T) }
-    if(!is.null(Sys.setenv_text)){ 
-      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
-    }
-    py_gc <<- reticulate::import("gc")
-    (jax <<- reticulate::import("jax"))$config$update("jax_enable_x64", FALSE);
-    jnp <<- reticulate::import("jax.numpy")
-    np <<- reticulate::import("numpy")
-    jmp <<- reticulate::import("jmp")
-    optax <<- reticulate::import("optax")
-    eq <<- reticulate::import("equinox")
-    
-    # set memory growth for tensorflow 
-    for(device_ in cienv$tf$config$list_physical_devices()){ try(cienv$tf$config$experimental$set_memory_growth(device_, T),T) }
+  
+  if(!"jax" %in% ls(envir = cienv)) {
+    initialize_jax(conda_env = conda_env, 
+                   conda_env_required = conda_env_required,
+                   Sys.setenv_text = Sys.setenv_text) 
   }
-  gc(); try(py_gc$collect(), T)
-  if(is.null(seed)){ seed <- as.integer(runif(1,1,10000)) }
 
   # image dtype
   if(is.null(image_dtype)){
@@ -97,7 +80,7 @@ GetImageRepresentations <- function(
   }
   NeuralizeScale <- FALSE; nScalePatches <- ai(3L^2)
   
-  print2("Setting input types ...") 
+  message("Setting input types ...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -161,7 +144,7 @@ GetImageRepresentations <- function(
 
   # setup jax model
   {
-    print2("Setting up image representation model...")
+    message("Setting up image representation model...")
     if(dataType == "video" | NeuralizeScale){ NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) )  };
     if(dataType == "image"){ NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*nDepth_ImageRep ) )  }
     MPList <- list(cienv$jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
@@ -277,7 +260,7 @@ GetImageRepresentations <- function(
         }
         if(  grepl(pretrainedModel, pattern = "swin") ){
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            print2("Setting up swin model...")
+            message("Setting up swin model...")
             TransformersModule <<- import("transformers")
             nParameters_Pretrained <<- 1L
             
@@ -319,7 +302,7 @@ GetImageRepresentations <- function(
             
             NORM_MEAN_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
             NORM_SD_array_inner <<- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
-            print2("Done setting up swin model!")
+            message("Done setting up swin model!")
           }
           
           # normalize and resize 
@@ -589,11 +572,11 @@ GetImageRepresentations <- function(
       if(type == "Spatial"){ # patch embed
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(cienv$jnp$transpose(m, c(2L, 0L, 1L)))
           m <- cienv$jnp$transpose(cienv$jnp$reshape(m, list(m$shape[[1]],-1L)))
-          print2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
+          message(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
       
       if(NeuralizeScale == T){ 
-        print2("Neuralizing scale...")
+        message("Neuralizing scale...")
         m_orig <- m
       }
 
@@ -603,7 +586,7 @@ GetImageRepresentations <- function(
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
-      print2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
+      message(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
           print(d_)
 
@@ -640,7 +623,7 @@ GetImageRepresentations <- function(
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
                       ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
       }
-      print2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
+      message(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
       # take CLS embedding from position 0 [Start]
       m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
@@ -659,7 +642,7 @@ GetImageRepresentations <- function(
              cienv$jnp$expand_dims(cienv$jax$nn$softmax(  cienv$jnp$take(m,cienv$jnp$array(0L:(nScalePatches-1L)))  ), 1L), axis = 0L)
         }
       }
-    print2("Returning output in TransformerBackbone()")
+    message("Returning output in TransformerBackbone()")
     return( list(m, StateList) )
     }
     
@@ -1004,7 +987,7 @@ GetImageRepresentations <- function(
             # final pooling, final norm (if used), and projection 
             m <- cienv$jnp$max(m, c(1L:2L))
             if(optimizeImageRep & T == T){
-                print2("Performing final CNN normalization...")
+                message("Performing final CNN normalization...")
                 m <- ModelList$SpatialTransformerSupp$FinalCNNBN$BN(m, 
                                                                     state = StateList$BNState_ImRep_FinalCNNBN, 
                                                                     inference = inference)
@@ -1013,7 +996,7 @@ GetImageRepresentations <- function(
             }
         }
       }
-      print2("Returning ImageRepArm_SpatialArm outputs...")
+      message("Returning ImageRepArm_SpatialArm outputs...")
       return( list(m, StateList)  )
     }
     
@@ -1027,7 +1010,7 @@ GetImageRepresentations <- function(
       if(thisPath){
         if(dataType == "video" & is.null(pretrainedModel)){ m <- cienv$jnp$reshape(m, c(-1L, (orig_shape_m <- cienv$jnp$shape(m))[3:5])) }
   
-        print2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
+        message(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
   
         # get spatial representation if custom architecture 
         if( is.null(pretrainedModel) ){ 
@@ -1054,10 +1037,10 @@ GetImageRepresentations <- function(
                         out_axes = list(0L,NULL))(ModelList, m,
                                                   StateList, cienv$jnp$add(seed,42L), MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
-          print2("Returning ImageRepArm_TemporalArm outputs...")
+          message("Returning ImageRepArm_TemporalArm outputs...")
         }
       }
-      print2("Returning ImageRepArm_batch outputs...")
+      message("Returning ImageRepArm_batch outputs...")
       return( list(m, StateList) )
     })
   }
@@ -1127,16 +1110,16 @@ GetImageRepresentations <- function(
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
-      print2(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
+      message(sprinf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
   }
   Representations <- Representations[match(as.character(imageKeysOfUnits), as.character(usedImageKeys) ),]
-  print2(sprintf("Done getting image/video representations!"))
+  message("Done getting image/video representations!")
   }
 
   # reset wd (may have been changed via tfrecords use)
   setwd(  orig_wd  )
   
-  print2("Obtaining approximate parameter count...")
+  message("Obtaining approximate parameter count...")
   nParamsRep <- sum(unlist(lapply(cienv$jax$tree_leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ nParamsRep <- nParamsRep }
   if(!is.null(pretrainedModel) ){

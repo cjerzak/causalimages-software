@@ -27,15 +27,12 @@ WriteTfRecord <- function(file,
                           writeVideo = F,
                           image_dtype = "float16",
                           conda_env = "CausalImagesEnv",
-                          conda_env_required = T){
-  print2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
-  {
-  library(tensorflow);
-  if(!is.null(conda_env)){ try(reticulate::use_condaenv(conda_env, required = conda_env_required),T) }
-
-  # import python garbage collectors
-  py_gc <- reticulate::import("gc")
-  gc(); py_gc$collect()
+                          conda_env_required = T,
+                          Sys.setenv_text = NULL){
+  if(!"jax" %in% ls(envir = cienv)) {
+      initialize_jax(conda_env = conda_env, 
+                     conda_env_required = conda_env_required,
+                     Sys.setenv_text = Sys.setenv_text) 
   }
 
   if(length(uniqueImageKeys) != length(unique(uniqueImageKeys))){
@@ -44,7 +41,7 @@ WriteTfRecord <- function(file,
   }
 
   # helper fxns
-  print2("Initializing tfrecord helpers...")
+  message("Initializing tfrecord helpers...")
   {
     # see https://towardsdatascience.com/a-practical-guide-to-tfrecords-584536bc786c
     my_bytes_feature <- function(value){
@@ -92,7 +89,7 @@ WriteTfRecord <- function(file,
   }
 
   # for clarity, set file to tf_record_name
-  print2("Starting save run...")
+  message("Starting save run...")
   tf_record_name <- file
   if( !grepl(tf_record_name, pattern = "/") ){
     tf_record_name <- paste("./",tf_record_name, sep = "")
@@ -211,7 +208,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
         return_list[[li_]][[index_counter]] <- cienv$tf$expand_dims(element[[li_]],0L)
       }
     }
-    if(index_counter %% 5==0){ try(py_gc$collect(),T) }
+    if(index_counter %% 5==0){ try(cienv$py_gc$collect(),T) }
   }
 
   if(index_counter > 1){ for(li_ in 1:length(element)){

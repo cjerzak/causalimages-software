@@ -20,7 +20,7 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                            conda = conda, python_version = "3.12")
 
   # Install Python packages within the environment
-  reticulate::py_install(c("tensorflow", "optax", "jax",
+  reticulate::py_install(c("tensorflow", "optax", "jax","tensorflow-datasets"
                            "torch","transformers","pillow","tf-keras", 
                            "equinox", "jmp", "tensorflow-probability"),
                            conda = conda, 
@@ -37,6 +37,6 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                                          envname = conda_env), T)
     }
   }
-  print2("Done building causalimages backend!")
+  message("Done building causalimages backend!")
 }
 
