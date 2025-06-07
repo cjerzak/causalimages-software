@@ -1,4 +1,5 @@
 # `causalimages`: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images
+[![Tutorial Tests](https://github.com/cjerzak/causalimages-software/actions/workflows/tutorial-tests.yml/badge.svg)](https://github.com/cjerzak/causalimages-software/actions/workflows/tutorial-tests.yml)
 
 [**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
