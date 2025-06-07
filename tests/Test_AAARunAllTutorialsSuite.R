@@ -35,6 +35,6 @@
     #if("try-error" %in% class(HetTest)){ stop("Failed at HetTest") }; try(dev.off(), T)
   }, T)
 
-  if('try-error' %in% class(tryTests)){ print("At least one test failed"); print( tryTests ) }
+  if('try-error' %in% class(tryTests)){ print("At least one test failed"); print( tryTests ); stop(tryTests) }
   if(!'try-error' %in% class(tryTests)){ print("All tests succeeded!") }
 }
