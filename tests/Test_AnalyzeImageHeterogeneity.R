@@ -14,35 +14,46 @@
 # causalimages::BuildBackend()
 
 # run code if downloading data for the first time
-download_folder <- "~/Downloads/UgandaAnalysis.zip"
+download_folder <- "~/Downloads/UgandaAnalysis"
 reSaveTfRecords <- F
 if( reDownloadRawData <- F  ){
-  # specify uganda data URL
-  uganda_data_url <- "https://dl.dropboxusercontent.com/s/xy8xvva4i46di9d/Public%20Replication%20Data%2C%20YOP%20Experiment.zip?dl=0"
-  download_folder <- "~/Downloads/UgandaAnalysis.zip"
 
-  # download into new directory
-  download.file( uganda_data_url,  destfile = download_folder)
-
+  # (1) Specify the Dataverse dataset DOI
+  doi <- "doi:10.7910/DVN/O8XOSF"
+  
+  # (2) Construct the download URL for the entire dataset as a .zip
+  # By convention on Harvard Dataverse, this API endpoint:
+  #   https://{server}/api/access/dataset/:persistentId?persistentId={doi}&format=original
+  # downloads all files in a single zip.
+  base_url <- "https://dataverse.harvard.edu"
+  download_url <- paste0(base_url,
+                         "/api/access/dataset/:persistentId",
+                         "?persistentId=", doi,
+                         "&format=original")
+  
+  # (3) Download the ZIP file
+  destfile <- "~/Downloads/UgandaAnalysis.zip"
+  download.file(download_url, destfile = destfile, mode = "wb")
+  
   # unzip and list files
-  unzip(download_folder, exdir = "~/Downloads/UgandaAnalysis")
+  unzip(destfile, exdir = "~/Downloads/UgandaAnalysis")
+  unzip('./UgandaAnalysis/Uganda2000_processed.zip', exdir = "~/Downloads/UgandaAnalysis")
 }
 
 # load in package
 library( causalimages  ); options(error = NULL)
 
 # set new wd
-setwd(sprintf('%s/Public Replication Data, YOP Experiment/',
-              gsub(download_folder,pattern="\\.zip",replace="")))
+setwd( "~/Downloads" )
 
 # see directory contents
 list.files()
 
 # images saved here
-list.files(  "./Uganda2000_processed"  )
+list.files(  "./UgandaAnalysis/Uganda2000_processed"  )
 
 # individual-level data
-UgandaDataProcessed <- read.csv(  "./UgandaDataProcessed.csv"  )
+UgandaDataProcessed <- read.csv(  "./UgandaAnalysis/UgandaDataProcessed.csv"  )
 
 # unit-level covariates (many covariates are subject to missingness!)
 dim( UgandaDataProcessed )
@@ -62,7 +73,7 @@ UgandaDataProcessed$Wobs
 
 # information on keys linking to satellite images for all of Uganda
 # (not just experimental context, use for constructing transportability maps)
-UgandaGeoKeyMat <- read.csv(  "./UgandaGeoKeyMat.csv"  )
+UgandaGeoKeyMat <- read.csv(  "./UgandaAnalysis/UgandaGeoKeyMat.csv"  )
 
 # set outcome to an income index
 UgandaDataProcessed$Yobs <- UgandaDataProcessed$income_index_e_RECREATED
@@ -91,7 +102,7 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
         # place the image in the correct place in the array
         array_shell[,,,band_] <-
           as.matrix(data.table::fread(
-            input = sprintf("./Uganda2000_processed/GeoKey%s_BAND%s.csv", key_, band_), header = FALSE)[-1,])
+            input = sprintf("./UgandaAnalysis/Uganda2000_processed/GeoKey%s_BAND%s.csv", key_, band_), header = FALSE)[-1,])
       }
       return(array_shell)
     }, simplify = "array")
@@ -131,46 +142,46 @@ UgandaDataProcessed <- UgandaDataProcessed[!is.na(UgandaDataProcessed$Yobs) &
 # to ensure correct ordering of data
 tfrecord_loc <- "~/Downloads/UgandaExample.tfrecord"
 if( reSaveTfRecords ){
-    causalimages::WriteTfRecord(  file = tfrecord_loc,
+    causalimages::WriteTfRecord(  
+                    file = tfrecord_loc,
                     uniqueImageKeys = unique(UgandaDataProcessed$geo_long_lat_key),
                     acquireImageFxn = acquireImageRep )
 }
 
 for(ImageModelClass in c("VisionTransformer","CNN")){
-for(optimizeImageRep in c(T, F)){
-  print(sprintf("Image hetero analysis & optimizeImageRep: %s",optimizeImageRep))
-  # perform image heterogeneity analysis (toy example)
-  ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
-    # data inputs
-    obsW =  UgandaDataProcessed$Wobs,
-    obsY = UgandaDataProcessed$Yobs,
-    X = matrix(rnorm(length(UgandaDataProcessed$Yobs)*10),ncol=10),
-    imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
-    file = tfrecord_loc, # location of tf record (use absolute file paths)
-    lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
-    long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
-
-    # inputs to control where visual results are saved as PDF or PNGs
-    # (these image grids are large and difficult to display in RStudio's interactive mode)
-    plotResults = T,
-    figuresPath = "~/Downloads/HeteroTutorial", # where to write analysis figures
-    figuresTag = "HeterogeneityImTutorial",plotBands = 1L:3L,
-
-    # optional arguments for generating transportability maps
-    # here, we leave those NULL for simplicity
-    transportabilityMat = NULL, #
-
-    # other modeling options
-    ImageModelClass  = ImageModelClass,
-    nSGD = 5L, # make this larger for real applications (e.g., 2000L)
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-    nWidth_ImageRep = as.integer(2L^6),
-    optimizeImageRep = optimizeImageRep,
-    batchSize = 8L, # make this larger for real application (e.g., 50L)
-    kClust_est = 2 # vary depending on problem. Usually < 5
-    )
-    try(dev.off(), T)
-}
+  for(optimizeImageRep in c(T, F)){
+    print(sprintf("Image hetero analysis & optimizeImageRep: %s",optimizeImageRep))
+    ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
+      # data inputs
+      obsW =  UgandaDataProcessed$Wobs,
+      obsY = UgandaDataProcessed$Yobs,
+      X = matrix(rnorm(length(UgandaDataProcessed$Yobs)*10),ncol=10),
+      imageKeysOfUnits =  UgandaDataProcessed$geo_long_lat_key,
+      file = tfrecord_loc, # location of tf record (use absolute file paths)
+      lat =  UgandaDataProcessed$geo_lat, # not required but helpful for dealing with redundant locations in EO data
+      long =  UgandaDataProcessed$geo_long, # not required but helpful for dealing with redundant locations in EO data
+  
+      # inputs to control where visual results are saved as PDF or PNGs
+      # (these image grids are large and difficult to display in RStudio's interactive mode)
+      plotResults = T,
+      figuresPath = "~/Downloads/HeteroTutorial", # where to write analysis figures
+      figuresTag = "HeterogeneityImTutorial",plotBands = 1L:3L,
+  
+      # optional arguments for generating transportability maps
+      # here, we leave those NULL for simplicity
+      transportabilityMat = NULL, #
+  
+      # other modeling options
+      imageModelClass  = ImageModelClass,
+      nSGD = 5L, # make this larger for real applications (e.g., 2000L)
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+      nWidth_ImageRep = as.integer(2L^6),
+      optimizeImageRep = optimizeImageRep,
+      batchSize = 8L, # make this larger for real application (e.g., 50L)
+      kClust_est = 1 # vary depending on problem. Usually < 5
+      )
+      try(dev.off(), T)
+  }
 }
 
 # video heterogeneity example
@@ -227,7 +238,7 @@ for(optimizeImageRep in c(T, F)){
     transportabilityMat = NULL, #
 
     # other modeling options
-    ImageModelClass = ImageModelClass,
+    imageModelClass = ImageModelClass,
     nSGD = 5L, # make this larger for real applications (e.g., 2000L)
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^5),

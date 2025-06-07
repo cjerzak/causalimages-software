@@ -145,7 +145,9 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
                                             iterator = NULL, return_iterator = F){
   # consider passing iterator as input to function to speed up large-batch execution
   image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype))), T)
-  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) }
+  if("try-error" %in% class(image_dtype_)){ 
+    image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) 
+  }
   image_dtype <- image_dtype_
 
   if(is.null(iterator)){
@@ -162,7 +164,9 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     dataset = cienv$tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
 
     # Parse the tf.Example messages
-    dataset <- dataset$map( function(x){ parse_tfr_element(x, readVideo = readVideo, image_dtype = image_dtype) }) # return
+    dataset <- dataset$map( function(x){ parse_tfr_element(x, 
+                                                           readVideo = readVideo, 
+                                                           image_dtype = image_dtype) }) # return
 
     index_counter <- last_in_ <- 0L
     return_list <- replicate(length( dataset$element_spec), {list(replicate(length(uniqueKeyIndices), list()))})
@@ -212,7 +216,8 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
 
   if(index_counter > 1){ for(li_ in 1:length(element)){
     return_list[[li_]] <- eval(parse(text =
-                      paste("cienv$tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),collapse = ","), "), 0L)", collapse = "") ))
+                      paste("cienv$tf$concat( list(", paste(paste("return_list[[li_]][[", 1:length(uniqueKeyIndices), "]]"),
+                                                            collapse = ","), "), 0L)", collapse = "") ))
     if(  any(diff(uniqueKeyIndices)<0)  ){ # re-order if needed
       return_list[[li_]] <- cienv$tf$gather(return_list[[li_]],
                                       indices = as.integer(match(uniqueKeyIndices,indices_sorted)-1L),
@@ -233,7 +238,9 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
 parse_tfr_element <- function(element, readVideo = F, image_dtype){
   #use the same structure as above; it's kinda an outline of the structure we now want to create
   image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype))), T)
-  if("try-error" %in% class(image_dtype_)){ image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) }
+  if("try-error" %in% class(image_dtype_)){ 
+    image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype$name))), T) 
+  }
   image_dtype <- image_dtype_
 
   dict_init_val <- list()
@@ -274,8 +281,8 @@ parse_tfr_element <- function(element, readVideo = F, image_dtype){
   #  and reshape it appropriately
   if(!readVideo){
     feature = cienv$tf$reshape(  feature, shape = c(content[['height']],
-                                              content[['width']],
-                                              content[['channels']])  )
+                                                    content[['width']],
+                                                    content[['channels']])  )
   }
   if(readVideo){
     feature = cienv$tf$reshape(  feature, shape = c(content[['time']],

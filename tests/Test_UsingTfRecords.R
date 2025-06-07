@@ -1,8 +1,5 @@
 #!/usr/bin/env Rscript
 {
-  # clear workspace
-  rm(list=ls())
-
   ################################
   # Image confounding tutorial using causalimages
   # and tfrecords for faster results

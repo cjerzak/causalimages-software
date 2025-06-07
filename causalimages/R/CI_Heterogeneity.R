@@ -175,14 +175,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
       }
       getParsed_tf_dataset_train_Shuffle <- function( tf_dataset ){
         tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                   dtype=cienv$tf$int64),
-                                         reshuffle_each_iteration = F)
+                                                                            dtype=cienv$tf$int64),
+                                         reshuffle_each_iteration = FALSE )
         return(tf_dataset)
       }
       getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
         tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                   dtype=cienv$tf$int64),
-                                         reshuffle_each_iteration = T) 
+                                                                            dtype=cienv$tf$int64),
+                                         reshuffle_each_iteration = TRUE ) 
         tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
         tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
         return( tf_dataset )
@@ -483,7 +483,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                       'FFWide2Bias' = cienv$jnp$array(matrix(rnorm(HiddenDim,sd=0, mean = 0), nrow = HiddenDim)),
                                                      
                                                       'FFNarrow'=cienv$jnp$array(matrix(rnorm(LeftNarrowProjDim*OutputDim)*sqrt(2/InputDim), nrow = LeftNarrowProjDim)), # output proj wts
-                                                      #'FFNarrowBias'=cienv$jnp$array(matrix(rnorm(OutputDim,sd=0, mean = BiasInit), ncol = OutputDim))
                                                       'FFNarrowBias'=cienv$jnp$array(matrix(rnorm(OutputDim,sd=0, mean = 0), ncol = OutputDim))
                                                        ),        
                                           'ResidProj' = cienv$jnp$array(matrix(rnorm(InputDim*OutputDim)*sqrt(2/InputDim), nrow = InputDim)), # resid proj wts
@@ -505,8 +504,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
           message("Initializing cluster centers...")
           base_mat <- as.data.frame( matrix(list(),nrow=kClust_est,ncol=3L) ); colnames( base_mat ) <- c("Mean","SD","Prior")
           SDDist_Y1 <- SDDist_Y0 <- MeanDist_tau <- base_mat
-          as.numeric2 <- function(x){ as.numeric(cienv$tf$cast(x,cienv$tf$float32)) }
-          as.matrix2 <- function(x){ as.matrix(cienv$tf$cast(x,cienv$tf$float32)) }
+          as.numeric2 <- function(x){ as.numeric(cienv$np$array(cienv$tf$cast(x,cienv$tf$float32))) }
+          as.matrix2 <- function(x){ as.matrix(cienv$np$array(cienv$tf$cast(x,cienv$tf$float32))) }
           for(k_ in 1:kClust_est){
             sd_init_trainableParams <- as.numeric2(softplus_inverse2(0.00001)) # set this to a small number so network starts off as nearly deterministic
     
