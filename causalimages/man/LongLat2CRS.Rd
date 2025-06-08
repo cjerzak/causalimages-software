@@ -14,7 +14,7 @@ LongLat2CRS(long, lat, CRS_ref)
 \item{CRS_ref}{A CRS into which the long-lat point should be projected.}
 }
 \value{
-Returns the long/lat location as a spatial point in the new CRS defined by \code{CRS_ref}
+Numeric vector of length two giving the coordinates of the supplied location in the CRS defined by \code{CRS_ref}
 }
 \description{
 A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
@@ -22,6 +22,6 @@ A function converts long/lat coordinates into a spatial points object defined by
 \examples{
 # (Not run)
 #spatialPt <- LongLat2CRS(long = 49.932,
-                  #lat = 35.432,
-                  #CRS_ref = sp::CRS("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
+#                 lat = 35.432,
+#                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
 }
