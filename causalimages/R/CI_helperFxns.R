@@ -1,51 +1,49 @@
 #' Get the spatial point of long/lat coordinates
 #'
-#' A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
+#' Convert longitude and latitude coordinates to a different coordinate reference
+#' system (CRS).
 #'
 #' @param long Vector of numeric longitudes.
 #' @param lat Vector of numeric latitudes.
 #' @param CRS_ref A CRS into which the long-lat point should be projected.
 #'
-#' @return Returns the long/lat location as a spatial point in the new CRS defined by `CRS_ref`
+#' @return Numeric vector of length two giving the coordinates of the supplied
+#'   location in the CRS defined by `CRS_ref`.
 #'
 #' @examples
 #' # (Not run)
 #' #spatialPt <- LongLat2CRS(long = 49.932,
-#'                   #lat = 35.432,
-#'                   #CRS_ref = sp::CRS("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
+#' #                 lat = 35.432,
+#' #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"))
 #' @export
 #' @md
 #'
 LongLat2CRS <- function(long, lat, CRS_ref){
-  library(sp)
-  CRS_longlat <- CRS("+proj=longlat +datum=WGS84")
-  point_longlat <- c(long,lat)
-  point_longlat <- data.frame(ID = 1,
-                              X = as.numeric(point_longlat[1]),
-                              Y = as.numeric(point_longlat[2]))
-  coordinates(point_longlat) <- c("X", "Y")
-  proj4string(point_longlat) <- CRS_longlat
-  SpatialTarget_utm <- SpatialPoints(spTransform(point_longlat, CRS_ref),
-                                     CRS_ref)
-  return( SpatialTarget_utm )
+  point_longlat <- sf::st_as_sf(
+    data.frame(long = as.numeric(long), lat = as.numeric(lat)),
+    coords = c("long", "lat"),
+    crs = 4326
+  )
+  point_longlat_ref <- sf::st_transform(point_longlat, crs = sf::st_crs(CRS_ref))
+  coords_ <- sf::st_coordinates(point_longlat_ref)[1, ]
+  return(coords_)
 }
 
 LongLat2CRS_extent <- function(point_longlat,
                                CRS_ref,
                                target_km_diameter = 10){
-  CRS_longlat <- CRS("+proj=longlat +datum=WGS84")
-  target_km <- 10
-  point_longlat1 <- data.frame(ID = 1,
-                               X = as.numeric(point_longlat[1])-1/111*(target_km/2),
-                               Y = as.numeric(point_longlat[2])-1/111*(target_km/2))
-  point_longlat2 <- data.frame(ID = 2,
-                               X = as.numeric(point_longlat[1])+1/111*(target_km/2),
-                               Y = as.numeric(point_longlat[2])+1/111*(target_km/2))
-  point_longlat_mat <- rbind(point_longlat1,point_longlat2)
-  coordinates(point_longlat_mat) <- c("X", "Y")
-  proj4string(point_longlat_mat) <- CRS_longlat
-  point_longlat_mat_ref <- SpatialPoints(spTransform(point_longlat_mat, CRS_ref), CRS_ref)
-  return( raster::extent(point_longlat_mat_ref) )
+  target_km <- target_km_diameter
+  offset <- 1/111 * (target_km/2)
+  point_longlat1 <- c(long = as.numeric(point_longlat[1]) - offset,
+                      lat = as.numeric(point_longlat[2]) - offset)
+  point_longlat2 <- c(long = as.numeric(point_longlat[1]) + offset,
+                      lat = as.numeric(point_longlat[2]) + offset)
+  pts <- sf::st_as_sf(rbind(point_longlat1, point_longlat2),
+                      coords = c("long", "lat"), crs = 4326)
+  pts_ref <- sf::st_transform(pts, crs = sf::st_crs(CRS_ref))
+  coords_ <- sf::st_coordinates(pts_ref)
+  return(raster::extent(min(coords_[,1]), max(coords_[,1]),
+                        min(coords_[,2]), max(coords_[,2])))
 }
 
 # converts python builtin to list

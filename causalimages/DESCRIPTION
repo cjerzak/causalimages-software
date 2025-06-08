@@ -30,7 +30,6 @@ Encoding: UTF-8
 LazyData: false
 Imports:
     tensorflow,
-    latex2exp,
     keras,
     reticulate,
     viridis,
@@ -41,9 +40,7 @@ Imports:
     glmnet,
     sf,
     data.table,
-    grf,
-    pROC,
-    devtools
+    pROC
 Suggests: 
     knitr,
     rmarkdown
