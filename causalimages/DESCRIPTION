@@ -30,12 +30,9 @@ Encoding: UTF-8
 LazyData: false
 Imports:
     tensorflow,
-    keras,
     reticulate,
-    viridis,
     geosphere,
     raster,
-    animation,
     rrapply,
     glmnet,
     sf,
