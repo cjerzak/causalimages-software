@@ -1,0 +1,40 @@
+docker run --platform=linux/amd64 --rm   -v "$HOME/Documents/causalimages-software/misc/docker/binaries:/binaries"   rocker/r-ver:4.4.0 bash -exc "
+    set -euo pipefail
+
+    echo \"🔧 Installing system development libraries...\"
+    apt-get update -qq && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential cmake pkg-config git libcurl4-openssl-dev libssl-dev libxml2-dev \
+      libgdal-dev libgeos-dev libproj-dev libudunits2-dev ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+    # Build GitHub package binary
+    cd /binaries/src
+
+    # Check and remove existing repo directory if it exists
+    if [ -d \"/binaries/src/repo\" ]; then
+       rm -rf /binaries/src/repo
+    fi
+
+    # clone *and* sparsify GitHub repo in one go
+    git clone \
+      --depth 1 \
+      --filter=blob:none \
+      --sparse \
+      https://github.com/cjerzak/causalimages-software.git \
+      /binaries/src/repo
+
+    cd /binaries/src/repo
+
+    # then tell Git which folder you actually want
+    git sparse-checkout set causalimages
+
+    # now build
+    #R CMD build ./causalimages --no-manual --no-build-vignettes
+    R CMD INSTALL --build ./causalimages
+    mv causalimages_*.tar.gz /binaries/bin/causalimages.tar.gz
+
+    echo \"✅✅✅ Built binary tarballs ✅✅✅\"
+  "
+
