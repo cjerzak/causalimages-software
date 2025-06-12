@@ -143,9 +143,9 @@ TrainDo <- function(){
       # unscale + adjust loss scale is some non-finite or NA
       if(i == 1){
         Map2Zero <- cienv$eq$filter_jit(function(input){
-          cienv$jax$tree_map(function(x){ cienv$jnp$where(cienv$jnp$isnan(x), cienv$jnp$array(0), x)}, input) })
+          cienv$jax$tree$map(function(x){ cienv$jnp$where(cienv$jnp$isnan(x), cienv$jnp$array(0), x)}, input) })
         GetGetNorms <- cienv$eq$filter_jit(function(input){
-          cienv$jax$tree_map(function(x){ cienv$jnp$mean(cienv$jnp$abs(x)) }, input) })
+          cienv$jax$tree$map(function(x){ cienv$jnp$mean(cienv$jnp$abs(x)) }, input) })
         AllFinite <- cienv$jax$jit( cienv$jmp$all_finite )
       }
       if(image_dtype_char == "float16"){ 
