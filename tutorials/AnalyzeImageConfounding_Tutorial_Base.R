@@ -63,7 +63,7 @@
   }
 
   # write tf record
-  TFRecordName_im <- "./ImageTutorial/TutorialData_im.tfrecord"
+  TFRecordName_im <- "./TutorialData_im.tfrecord"
   if( reSaveTFRecord ){
     causalimages::WriteTfRecord(
       file = TFRecordName_im,
@@ -95,7 +95,7 @@
     dropoutRate = NULL, # 0.1,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
-    figuresPath = "./ImageTutorial")
+    figuresPath = "./")
     try(dev.off(), T)
   #ImageConfoundingAnalysis$ModelEvaluationMetrics
   }
@@ -137,7 +137,7 @@
     }
 
   # write tf record
-  TFRecordName_imSeq <- "./ImageTutorial/TutorialData_imSeq.tfrecord"
+  TFRecordName_imSeq <- "./TutorialData_imSeq.tfrecord"
   if( reSaveTFRecord ){
       causalimages::WriteTfRecord(
         file = TFRecordName_imSeq,
@@ -168,7 +168,7 @@
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
-      figuresPath = "./ImageTutorial") # figures saved here
+      figuresPath = "./") # figures saved here
       try(dev.off(), T)
   }
   }
