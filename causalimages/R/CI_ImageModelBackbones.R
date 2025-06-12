@@ -1143,7 +1143,7 @@ GetImageRepresentations <- function(
   setwd(  orig_wd  )
   
   message("Obtaining approximate parameter count...")
-  cienv$nParamsRep <- sum(unlist(lapply(cienv$jax$tree_leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
+  cienv$nParamsRep <- sum(unlist(lapply(cienv$jax$tree$leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ cienv$nParamsRep <- cienv$nParamsRep }
   if(!is.null(pretrainedModel) ){
     if(dataType == "image"){ cienv$nParamsRep <- cienv$nParameters_Pretrained }
