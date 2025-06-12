@@ -3,7 +3,8 @@
   ################################
   # Image confounding tutorial using causalimages
   ################################
-  setwd("~/Downloads/")
+  setwd("~/Downloads/"); options( error = NULL )
+  #setwd("./"); options( error = NULL )
 
   # remote install latest version of the package if needed
   # devtools::install_github(repo = "cjerzak/causalimages-software/causalimages")
@@ -82,7 +83,7 @@
     dropoutRate = NULL, # 0.1,
     plotBands = c(1,2,3),
     plotResults = T, figuresTag = "ConfoundingImTutorial",
-    figuresPath = "~/Downloads/ImageTutorial")
+    figuresPath = "./ImageTutorial")
     try(dev.off(), T)
   #ImageConfoundingAnalysis$ModelEvaluationMetrics
   }
@@ -157,7 +158,7 @@
       nBoot = 5L,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
-      figuresPath = "~/Downloads/ImageTutorial") # figures saved here
+      figuresPath = "./ImageTutorial") # figures saved here
       try(dev.off(), T)
   }
   }

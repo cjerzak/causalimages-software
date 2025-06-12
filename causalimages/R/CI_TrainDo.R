@@ -153,11 +153,11 @@ TrainDo <- function(){
       }
       AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & cienv$jnp$squeeze(cienv$jnp$array(!is.infinite(myLoss_fromGrad)))
       MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
-      # which(is.na( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
-      # which(is.infinite( c(unlist(lapply(cienv$jax$tree_leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
+      # which(is.na( c(unlist(lapply(cienv$jax$tree$leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
+      # which(is.infinite( c(unlist(lapply(cienv$jax$tree$leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
       
       # get update norm 
-      GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(cienv$jax$tree_leaves(GradientUpdatePackage),
+      GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(cienv$jax$tree$leaves(GradientUpdatePackage),
                                                          function(zer){ cienv$np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
       
       # update parameters if finite gradients
