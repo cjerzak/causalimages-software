@@ -55,7 +55,7 @@ AnalyzeImageHeterogeneity(
 
 \item{obsY}{A numeric vector containing observed outcomes.}
 
-\item{X}{Optimal numeric matrix containing tabular information used if \code{orthogonalize = T}.}
+\item{X}{Optional numeric matrix containing tabular information used if \code{orthogonalize = T}.}
 
 \item{orthogonalize}{A Boolean specifying whether to perform the image decomposition after orthogonalizing with respect to tabular covariates specified in \code{X}.}
 
@@ -67,7 +67,7 @@ AnalyzeImageHeterogeneity(
 
 \item{transportabilityMat}{An optional matrix with a column named \code{key} specifying keys to be used for generating treatment effect predictions for out-of-sample points in earth observation data settings.}
 
-\item{long, lat}{Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
+\item{long, lat}{Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighborhood units if specified.}
 
 \item{conda_env}{A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}. Default = \code{"CausalImagesEnv"}.}
 
@@ -91,7 +91,7 @@ AnalyzeImageHeterogeneity(
 
 \item{nDepth_Dense}{Integer specifying depth of dense model representation.}
 
-\item{strides}{Integer specifying the strides used in the convolutional layers.=}
+\item{strides}{Integer specifying the strides used in the convolutional layers.}
 
 \item{kernelSize}{Dimensions used in spatial convolutions.}
 
@@ -113,14 +113,14 @@ calculation of the expected likelihood in each training step.}
 \item{dataType}{String specifying whether to assume \code{"image"} or \code{"video"} data types.}
 }
 \value{
-Returns a list consiting of \itemize{
+Returns a list consisting of \itemize{
 \item \code{clusterTaus_mean} default
 \item \code{clusterProbs_mean}. Estimated mean image effect cluster probabilities.
 \item \code{clusterTaus_sigma}. Estimated cluster standard deviations.
 \item \code{clusterProbs_lowerConf}. Estimated lower confidence for effect cluster probabilities.
 \item \code{impliedATE}. Implied ATE.
 \item \code{individualTau_est}. Estimated individual-level image-based treatment effects.
-\item \code{transportabilityMat}. Transportability matrix withestimated cluster information.
+\item \code{transportabilityMat}. Transportability matrix with estimated cluster information.
 \item \code{plottedCoordinates}. List containing coordinates plotted in salience maps.
 \item \code{whichNA_dropped}. A vector containing observations dropped due to missingness.
 }
