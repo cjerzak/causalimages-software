@@ -33,7 +33,8 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
     }
   }
 
-  NORM_SD <- apply(NORM_SD,2,median)
+  NORM_SD <- try(apply(NORM_SD,2,median),T)
+  if("try-error" %in% class(NORM_SD)){browser()}
   NORM_MEAN <- apply(NORM_MEAN,2,mean)
   NORM_MEAN_array <- cienv$jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
   NORM_SD_array <- cienv$jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)

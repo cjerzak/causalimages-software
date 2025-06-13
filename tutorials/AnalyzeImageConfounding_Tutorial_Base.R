@@ -61,21 +61,26 @@
 
       return( m_ )
   }
-
-  # write tf record
+    
+  # look at one of the images 
+  causalimages::image2( FullImageArray[1,,,1]  )
+  
+  # write tf record 
+  # AnalyzeImageConfounding can efficiently stream batched image data from disk
+  # (avoiding repeated in-memory loads and speeding up I/O during model training)
   TFRecordName_im <- "./TutorialData_im.tfrecord"
   if( reSaveTFRecord ){
     causalimages::WriteTfRecord(
       file = TFRecordName_im,
       uniqueImageKeys = unique(KeysOfObservations[ take_indices ]),
-      acquireImageFxn = acquireImageFxn)
+      acquireImageFxn = acquireImageFxn
+    )
   }
 
   # perform causal inference with image-based and tabular confounding
-  if(T == T){ 
-  for(ImageModelClass in (c("VisionTransformer","CNN"))){
-  for(optimizeImageRep in c(T,F)){
-  print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
+  imageModelClass <- "VisionTransformer"
+  optimizeImageRep <- TRUE # train the model to predict treatment, for use in IPW
+  print(sprintf("Image confounding analysis & optimizeImageRep: %s & imageModelClass: %s",optimizeImageRep, imageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
@@ -88,7 +93,7 @@
     batchSize = 16L,
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
-    imageModelClass = ImageModelClass,
+    imageModelClass = imageModelClass,
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^6),
     learningRateMax = 0.001, nSGD = 300L, #
@@ -97,90 +102,17 @@
     plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "./")
     try(dev.off(), T)
-  #ImageConfoundingAnalysis$ModelEvaluationMetrics
-  }
-  }
-    # ATE estimate (image confounder adjusted)
-    ImageConfoundingAnalysis$tauHat_propensityHajek
-    
-    # ATE se estimate (image confounder adjusted)
-    ImageConfoundingAnalysis$tauHat_propensityHajek_se
-    
-    # some out-of-sample evaluation metrics
-    ImageConfoundingAnalysis$ModelEvaluationMetrics
-  }
-}
-
-  # perform causal inference with image sequence and tabular confounding
-  if(T == T){
-  acquireVideoRep <- function(keys) {
-      # Note: this is a toy function generating image representations
-      # that simply reuse a single temporal slice. In practice, we will
-      # weant to read in images of different time periods.
-
-      # Get image data as an array from disk
-      tmp <- acquireImageFxn(keys)
-
-      # Expand dimensions: we create a new dimension at the start
-      tmp <- array(tmp, dim = c(1, dim(tmp)))
-
-      # Transpose dimensions to get the target order
-      tmp <- aperm(tmp, c(2, 1, 3, 4, 5))
-
-      # Swap image dimensions to see variability across time
-      tmp_ <- aperm(tmp, c(1, 2, 4, 3, 5))
-
-      # Concatenate along the second axis
-      tmp <- abind::abind(tmp, tmp, tmp_, tmp_, along = 2)
-
-      return(tmp)
-    }
-
-  # write tf record
-  TFRecordName_imSeq <- "./TutorialData_imSeq.tfrecord"
-  if( reSaveTFRecord ){
-      causalimages::WriteTfRecord(
-        file = TFRecordName_imSeq,
-        uniqueImageKeys = unique(KeysOfObservations[ take_indices ]),
-        acquireImageFxn = acquireVideoRep,
-        writeVideo = T)
-  }
-
-  for(ImageModelClass in c("VisionTransformer","CNN")){
-  for(optimizeImageRep in c(T, F)){
-    print(sprintf("Image seq confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
-    ImageSeqConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
-      obsW = obsW[ take_indices ],
-      obsY = obsY[ take_indices ],
-      X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
-      long = LongLat$geo_long[ take_indices ],
-      lat = LongLat$geo_lat[ take_indices ],
-      file = TFRecordName_imSeq, dataType = "video",
-      imageKeysOfUnits = KeysOfObservations[ take_indices ],
-
-      # model specifics
-      batchSize = 16L,
-      optimizeImageRep = optimizeImageRep,
-      imageModelClass = ImageModelClass,
-      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-      nWidth_ImageRep = as.integer(2L^7),
-      learningRateMax = 0.001, nSGD = 300L, #
-      nBoot = 5L,
-      plotBands = c(1,2,3),
-      plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
-      figuresPath = "./") # figures saved here
-      try(dev.off(), T)
-  }
-  }
-
+  
+  # Analyze in/out sample metrics
+  ImageConfoundingAnalysis$ModelEvaluationMetrics
+  
   # ATE estimate (image confounder adjusted)
-  ImageSeqConfoundingAnalysis$tauHat_propensityHajek
-
-  # ATE se estimate (image seq confounder adjusted)
-  ImageSeqConfoundingAnalysis$tauHat_propensityHajek_se
-
+  ImageConfoundingAnalysis$tauHat_propensityHajek
+    
+  # ATE se estimate (image confounder adjusted)
+  ImageConfoundingAnalysis$tauHat_propensityHajek_se
+    
   # some out-of-sample evaluation metrics
-  ImageSeqConfoundingAnalysis$ModelEvaluationMetrics
-  print("Done with confounding tutorial!")
+  ImageConfoundingAnalysis$ModelEvaluationMetrics
 }
 }

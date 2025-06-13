@@ -234,8 +234,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
   return(  return_list  )
 }
 
-# parse tf elements
-parse_tfr_element <- function(element, readVideo = F, image_dtype){
+parse_tfr_element <- function(element, readVideo, image_dtype){
   #use the same structure as above; it's kinda an outline of the structure we now want to create
   image_dtype_ <- try(eval(parse(text = sprintf("cienv$tf$%s",image_dtype))), T)
   if("try-error" %in% class(image_dtype_)){ 
@@ -268,11 +267,12 @@ parse_tfr_element <- function(element, readVideo = F, image_dtype){
   }
 
   # parse tf record
-  content <- cienv$tf$io$parse_single_example(element, im_feature_description)
+  content <- cienv$tf$io$parse_single_example(element, 
+                                              im_feature_description)
 
   # get 'feature' (e.g., image/image sequence)
   feature <- cienv$tf$io$parse_tensor( content[['raw_image']],
-                                 out_type = image_dtype )
+                                       out_type = image_dtype )
 
   # get the key
   key <- cienv$tf$io$parse_tensor( content[['key']],
@@ -286,9 +286,9 @@ parse_tfr_element <- function(element, readVideo = F, image_dtype){
   }
   if(readVideo){
     feature = cienv$tf$reshape(  feature, shape = c(content[['time']],
-                                              content[['height']],
-                                              content[['width']],
-                                              content[['channels']])  )
+                                                    content[['height']],
+                                                    content[['width']],
+                                                    content[['channels']])  )
   }
 
   return(    list(feature, content[['index']], key)    )

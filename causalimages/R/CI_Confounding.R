@@ -164,24 +164,31 @@ AnalyzeImageConfounding <- function(
       message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
       changed_wd <- T; setwd( new_wd )
 
-      # define
+      # define video indicator 
+      useVideoIndicator <- dataType == "video"
+      
+      # define tf record 
       tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
       
       # helper functions
-      useVideoIndicator <- dataType == "video"
       getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)} )
+        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, 
+                                                                 readVideo = useVideoIndicator, 
+                                                                 image_dtype = image_dtype_tf)} )
         return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
       }
 
       message("Setting up iterators...") # - skip the first test_size observations 
       if(!is.null(TFRecordControl)){
         getParsed_tf_dataset_train_Select <- function( tf_dataset ){
-          return( tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
+          return( tf_dataset$map( function(x){ parse_tfr_element(x, 
+                                                                 readVideo = useVideoIndicator, 
+                                                                 image_dtype = image_dtype_tf)},
                                      num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
         }
         getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-          tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64),
+          tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
+                                                                           dtype=cienv$tf$int64),
                                      reshuffle_each_iteration = T) 
           tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
           tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
@@ -203,16 +210,19 @@ AnalyzeImageConfounding <- function(
         getParsed_tf_dataset_train <- function( tf_dataset ){
           dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
                                      num_parallel_calls = cienv$tf$data$AUTOTUNE)
-          dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64),
-                                     reshuffle_each_iteration = F) # set false so same train/test split each re-initialization
+          dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
+                                     reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
           dataset <- dataset$batch(  ai(batchSize)   )
           dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
           return( dataset  )
-        }
+      }
         
         # shuffle (generating different train/test splits)
-        tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, buffer_size = cienv$tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),dtype=cienv$tf$int64), reshuffle_each_iteration = F )
-        tf_dataset_train <- getParsed_tf_dataset_train( tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
+        tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
+                                                      buffer_size = cienv$tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),
+                                                                                      dtype=cienv$tf$int64), reshuffle_each_iteration = F )
+        tf_dataset_train <- getParsed_tf_dataset_train( 
+                    tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
       }
       # define inference iterator 
@@ -230,8 +240,8 @@ AnalyzeImageConfounding <- function(
          return( im_ )
       }, in_axes = list(0L,0L)) 
     }
-    if(useScalePertubations){
       GetImSquare <- function(m,TargetWidth){ 
+    if(useScalePertubations){
         CurentWidth = image$shape[1]  # Assumes image is n x n
         start = (CurentWidth - TargetWidth) %/% 2 # %/% is integer division 
         end = start + TargetWidth
@@ -276,12 +286,16 @@ AnalyzeImageConfounding <- function(
     })
 
     message("Calibrating first moments for input data normalization...")
-    NORM_MEAN_array <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
+    #if(grepl(file,pattern="imSeq")){browser()}
+    # Input to reshape is a tensor with 58800 values, but the requested shape has 19600
+    NORM_MEAN_array <- GetMoments(ds_iterator_train, 
+                                  dataType = dataType, 
+                                  image_dtype = image_dtype, 
+                                  momentCalIters = 34)
     NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
-    EP_LSMOOTH <- cienv$jnp$array(0.05)
+    EP_LSMOOTH <- cienv$jnp$array( 0.05 )
     cienv$py_gc$collect()
-    
 
     # set up holders
     sigmoid <- function(x){1/(1+exp(-x))}
@@ -289,7 +303,7 @@ AnalyzeImageConfounding <- function(
     tauHat_propensity_vec <- tauHat_propensityHajek_vec <- rep(NA,times = nBoot+1)
     if(!optimizeImageRep){
       message("Note: Not optimizing image/video representation...")
-      message("Define train/test indices based on out of sample keys...")
+      message("Defining train/test indices based on out of sample keys...")
       imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
       outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
                           max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
@@ -405,7 +419,6 @@ AnalyzeImageConfounding <- function(
           if(!is.null(fileTransport)){
             setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
               file = fileTransport,
-              # file = file, # uncomment for debugging 
               dataType = dataType,
               InitImageProcess = InitImageProcessFn,
               NORM_MEAN = NORM_MEAN, 
