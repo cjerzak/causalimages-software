@@ -66,11 +66,11 @@ AnalyzeImageConfounding(
 
 \item{nBoot}{Number of bootstrap iterations for uncertainty estimation.}
 
-\item{useTrainingPertubations}{Boolean specifying whether to randomly the image axes during training to reduce overfitting.}
+\item{useTrainingPertubations}{Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.}
 
 \item{transportabilityMat}{Optional matrix with a column named \code{imageKeysOfUnits} specifying keys to be used by the package for generating treatment effect predictions for out-of-sample points.}
 
-\item{long, lat}{Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.}
+\item{long, lat}{Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighborhood units if specified.}
 
 \item{conda_env}{A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}. Default = \code{"CausalImagesEnv"}.}
 
@@ -80,7 +80,7 @@ AnalyzeImageConfounding(
 
 \item{figuresPath}{A string specifying file path for saved figures made in the analysis.}
 
-\item{plotBands}{An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).}
+\item{plotBands}{An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).}
 
 \item{plotResults}{(default = \code{T}) Should analysis results be plotted?}
 
@@ -98,7 +98,7 @@ AnalyzeImageConfounding(
 
 \item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.}
 
-\item{dropoutRate}{Droppout rate used in training used to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
+\item{dropoutRate}{Dropout rate used in training to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
 
 \item{batchSize}{Batch size used in SGD optimization. Default = \code{50L}.}
 

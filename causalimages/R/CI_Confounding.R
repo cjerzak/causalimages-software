@@ -7,17 +7,17 @@
 #' @param conda_env A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`. Default = `"CausalImagesEnv"`.
 #' @param conda_env_required A Boolean stating whether use of the specified conda environment is required.
 #' @param X An optional numeric matrix containing tabular information used if `orthogonalize = T`. `X` is normalized internally and salience maps with respect to `X` are transformed back to the original scale.
-#' @param long,lat Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighorhood units if specified.
+#' @param long,lat Optional vectors specifying longitude and latitude coordinates for units. Used only for describing highest and lowest probability neighborhood units if specified.
 #' @param transportabilityMat Optional matrix with a column named `imageKeysOfUnits` specifying keys to be used by the package for generating treatment effect predictions for out-of-sample points.
 #' @param figuresTag A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath A string specifying file path for saved figures made in the analysis.
-#' @param plotBands An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RBG plotting).
+#' @param plotBands An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
 #' @param nSGD Number of stochastic gradient descent (SGD) iterations. Default = `400L`
 #' @param nBoot Number of bootstrap iterations for uncertainty estimation.
 #' @param batchSize Batch size used in SGD optimization. Default = `50L`.
-#' @param useTrainingPertubations Boolean specifying whether to randomly the image axes during training to reduce overfitting.
+#' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
-#' @param dropoutRate Droppout rate used in training used to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
+#' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param testFrac Default = `0.1`. Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
