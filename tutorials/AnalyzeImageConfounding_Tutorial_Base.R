@@ -82,6 +82,7 @@
   optimizeImageRep <- TRUE # train the model to predict treatment, for use in IPW
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & imageModelClass: %s",optimizeImageRep, imageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
+    # input data 
     obsW = obsW[ take_indices ],
     obsY = obsY[ take_indices ],
     X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
@@ -90,6 +91,7 @@
     imageKeysOfUnits = KeysOfObservations[ take_indices ],
     file = TFRecordName_im,
 
+    # modeling parameters 
     batchSize = 16L,
     nBoot = 5L,
     optimizeImageRep = optimizeImageRep,
