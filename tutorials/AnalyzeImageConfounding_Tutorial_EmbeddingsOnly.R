@@ -44,6 +44,7 @@
   library(DoubleML)      # double/debiased ML framework
   library(mlr3)          # core mlr3 infrastructure
   library(mlr3learners)  # access a wide range of learners
+  library(ranger)
   
   # Combine outcome, treatment, and image embeddings into a single data.frame
   df_dml <- data.frame(
@@ -72,8 +73,10 @@
     n_folds = 5       # number of folds for cross-fitting
   )
   
-  # Fit the model and extract results
+  # fit model 
   dml_plr$fit()
+  
+  # extract results
   dml_plr$summary()   # prints estimated ATE and standard error
   
 }
