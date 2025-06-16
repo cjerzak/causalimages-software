@@ -24,6 +24,15 @@
   # https://huggingface.co/flax-community/clip-rsicd-v2
   dim(m_embeddings)
   
+  # correlation matrix
+  cor(m_embeddings)
+  
+  # analyze via pca 
+  pca_anlaysis <- predict(prcomp(m_embeddings,scale = T, center = T))
+  
+  # first two principal components 
+  plot(pca_anlaysis[,1:2])
+  
   # treatment indicator (recipient of YOP cash transfer)
   obsW 
    
