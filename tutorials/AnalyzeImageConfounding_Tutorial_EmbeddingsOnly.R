@@ -31,20 +31,19 @@
   obsY
   
   # run double ML for image deconfounding
-  # install.packages("DoubleML") # if not already installed
-  # install.packages("mlr3")
+  # install.packages(c("DoubleML","mlr3","ranger"))
   library(DoubleML)      # double/debiased ML framework
   library(mlr3)          # core mlr3 infrastructure
   library(mlr3learners)  # access a wide range of learners
   
-  # 1) Combine outcome, treatment, and image embeddings into a single data.frame
+  # Combine outcome, treatment, and image embeddings into a single data.frame
   df_dml <- data.frame(
     Y = obsY,                # outcome vector
     W = obsW,                # treatment indicator
     m_embeddings             # precomputed image embeddings (one column per embedding dimension)
   )
   
-  # 2) Create a DoubleMLData object
+  # Create a DoubleMLData object
   dml_data <- DoubleMLData$new(
     data   = df_dml,
     y_col  = "Y",
@@ -52,11 +51,11 @@
     x_cols = colnames(m_embeddings)
   )
   
-  # 3) Specify learners for the nuisance functions
+  # Specify learners for the nuisance functions
   learner_g <- lrn("regr.ranger")                                # regression learner for E[Y|X,W]
   learner_m <- lrn("classif.ranger", predict_type = "prob")     # classification learner for P[W=1|X]
   
-  # 4) Instantiate the partially linear regression (PLR) DML model
+  # Instantiate the partially linear regression (PLR) DML model
   dml_plr <- DoubleMLPLR$new(
     dml_data,
     ml_g    = learner_g,
@@ -64,7 +63,7 @@
     n_folds = 5       # number of folds for cross-fitting
   )
   
-  # 5) Fit the model and extract results
+  # Fit the model and extract results
   dml_plr$fit()
   dml_plr$summary()   # prints estimated ATE and standard error
   
