@@ -24,11 +24,11 @@ _Stable package version:_ [`GitHub.com/AIandGlobalDevelopmentLab/causalimages-so
 
 # What is causalimages?<a id="description"></a>
 
-Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it widely available and richly informative in social science and bio-medical contexts. 
+Causal inference has entered a new stage where novel data sources are being integrated into the study of cause and effect. Image information is a particularly promising data stream in this context: it is widely available and richly informative in social science and bio-medical contexts.
 
-This package, `causalimages`, enables causal analysis with images. For example, the function, `AnalyzeImageHeterogeneity`, performs the image-based treatment effect heterogeneity decomposition described in [Jerzak, Johansson, and Daoud (2023)](https://proceedings.mlr.press/v213/jerzak23a/jerzak23a.pdf). This function can be used, for example, to determine which neighorhoods are most responsive to an anti-poverty intervention using earth observation data from, e.g., satellites. In the bio-medical domain, this function could be used to model the kinds of patients who would be most responsive to interventions on the basis of pre-treatment diagnostic imaging. See [References](#references) for a link to replication data for the image heterogeneity paper; see [this tutorial](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a walkthrough using the replication data. 
+This package, `causalimages`, enables causal analysis with images. For example, the function, `AnalyzeImageHeterogeneity`, performs the image-based treatment effect heterogeneity decomposition described in [Jerzak, Johansson, and Daoud (2023)](https://proceedings.mlr.press/v213/jerzak23a/jerzak23a.pdf). This function can be used, for example, to determine which neighborhoods are most responsive to an anti-poverty intervention using earth observation data from, e.g., satellites. In the bio-medical domain, this function could be used to model the kinds of patients who would be most responsive to interventions on the basis of pre-treatment diagnostic imaging. See [References](#references) for a link to replication data for the image heterogeneity paper; see [this tutorial](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a walkthrough using the replication data. 
 
-The function, `AnalyzeImageConfounding`, performs the image-based deconfounding analysis described in [Jerzak, Johansson, and Daoud (2023+)](https://arxiv.org/pdf/2301.12985.pdf). This function can be used, for example, to control for confounding factors correlated with both neighorhood wealth and aid decisions in observational studies of development. In the bio-medical context, this function could be used to control for confounding variables captured diagnostic imaging in order to improve observational inference.
+The function, `AnalyzeImageConfounding`, performs the image-based deconfounding analysis described in [Jerzak, Johansson, and Daoud (2023+)](https://arxiv.org/pdf/2301.12985.pdf). This function can be used, for example, to control for confounding factors correlated with both neighborhood wealth and aid decisions in observational studies of development. In the bio-medical context, this function could be used to control for confounding variables captured via diagnostic imaging in order to improve observational inference.
 
 # Package Installation<a id="installation"></a>
 From within `R`, you may download via the `devtools` package. In particular, use 
@@ -45,7 +45,7 @@ library(   causalimages  )
 # Pipeline<a id="pipeline"></a>
 Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 will be necessary for all downstream tasks. 
 
-*1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct paty to the conda executable by typing ``where conda`` in the terminal: 
+*1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct path to the conda executable by typing ``where conda`` in the terminal: 
 ```
 causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
 ``` 
@@ -94,7 +94,7 @@ causalimages::image2(FullImageArray[3,,,2])
 # plot the first band of the first image
 causalimages::image2(FullImageArray[1,,,1])
 ```
-We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from desk (with those instructions outlined in the `acquireImageFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
+We're using rather small image bricks around each long/lat coordinate so that this tutorial code is memory efficient. In practice, your images will be larger and you'll usually have to read them in from disk (with those instructions outlined in the `acquireImageFxn` function that you'll specify). We have an example of that approach later in the tutorial. 
 
 ## Writing image corpus to `tfrecord`
 One important part of the image analysis pipeline is writing the image corpus `tfrecord` file for efficient model training. You will use the `causalimages::WriteTfRecord` function, which takes as an input another function, `acquireImageFxn`, as an argument which we use for extracting all the images and writing them to the `tfrecord`. There are two ways that you can approach this: (1) you may store all images in `R`'s memory, or you may (2) save images on your hard drive and read them in when needed while generating the `tfrecord`. The second option will be more common for large images. 
@@ -141,7 +141,7 @@ causalimages::WriteTfRecord(  file = "~/Downloads/CausalIm.tfrecord",
 ```
 
 ### When Reading in Images from Disk 
-For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your harddrive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
+For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your hard drive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
 
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
@@ -243,10 +243,3 @@ Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.129
 
 [<img src="https://i0.wp.com/connorjerzak.com/wp-content/uploads/2024/08/EO_WorkflowVizV52.png?resize=1187%2C1536&ssl=1">](https://connorjerzak.com/gci-overview/)
 
-
-<!--
-# Define the pattern and replacement
-pattern='message(""'
-replacement='message("'
-sed -i '' "s/$pattern/$replacement/g" *.R
---> 
