@@ -48,7 +48,19 @@ Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 wi
 *1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct path to the conda executable by typing ``where conda`` in the terminal: 
 ```
 causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
-``` 
+```
+
+If you prefer to manually install the backend, create a conda environment and
+install the Python packages used by `causalimages`. The commands below replicate
+what `BuildBackend()` performs under the hood (Python 3.10 or newer is
+recommended):
+
+```bash
+conda create -n CausalImagesEnv python=3.11
+conda activate CausalImagesEnv
+python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_probability
+python3 -m pip install jax-metal
+```
 
 *2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/CausalImage_TfRecordFxns.R`](https://github.com/cjerzak/causalimages-software/blob/main/causalimages/R/CausalImage_TfRecordFxns.R)
 ```

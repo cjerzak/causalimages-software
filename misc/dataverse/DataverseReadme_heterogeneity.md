@@ -8,4 +8,8 @@ UgandaGeoKeyMat.csv contains information on keys linking to satellite images for
 
 Geo-referenced satellite images are saved in "./Uganda2000_processed/GeoKey%s_BAND%s.csv", where GeoKey%s denotes the image key associated with each observation and BAND%s refers to one of 3 bands in the satellite imagery.
 
+Unzip `Uganda2000_processed.zip` so the `Uganda2000_processed` directory
+containing the band CSVs sits alongside `UgandaDataProcessed.csv` before running
+the tutorial scripts.
+
 For more information, see: https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R 
