@@ -1,7 +1,12 @@
-# notes on jax-gpu: use python 3.10 or above
-# jax$nn$softplus creates segfault with float16
-# random sampling creates a segfault with float16
-# sample parameters with seeds not vseeds. tf$function(jit_compile=T) works with jax-metal
+# Maintainer notes for GPU support
+#
+# These notes summarize our experience configuring JAX with GPU acceleration.
+# The package relies heavily on JAX and TensorFlow, so version compatibility is
+# important.
+# Use Python 3.10 or above for jax-metal. Some JAX operations (e.g.
+# `jax$nn$softplus` or random sampling) can segfault when used with float16.
+# Sampling parameters with `seeds` (not `vseeds`) and wrapping functions with
+# `tf$function(jit_compile = TRUE)` works with jax-metal.
 
 
 # Conda environment setup on M1+ Mac:
@@ -9,3 +14,6 @@ conda create -n CausalImagesEnv python==3.11
 conda activate CausalImagesEnv
 python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_probability
 python3 -m pip install jax-metal
+
+# After installation, verify that JAX sees your GPU by running in Python:
+# >>> import jax; jax.devices()
