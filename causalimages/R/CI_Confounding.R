@@ -139,7 +139,7 @@ AnalyzeImageConfounding <- function(
   if(!dir.exists(figuresPath)){ dir.create(figuresPath) }
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
 
-  if(is.null(imageKeysOfUnits) & !is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
+  if(!is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
   XisNull <- is.null( X  )
@@ -237,25 +237,7 @@ AnalyzeImageConfounding <- function(
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
-         return( im_ )
-      }, in_axes = list(0L,0L)) 
-    }
-      GetImSquare <- function(m,TargetWidth){ 
-    if(useScalePertubations){
-        CurentWidth = image$shape[1]  # Assumes image is n x n
-        start = (CurentWidth - TargetWidth) %/% 2 # %/% is integer division 
-        end = start + TargetWidth
-        m <- image[start:end, start:end,]
-        return(  ) 
-      }
-      scalePertubations <- cienv$jax$vmap( scalePertubations_OneObs <- function(im_, scales, key){
-        AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-        which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
-        return( im_ )
-      }, in_axes = list(0L,0L)) 
+         return( im_ ) }, in_axes = list(0L,0L))
     }
 
     InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
@@ -306,12 +288,15 @@ AnalyzeImageConfounding <- function(
       message("Defining train/test indices based on out of sample keys...")
       imageKeysByTreatment <- tapply(obsW, imageKeysOfUnits, mean)
       outKeys <- try(c(sample(names(imageKeysByTreatment[imageKeysByTreatment > 0.5]), 
-                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2), 
+                          floor(max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2)
+                          ), 
                        sample(names(imageKeysByTreatment[imageKeysByTreatment <= 0.5]), 
-                          max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2)), T)
+                          floor(max(c(2,length(unique(imageKeysOfUnits))*testFrac)) / 2))
+                       ), T)
       if("try-error" %in% class(outKeys)){ 
         outKeys <- sample(unique(imageKeysOfUnits), 
-                          max(c(2,length(unique(imageKeysOfUnits))*testFrac))) 
+                          floor(max(c(2,length(unique(imageKeysOfUnits))*testFrac)))
+                          ) 
       }
       inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
@@ -326,6 +311,7 @@ AnalyzeImageConfounding <- function(
         # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
         {
           setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
+            X = XXX,
             file = file,
             dataType = dataType,
             InitImageProcess = InitImageProcessFn,
@@ -385,7 +371,7 @@ AnalyzeImageConfounding <- function(
         tauHat_propensity_vec[jr] <- tauHat_propensity_ <- mean(  obsW_*obsY_/c(prW_est_) - 
                                                             (1-obsW_)*obsY_/c(1-prW_est_) )
         tauHat_propensityHajek_vec[jr] <- tauHat_propensityHajek_ <- sum(  obsY_*prop.table(obsW_/c(prW_est_))) -
-                                            sum(obsY*prop.table((1-obsW_)/c(1-prW_est_) ))
+                                            sum(obsY_*prop.table((1-obsW_)/c(1-prW_est_) ))
         if(jr == 1){ myGlmnet_coefs_mat <- matrix(NA, nrow = nBoot+1, ncol = length(myGlmnet_coefs_)) }
         myGlmnet_coefs_mat[jr,] <- c(myGlmnet_coefs_)
         if(jr == (nBoot+1L)){
@@ -418,6 +404,7 @@ AnalyzeImageConfounding <- function(
           
           if(!is.null(fileTransport)){
             setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
+              X = XXX,
               file = fileTransport,
               dataType = dataType,
               InitImageProcess = InitImageProcessFn,
@@ -455,6 +442,7 @@ AnalyzeImageConfounding <- function(
 
     if(optimizeImageRep){
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
+        X = XXX,
         file = file,
         dataType = dataType,
         InitImageProcess = InitImageProcessFn,
@@ -489,10 +477,11 @@ AnalyzeImageConfounding <- function(
         batch_axis_name <- "batch"
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
         for(d_ in 1L:nDepth_Dense){
-          DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
-                                                                            no =  nWidth_Dense),
+          DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
+                                                                         yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
+                                                                         no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
-                                                                            yes = 1L,  no = nWidth_Dense),
+                                                                     yes = 1L,  no = nWidth_Dense),
                                       use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
           LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
                                          momentum = 0.99, eps = 0.001, channelwise_affine = F)
@@ -513,6 +502,7 @@ AnalyzeImageConfounding <- function(
             eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
             eval(parse(text = sprintf("StateDenseList_d <- StateList$DenseStateList$Dense%s",d__)))
             
+            # View(cienv$np$array(m$val))
             m <- DenseList_d$DenseProj(  m  )
 
             # BN + non-linearity

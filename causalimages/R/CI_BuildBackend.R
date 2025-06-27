@@ -33,7 +33,7 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
            gsub(conda, pattern = "bin/python", replacement = sprintf("envs/%s/bin/python",conda_env)),
            "'jax[cuda12_pip]' -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html" )), T)
     if("try-error" %in% class(try_)){
-      print("Failed to establish connection with jax[cuda12_pip], falling back to jax...")
+      print("Failed with jax[cuda12_pip], falling back to jax...")
       try_ <- try(reticulate::py_install("jax", conda = conda, pip = TRUE,
                                          envname = conda_env), T)
     }

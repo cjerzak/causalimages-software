@@ -191,7 +191,7 @@ TrainDo <- function(){
         StateList <- StateList_tmp
         suppressWarnings( rm(StateList_tmp, GradientUpdatePackage,BNInfo) )
       }
-      i_ <- i ; if( (i %% 10 == 0 | i < 10) & 
+      i_ <- i ; if( (i %% 25 == 0 | i < 10) & 
                     (length(loss_vec[!is.na(loss_vec) & !is.infinite(loss_vec)]) > 5) ){
         message(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f - Grad norm: %.3f - Grads zero %%: %.1f%%",
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
@@ -199,7 +199,7 @@ TrainDo <- function(){
                        mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T) ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
         plot( (na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function",xlab="SGD Iteration Number")
-        if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) )), col="red",type = "l",lwd=5) }
+        if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) ),spar=1,cv=TRUE), col="red",type = "l",lwd=5) }
         plot(GradNorm_vec[!is.infinite(GradNorm_vec) & !is.na(GradNorm_vec)], cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number")
       }
     }
