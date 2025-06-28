@@ -189,10 +189,15 @@ TrainDo <- function(){
       }
       i_ <- i ; if( (i %% 25 == 0 | i < 10) & 
                     (length(loss_vec[!is.na(loss_vec) & !is.infinite(loss_vec)]) > 5) ){
-        message(sprintf("SGD iteration %s of %s - Loss: %.2f (%.1f%%) - - Total iter time (s): %.2f - Grad iter time (s): %.2f - Grad norm: %.3f - Grads zero %%: %.1f%%",
+        message(sprintf("SGD iteration %s of %s -- Loss: %.2f (%.1f%%) --
+                           Total iter time (s): %.2f - Grad iter time (s): %.2f --
+                           Grad norm: %.3f -- Grads zero %%: %.1f%% --
+                           %.3f tstat on log(iter)",
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
                        (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]],
-                       mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T) ) )
+                       mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T),
+                       coef(summary(lm(loss_vec[1:i]~log(1:i))))[2,3]
+                       ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
         plot( (na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function",xlab="SGD Iteration Number")
         if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) ),spar=1,cv=TRUE), col="red",type = "l",lwd=5) }

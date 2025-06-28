@@ -620,7 +620,7 @@ GetImageRepresentations <- function(
 
       # append start and stop tokens
       m <- cienv$jnp$concatenate(list( eval(parse(text = sprintf("ModelList$%sTransformerSupp$StartEmbed",type))), m), 0L)
-      m <- cienv$jnp$concatenate(list(m, eval(parse(text = sprintf("ModelList$%sTransformerSupp$StartEmbed",type)))), 0L) 
+      m <- cienv$jnp$concatenate(list(m, eval(parse(text = sprintf("ModelList$%sTransformerSupp$StopEmbed",type)))), 0L) 
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
@@ -661,7 +661,12 @@ GetImageRepresentations <- function(
       message(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
       # take CLS embedding from position 0 [Start]
-      m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
+      #m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
+      
+      # CLS + global pooling
+      m <- cienv$jnp$squeeze(ffmap(ModelList$SpatialTransformerSupp$MixCLSPool,
+              cienv$jnp$expand_dims(cienv$jnp$concatenate( list(cienv$jnp$take(m, indices = 0L, axis = 0L),
+                cienv$jnp$mean(m, axis = 0L)), 0L),0L)),0L)
 
       # output block -- only executed in final pass over sequences
       if( (dataType == "image" & type == "Spatial") |  (type == "Temporal") ){
@@ -754,9 +759,14 @@ GetImageRepresentations <- function(
       names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
       ModelList$SpatialTransformerSupp = list(
           "XProj" = XProj,
+          "MixCLSPool" = cienv$eq$nn$Linear(
+                                  in_features  = ai(nWidth_ImageRep*2L),
+                                  out_features = ai(nWidth_ImageRep),
+                                  use_bias     = FALSE,
+                                  key          = cienv$jax$random$PRNGKey(ai(3324 + seed))),
           "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(333324L + seed +  d_)),
                                                   minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
-          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(3332124L + seed +  d_)),
+          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(33326124L + seed +  d_)),
                                                 minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
                      num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
