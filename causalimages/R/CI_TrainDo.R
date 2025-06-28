@@ -108,10 +108,6 @@ TrainDo <- function(){
         F) 
     }
     
-    #function(ModelList, ModelList_fixed,
-             #m, x, treat, y, vseed,
-             #StateList, seed, MPList, inference){
-    
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
       InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m

@@ -51,6 +51,7 @@ GetImageRepresentations <- function(
     lat = NULL, long = NULL, 
     image_dtype = NULL, 
     image_dtype_tf = NULL,  
+    XCrossModal = T, 
     nWidth_ImageRep = 64L,
     nDepth_ImageRep = 1L,
     nDepth_TemporalRep = 1L,
@@ -82,7 +83,7 @@ GetImageRepresentations <- function(
   NeuralizeScale <- FALSE; nScalePatches <- ai(3L^2)
   seed <- as.integer(runif(1,1,10^8))
   
-  message("Setting input types ...") 
+  message("Setting input types in GetImageRepresentations()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -190,9 +191,9 @@ GetImageRepresentations <- function(
     nTransformerOutputWidth <- nWidth_ImageRep
     
     # define projection for cross modal attention 
-    ProjectX <- cienv$jnp$array(1.)
+    XProj <- cienv$jnp$array(1.)
     if (!is.null(X)) { # project each feature‐vector into embedding space
-        ProjectX <- cienv$eq$nn$Linear(
+       XProj <- cienv$eq$nn$Linear(
                    in_features  = ai(ncol(X)),
                    out_features = ai(nWidth_ImageRep),
                    use_bias     = FALSE,
@@ -597,10 +598,18 @@ GetImageRepresentations <- function(
     }
     
     # define a transformer backbone 
-    TransformerBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
+    TransformerBackbone <- function(ModelList, m, x,
+                                    StateList, seed, MPList, inference, type){
       if(type == "Spatial"){ # patch embed
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(cienv$jnp$transpose(m, c(2L, 0L, 1L)))
           m <- cienv$jnp$transpose(cienv$jnp$reshape(m, list(m$shape[[1]],-1L)))
+          
+          if (!is.null(X) & XCrossModal) {
+            m <- cienv$jnp$concatenate(
+                    list(m,  
+                         ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+                         ),0L)
+          }
           message(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
       
@@ -744,6 +753,7 @@ GetImageRepresentations <- function(
       }
       names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
       ModelList$SpatialTransformerSupp = list(
+          "XProj" = XProj,
           "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(333324L + seed +  d_)),
                                                   minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
           "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(3332124L + seed +  d_)),
@@ -890,7 +900,8 @@ GetImageRepresentations <- function(
     # Combine all entities
     # m <- InitImageProcess( cienv$jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( cienv$jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
-    ImageRepArm_SpatialArm <- function(ModelList, m, StateList, seed, MPList, inference){
+    ImageRepArm_SpatialArm <- function(ModelList, m, x,
+                                       StateList, seed, MPList, inference){
       if(DoFineTuning){
           if( NeuralizeScale ){ 
             # Define the patchify_array function in R
@@ -955,7 +966,8 @@ GetImageRepresentations <- function(
       }
       if(!DoFineTuning){
         if(imageModelClass == "VisionTransformer" ){
-          m <- TransformerBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
+          m <- TransformerBackbone(ModelList, m, x,
+                                   StateList, seed, MPList, inference, type = "Spatial")
           StateList <- m[[2]]; m <- m[[1]]
         }
         if(imageModelClass == "CNN" ){
@@ -1031,8 +1043,9 @@ GetImageRepresentations <- function(
       return( list(m, StateList)  )
     }
     
-    #ImageRepArm_batch <-                (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ message("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
-    ImageRepArm_batch <- cienv$eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){
+    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ message("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
+    ImageRepArm_batch <- cienv$eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, x,
+                                                                             StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
@@ -1045,13 +1058,15 @@ GetImageRepresentations <- function(
   
         # get spatial representation if custom architecture 
         if( is.null(pretrainedModel) ){ 
-          m <- cienv$jax$vmap(function(ModelList, m,
+          m <- cienv$jax$vmap(function(ModelList, m, x,
                                  StateList, seed, MPList, inference){
-                ImageRepArm_SpatialArm(ModelList, m,
+                ImageRepArm_SpatialArm(ModelList, m, x,
                                        StateList, seed, MPList, inference) },
-                   in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
+                   in_axes = list(NULL, 0L, 0L, 
+                                  NULL, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
-                   out_axes = list(0L,NULL))(ModelList, m, StateList, seed, MPList, inference)
+                   out_axes = list(0L,NULL))(ModelList, m, x,
+                                             StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
         }
   
@@ -1059,13 +1074,14 @@ GetImageRepresentations <- function(
         if(dataType == "video" | NeuralizeScale){
           if( is.null(pretrainedModel) ){ m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) } 
           # (cienv$np$array(m)[1:5,,sample(1:10,1)]); m$shape
-          m <- cienv$jax$vmap(function(ModelList, m,
-                                 StateList, seed, MPList, inference){
-                      TransformerBackbone(ModelList, m,
+          m <- cienv$jax$vmap(function(ModelList, m, x,
+                                       StateList, seed, MPList, inference){
+                      TransformerBackbone(ModelList, m, x,
                                           StateList, seed, MPList, inference, type = "Temporal")},
-                        in_axes = list(NULL, 0L, NULL, NULL, NULL, NULL),
+                        in_axes = list(NULL, 0L, 0L,
+                                       NULL, NULL, NULL, NULL),
                         axis_name = batch_axis_name,
-                        out_axes = list(0L,NULL))(ModelList, m,
+                        out_axes = list(0L,NULL))(ModelList, m, x,
                                                   StateList, cienv$jnp$add(seed,42L), MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
           message("Returning ImageRepArm_TemporalArm outputs...")
@@ -1109,6 +1125,15 @@ GetImageRepresentations <- function(
       saved_iterator <- batch_inference[[2]]
       batch_inference <- batch_inference[[1]]
       batch_keys <- unlist(  lapply( p2l(batch_inference[[3]]$numpy()), as.character) )
+      
+      if (is.null(X)){ 
+        X_batch <- cienv$jnp$ones(list(length(batch_indices),2L))
+      }
+      if (!is.null(X)){ 
+        X_batch <- cienv$jnp$array(X[batch_indices, , drop = FALSE],
+                            dtype = cienv$jnp$float16)
+      }
+      
 
       gc(); cienv$py_gc$collect() # collect memory
       # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
@@ -1118,6 +1143,8 @@ GetImageRepresentations <- function(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
                                                                        cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
+                                                      X_batch,
+                                                      
                                                       StateList,
                                                       cienv$jax$random$PRNGKey(ai(last_i + seed)),
                                                       MPList, 

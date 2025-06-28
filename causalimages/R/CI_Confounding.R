@@ -76,6 +76,7 @@ AnalyzeImageConfounding <- function(
                                    plotBands = 1L,
                                    plotResults = T,
 
+                                   XCrossModal = T, 
                                    optimizeImageRep = T,
                                    nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, kernelSize = 5L,
                                    nWidth_Dense = 64L,  nDepth_Dense = 1L,
@@ -117,7 +118,7 @@ AnalyzeImageConfounding <- function(
     }
   }
 
-  message("Setting input types ...") 
+  message("Setting input types in AnalyzeImageConfounding()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -138,8 +139,6 @@ AnalyzeImageConfounding <- function(
   }
   if(!dir.exists(figuresPath)){ dir.create(figuresPath) }
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
-
-  if(!is.null(imageKeysOfUnits)){ imageKeysOfUnits <- keys }
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
 
   XisNull <- is.null( X  )
@@ -257,11 +256,13 @@ AnalyzeImageConfounding <- function(
         
         # training pertubations
         if(useTrainingPertubations){
-          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, false_fun = function(){  trainingPertubations(im, 
+          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
+                                              false_fun = function(){  trainingPertubations(im, 
                                                               cienv$jax$random$split(key,im$shape[[1]])) } )
         }
         if(useScalePertubations){
-          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im },  false_fun = function(){  scalePertubations(im, 
+          im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
+                                              false_fun = function(){  scalePertubations(im, 
                                                                            cienv$jax$random$split(key,im$shape[[1]])) } )
         }
         return( im  )
@@ -311,7 +312,7 @@ AnalyzeImageConfounding <- function(
         # note: MyEmbeds_ are indexed by the original data ordering, resampling happens later
         {
           setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
-            X = XXX,
+            X = X,
             file = file,
             dataType = dataType,
             InitImageProcess = InitImageProcessFn,
@@ -329,6 +330,7 @@ AnalyzeImageConfounding <- function(
             optimizeImageRep = optimizeImageRep, 
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
+            XCrossModal = XCrossModal,
             inputAvePoolingSize = inputAvePoolingSize,
             lat = lat[!duplicated(imageKeysOfUnits)], 
             long = long[!duplicated(imageKeysOfUnits)], 
@@ -383,10 +385,11 @@ AnalyzeImageConfounding <- function(
           GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                           m, x, vseed,
                                           StateList, seed, MPList, inference){
-            ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, StateList, seed, MPList, inference)
-            if(!XisNull){
+            ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, x,
+                                             StateList, seed, MPList, inference)
+            if(!XCrossModal){ if(!XisNull){
               x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
-            }
+            }}
             if(XisNull){
               x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
@@ -404,7 +407,7 @@ AnalyzeImageConfounding <- function(
           
           if(!is.null(fileTransport)){
             setwd(orig_wd); ImageRepresentations_df_transport <- GetImageRepresentations(
-              X = XXX,
+              X = X,
               file = fileTransport,
               dataType = dataType,
               InitImageProcess = InitImageProcessFn,
@@ -422,6 +425,7 @@ AnalyzeImageConfounding <- function(
               optimizeImageRep = optimizeImageRep, 
               kernelSize = kernelSize,
               TfRecords_BufferScaler = 3L,
+              XCrossModal = XCrossModal,
               inputAvePoolingSize = inputAvePoolingSize,
               lat = latTransport[!duplicated(imageKeysOfUnitsTransport)], 
               long = longTransport[!duplicated(imageKeysOfUnitsTransport)], 
@@ -442,7 +446,7 @@ AnalyzeImageConfounding <- function(
 
     if(optimizeImageRep){
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
-        X = XXX,
+        X = X,
         file = file,
         dataType = dataType,
         InitImageProcess = InitImageProcessFn,
@@ -461,6 +465,7 @@ AnalyzeImageConfounding <- function(
         kernelSize = kernelSize,
         inputAvePoolingSize = inputAvePoolingSize,
         TfRecords_BufferScaler = 3L,
+        XCrossModal = XCrossModal,
         imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
         returnContents = T,
         initializingFxns = T, 
@@ -478,7 +483,7 @@ AnalyzeImageConfounding <- function(
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
         for(d_ in 1L:nDepth_Dense){
           DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
-                                                                         yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X), yes = 0L)),
+                                                                         yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
                                                                          no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
@@ -496,7 +501,9 @@ AnalyzeImageConfounding <- function(
                                     vseed, StateList, seed, MPList, inference){
           message("Starting GetDense_OneObs()")
           
-          if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
+          if(!XCrossModal){
+            if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
+          }
 
           for(d__ in 1:nDepth_Dense){
             eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
@@ -535,11 +542,12 @@ AnalyzeImageConfounding <- function(
         GetTreatProb_batch <- function( ModelList, ModelList_fixed,
                                         m, x, vseed,
                                         StateList, seed, MPList, inference){
-          # image model
-          m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, inference)
+          message("In GetTreatProb_batch() - image model")
+          m <- ImageRepArm_batch_R(ModelList, m, x,
+                                   StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
-          # dense model
+          message("In GetTreatProb_batch() - dense model")
           m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
           
@@ -601,10 +609,11 @@ AnalyzeImageConfounding <- function(
       
         message("Getting predicted quantities...")
         GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                 m, vseed,
+                 m, x, vseed,
                  StateList, seed, MPList){
           # image representation model
-          m <- ImageRepArm_batch_R(ModelList, m, StateList, seed, MPList, T)
+          m <- ImageRepArm_batch_R(ModelList, m, x, 
+                                   StateList, seed, MPList, T)
           StateList <- m[[2]] ; m <- m[[1]]
           
           # sigmoid 
@@ -648,11 +657,13 @@ AnalyzeImageConfounding <- function(
           # get summaries and save
           usedKeys <- c(usedKeys, key_)
           obs_with_key <- which(imageKeysOfUnits %in% key_)
-          x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, yes = list(t(X[obs_with_key,])),
+          x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, 
+                                                              yes = list(t(X[obs_with_key,])),
                                                               no = list(X[obs_with_key,]))[[1]],
                            dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L+i), inference = T),
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+i), inference = T), # m 
+                                      cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
                                           StateList, seed, MPList, T)[[1]]
           GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
             m <- GetDense_batch_jit(ModelList, ModelList_fixed,
