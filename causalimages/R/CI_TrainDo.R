@@ -167,11 +167,11 @@ TrainDo <- function(){
         GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
         
         # get gradient updates 
-        BNInfo <- FilterBN( ModelList )[[2]]
         GradientUpdatePackage <- jit_get_update( 
-          updates = FilterBN(GradientUpdatePackage)[[1]],
-          state = optax_optimizer$init(   FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )[[1]] ) ,
-          params = FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )[[1]])
+          updates = GradientUpdatePackage,
+          state = opt_state,
+          params = (cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )
+        )
         
         # separate updates from state
         opt_state <- GradientUpdatePackage[[2]]
@@ -179,12 +179,28 @@ TrainDo <- function(){
                                             GradientUpdatePackage_aux)
         
         # perform updates
+        #ModelList_tminus1 <- ModelList
         ModelList <- cienv$eq$combine( jit_apply_updates(
-          params = FilterBN(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]])[[1]],
+          params = cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]],
           updates = GradientUpdatePackage),
           cienv$eq$partition(ModelList, cienv$eq$is_array)[[2]])
-        ModelList <- cienv$eq$combine(ModelList, BNInfo)
         StateList <- StateList_tmp
+        if(FALSE){
+          LayerWiseParamDiff <- function(params_new, params_old){
+            diff_fn <- function(new, old){
+              cienv$jnp$mean(cienv$jnp$abs(new - old))
+            }
+            diff_list <- cienv$jax$tree$map(diff_fn, params_new, params_old)
+            rrapply::rrapply(diff_list, how = "flatten")
+          }
+          
+          # Use the function right after parameters update:
+          param_diffs <- LayerWiseParamDiff(
+            cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]],
+            cienv$eq$partition(ModelList_tminus1, cienv$eq$is_array)[[1]]
+          )
+          GradientUpdatePackage
+        }
         suppressWarnings( rm(StateList_tmp, GradientUpdatePackage,BNInfo) )
       }
       i_ <- i ; if( (i %% 25 == 0 | i < 10) & 

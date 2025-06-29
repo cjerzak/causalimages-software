@@ -488,8 +488,8 @@ AnalyzeImageConfounding <- function(
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
                                       use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
-          LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name,
-                                         momentum = 0.99, eps = 0.001, channelwise_affine = F)
+          #LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name, momentum = 0.99, eps = 0.001, channelwise_affine = F)
+          LayerBN_d <- cienv$jnp$array(1)
           DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
           DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
                                   "BN" = LayerBN_d)
