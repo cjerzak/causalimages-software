@@ -387,9 +387,14 @@ AnalyzeImageConfounding <- function(
                                           StateList, seed, MPList, inference){
             ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, x,
                                              StateList, seed, MPList, inference)
-            if(!XCrossModal){ if(!XisNull){
-              x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
-            }}
+            if(!XisNull){
+              if(XCrossModal & optimizeImageRep){ 
+                x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
+              }
+              if(!XCrossModal | !optimizeImageRep){ 
+                x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
+              }
+            }
             if(XisNull){
               x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
