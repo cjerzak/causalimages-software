@@ -634,13 +634,14 @@ AnalyzeImageConfounding <- function(
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
         ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
+        pb <- txtProgressBar(min = 0, max = nUniqueKeys, style = 3)  # Initialize progress bar
         usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
           # cut_ <- unique(KeyQuantCuts)[1]
           inference_counter <- inference_counter + 1
           zer <- which(cut_  ==  KeyQuantCuts)
           #gc(); cienv$py_gc$collect()
           atP <- max(zer)/nUniqueKeys
-          if( any(zer %% 10 == 0) | 1 %in% zer ){ message(sprintf("Proportion done: %.3f", atP)) }
+          if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
           {
             setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                                                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
