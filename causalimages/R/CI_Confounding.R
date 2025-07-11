@@ -690,6 +690,7 @@ AnalyzeImageConfounding <- function(
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
           Results_by_keys[[inference_counter]] <- ret_list
         }
+        close(pb)  # Close the progress bar after the loop
         Results_by_keys <- as.data.frame(
                         apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
         prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
