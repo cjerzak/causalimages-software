@@ -844,8 +844,8 @@ AnalyzeImageConfounding <- function(
         }
 
         # generate rest of plot
+          message("Generating salience maps...")
           plot_index_counter <- 0; for(in_ in plot_indices){
-            print(c(text_, in_))
             gc(); cienv$py_gc$collect()
             plot_index_counter <- plot_index_counter + 1
 
