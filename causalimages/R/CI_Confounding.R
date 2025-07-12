@@ -230,12 +230,26 @@ AnalyzeImageConfounding <- function(
     }
 
     if(useTrainingPertubations){
-      trainingPertubations <- cienv$jax$vmap( trainingPertubations_OneObs <- function(im_, key){
+      trainingPertubations <- cienv$jax$vmap( 
+        trainingPertubations_OneObs <- function(im_, key){
+         # key <- cienv$jax$random$PRNGKey(c(sample(1:100,1)))
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) }, false_fun = function(){im_})
-         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
+         
+         # which_path of 0L -> do no flips 
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
+                                   true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                         axis = AB+0L) }, 
+                                   false_fun = function(){im_})
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), 
+                                   true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                         axis = AB+1L) }, 
+                                   false_fun = function(){im_})
+         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)),
+                                   true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, 
+                                                                                        axis = AB+0L),
+                                                                         axis = AB+1L) }, 
+                                   false_fun = function(){im_})
          return( im_ ) }, in_axes = list(0L,0L))
     }
 

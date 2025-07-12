@@ -107,7 +107,11 @@ TrainDo <- function(){
         MPList, # MPlist
         F) 
     }
+
+    # Sanity check for dimension swapping as i varies 
+    # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+sample(1:100,1)), inference = F)[2,,,1]))
     
+    # Get gradient update packages 
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
       InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
@@ -154,7 +158,7 @@ TrainDo <- function(){
       
       # get update norm 
       GradNorm_vec[i] <- mean( GradVec <- unlist( lapply(cienv$jax$tree$leaves(GradientUpdatePackage),
-                                                         function(zer){ cienv$np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
+                               function(zer){ cienv$np$array(cienv$jnp$mean(cienv$jnp$abs(zer) )) }) )  )
       
       # update parameters if finite gradients
       DoUpdate <- !is.na(myLoss_fromGrad) & cienv$np$array(AllFinite_DontAdjust) & 

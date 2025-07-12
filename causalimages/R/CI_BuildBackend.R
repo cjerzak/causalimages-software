@@ -17,11 +17,10 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
   # Create a new conda environment
   reticulate::conda_create(envname = conda_env,
                            conda = conda, python_version = "3.12")
-
+  
   # Install Python packages within the environment
   reticulate::py_install(c("tensorflow","optax","jax",
-                           #"tensorflow-datasets",
-                           #"tensorflow-probability",
+                           #"tensorflow-datasets", "tensorflow-probability",
                            "torch","transformers","pillow","tf-keras", 
                            "equinox","jmp"),
                            conda = conda, 
