@@ -673,7 +673,7 @@ AnalyzeImageConfounding <- function(
             if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
             if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
           }
-
+          
           # get summaries and save
           usedKeys <- c(usedKeys, key_)
           obs_with_key <- which(imageKeysOfUnits %in% key_)
@@ -682,9 +682,9 @@ AnalyzeImageConfounding <- function(
                                                               no = list(X[obs_with_key,]))[[1]],
                            dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+i), inference = T), # m 
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+cut_), inference = T), # m 
                                       cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                          StateList, seed, MPList, T)[[1]]
+                                          StateList, cienv$jax$random$PRNGKey(900L+cut_), MPList, T)[[1]]
           GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
             m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                 m_ImageRep,
@@ -713,7 +713,7 @@ AnalyzeImageConfounding <- function(
           prW_est[is.na(prW_est)] <- mean(prW_est, na.rm = T)
         }
         
-        # checks
+        # sanity checks
         # usedKeys  == unique(imageKeysOfUnits)
         # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
         # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)

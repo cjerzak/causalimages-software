@@ -739,7 +739,7 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_ImageRep,
                                     num_heads = 12L,
                                     use_output_bias = F,
-                                    dropout_p = 0.5, 
+                                    dropout_p = dropoutRate, 
                                     key = cienv$jax$random$PRNGKey( ai(23453355L + seed + d_) ))
           FF_d <- list("FFWide1"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
