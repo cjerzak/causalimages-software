@@ -94,9 +94,11 @@ TrainDo <- function(){
     
     # training step
     t1 <- Sys.time()
-    if(i == 1){ # initial forward pass in non-jitted mode for debugging 
+    if(i == 1){
+      print("Initial forward pass...") 
       GetLoss(
-        MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
+        MPList[[1]]$cast_to_compute(ModelList),  # model list
+        MPList[[1]]$cast_to_compute(ModelList_fixed), # model list
         InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
         cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = cienv$jnp$float16), # x
         cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = cienv$jnp$float16), # treat
@@ -105,7 +107,7 @@ TrainDo <- function(){
         StateList, # StateList
         cienv$jax$random$PRNGKey( 123L+i ), # seed
         MPList, # MPlist
-        F) 
+        FALSE) 
     }
 
     # Sanity check for dimension swapping as i varies 

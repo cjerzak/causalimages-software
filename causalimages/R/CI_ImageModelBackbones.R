@@ -74,6 +74,9 @@ GetImageRepresentations <- function(
                    conda_env_required = conda_env_required,
                    Sys.setenv_text = Sys.setenv_text) 
   }
+  
+  # deal with null dropouts 
+  if(is.null(dropoutRate)){ dropoutRate <- 0 }
 
   # image dtype
   if(is.null(image_dtype)){
@@ -629,35 +632,35 @@ GetImageRepresentations <- function(
           message(sprintf("Setup of depth: {%s}",d_))
           ModelList_d <- eval(parse(text = sprintf("ModelList$%s_d%s", type, d_) ))
           
-          # standardize
+          message("Layer norm...") 
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler1
 
-          # rotary embeddings
+          message("Rotary embeddings...")
           if(type == "Spatial"){ m_pos <- RotaryPositionalEmbeddings_spatial( m ) } 
           if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
 
-          # multihead attention block
+          message("Multihead attention block...") 
           m <- ModelList_d$Multihead(
                       query = m_pos,
                       key_  = m_pos,
                       value = m,
-                      key = seed, # breaks in GPU mode on Metal device 
+                      key = seed,
                       inference = inference
-                      ) 
+                      )
 
-          # residual connection
+          message("Residual connection...") 
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
               ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
 
-          # normalize
+          message("Layer norm...") 
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler2
 
-          # feed forward (swiglu+linear)
+          message("Feed forward...") 
           m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
                         ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj
           m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj
 
-          # residual connection
+          message("Residual connection...") 
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
                       ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
       }
