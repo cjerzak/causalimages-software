@@ -47,7 +47,7 @@
 #' @export
 #' @md
 
-CI_PredictiveRun <- function(
+PredictiveRun <- function(
     obsY,
     imageKeysOfUnits = NULL,
     file = NULL,
@@ -112,7 +112,7 @@ CI_PredictiveRun <- function(
     }
   }
   
-  message("Setting input types in CI_PredictiveRun()...") 
+  message("Setting input types in PredictiveRun()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }

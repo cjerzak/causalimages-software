@@ -14,10 +14,12 @@ LongLat2CRS(long, lat, CRS_ref)
 \item{CRS_ref}{A CRS into which the long-lat point should be projected.}
 }
 \value{
-Numeric vector of length two giving the coordinates of the supplied location in the CRS defined by \code{CRS_ref}
+Numeric vector of length two giving the coordinates of the supplied
+location in the CRS defined by \code{CRS_ref}.
 }
 \description{
-A function converts long/lat coordinates into a spatial points object defined by a coordinate reference system (CRS).
+Convert longitude and latitude coordinates to a different coordinate reference
+system (CRS).
 }
 \examples{
 # (Not run)

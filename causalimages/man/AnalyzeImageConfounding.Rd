@@ -29,6 +29,7 @@ AnalyzeImageConfounding(
   figuresPath = "./",
   plotBands = 1L,
   plotResults = T,
+  XCrossModal = T,
   optimizeImageRep = T,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,

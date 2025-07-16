@@ -5,6 +5,7 @@
 \title{Generates image and video representations useful in earth observation tasks for casual inference.}
 \usage{
 GetImageRepresentations(
+  X = NULL,
   imageKeysOfUnits = NULL,
   file = NULL,
   conda_env = "CausalImagesEnv",
@@ -21,6 +22,7 @@ GetImageRepresentations(
   long = NULL,
   image_dtype = NULL,
   image_dtype_tf = NULL,
+  XCrossModal = T,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
   nDepth_TemporalRep = 1L,
@@ -71,7 +73,7 @@ A list containing two items:
 }
 }
 \description{
-Generates image and video representations useful in earth observation tasks for casual inference, following the approach in Rolf, Esther, et al.  (2021).
+Generates image and video representations useful in earth observation tasks for casual inference.
 }
 \section{References}{
 

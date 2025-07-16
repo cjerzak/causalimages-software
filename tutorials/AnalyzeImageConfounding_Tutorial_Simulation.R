@@ -107,7 +107,6 @@
     # modeling parameters 
     batchSize = 16L,
     nBoot = 5L,
-    conda_env = "jax_gpu", conda_env_required = TRUE,
     optimizeImageRep = TRUE,
     imageModelClass = imageModelClass,
     nDepth_ImageRep = 4L,
