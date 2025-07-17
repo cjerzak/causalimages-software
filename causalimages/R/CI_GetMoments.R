@@ -33,12 +33,24 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
     }
   }
 
-  NORM_SD <- try(apply(NORM_SD,2,median),T)
-  if("try-error" %in% class(NORM_SD)){browser()}
-  NORM_MEAN <- apply(NORM_MEAN,2,mean)
+  # mean calc 
+  NORM_MEAN_mat <- NORM_MEAN      # same shape
+  NORM_MEAN <- apply(NORM_MEAN,2,mean) # overall mean across all batches
   NORM_MEAN_array <- cienv$jnp$array(array(NORM_MEAN,dim=c(1,1,1,length(NORM_MEAN))),image_dtype)
-  NORM_SD_array <- cienv$jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
   
+  # SD calc using Rubin’s rule: combine within‐ and between‐batch variances
+  NORM_SD_mat   <- NORM_SD        # matrix: rows = batches, cols = features
+  
+  #combine information to get 
+  m <- nrow(NORM_SD_mat)
+  W <- colMeans(NORM_SD_mat^2)        # average within‐batch variance
+  B <- apply(NORM_MEAN_mat,2,var)     # variance of the batch means
+  T_var <- W + (1 + 1/m) * B          # total variance
+  NORM_SD <- sqrt(T_var)              # combined SD
+  # plot(apply(NORM_SD_mat,2,median),NORM_SD);abline(a=0,b=1)
+  if("try-error" %in% class(NORM_SD)){browser()}
+  NORM_SD_array <- cienv$jnp$array(array(NORM_SD,dim=c(1,1,1,length(NORM_SD))),image_dtype)
+
   if(dataType == "video"){
     NORM_MEAN_array <- cienv$jnp$expand_dims(NORM_MEAN_array, 0L)
     NORM_SD_array <- cienv$jnp$expand_dims(NORM_SD_array, 0L)

@@ -92,6 +92,9 @@ TrainDo <- function(){
     }
     if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
     
+    # if no treat, define it (unused in GetLoss)
+    if(!"obsW" %in% ls()){ obsW <- obsY }
+    
     # training step
     t1 <- Sys.time()
     if(i == 1){
@@ -116,15 +119,15 @@ TrainDo <- function(){
     # Get gradient update packages 
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
-      InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
+      InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = FALSE), # m
       cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]], dtype = ComputeDtype), # x
-      cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat
+      cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat (unused for prediction only runs)
       cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
       cienv$jax$random$split(cienv$jax$random$PRNGKey( 50L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
       cienv$jax$random$PRNGKey( 123L+i ), # seed
       MPList, # MPlist
-      F) # inference
+      FALSE) # inference
 
     # perform gradient updates 
     {
@@ -153,7 +156,10 @@ TrainDo <- function(){
       if(image_dtype_char == "float16"){ 
         GradientUpdatePackage <- Map2Zero( MPList[[2]]$unscale( GradientUpdatePackage ) )
       }
-      AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & cienv$jnp$squeeze(cienv$jnp$array(!is.infinite(myLoss_fromGrad)))
+      AllFinite_DontAdjust <- AllFinite( GradientUpdatePackage )  & 
+                                    cienv$jnp$squeeze(cienv$jnp$array(!is.infinite(myLoss_fromGrad)))
+      # MPList[[2]]$adjust( cienv$jnp$array(FALSE)  )
+      # MPList[[2]]$adjust( cienv$jnp$array(TRUE)  )
       MPList[[2]] <- MPList[[2]]$adjust( AllFinite_DontAdjust  )
       # which(is.na( c(unlist(lapply(cienv$jax$tree$leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
       # which(is.infinite( c(unlist(lapply(cienv$jax$tree$leaves(myGrad_jax), function(zer){cienv$np$array(zer)}))) ) )
@@ -165,7 +171,9 @@ TrainDo <- function(){
       # update parameters if finite gradients
       DoUpdate <- !is.na(myLoss_fromGrad) & cienv$np$array(AllFinite_DontAdjust) & 
         !is.infinite(myLoss_fromGrad) & ( GradNorm_vec[i] > 1e-10)
-      if(! DoUpdate ){ message("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...") }
+      if( !DoUpdate ){ 
+        message("Warning: Not updating parameters due to NA, zero, or non-finite gradients in mixed-precision training...")
+      }
       if( DoUpdate ){
         DoneUpdates <- DoneUpdates + 1
         
@@ -211,6 +219,8 @@ TrainDo <- function(){
       }
       i_ <- i ; if( (i %% 25 == 0 | i < 10) & 
                     (length(loss_vec[!is.na(loss_vec) & !is.infinite(loss_vec)]) > 5) ){
+        loss_vec_ <- loss_vec
+        loss_vec_[is.infinite(loss_vec_)] <- NA
         message(sprintf("SGD iteration %s of %s -- Loss: %.2f (%.1f%%) --
                            Total iter time (s): %.2f - Grad iter time (s): %.2f --
                            Grad norm: %.3f -- Grads zero %%: %.1f%% --
@@ -218,7 +228,7 @@ TrainDo <- function(){
                        i,  nSGD, loss_vec[i], 100*mean(loss_vec[i] <= loss_vec[1:i],na.rm=T),
                        (Sys.time() - t0)[[1]], (Sys.time() - t1)[[1]],
                        mean(GradVec,na.rm=T), 100*mean(GradVec==0,na.rm=T),
-                       coef(summary(lm(loss_vec[1:i]~log(1:i))))[2,3]
+                       ifelse("try-error" %in% class(tstat_ <- try(coef(summary(lm(loss_vec[1:i]~log(1:i))))[2,3], T)),yes = NA, no = tstat_)
                        ) )
         loss_vec <- f2n(loss_vec); loss_vec[is.infinite(loss_vec)] <- NA
         plot( (na.omit(loss_vec)), cex.main = 0.95,ylab = "Loss Function",xlab="SGD Iteration Number")

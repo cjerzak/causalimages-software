@@ -86,7 +86,7 @@ PredictiveRun <- function(
     TFRecordControl = NULL, 
     dataType = "image",
     image_dtype = "float16",
-    atError = "stop", # stop or debug
+    atError = "stop", 
     seed = NULL,
     modelPath = "./trained_model.eqx",
     metricsPath = "./evaluation_metrics.rds"
@@ -144,447 +144,447 @@ PredictiveRun <- function(
   if( !XisNull ){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
   if( XisNull ){ X <- matrix( rnorm(length(obsY)*2, sd = 0.01 ), ncol = 2) }
   X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,sd))) )
-  {
-    if(is.null(file)){stop("No file specified for tfrecord!")}
-    changed_wd <- F; if(  !is.null(  file  )  ){
-      message("Establishing connection with tfrecord")
-      tf_record_name <- file
-      if( !grepl(tf_record_name, pattern = "/") ){
-        tf_record_name <- paste("./",tf_record_name, sep = "")
-      }
-      tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-      new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
-      message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
-      changed_wd <- T; setwd( new_wd )
-      
-      # define video indicator 
-      useVideoIndicator <- dataType == "video"
-      
-      # define tf record 
-      tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
-      
-      # helper functions
-      getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, 
-                                                                 readVideo = useVideoIndicator, 
-                                                                 image_dtype = image_dtype_tf)} )
-        return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
-      }
-      
-      message("Setting up iterators...") # - skip the first test_size observations 
-      if(!is.null(TFRecordControl)){
-        getParsed_tf_dataset_train_Select <- function( tf_dataset ){
-          return( tf_dataset$map( function(x){ parse_tfr_element(x, 
-                                                                 readVideo = useVideoIndicator, 
-                                                                 image_dtype = image_dtype_tf)},
-                                  num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
-        }
-        getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-          tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize),
-                                                                           dtype=cienv$tf$int64),
-                                           reshuffle_each_iteration = T) 
-          tf_dataset <- tf_dataset$batch(  as.integer(batchSize)   )
-          tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
-          return( tf_dataset )
-        }
-        tf_dataset_train <- getParsed_tf_dataset_train_Select(
-          tf_dataset$skip(  test_size <-  as.integer( TFRecordControl$nTest)  )
-        )$`repeat`(-1L)  
-        tf_dataset_train <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train)
-        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-      }
-      if(is.null(TFRecordControl)){
-        getParsed_tf_dataset_train <- function( tf_dataset ){
-          dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                     num_parallel_calls = cienv$tf$data$AUTOTUNE)
-          dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
-                                     reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
-          dataset <- dataset$batch(  as.integer(batchSize)   )
-          dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
-          return( dataset  )
-        }
-        
-        # shuffle (generating different train/test splits)
-        tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
-                                                      buffer_size = cienv$tf$constant(as.integer(10L*TfRecords_BufferScaler*batchSize),
-                                                                                      dtype=cienv$tf$int64), reshuffle_each_iteration = F )
-        tf_dataset_train <- getParsed_tf_dataset_train( 
-          tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
-        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-      }
-      # define inference iterator 
-      tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
-      ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
+
+  if(is.null(file)){stop("No file specified for tfrecord!")}
+  changed_wd <- F; if(  !is.null(  file  )  ){
+    message("Establishing connection with tfrecord")
+    tf_record_name <- file
+    if( !grepl(tf_record_name, pattern = "/") ){
+      tf_record_name <- paste("./",tf_record_name, sep = "")
+    }
+    tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
+    new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
+    message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
+    changed_wd <- T; setwd( new_wd )
+    
+    # define video indicator 
+    useVideoIndicator <- dataType == "video"
+    
+    # define tf record 
+    tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    
+    # helper functions
+    getParsed_tf_dataset_inference <- function(tf_dataset){
+      dataset <- tf_dataset$map( function(x){parse_tfr_element(x, 
+                                                               readVideo = useVideoIndicator, 
+                                                               image_dtype = image_dtype_tf)} )
+      return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
     }
     
+    message("Setting up iterators...") # - skip the first test_size observations 
+    if(!is.null(TFRecordControl)){
+      getParsed_tf_dataset_train_Select <- function( tf_dataset ){
+        return( tf_dataset$map( function(x){ parse_tfr_element(x, 
+                                                               readVideo = useVideoIndicator, 
+                                                               image_dtype = image_dtype_tf)},
+                                num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
+      }
+      getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
+        tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize),
+                                                                         dtype=cienv$tf$int64),
+                                         reshuffle_each_iteration = T) 
+        tf_dataset <- tf_dataset$batch(  as.integer(batchSize)   )
+        tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        return( tf_dataset )
+      }
+      tf_dataset_train <- getParsed_tf_dataset_train_Select(
+        tf_dataset$skip(  test_size <-  as.integer( TFRecordControl$nTest)  )
+      )$`repeat`(-1L)  
+      tf_dataset_train <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train)
+      ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+    }
+    if(is.null(TFRecordControl)){
+      getParsed_tf_dataset_train <- function( tf_dataset ){
+        dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
+                                   num_parallel_calls = cienv$tf$data$AUTOTUNE)
+        dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
+                                   reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
+        dataset <- dataset$batch(  as.integer(batchSize)   )
+        dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        return( dataset  )
+      }
+      
+      # shuffle (generating different train/test splits)
+      tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
+                                                    buffer_size = cienv$tf$constant(as.integer(10L*TfRecords_BufferScaler*batchSize),
+                                                                                    dtype=cienv$tf$int64), reshuffle_each_iteration = F )
+      tf_dataset_train <- getParsed_tf_dataset_train( 
+        tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
+      ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+    }
+    # define inference iterator 
+    tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
+    ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
+  }
+  
+  if(useTrainingPertubations){
+    trainingPertubations <- cienv$jax$vmap( 
+      trainingPertubations_OneObs <- function(im_, key){
+        # key <- cienv$jax$random$PRNGKey(c(sample(1:100,1)))
+        AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
+        which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+        
+        # which_path of 0L -> do no flips 
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
+                                  true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                        axis = AB+0L) }, 
+                                  false_fun = function(){im_})
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), 
+                                  true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                        axis = AB+1L) }, 
+                                  false_fun = function(){im_})
+        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)),
+                                  true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, 
+                                                                                       axis = AB+0L),
+                                                                        axis = AB+1L) }, 
+                                  false_fun = function(){im_})
+        return( im_ ) }, in_axes = list(0L,0L))
+  }
+  
+  InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
+    # expand dims if needed
+    if(length(imageKeysOfUnits) == 1){ im <- cienv$jnp$expand_dims(im,0L) }
+    
+    # normalize
+    im <- (im - NORM_MEAN_array) / NORM_SD_array
+    
+    # downshift resolution if desired
+    if(inputAvePoolingSize > 1 & dataType == "image"){
+      im <- cienv$jax$vmap(function(imm){
+        cienv$jnp$transpose(  cienv$eq$nn$AvgPool2d(kernel_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)),
+                                                    stride = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))(
+                                                      cienv$jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
+    }
+    
+    # training pertubations
     if(useTrainingPertubations){
-      trainingPertubations <- cienv$jax$vmap( 
-        trainingPertubations_OneObs <- function(im_, key){
-          # key <- cienv$jax$random$PRNGKey(c(sample(1:100,1)))
-          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-          which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-          
-          # which_path of 0L -> do no flips 
-          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
-                                    true_fun = function(){ cienv$jnp$flip(im_, 
-                                                                          axis = AB+0L) }, 
-                                    false_fun = function(){im_})
-          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), 
-                                    true_fun = function(){ cienv$jnp$flip(im_, 
-                                                                          axis = AB+1L) }, 
-                                    false_fun = function(){im_})
-          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)),
-                                    true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, 
-                                                                                         axis = AB+0L),
-                                                                          axis = AB+1L) }, 
-                                    false_fun = function(){im_})
-          return( im_ ) }, in_axes = list(0L,0L))
+      im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
+                               false_fun = function(){  trainingPertubations(im, 
+                                                                             cienv$jax$random$split(key,im$shape[[1]])) } )
+    }
+    if(useScalePertubations){
+      im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
+                               false_fun = function(){  scalePertubations(im, 
+                                                                          cienv$jax$random$split(key,im$shape[[1]])) } )
+    }
+    return( im  )
+  })
+  
+  message("Calibrating first moments for input data normalization...")
+  NORM_MEAN_array <- GetMoments(ds_iterator_train, 
+                                dataType = dataType, 
+                                image_dtype = image_dtype, 
+                                momentCalIters = 34)
+  NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
+  NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
+  cienv$py_gc$collect()
+  
+  # Determine if Y is binary or continuous
+  is_binary <- length(unique(obsY)) == 2 && all(obsY %in% c(0, 1))
+  message(ifelse(is_binary, "Treating obsY as binary.", "Treating obsY as continuous."))
+  
+  setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
+    X = X,
+    file = file,
+    dataType = dataType,
+    InitImageProcess = InitImageProcessFn,
+    NORM_MEAN = NORM_MEAN, 
+    NORM_SD = NORM_SD, 
+    nWidth_ImageRep = nWidth_ImageRep,
+    nDepth_ImageRep = nDepth_ImageRep,
+    strides = strides,
+    dropoutRate = dropoutRate,
+    nDepth_TemporalRep = nDepth_TemporalRep,
+    patchEmbedDim = patchEmbedDim,
+    batchSize = batchSize,
+    imageModelClass = imageModelClass,
+    pretrainedModel = pretrainedModel, 
+    optimizeImageRep = optimizeImageRep, 
+    kernelSize = kernelSize,
+    inputAvePoolingSize = inputAvePoolingSize,
+    TfRecords_BufferScaler = 3L,
+    XCrossModal = XCrossModal,
+    imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
+    returnContents = T,
+    initializingFxns = T, 
+    bn_momentum = 0.99,
+    conda_env = conda_env,
+    conda_env_required = conda_env_required,
+    Sys.setenv_text = Sys.setenv_text,
+    seed = as.integer(4003L + seed)  ); setwd(new_wd)
+  ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
+  ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
+  InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
+  rm( ImageRepresentations )
+  
+  batch_axis_name <- "batch"
+  DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
+  for(d_ in 1L:nDepth_Dense){
+    DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
+                                                                   yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
+                                                                   no =  nWidth_Dense),
+                                      out_features = outd_ <- ifelse(d_ == nDepth_Dense,
+                                                                     yes = 1L,  no = nWidth_Dense),
+                                      use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
+    LayerBN_d <- cienv$jnp$array(1)
+    DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
+    DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
+                            "BN" = LayerBN_d)
+  }
+  names(DenseList) <- names(DenseStateList) <- paste0("Dense", 1:nDepth_Dense)
+  
+  GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
+                              vseed, StateList, seed, MPList, inference){
+    if(!XCrossModal){
+      if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
     }
     
-    InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
-      # expand dims if needed
-      if(length(imageKeysOfUnits) == 1){ im <- cienv$jnp$expand_dims(im,0L) }
+    for(d__ in 1:nDepth_Dense){
+      eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
+      eval(parse(text = sprintf("StateDenseList_d <- StateList$DenseStateList$Dense%s",d__)))
       
-      # normalize
-      im <- (im - NORM_MEAN_array) / NORM_SD_array
+      m <- DenseList_d$DenseProj(  m  )
       
-      # downshift resolution if desired
-      if(inputAvePoolingSize > 1 & dataType == "image"){
-        im <- cienv$jax$vmap(function(imm){
-          cienv$jnp$transpose(  cienv$eq$nn$AvgPool2d(kernel_size = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)),
-                                                      stride = as.integer(c(inputAvePoolingSize,inputAvePoolingSize)))(
-                                                        cienv$jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
-      }
-      
-      # training pertubations
-      if(useTrainingPertubations){
-        im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                                 false_fun = function(){  trainingPertubations(im, 
-                                                                               cienv$jax$random$split(key,im$shape[[1]])) } )
-      }
-      if(useScalePertubations){
-        im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                                 false_fun = function(){  scalePertubations(im, 
-                                                                            cienv$jax$random$split(key,im$shape[[1]])) } )
-      }
-      return( im  )
-    })
-    
-    message("Calibrating first moments for input data normalization...")
-    NORM_MEAN_array <- GetMoments(ds_iterator_train, 
-                                  dataType = dataType, 
-                                  image_dtype = image_dtype, 
-                                  momentCalIters = 34)
-    NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
-    NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
-    cienv$py_gc$collect()
-    
-    # Determine if Y is binary or continuous
-    is_binary <- length(unique(obsY)) == 2 && all(obsY %in% c(0, 1))
-    message(ifelse(is_binary, "Treating obsY as binary.", "Treating obsY as continuous."))
-    
-    setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
-      X = X,
-      file = file,
-      dataType = dataType,
-      InitImageProcess = InitImageProcessFn,
-      NORM_MEAN = NORM_MEAN, 
-      NORM_SD = NORM_SD, 
-      nWidth_ImageRep = nWidth_ImageRep,
-      nDepth_ImageRep = nDepth_ImageRep,
-      strides = strides,
-      dropoutRate = dropoutRate,
-      nDepth_TemporalRep = nDepth_TemporalRep,
-      patchEmbedDim = patchEmbedDim,
-      batchSize = batchSize,
-      imageModelClass = imageModelClass,
-      pretrainedModel = pretrainedModel, 
-      optimizeImageRep = optimizeImageRep, 
-      kernelSize = kernelSize,
-      inputAvePoolingSize = inputAvePoolingSize,
-      TfRecords_BufferScaler = 3L,
-      XCrossModal = XCrossModal,
-      imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
-      returnContents = T,
-      initializingFxns = T, 
-      bn_momentum = 0.99,
-      conda_env = conda_env,
-      conda_env_required = conda_env_required,
-      Sys.setenv_text = Sys.setenv_text,
-      seed = as.integer(4003L + seed)  ); setwd(new_wd)
-    ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
-    ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
-    InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
-    rm( ImageRepresentations )
-    
-    batch_axis_name <- "batch"
-    DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
-    for(d_ in 1L:nDepth_Dense){
-      DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
-                                                                     yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
-                                                                     no =  nWidth_Dense),
-                                        out_features = outd_ <- ifelse(d_ == nDepth_Dense,
-                                                                       yes = 1L,  no = nWidth_Dense),
-                                        use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
-      LayerBN_d <- cienv$jnp$array(1)
-      DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
-      DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
-                              "BN" = LayerBN_d)
-    }
-    names(DenseList) <- names(DenseStateList) <- paste0("Dense", 1:nDepth_Dense)
-    
-    GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
-                                vseed, StateList, seed, MPList, inference){
-      if(!XCrossModal){
-        if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
-      }
-      
-      for(d__ in 1:nDepth_Dense){
-        eval(parse(text = sprintf("DenseList_d <- ModelList$DenseList$Dense%s",d__)))
-        eval(parse(text = sprintf("StateDenseList_d <- StateList$DenseStateList$Dense%s",d__)))
+      # BN + non-linearity
+      if(d__ < nDepth_Dense){
+        m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)
+        eval(parse(text = sprintf("StateList$DenseStateList$Dense%s <- m[[2]]", d__)))
+        m <- m[[1]]
         
-        m <- DenseList_d$DenseProj(  m  )
-        
-        # BN + non-linearity
-        if(d__ < nDepth_Dense){
-          m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)
-          eval(parse(text = sprintf("StateList$DenseStateList$Dense%s <- m[[2]]", d__)))
-          m <- m[[1]]
-          
-          # Non-linearity
-          m <- cienv$jax$nn$swish(  m   )
-        }
+        # Non-linearity
+        m <- cienv$jax$nn$swish(  m   )
       }
-      
-      return( list(m, StateList)  )
     }
-    GetDense_batch <- cienv$jax$vmap(  function(
-    ModelList, ModelList_fixed,
-    m, x, vseed,
-    StateList, seed, MPList, inference){
-      GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
-    },
-    in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
-    axis_name = batch_axis_name,
-    out_axes = list(0L, NULL) )
-    GetDense_batch_jit <- cienv$eq$filter_jit(   GetDense_batch  )
-    GetPredict_batch <- function( ModelList, ModelList_fixed,
-                                  m, x, vseed,
-                                  StateList, seed, MPList, inference){
-      m <- ImageRepArm_batch_R(ModelList, m, x,
-                               StateList, seed, MPList, inference)
-      StateList <- m[[2]]; m <- m[[1]]
+    
+    return( list(m, StateList)  )
+  }
+  GetDense_batch <- cienv$jax$vmap(  function(
+  ModelList, ModelList_fixed,
+  m, x, vseed,
+  StateList, seed, MPList, inference){
+    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+  },
+  in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
+  axis_name = batch_axis_name,
+  out_axes = list(0L, NULL) )
+  GetDense_batch_jit <- cienv$eq$filter_jit(   GetDense_batch  )
+  GetPredict_batch <- function( ModelList, ModelList_fixed,
+                                m, x, vseed,
+                                StateList, seed, MPList, inference){
+    m <- ImageRepArm_batch_R(ModelList, m, x,
+                             StateList, seed, MPList, inference)
+    StateList <- m[[2]]; m <- m[[1]]
+    
+    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+    StateList <- m[[2]]; m <- m[[1]]
+    
+    if(is_binary){
+      m <- cienv$jax$nn$sigmoid( m )
+    } # else linear for continuous
+    
+    return( list(m, StateList) )
+  }
+  
+  GetLoss <-  function( ModelList, ModelList_fixed,
+                        m, x, treat, y, vseed, # note: treat unused 
+                        StateList, seed, MPList, inference ){
+    ModelList <- MPList[[1]]$cast_to_compute( ModelList ) 
+    ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) 
+    StateList <- MPList[[1]]$cast_to_compute( StateList ) 
+    
+    m <- GetPredict_batch( ModelList, ModelList_fixed,
+                           m, x, vseed,
+                           StateList, seed, MPList, inference )
+    StateList <- m[[2]]; m <-  m[[1]]
+    
+    # compute loss
+    m <- MPList[[1]]$cast_to_output( m )
+    if(is_binary){
+      NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  y*cienv$jnp$log(m) +  (1-y)*cienv$jnp$log(1-m) )  ) 
+    }
+    if(!is_binary){
+      NegLL <-  cienv$jnp$mean( cienv$jnp$square(m - y) ) 
+    }
+    
+    if(image_dtype_char == "float16"){ 
+      NegLL <- MPList[[1]]$cast_to_output( NegLL ) 
+      NegLL <- MPList[[2]]$scale( NegLL ) 
+      StateList <- MPList[[1]]$cast_to_param( StateList ) 
+    }
+    
+    return( list(NegLL, StateList)  )
+  }
+  
+  gc(); cienv$py_gc$collect()
+  GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
+  ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
+  StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
+  ModelList_fixed <- cienv$jnp$array(0.)
+  MPList <- list(cienv$jmp$Policy(compute_dtype=ComputeDtype, 
+                                  param_dtype="float32", 
+                                  output_dtype=(outputDtype <- ComputeDtype)),
+                 cienv$jmp$DynamicLossScale(loss_scale = cienv$jnp$array(2^15,dtype = ComputeDtype ),
+                                            min_loss_scale = cienv$jnp$array(2^1.,dtype = ComputeDtype ),
+                                            period = 50L))
+  ModelList <- MPList[[1]]$cast_to_param( ModelList )
+  ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
+  rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
+  
+  message("Define trainer...")
+  LocalFxnSource(TrainDefine, evaluation_environment = environment())
+  
+  message("Starting training...")
+  LocalFxnSource(TrainDo, evaluation_environment = environment())
+  
+  message("Getting predicted quantities...")
+  GetPredict_OneObs <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
+                                                     m, x, vseed,
+                                                     StateList, seed, MPList){
+    # image representation model
+    m <- ImageRepArm_batch_R(ModelList, m, x, 
+                             StateList, seed, MPList, T)
+    StateList <- m[[2]] ; m <- m[[1]]
+    
+    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, T)
+    StateList <- m[[2]] ; m <- m[[1]]
+    
+    if(is_binary){
+      m <- cienv$jax$nn$sigmoid( m )
+    }
+    
+    return( m )
+  })
+  
+  inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
+  KeyQuantCuts <- 1L:nUniqueKeys
+  passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
+  ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
+  pb <- txtProgressBar(min = 0, max = nUniqueKeys, style = 3)  
+  usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
+    inference_counter <- inference_counter + 1
+    zer <- which(cut_  ==  KeyQuantCuts)
+    atP <- max(zer)/nUniqueKeys
+    if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
+    {
+      setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+        uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
+        filename = file,
+        iterator = passedIterator,
+        readVideo = useVideoIndicator,
+        image_dtype = image_dtype_tf,
+        nObs = length(unique(imageKeysOfUnits)),
+        return_iterator = T ); setwd(new_wd)
+      passedIterator <- ds_next_in[[2]]
+      key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+      ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
       
-      m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
-      StateList <- m[[2]]; m <- m[[1]]
-      
+      if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+      if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+    }
+    
+    usedKeys <- c(usedKeys, key_)
+    obs_with_key <- which(imageKeysOfUnits %in% key_)
+    x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, 
+                                                        yes = list(t(X[obs_with_key,])),
+                                                        no = list(X[obs_with_key,]))[[1]],
+                                                 dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
+    m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
+                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+cut_), inference = T), # m 
+                                        cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
+                                        StateList, cienv$jax$random$PRNGKey(900L+cut_), MPList, T)[[1]]
+    GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
+      m <- GetDense_batch_jit(ModelList, ModelList_fixed,
+                              m_ImageRep,
+                              x[r_-1L,],
+                              cienv$jax$random$split(cienv$jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                              StateList,
+                              cienv$jax$random$PRNGKey(as.integer(runif(1,0,100000))),
+                              MPList, T)[[1]]
       if(is_binary){
         m <- cienv$jax$nn$sigmoid( m )
-      } # else linear for continuous
-      
-      return( list(m, StateList) )
-    }
-    
-    GetLoss <-  function( ModelList, ModelList_fixed,
-                          m, x, y, vseed,
-                          StateList, seed, MPList, inference ){
-      ModelList <- MPList[[1]]$cast_to_compute( ModelList ) 
-      ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) 
-      StateList <- MPList[[1]]$cast_to_compute( StateList ) 
-      
-      m <- GetPredict_batch( ModelList, ModelList_fixed,
-                             m, x, vseed,
-                             StateList, seed, MPList, inference )
-      StateList <- m[[2]]; m <-  m[[1]]
-      
-      # compute loss
-      m <- MPList[[1]]$cast_to_output( m )
-      if(is_binary){
-        NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  y*cienv$jnp$log(m) +  (1-y)*cienv$jnp$log(1-m) )  ) 
-      } else {
-        NegLL <-  cienv$jnp$mean( (m - y)**2 ) 
       }
-      
-      if(image_dtype_char == "float16"){ 
-        NegLL <- MPList[[1]]$cast_to_output( NegLL ) 
-        NegLL <- MPList[[2]]$scale( NegLL ) 
-        StateList <- MPList[[1]]$cast_to_param( StateList ) 
-      }
-      
-      return( list(NegLL, StateList)  )
-    }
-    
-    gc(); cienv$py_gc$collect()
-    GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
-    ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
-    StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
-    ModelList_fixed <- cienv$jnp$array(0.)
-    MPList <- list(cienv$jmp$Policy(compute_dtype=ComputeDtype, 
-                                    param_dtype="float32", 
-                                    output_dtype=(outputDtype <- ComputeDtype)),
-                   cienv$jmp$DynamicLossScale(loss_scale = cienv$jnp$array(2^15,dtype = ComputeDtype ),
-                                              min_loss_scale = cienv$jnp$array(2^1.,dtype = ComputeDtype ),
-                                              period = 50L))
-    ModelList <- MPList[[1]]$cast_to_param( ModelList )
-    ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
-    rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
-    
-    message("Define trainer...")
-    LocalFxnSource(TrainDefine, evaluation_environment = environment())
-    
-    message("Starting training...")
-    LocalFxnSource(TrainDo, evaluation_environment = environment())
-    
-    message("Getting predicted quantities...")
-    GetPredict_OneObs <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                                                       m, x, vseed,
-                                                       StateList, seed, MPList){
-      # image representation model
-      m <- ImageRepArm_batch_R(ModelList, m, x, 
-                               StateList, seed, MPList, T)
-      StateList <- m[[2]] ; m <- m[[1]]
-      
-      m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, T)
-      StateList <- m[[2]] ; m <- m[[1]]
-      
-      if(is_binary){
-        m <- cienv$jax$nn$sigmoid( m )
-      }
-      
+      if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
       return( m )
     })
-    
-    inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
-    KeyQuantCuts <- 1L:nUniqueKeys
-    passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
-    ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
-    pb <- txtProgressBar(min = 0, max = nUniqueKeys, style = 3)  
-    usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
-      inference_counter <- inference_counter + 1
-      zer <- which(cut_  ==  KeyQuantCuts)
-      atP <- max(zer)/nUniqueKeys
-      if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
-      {
-        setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-          uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
-          filename = file,
-          iterator = passedIterator,
-          readVideo = useVideoIndicator,
-          image_dtype = image_dtype_tf,
-          nObs = length(unique(imageKeysOfUnits)),
-          return_iterator = T ); setwd(new_wd)
-        passedIterator <- ds_next_in[[2]]
-        key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-        ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
-        
-        if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-        if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-      }
-      
-      usedKeys <- c(usedKeys, key_)
-      obs_with_key <- which(imageKeysOfUnits %in% key_)
-      x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, 
-                                                          yes = list(t(X[obs_with_key,])),
-                                                          no = list(X[obs_with_key,]))[[1]],
-                                                   dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
-      m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+cut_), inference = T), # m 
-                                          cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                          StateList, cienv$jax$random$PRNGKey(900L+cut_), MPList, T)[[1]]
-      GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
-        m <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                                m_ImageRep,
-                                x[r_-1L,],
-                                cienv$jax$random$split(cienv$jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                StateList,
-                                cienv$jax$random$PRNGKey(as.integer(runif(1,0,100000))),
-                                MPList, T)[[1]]
-        if(is_binary){
-          m <- cienv$jax$nn$sigmoid( m )
-        }
-        if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
-        return( m )
-      })
-      GottenSummaries <- as.matrix(cienv$np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
-      ret_list <- list("PredY" = GottenSummaries,
-                       "obsIndex" = as.matrix(obs_with_key),
-                       "key" = as.matrix( rep(key_, length(obs_with_key)) ))
-      Results_by_keys[[inference_counter]] <- ret_list
-    }
-    close(pb)  
-    Results_by_keys <- as.data.frame(
-      apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-    predictedY <-  Results_by_keys$PredY <-  f2n(  Results_by_keys$PredY ) 
-    if(any(is.na(predictedY))){
-      warning("NAs in predictions...Imputing them with average value")
-      predictedY[is.na(predictedY)] <- mean(predictedY, na.rm = T)
-    }
-    
-    trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
-    testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
-    
-    # Compute evaluation metrics
-    ModelEvaluationMetrics <- list()
-    if(is_binary){
-      library(pROC)
-      pred_baseline <- rep(mean(obsY[trainIndices]), length(testIndices))
-      lossCE_OUT_baseline <- -mean( obsY[testIndices]*log(pred_baseline) + (1-obsY[testIndices])*log(1-pred_baseline) )
-      lossCE_IN_baseline <- -mean( obsY[trainIndices]*log(pred_baseline) + (1-obsY[trainIndices])*log(1-pred_baseline) )
-      lossCE_OUT <- -mean( obsY[testIndices]*log(predictedY[testIndices]) + (1-obsY[testIndices])*log(1-predictedY[testIndices]) )
-      lossCE_IN <- -mean( obsY[trainIndices]*log(predictedY[trainIndices]) + (1-obsY[trainIndices])*log(1-predictedY[trainIndices]) )
-      
-      acc_OUT <- mean( (predictedY[testIndices] > 0.5) == obsY[testIndices] )
-      acc_IN <- mean( (predictedY[trainIndices] > 0.5) == obsY[trainIndices] )
-      auc_OUT <- as.numeric(roc(obsY[testIndices], predictedY[testIndices])$auc)
-      auc_IN <- as.numeric(roc(obsY[trainIndices], predictedY[trainIndices])$auc)
-      
-      ModelEvaluationMetrics <- list(
-        "CELoss_out" = lossCE_OUT,
-        "CELoss_in" = lossCE_IN,
-        "Accuracy_out" = acc_OUT,
-        "Accuracy_in" = acc_IN,
-        "AUC_out" = auc_OUT,
-        "AUC_in" = auc_IN
-      )
-    } else {
-      mse_OUT <- mean( (obsY[testIndices] - predictedY[testIndices])^2 )
-      mse_IN <- mean( (obsY[trainIndices] - predictedY[trainIndices])^2 )
-      r2_OUT <- 1 - mse_OUT / var(obsY[testIndices])
-      r2_IN <- 1 - mse_IN / var(obsY[trainIndices])
-      
-      ModelEvaluationMetrics <- list(
-        "MSE_out" = mse_OUT,
-        "MSE_in" = mse_IN,
-        "R2_out" = r2_OUT,
-        "R2_in" = r2_IN
-      )
-    }
-    
-    # Save evaluation metrics
-    saveRDS(ModelEvaluationMetrics, file = metricsPath)
-    
-    # Save model using Equinox serialization
-    # Save ModelList and StateList together as a tuple
-    model_to_save <- list(ModelList, StateList, ModelList_fixed, MPList)
-    cienv$eq$tree_serialise_leaves(modelPath, model_to_save)
-    message(sprintf("Model saved to %s", modelPath))
-    
-    # Handle transport if provided
-    predictedY_transport <- NULL
-    if(!is.null(fileTransport) && !is.null(imageKeysOfUnitsTransport)){
-      # Similar logic to get predictions for transport data
-      # ... (adapt the inference loop for transport data)
-      # For brevity, assuming similar code to populate predictedY_transport
-    }
-    
-    if( changed_wd ){ setwd(  orig_wd  ) }
-    
-    return( list(
-      "predictedY" = predictedY,
-      "ModelEvaluationMetrics" = ModelEvaluationMetrics,
-      "predictedY_transport" = predictedY_transport,
-      "trainIndices" = trainIndices,
-      "testIndices" = testIndices
-    ) )
+    GottenSummaries <- as.matrix(cienv$np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
+    ret_list <- list("PredY" = GottenSummaries,
+                     "obsIndex" = as.matrix(obs_with_key),
+                     "key" = as.matrix( rep(key_, length(obs_with_key)) ))
+    Results_by_keys[[inference_counter]] <- ret_list
   }
+  close(pb)  
+  Results_by_keys <- as.data.frame(
+    apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+  predictedY <-  Results_by_keys$PredY <-  f2n(  Results_by_keys$PredY ) 
+  if(any(is.na(predictedY))){
+    warning("NAs in predictions...Imputing them with average value")
+    predictedY[is.na(predictedY)] <- mean(predictedY, na.rm = T)
+  }
+  
+  trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
+  testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
+  
+  # Compute evaluation metrics
+  ModelEvaluationMetrics <- list()
+  if(is_binary){
+    library(pROC)
+    pred_baseline <- rep(mean(obsY[trainIndices]), length(testIndices))
+    lossCE_OUT_baseline <- -mean( obsY[testIndices]*log(pred_baseline) + (1-obsY[testIndices])*log(1-pred_baseline) )
+    lossCE_IN_baseline <- -mean( obsY[trainIndices]*log(pred_baseline) + (1-obsY[trainIndices])*log(1-pred_baseline) )
+    lossCE_OUT <- -mean( obsY[testIndices]*log(predictedY[testIndices]) + (1-obsY[testIndices])*log(1-predictedY[testIndices]) )
+    lossCE_IN <- -mean( obsY[trainIndices]*log(predictedY[trainIndices]) + (1-obsY[trainIndices])*log(1-predictedY[trainIndices]) )
+    
+    acc_OUT <- mean( (predictedY[testIndices] > 0.5) == obsY[testIndices] )
+    acc_IN <- mean( (predictedY[trainIndices] > 0.5) == obsY[trainIndices] )
+    auc_OUT <- as.numeric(roc(obsY[testIndices], predictedY[testIndices])$auc)
+    auc_IN <- as.numeric(roc(obsY[trainIndices], predictedY[trainIndices])$auc)
+    
+    ModelEvaluationMetrics <- list(
+      "CELoss_out" = lossCE_OUT,
+      "CELoss_in" = lossCE_IN,
+      "Accuracy_out" = acc_OUT,
+      "Accuracy_in" = acc_IN,
+      "AUC_out" = auc_OUT,
+      "AUC_in" = auc_IN
+    )
+  } else {
+    mse_OUT <- mean( (obsY[testIndices] - predictedY[testIndices])^2 )
+    mse_IN <- mean( (obsY[trainIndices] - predictedY[trainIndices])^2 )
+    r2_OUT <- 1 - mse_OUT / var(obsY[testIndices])
+    r2_IN <- 1 - mse_IN / var(obsY[trainIndices])
+    
+    ModelEvaluationMetrics <- list(
+      "MSE_out" = mse_OUT,
+      "MSE_in" = mse_IN,
+      "R2_out" = r2_OUT,
+      "R2_in" = r2_IN
+    )
+  }
+  
+  # Save evaluation metrics
+  saveRDS(ModelEvaluationMetrics, file = metricsPath)
+  
+  # Save model using Equinox serialization - need work 
+  # Save ModelList and StateList together as a tuple
+  #model_to_save <- list(ModelList, StateList, ModelList_fixed, MPList)
+  #cienv$eq$tree_serialise_leaves(modelPath, model_to_save)
+  #message(sprintf("Model saved to %s", modelPath))
+  
+  # Handle transport if provided
+  predictedY_transport <- NULL
+  if(!is.null(fileTransport) && !is.null(imageKeysOfUnitsTransport)){
+    # Similar logic to get predictions for transport data
+    # ... (adapt the inference loop for transport data)
+    # For brevity, assuming similar code to populate predictedY_transport
+  }
+  
+  if( changed_wd ){ setwd(  orig_wd  ) }
+  
+  return( list(
+    "predictedY" = predictedY,
+    "ModelEvaluationMetrics" = ModelEvaluationMetrics,
+    "predictedY_transport" = predictedY_transport,
+    "trainIndices" = trainIndices,
+    "testIndices" = testIndices
+  ) )
 }

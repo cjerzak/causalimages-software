@@ -632,14 +632,14 @@ GetImageRepresentations <- function(
           message(sprintf("Setup of depth: {%s}",d_))
           ModelList_d <- eval(parse(text = sprintf("ModelList$%s_d%s", type, d_) ))
           
-          message("Layer norm...") 
+          message(sprintf("Layer norm {%s layer %s}...",type, d_) )
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler1
 
-          message("Rotary embeddings...")
+          message(sprintf("Rotary embeddings {%s layer %s}...",type, d_) )
           if(type == "Spatial"){ m_pos <- RotaryPositionalEmbeddings_spatial( m ) } 
           if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
 
-          message("Multihead attention block...") 
+          message(sprintf("Multihead attention block {%s layer %s}...",type, d_) )
           m <- ModelList_d$Multihead(
                       query = m_pos,
                       key_  = m_pos,
@@ -648,19 +648,19 @@ GetImageRepresentations <- function(
                       inference = inference
                       )
 
-          message("Residual connection...") 
+          message(sprintf("Residual connection {%s layer %s}...",type, d_) )
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
               ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
 
-          message("Layer norm...") 
+          message(sprintf("Layer norm {%s layer %s}...",type, d_) )
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler2
 
-          message("Feed forward...") 
+          message(sprintf("Feed forward {%s layer %s}...",type, d_) )
           m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
                         ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj
           m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj
 
-          message("Residual connection...") 
+          message(sprintf("Residual connection {%s layer %s}...",type, d_) )
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
                       ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
       }
@@ -1151,7 +1151,6 @@ GetImageRepresentations <- function(
                             dtype = cienv$jnp$float16)
       }
       
-
       gc(); cienv$py_gc$collect() # collect memory
       # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
       # plot( cienv$np$array( cienv$jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
@@ -1165,7 +1164,7 @@ GetImageRepresentations <- function(
                                                       StateList,
                                                       cienv$jax$random$PRNGKey(ai(last_i + seed)),
                                                       MPList, 
-                                                      T # inference for testing 
+                                                      TRUE # inference for testing 
                                                       )[[1]]  )
       
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
