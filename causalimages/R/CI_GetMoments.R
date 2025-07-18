@@ -1,12 +1,12 @@
 #' Get moments for normalization 
 #'
-#' A function obtaining moments for normalization 
+#' An internal function function for obtaining moments for channel normalization. 
 #'
 #' @param iterator An iterator 
 #' @param dataType A string denoting data type 
 #' @param momentCalIters Number of minibatches with which to estimate moments 
 #'
-#' @return Returns  mean/sd normalization arrays. 
+#' @return Returns mean/sd arrays for normalization. 
 #'
 #' @examples
 #' # (Not run)

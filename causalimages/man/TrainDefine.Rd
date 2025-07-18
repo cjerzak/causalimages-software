@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_TrainDefine.R
 \name{TrainDefine}
 \alias{TrainDefine}
-\title{Defines a trainer.}
+\title{Defines an internal training routine.}
 \usage{
 TrainDefine()
 }

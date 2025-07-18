@@ -1,4 +1,4 @@
-#' Runs a trainer. 
+#' Runs a training routine (internal function).
 #'
 #' Runs trainers defined in TrainDefine(). Internal function. 
 #'

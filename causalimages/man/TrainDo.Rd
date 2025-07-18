@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_TrainDo.R
 \name{TrainDo}
 \alias{TrainDo}
-\title{Runs a trainer.}
+\title{Runs a training routine (internal function).}
 \usage{
 TrainDo()
 }

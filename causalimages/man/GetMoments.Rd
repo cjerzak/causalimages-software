@@ -14,10 +14,10 @@ GetMoments(iterator, dataType, image_dtype, momentCalIters = 34L)
 \item{momentCalIters}{Number of minibatches with which to estimate moments}
 }
 \value{
-Returns  mean/sd normalization arrays.
+Returns mean/sd arrays for normalization.
 }
 \description{
-A function obtaining moments for normalization
+An internal function function for obtaining moments for channel normalization.
 }
 \examples{
 # (Not run)
