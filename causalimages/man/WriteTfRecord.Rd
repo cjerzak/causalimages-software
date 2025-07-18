@@ -18,9 +18,10 @@ WriteTfRecord(
 \arguments{
 \item{file}{A character string naming a file for writing.}
 
-\item{uniqueImageKeys}{A vector specifying the unique image keys of the corpus. A key grabs an image/video array via acquireImageFxn(key)}
+\item{uniqueImageKeys}{A vector specifying the unique image keys of the corpus.
+A key grabs an image/video array via \code{acquireImageFxn(key)}.}
 
-\item{acquireImageFxn}{A function whose input is an observation index and whose output is an image.}
+\item{acquireImageFxn}{A function whose input is an observation index and whose output is an array with dimensions \verb{(nBatch, Spatial1, Spatial2, nChannels)} for images and  \verb{(nBatch, nTimeSteps, Spatial1, Spatial2, nChannels)} for image sequence data.}
 
 \item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
 

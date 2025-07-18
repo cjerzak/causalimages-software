@@ -3,8 +3,9 @@
 #' Writes an image corpus to a `.tfrecord` file for rapid reading of images into memory for fast ML training.
 #'
 #' @param file A character string naming a file for writing.
-#' @param uniqueImageKeys A vector specifying the unique image keys of the corpus. A key grabs an image/video array via acquireImageFxn(key)
-#' @param acquireImageFxn A function whose input is an observation index and whose output is an image.
+#' @param uniqueImageKeys A vector specifying the unique image keys of the corpus. 
+#' A key grabs an image/video array via `acquireImageFxn(key)`. 
+#' @param acquireImageFxn A function whose input is an observation index and whose output is an array with dimensions `(nBatch, Spatial1, Spatial2, nChannels)` for images and  `(nBatch, nTimeSteps, Spatial1, Spatial2, nChannels)` for image sequence data. 
 #' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
 #' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
 #' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
