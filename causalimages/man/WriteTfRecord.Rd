@@ -34,6 +34,8 @@ Writes a unique key-referenced \code{.tfrecord} from an image/video corpus for u
 }
 \description{
 Writes an image corpus to a \code{.tfrecord} file for rapid reading of images into memory for fast ML training.
+Specifically, this function serializes an image or video corpus into a \code{.tfrecord} file, enabling efficient data loading for machine learning tasks, particularly for image-based causal inference training.
+It requires that users define an \code{acquireImageFxn} function that accepts a key and returns the corresponding image or video as an array of dimensions \verb{(nBatch, Spatial1, Spatial2, nChannels)} for images or \verb{(nBatch, nTimeSteps, Spatial1, Spatial2, nChannels)} for video sequences.
 }
 \examples{
 # Example usage (not run):
