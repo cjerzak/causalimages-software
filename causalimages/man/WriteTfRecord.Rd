@@ -21,7 +21,7 @@ WriteTfRecord(
 \item{uniqueImageKeys}{A vector specifying the unique image keys of the corpus.
 A key grabs an image/video array via \code{acquireImageFxn(key)}.}
 
-\item{acquireImageFxn}{A function whose input is an observation keys and whose output is an array with dimensions \verb{(length(keys), Spatial1, Spatial2, nChannels)} for images and  \verb{(length(keys), nTimeSteps, Spatial1, Spatial2, nChannels)} for image sequence data.}
+\item{acquireImageFxn}{A function whose input is an observation keys and whose output is an array with dimensions \verb{(length(keys), nSpatialDim1, nSpatialDim2, nChannels)} for images and  \verb{(length(keys), nTimeSteps, nSpatialDim1, nSpatialDim2, nChannels)} for image sequence data.}
 
 \item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
 
@@ -35,7 +35,7 @@ Writes a unique key-referenced \code{.tfrecord} from an image/video corpus for u
 \description{
 Writes an image corpus to a \code{.tfrecord} file for rapid reading of images into memory for fast ML training.
 Specifically, this function serializes an image or video corpus into a \code{.tfrecord} file, enabling efficient data loading for machine learning tasks, particularly for image-based causal inference training.
-It requires that users define an \code{acquireImageFxn} function that accepts keys and returns the corresponding image or video as an array of dimensions \verb{(length(keys), Spatial1, Spatial2, nChannels)} for images or \verb{(length(keys), nTimeSteps, Spatial1, Spatial2, nChannels)} for video sequences.
+It requires that users define an \code{acquireImageFxn} function that accepts keys and returns the corresponding image or video as an array of dimensions \verb{(length(keys), nSpatialDim1, nSpatialDim2, nChannels)} for images or \verb{(length(keys), nTimeSteps, nSpatialDim1, nSpatialDim2, nChannels)} for video sequences.
 }
 \examples{
 # Example usage (not run):
