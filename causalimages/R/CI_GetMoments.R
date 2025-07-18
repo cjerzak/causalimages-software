@@ -1,4 +1,4 @@
-#' Get moments for normalization 
+#' Get moments for normalization (internal function)
 #'
 #' An internal function function for obtaining moments for channel normalization. 
 #'

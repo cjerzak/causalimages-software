@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_GetMoments.R
 \name{GetMoments}
 \alias{GetMoments}
-\title{Get moments for normalization}
+\title{Get moments for normalization (internal function)}
 \usage{
 GetMoments(iterator, dataType, image_dtype, momentCalIters = 34L)
 }

@@ -5,6 +5,8 @@ Tests not ready
 [![Tutorial Tests](https://github.com/cjerzak/causalimages-software/actions/workflows/tutorial-tests.yml/badge.svg)](https://github.com/cjerzak/causalimages-software/actions/workflows/tutorial-tests.yml)
 -->
 
+[![Hugging Face Dataset](https://img.shields.io/badge/Hugging%20Face-View%20Dataset-orange?style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/theaidevlab)
+
 [**What is `causalimages`?**](#description)
 | [**Installation**](#installation)
 | [**Pipeline**](#pipeline)

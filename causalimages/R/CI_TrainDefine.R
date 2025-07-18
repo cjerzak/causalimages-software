@@ -1,4 +1,4 @@
-#' Defines an internal training routine (internal function). 
+#' Defines an internal training routine (internal function)
 #'
 #' Defines trainers defined in TrainDefine(). Internal function. 
 #'
