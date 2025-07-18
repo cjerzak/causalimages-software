@@ -10,20 +10,8 @@ TrainDo()
 \item{.}{No parameters.}
 }
 \value{
-Performs training.
+Internal function performing model training.
 }
 \description{
-Runs trainers defined in TrainDefine().
-}
-\section{References}{
-
-\itemize{
-\item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in \emph{Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)}, 2023.
-}
-}
-
-\examples{
-# For a tutorial, see
-# github.com/cjerzak/causalimages-software/
-
+Runs trainers defined in TrainDefine(). Internal function.
 }

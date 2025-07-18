@@ -1,19 +1,10 @@
 #' Runs a trainer. 
 #'
-#' Runs trainers defined in TrainDefine(). 
+#' Runs trainers defined in TrainDefine(). Internal function. 
 #'
 #' @param . No parameters. 
 #' 
-#' @return Performs training. 
-#'
-#' @section References:
-#' \itemize{
-#' \item Connor T. Jerzak, Fredrik Johansson, Adel Daoud. Image-based Treatment Effect Heterogeneity. Forthcoming in \emph{Proceedings of the Second Conference on Causal Learning and Reasoning (CLeaR), Proceedings of Machine Learning Research (PMLR)}, 2023.
-#' }
-#'
-#' @examples
-#' # For a tutorial, see
-#' # github.com/cjerzak/causalimages-software/
+#' @return Internal function performing model training. 
 #'
 #' @import reticulate rrapply
 #' @export
