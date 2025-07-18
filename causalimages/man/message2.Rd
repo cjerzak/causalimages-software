@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_helperFxns.R
 \name{message2}
 \alias{message2}
-\title{message2}
+\title{message2 message() with timestamps}
 \usage{
 message2(text, quiet = FALSE)
 }

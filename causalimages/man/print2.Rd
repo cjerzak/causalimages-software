@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_helperFxns.R
 \name{print2}
 \alias{print2}
-\title{print2}
+\title{print2  print() with timestamps}
 \usage{
 print2(text, quiet = F)
 }

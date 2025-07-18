@@ -77,7 +77,7 @@ r2const <- function(x, dtype){
   return( x )
 }
 
-#' print2 
+#' print2  print() with timestamps
 #'
 #' A function prints a string with date and time. 
 #'
@@ -94,7 +94,7 @@ print2 <- function(text, quiet = F){
   if(!quiet){ print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) ) }
 }
 
-#' message2 
+#' message2 message() with timestamps
 #'
 #' A function that displays a message with date and time. 
 #'
