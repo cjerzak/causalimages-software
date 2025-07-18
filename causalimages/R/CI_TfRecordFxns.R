@@ -2,13 +2,13 @@
 #'
 #' Writes an image corpus to a `.tfrecord` file for rapid reading of images into memory for fast ML training. 
 #' Specifically, this function serializes an image or video corpus into a `.tfrecord` file, enabling efficient data loading for machine learning tasks, particularly for image-based causal inference training.
-#' It requires that users define an `acquireImageFxn` function that accepts a key and returns the corresponding image or video as an array of dimensions `(nBatch, Spatial1, Spatial2, nChannels)` for images or `(nBatch, nTimeSteps, Spatial1, Spatial2, nChannels)` for video sequences.
+#' It requires that users define an `acquireImageFxn` function that accepts keys and returns the corresponding image or video as an array of dimensions `(length(keys), Spatial1, Spatial2, nChannels)` for images or `(length(keys), nTimeSteps, Spatial1, Spatial2, nChannels)` for video sequences.
 
 #'
 #' @param file A character string naming a file for writing.
 #' @param uniqueImageKeys A vector specifying the unique image keys of the corpus. 
 #' A key grabs an image/video array via `acquireImageFxn(key)`. 
-#' @param acquireImageFxn A function whose input is an observation index and whose output is an array with dimensions `(nBatch, Spatial1, Spatial2, nChannels)` for images and  `(nBatch, nTimeSteps, Spatial1, Spatial2, nChannels)` for image sequence data. 
+#' @param acquireImageFxn A function whose input is an observation keys and whose output is an array with dimensions `(length(keys), Spatial1, Spatial2, nChannels)` for images and  `(length(keys), nTimeSteps, Spatial1, Spatial2, nChannels)` for image sequence data. 
 #' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
 #' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
 #' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
