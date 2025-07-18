@@ -39,8 +39,9 @@ WriteTfRecord <- function(file,
          Remember: Input to WriteTFRecord is uniqueImageKeys, not imageKeysOfUnits where redundancies may live")
   }
 
+  browser()
   # helper fxns
-  message("Initializing tfrecord helpers...")
+  message2("Initializing tfrecord helpers...")
   {
     # see https://towardsdatascience.com/a-practical-guide-to-tfrecords-584536bc786c
     my_bytes_feature <- function(value){
@@ -88,7 +89,7 @@ WriteTfRecord <- function(file,
   }
 
   # for clarity, set file to tf_record_name
-  message("Starting save run...")
+  message2("Starting save run...")
   tf_record_name <- file
   if( !grepl(tf_record_name, pattern = "/") ){
     tf_record_name <- paste("./",tf_record_name, sep = "")

@@ -86,7 +86,7 @@ GetImageRepresentations <- function(
   NeuralizeScale <- FALSE; nScalePatches <- ai(3L^2)
   seed <- as.integer(runif(1,1,10^8))
   
-  message("Setting input types in GetImageRepresentations()...") 
+  message2("Setting input types in GetImageRepresentations()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -152,11 +152,19 @@ GetImageRepresentations <- function(
 
   # setup jax model
   {
-    message("Setting up image representation model...")
-    if(dataType == "video" | NeuralizeScale){ NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) )  };
-    if(dataType == "image"){ NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*nDepth_ImageRep ) )  }
+    message2("Setting up image representation model...")
+    if(dataType == "video" | NeuralizeScale){ 
+      #NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) )
+      NonLinearScaler <- cienv$jnp$array( 0.001 )
+    }
+    if(dataType == "image"){ 
+      #NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*nDepth_ImageRep ) ) 
+      NonLinearScaler <- cienv$jnp$array( 0.001 )
+    }
     MPList <- list(cienv$jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
                    cienv$jmp$DynamicLossScale(cienv$jnp$array(2^15), period = 1000L))
+    
+    1 / (1 * 2*nDepth_ImageRep)^(1/4)
 
     # coerce to integer for safety
     kernelSize <- ai(kernelSize); strides <- ai(strides)
@@ -228,7 +236,7 @@ GetImageRepresentations <- function(
         if( pretrainedModel == "clip-rsicd" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            message("Loading a pre-trained model (clip-rsicd)...")
+            message2("Loading a pre-trained model (clip-rsicd)...")
             initialize_torch(conda_env = conda_env,
                              conda_env_required = conda_env_required,
                              Sys.setenv_text = Sys.setenv_text)
@@ -279,7 +287,7 @@ GetImageRepresentations <- function(
         }
         if(  grepl(pretrainedModel, pattern = "swin") ){
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            message("Setting up swin model...")
+            message2("Setting up swin model...")
             initialize_torch(conda_env = conda_env,
                              conda_env_required = conda_env_required,
                              Sys.setenv_text = Sys.setenv_text)
@@ -322,7 +330,7 @@ GetImageRepresentations <- function(
             
             cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
             cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
-            message("Done setting up swin model!")
+            message2("Done setting up swin model!")
           }
           
           # normalize and resize 
@@ -354,7 +362,7 @@ GetImageRepresentations <- function(
         }
         if( grepl(pretrainedModel, pattern = "vit-base") ){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            message("Loading a pre-trained model (vit-base)...")
+            message2("Loading a pre-trained model (vit-base)...")
             initialize_torch(conda_env = conda_env,
                              conda_env_required = conda_env_required,
                              Sys.setenv_text = Sys.setenv_text)
@@ -434,7 +442,7 @@ GetImageRepresentations <- function(
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
           if(!"ClayModel" %in% ls(.GlobalEnv)){
-            message("Loading a pre-trained model (Clay)...")
+            message2("Loading a pre-trained model (Clay)...")
             initialize_torch(conda_env = conda_env, 
                            conda_env_required = conda_env_required,
                            Sys.setenv_text = Sys.setenv_text) 
@@ -526,7 +534,7 @@ GetImageRepresentations <- function(
         } 
         if(grepl(pretrainedModel,pattern="videomae")){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
-            message("Loading a pre-trained model (videomae)...")
+            message2("Loading a pre-trained model (videomae)...")
             PretrainedVideoModelName <- "MCG-NJU/videomae-base"
             #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
             
@@ -613,11 +621,11 @@ GetImageRepresentations <- function(
                          ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
                          ),0L)
           }
-          message(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
+          message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
       
       if(NeuralizeScale){ 
-        message("Neuralizing scale...")
+        message2("Neuralizing scale...")
         m_orig <- m
       }
 
@@ -627,19 +635,19 @@ GetImageRepresentations <- function(
 
       # start neural block
       DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
-      message(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
+      message2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
       mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
-          message(sprintf("Setup of depth: {%s}",d_))
+          message2(sprintf("Setup of depth: {%s}",d_))
           ModelList_d <- eval(parse(text = sprintf("ModelList$%s_d%s", type, d_) ))
           
-          message(sprintf("Layer norm {%s layer %s}...",type, d_) )
+          message2(sprintf("Layer norm {%s layer %s}...",type, d_) )
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler1
 
-          message(sprintf("Rotary embeddings {%s layer %s}...",type, d_) )
+          message2(sprintf("Rotary embeddings {%s layer %s}...",type, d_) )
           if(type == "Spatial"){ m_pos <- RotaryPositionalEmbeddings_spatial( m ) } 
           if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
 
-          message(sprintf("Multihead attention block {%s layer %s}...",type, d_) )
+          message2(sprintf("Multihead attention block {%s layer %s}...",type, d_) )
           m <- ModelList_d$Multihead(
                       query = m_pos,
                       key_  = m_pos,
@@ -648,23 +656,23 @@ GetImageRepresentations <- function(
                       inference = inference
                       )
 
-          message(sprintf("Residual connection {%s layer %s}...",type, d_) )
+          message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
               ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
 
-          message(sprintf("Layer norm {%s layer %s}...",type, d_) )
+          message2(sprintf("Layer norm {%s layer %s}...",type, d_) )
           m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler2
 
-          message(sprintf("Feed forward {%s layer %s}...",type, d_) )
+          message2(sprintf("Feed forward {%s layer %s}...",type, d_) )
           m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
                         ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj
           m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj
 
-          message(sprintf("Residual connection {%s layer %s}...",type, d_) )
+          message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
                       ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
       }
-      message(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
+      message2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
       # take CLS embedding from position 0 [Start]
       #m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
@@ -688,12 +696,12 @@ GetImageRepresentations <- function(
              cienv$jnp$expand_dims(cienv$jax$nn$softmax(  cienv$jnp$take(m, cienv$jnp$array(0L:(nScalePatches-1L)))  ), 1L), axis = 0L)
         }
       }
-      message("Returning output in TransformerBackbone()")
+      message2("Returning output in TransformerBackbone()")
       return( list(m, StateList) )
     }
     
     # Spatial backbone 
-    message("Setting up a spatial backbone...")
+    message2("Setting up a spatial backbone...")
     DoFineTuning <- grepl(pretrainedModel,pattern="-ft")
     if(length(DoFineTuning) == 0){ DoFineTuning <- FALSE}
     if(DoFineTuning){
@@ -871,7 +879,7 @@ GetImageRepresentations <- function(
     
     # Temporal backbone
     if(dataType == "video" | NeuralizeScale){
-      message("Setting up temporal backbone...")
+      message2("Setting up temporal backbone...")
       for(dt_ in 1L:nDepth_TemporalRep){
         TransformerRenormer_d <- list("NormScaler1" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                       "NormScaler2" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
@@ -990,7 +998,7 @@ GetImageRepresentations <- function(
         if(imageModelClass == "CNN" ){
             m <- cienv$jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
             for(d__ in 1:nDepth_ImageRep){
-              message(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
+              message2(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
               
               eval(parse(text = sprintf("ModelList_d <- ModelList$Spatial_d%s", d__)))
               eval(parse(text = sprintf("StateList_d <- StateList$Spatial_d%s", d__)))
@@ -1047,7 +1055,7 @@ GetImageRepresentations <- function(
             # final pooling, final norm (if used), and projection 
             m <- cienv$jnp$max(m, axis = c(1L:2L))
             if(optimizeImageRep){
-                message("Performing final CNN normalization...")
+                message2("Performing final CNN normalization...")
                 m <- ModelList$SpatialTransformerSupp$FinalCNNBN$BN(m, 
                                                                     state = StateList$BNState_ImRep_FinalCNNBN, 
                                                                     inference = inference)
@@ -1056,11 +1064,11 @@ GetImageRepresentations <- function(
             }
         }
       }
-      message("Returning ImageRepArm_SpatialArm outputs...")
+      message2("Returning ImageRepArm_SpatialArm outputs...")
       return( list(m, StateList)  )
     }
     
-    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ message("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
+    #ImageRepArm_batch <- (ImageRepArm_batch_R <- function(ModelList, m, StateList, seed, MPList, inference){ message2("DEBUG MODE IS ON IN IMAGE BACKBONE"); Sys.sleep(5L); 
     ImageRepArm_batch <- cienv$eq$filter_jit(ImageRepArm_batch_R <- function(ModelList, m, x,
                                                                              StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
@@ -1071,7 +1079,7 @@ GetImageRepresentations <- function(
       if(thisPath){
         if(dataType == "video" & is.null(pretrainedModel)){ m <- cienv$jnp$reshape(m, c(-1L, (orig_shape_m <- cienv$jnp$shape(m))[3:5])) }
   
-        message(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
+        message2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
   
         # get spatial representation if custom architecture 
         if( is.null(pretrainedModel) ){ 
@@ -1101,10 +1109,10 @@ GetImageRepresentations <- function(
                         out_axes = list(0L,NULL))(ModelList, m, x,
                                                   StateList, cienv$jnp$add(seed,42L), MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
-          message("Returning ImageRepArm_TemporalArm outputs...")
+          message2("Returning ImageRepArm_TemporalArm outputs...")
         }
       }
-      message("Returning ImageRepArm_batch outputs...")
+      message2("Returning ImageRepArm_batch outputs...")
       return( list(m, StateList) )
     })
   }
@@ -1178,23 +1186,23 @@ GetImageRepresentations <- function(
         stop("Stopping due to missingness in intermediary representation_ [Code reference: ImageModelBackbone.R]") 
       }
       if("try-error" %in% class(representation_)){
-        message(representation_)
+        message2(representation_)
         stop("Stopping due to try-error in *intermediary* version of representation_ [Code reference: ImageModelBackbone.R]") 
       }
       
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
-      message(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
+      message2(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
   }
   Representations <- Representations[match(as.character(imageKeysOfUnits), as.character(usedImageKeys) ),]
-  message("Done getting image/video representations!")
+  message2("Done getting image/video representations!")
   }
 
   # reset wd (may have been changed via tfrecords use)
   setwd(  orig_wd  )
   
-  message("Obtaining approximate parameter count...")
+  message2("Obtaining approximate parameter count...")
   cienv$nParamsRep <- sum(unlist(lapply(cienv$jax$tree$leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ cienv$nParamsRep <- cienv$nParamsRep }
   if(!is.null(pretrainedModel) ){

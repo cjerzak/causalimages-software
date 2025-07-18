@@ -97,7 +97,7 @@ PredictiveRun <- function(
                      conda_env_required = conda_env_required,
                      Sys.setenv_text = Sys.setenv_text) 
     }
-    message(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
+    message2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
     
     # set float type
     library( tensorflow );
@@ -112,7 +112,7 @@ PredictiveRun <- function(
     }
   }
   
-  message("Setting input types in PredictiveRun()...") 
+  message2("Setting input types in PredictiveRun()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
@@ -137,7 +137,7 @@ PredictiveRun <- function(
   
   XisNull <- is.null( X  )
   if(!XisNull){ if(!"matrix" %in% class(X)){
-    message("Coercing X to matrix class..."); X <- as.matrix(  X )
+    message2("Coercing X to matrix class..."); X <- as.matrix(  X )
   } }
   
   if( !XisNull ){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
@@ -147,14 +147,14 @@ PredictiveRun <- function(
 
   if(is.null(file)){stop("No file specified for tfrecord!")}
   changed_wd <- F; if(  !is.null(  file  )  ){
-    message("Establishing connection with tfrecord")
+    message2("Establishing connection with tfrecord")
     tf_record_name <- file
     if( !grepl(tf_record_name, pattern = "/") ){
       tf_record_name <- paste("./",tf_record_name, sep = "")
     }
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
-    message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
+    message2(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
     
     # define video indicator 
@@ -171,7 +171,7 @@ PredictiveRun <- function(
       return( dataset <- dataset$batch( as.integer(max(2L,round(batchSize/2L)  ))) )
     }
     
-    message("Setting up iterators...") # - skip the first test_size observations 
+    message2("Setting up iterators...") # - skip the first test_size observations 
     if(!is.null(TFRecordControl)){
       getParsed_tf_dataset_train_Select <- function( tf_dataset ){
         return( tf_dataset$map( function(x){ parse_tfr_element(x, 
@@ -270,7 +270,7 @@ PredictiveRun <- function(
     return( im  )
   })
   
-  message("Calibrating first moments for input data normalization...")
+  message2("Calibrating first moments for input data normalization...")
   NORM_MEAN_array <- GetMoments(ds_iterator_train, 
                                 dataType = dataType, 
                                 image_dtype = image_dtype, 
@@ -281,7 +281,7 @@ PredictiveRun <- function(
   
   # Determine if Y is binary or continuous
   is_binary <- length(unique(obsY)) == 2 && all(obsY %in% c(0, 1))
-  message(ifelse(is_binary, "Treating obsY as binary.", "Treating obsY as continuous."))
+  message2(ifelse(is_binary, "Treating obsY as binary.", "Treating obsY as continuous."))
   
   setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
     X = X,
@@ -430,13 +430,13 @@ PredictiveRun <- function(
   ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
   rm( ImageModel_And_State_And_MPPolicy_List, DenseStateList, DenseList )
   
-  message("Define trainer...")
+  message2("Define trainer...")
   LocalFxnSource(TrainDefine, evaluation_environment = environment())
   
-  message("Starting training...")
+  message2("Starting training...")
   LocalFxnSource(TrainDo, evaluation_environment = environment())
   
-  message("Getting predicted quantities...")
+  message2("Getting predicted quantities...")
   GetPredict_OneObs <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
                                                      m, x, vseed,
                                                      StateList, seed, MPList){
@@ -568,7 +568,7 @@ PredictiveRun <- function(
   # Save ModelList and StateList together as a tuple
   #model_to_save <- list(ModelList, StateList, ModelList_fixed, MPList)
   #cienv$eq$tree_serialise_leaves(modelPath, model_to_save)
-  #message(sprintf("Model saved to %s", modelPath))
+  #message2(sprintf("Model saved to %s", modelPath))
   
   # Handle transport if provided
   predictedY_transport <- NULL

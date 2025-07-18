@@ -19,7 +19,7 @@
 #' @export
 #' @md
 TrainDefine <- function(){
-  message("Define optimizer and training step...") 
+  message2("Define optimizer and training step...") 
   {
     LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(max(0.25*nSGD,100L), nSGD))),
                                                       decay_steps = max(c(101L, nSGD-nWarmup)),
@@ -35,7 +35,7 @@ TrainDefine <- function(){
     
     # model partition, setup state, perform parameter count
     opt_state <- optax_optimizer$init(   cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )
-    message(sprintf("Total trainable parameter count: %s", 
+    message2(sprintf("Total trainable parameter count: %s", 
                     nParamsRep <- nTrainable <- 
                       sum(unlist(lapply(cienv$jax$tree$leaves(cienv$eq$partition(ModelList, 
                                          cienv$eq$is_array)[[1]]), function(zer){zer$size})))))

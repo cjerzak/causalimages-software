@@ -1,7 +1,7 @@
 initialize_jax <- function(conda_env = "cienv", 
                            conda_env_required = TRUE,
                            Sys.setenv_text = NULL) {
-  message("Establishing connection to computational environment (build via causalimages::BuildBackend())")
+  message2("Establishing connection to computational environment (build via causalimages::BuildBackend())")
   
   library(reticulate)
   #library(tensorflow)

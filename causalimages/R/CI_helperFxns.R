@@ -94,6 +94,27 @@ print2 <- function(text, quiet = F){
   if(!quiet){ print( sprintf("[%s] %s" ,format(Sys.time(), "%Y-%m-%d %H:%M:%S"),text) ) }
 }
 
+#' message2 
+#'
+#' A function that displays a message with date and time. 
+#'
+#' @param text Character string to be displayed as message, with date and time. 
+#' @param quiet Logical. If TRUE, suppresses the message output. Default is FALSE.
+#'
+#' @return Displays message with date and time to stderr. 
+#'
+#' @examples
+#' message2("Hello world")
+#' message2("Process completed", quiet = FALSE)
+#' @export
+#' @md
+#'
+message2 <- function(text, quiet = FALSE){
+  if(!quiet){ 
+    message(sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), text)) 
+  }
+}
+
 # LE <- function(l_, name_){ return( unlist(l_)[[name_]] ) }
 # l_ <- DenseList;name <-"Tau_d1"
 LE <- function(l_, key) {

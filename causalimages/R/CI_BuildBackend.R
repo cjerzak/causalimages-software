@@ -36,6 +36,6 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                                          envname = conda_env), T)
     }
   }
-  message("Done building causalimages backend!")
+  message2("Done building causalimages backend!")
 }
 
