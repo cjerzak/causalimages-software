@@ -43,7 +43,6 @@ WriteTfRecord <- function(file,
          Remember: Input to WriteTFRecord is uniqueImageKeys, not imageKeysOfUnits where redundancies may live")
   }
 
-  browser()
   # helper fxns
   message2("Initializing tfrecord helpers...")
   {

@@ -21,7 +21,7 @@ TrainDo <- function(){
       ds_next_train <- ds_iterator_train$`next`()
       
       # if we run out of observations, reset iterator
-      RestartedIterator <- F; if( is.null(ds_next_train) ){
+      RestartedIterator <- FALSE; if( is.null(ds_next_train) ){
         message2("Re-setting iterator! (type 1)"); gc(); cienv$py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
         ds_next_train <-  ds_iterator_train$`next`(); gc();cienv$py_gc$collect()
@@ -44,7 +44,7 @@ TrainDo <- function(){
       ds_next_train_control <- ds_iterator_train_control$`next`()
       
       # if we run out of observations, reset iterator
-      RestartedIterator <- F; if( is.null(ds_next_train_control) ){
+      RestartedIterator <- FALSE; if( is.null(ds_next_train_control) ){
         message2("Re-setting iterator! (type 1)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_next_train_control <-  ds_iterator_train_control$`next`(); gc();cienv$py_gc$collect()
@@ -89,7 +89,7 @@ TrainDo <- function(){
     # training step
     t1 <- Sys.time()
     if(i == 1){
-      print("Initial forward pass...") 
+      message2("Initial forward pass...") 
       GetLoss(
         MPList[[1]]$cast_to_compute(ModelList),  # model list
         MPList[[1]]$cast_to_compute(ModelList_fixed), # model list
@@ -102,6 +102,18 @@ TrainDo <- function(){
         cienv$jax$random$PRNGKey( 123L+i ), # seed
         MPList, # MPlist
         FALSE) 
+    }
+    
+    # sanity check 
+    if(FALSE){ 
+      test_index <- 2
+      test <- GetElementFromTfRecordAtIndices(
+        uniqueKeyIndices = which(unique(imageKeysOfUnits)==unique(imageKeysOfUnits)[test_index]),
+        filename = file,
+        readVideo = useVideoIndicator,
+        nObs = length(unique(imageKeysOfUnits) ) )
+      test[[3]]
+      unique(imageKeysOfUnits)[test_index]
     }
 
     # Sanity check for dimension swapping as i varies 

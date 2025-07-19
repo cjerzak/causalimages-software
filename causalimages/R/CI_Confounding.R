@@ -534,9 +534,6 @@ AnalyzeImageConfounding <- function(
             # BN + non-linearity
             if(d__ < nDepth_Dense){
               m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)
-              #StateIndex <- LE_index(StateList, sprintf("BNState_d%s", d__))
-              #StateIndex <- paste(sapply(StateIndex, function(zer){ paste("[[", zer, "]]") }), collapse = "")
-              #eval(parse(text = sprintf("StateList%s <- m[[2]]", StateIndex)))
               eval(parse(text = sprintf("StateList$DenseList$Dense%s <- m[[2]]", d__)))
               m <- m[[1]]
 
@@ -1019,7 +1016,10 @@ AnalyzeImageConfounding <- function(
         dev.off()
         }, T)
       }
-      makePlots()
+      tryMakePlots_ <- try(makePlots(),TRUE)
+      if("try-error" %in% class(tryMakePlots_)){
+        warning("Tried but failed to make salience maps...")
+      }
     }
 
     # compute salience for tabular covariates
