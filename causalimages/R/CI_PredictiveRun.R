@@ -75,6 +75,7 @@ PredictiveRun <- function(
     pretrainedModel = NULL, 
     
     strides = 2L,
+    nonLinearScaler = NULL,
     nDepth_TemporalRep = 3L,
     patchEmbedDim = 16L,
     dropoutRate = 0.1,
@@ -293,6 +294,7 @@ PredictiveRun <- function(
     nWidth_ImageRep = nWidth_ImageRep,
     nDepth_ImageRep = nDepth_ImageRep,
     strides = strides,
+    nonLinearScaler = nonLinearScaler,
     dropoutRate = dropoutRate,
     nDepth_TemporalRep = nDepth_TemporalRep,
     patchEmbedDim = patchEmbedDim,

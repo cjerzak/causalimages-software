@@ -30,6 +30,7 @@ AnalyzeImageHeterogeneity(
   nDepth_TemporalRep = 1L,
   useTrainingPertubations = T,
   strides = 2L,
+  nonLinearScaler = NULL,
   pretrainedModel = NULL,
   testFrac = 0.1,
   kernelSize = 5L,

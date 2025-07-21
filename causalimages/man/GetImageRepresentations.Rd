@@ -27,6 +27,7 @@ GetImageRepresentations(
   nDepth_ImageRep = 1L,
   nDepth_TemporalRep = 1L,
   batchSize = 16L,
+  nonLinearScaler = NULL,
   optimizeImageRep = T,
   strides = 1L,
   kernelSize = 3L,

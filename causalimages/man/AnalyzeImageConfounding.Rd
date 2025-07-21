@@ -31,6 +31,7 @@ AnalyzeImageConfounding(
   plotResults = T,
   XCrossModal = T,
   optimizeImageRep = T,
+  nonLinearScaler = NULL,
   nWidth_ImageRep = 64L,
   nDepth_ImageRep = 1L,
   kernelSize = 5L,

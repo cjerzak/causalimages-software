@@ -56,6 +56,7 @@ GetImageRepresentations <- function(
     nDepth_ImageRep = 1L,
     nDepth_TemporalRep = 1L,
     batchSize = 16L,
+    nonLinearScaler = NULL, 
     optimizeImageRep = T,
     strides = 1L,
     kernelSize = 3L,
@@ -153,18 +154,8 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     message2("Setting up image representation model...")
-    if(dataType == "video" | NeuralizeScale){ 
-      #NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*(nDepth_ImageRep + nDepth_TemporalRep )) )
-      NonLinearScaler <- cienv$jnp$array( 0.001 )
-    }
-    if(dataType == "image"){ 
-      #NonLinearScaler <- cienv$jnp$array( 1/sqrt( 2*nDepth_ImageRep ) ) 
-      NonLinearScaler <- cienv$jnp$array( 0.001 )
-    }
     MPList <- list(cienv$jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
                    cienv$jmp$DynamicLossScale(cienv$jnp$array(2^15), period = 1000L))
-    
-    1 / (1 * 2*nDepth_ImageRep)^(1/4)
 
     # coerce to integer for safety
     kernelSize <- ai(kernelSize); strides <- ai(strides)
@@ -743,6 +734,20 @@ GetImageRepresentations <- function(
     if(imageModelClass == "VisionTransformer"){
       StateList <- ModelList <- replicate(nDepth_ImageRep, cienv$jnp$array(0.)) # initialize with 0's
       for(d_ in 1L:nDepth_ImageRep){
+          if(!is.null(nonLinearScaler)){
+              if(length(nonLinearScaler) == 1){nonLinearScaler_ <- nonLinearScaler }
+              if(length(nonLinearScaler) > 1){nonLinearScaler_ <- nonLinearScaler[d_] }
+          }
+          if(is.null(nonLinearScaler)){
+              if(is.null(nonLinearScaler)){
+                nonLinearScaler_ <- cienv$jnp$array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep ))^(-1/4) )
+                #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
+              }
+            if(dataType == "image"){ 
+                nonLinearScaler_ <- cienv$jnp$array( ( 2*nDepth_ImageRep )^(-1/4) ) 
+                #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
+              }
+          }
           TransformerRenormer_d <- list("NormScaler1"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
                                         "NormScaler2"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
           Multihead_d <- cienv$eq$nn$MultiheadAttention(
@@ -767,8 +772,8 @@ GetImageRepresentations <- function(
           StateList[[d_]] <- list('BNState_ImRep'= cienv$jnp$array(0.))
           ModelList[[d_]] <- list("Multihead" = Multihead_d,
                                   "FF" = FF_d,
-                                  "ResidualWts" = list("RightWt1"=InvSoftPlus(NonLinearScaler),
-                                                       "RightWt2"=InvSoftPlus(NonLinearScaler)),
+                                  "ResidualWts" = list("RightWt1"=InvSoftPlus(nonLinearScaler_),
+                                                       "RightWt2"=InvSoftPlus(nonLinearScaler_)),
                                   "TransformerRenormer" = TransformerRenormer_d)
       }
       names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)

@@ -32,6 +32,7 @@ PredictiveRun(
   imageModelClass = "VisionTransformer",
   pretrainedModel = NULL,
   strides = 2L,
+  nonLinearScaler = NULL,
   nDepth_TemporalRep = 3L,
   patchEmbedDim = 16L,
   dropoutRate = 0.1,
