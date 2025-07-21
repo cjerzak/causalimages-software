@@ -137,11 +137,11 @@
   print(ImageConfoundingAnalysis$ModelEvaluationMetrics)
   
   # Comparison
-  bias <- ImageConfoundingAnalysis$tauHat_diffInMeans - tau
+  bias_naive <- ImageConfoundingAnalysis$tauHat_diffInMeans - tau
   print("Bias (diff in means):")
-  print(bias)
+  print(bias_naive)
   
-  bias <- ImageConfoundingAnalysis$tauHat_propensityHajek - tau
+  bias_adjusted <- ImageConfoundingAnalysis$tauHat_propensityHajek - tau
   print("Bias (image+tabular deconfounding):")
-  print(bias)
+  print(bias_adjusted)
 }
