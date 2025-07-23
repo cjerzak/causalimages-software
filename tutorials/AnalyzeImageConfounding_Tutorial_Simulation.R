@@ -111,7 +111,7 @@
     imageModelClass = imageModelClass,
     nDepth_ImageRep = 4L,
     nWidth_ImageRep = as.integer(2^8),
-    learningRateMax = 0.001, nSGD = 300L,
+    learningRateMax = 0.0001, nSGD = 300L,
     dropoutRate = 0.1,
     plotBands = c(1,2,3),
     plotResults = TRUE, figuresTag = "SimConfoundingIm",
@@ -138,10 +138,10 @@
   
   # Comparison
   bias_naive <- ImageConfoundingAnalysis$tauHat_diffInMeans - tau
-  print("Bias (diff in means):")
-  print(bias_naive)
+  print("Bias (diff in means):") 
+  print(bias_naive) # around 2
   
   bias_adjusted <- ImageConfoundingAnalysis$tauHat_propensityHajek - tau
   print("Bias (image+tabular deconfounding):")
-  print(bias_adjusted)
+  print(bias_adjusted) # around 0.4 
 }

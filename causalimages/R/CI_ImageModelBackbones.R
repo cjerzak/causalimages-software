@@ -656,8 +656,9 @@ GetImageRepresentations <- function(
 
           message2(sprintf("Feed forward {%s layer %s}...",type, d_) )
           m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
-                        ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj
-          m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj
+                        ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj to high dim
+          m <- cienv$eq$nn$Dropout(p = dropoutRate, inference = inference)(m, key = seed, inference = inference) # dropout, per element 
+          m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj to low dim
 
           message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
           mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
