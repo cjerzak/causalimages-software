@@ -221,10 +221,11 @@ PredictiveRun <- function(
   if(useTrainingPertubations){
     trainingPertubations <- cienv$jax$vmap( 
       trainingPertubations_OneObs <- function(im_, key){
-        # key <- cienv$jax$random$PRNGKey(c(sample(1:100,1)))
+        # key <- cienv$jax$random$key(c(sample(1:100,1)))
         AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
         which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
         
+        # flip paths
         # which_path of 0L -> do no flips 
         im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
                                   true_fun = function(){ cienv$jnp$flip(im_, 
@@ -239,7 +240,29 @@ PredictiveRun <- function(
                                                                                        axis = AB+0L),
                                                                         axis = AB+1L) }, 
                                   false_fun = function(){im_})
-        return( im_ ) }, in_axes = list(0L,0L))
+        
+        # Add brightness perturbation (scalar addition)
+        key <- cienv$jax$random$split(key)  # Use second key from split for next ops; discard first if not needed
+        apply_bright <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+        im_ <- cienv$jax$lax$cond(apply_bright,
+                                  true_fun = function(){ im_ + cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1]], minval=-0.1, maxval=0.1,dtype = im_$dtype)}, # delta noise 
+                                  false_fun = function(){ im_ })
+        
+        # Add contrast perturbation (centered multiplication)
+        key <- cienv$jax$random$split(key[[1]])
+        apply_contrast <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+        im_ <- cienv$jax$lax$cond(apply_contrast,
+                                  true_fun = function(){ im_ * cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1L]], minval=0.8, maxval=1.2,dtype=im_$dtype) },
+                                  false_fun = function(){ im_ })
+        
+        # Add Gaussian noise perturbation (per-element)
+        key <- cienv$jax$random$split(key[[1L]])
+        apply_noise <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+        im_ <- cienv$jax$lax$cond(apply_noise,
+                                  true_fun = function(){ im_ + cienv$jax$random$normal(cienv$jax$random$split(key[[1]])[[1L]], shape=cienv$jnp$shape(im_),dtype=im_$dtype) * 0.05},
+                                  false_fun = function(){ im_ })
+        return( im_ ) 
+      }, in_axes = list(0L,0L))
   }
   
   InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
@@ -327,7 +350,7 @@ PredictiveRun <- function(
                                                                    no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
+                                      use_bias = T, key = cienv$jax$random$key(d_ + 44L + as.integer(seed)))
     LayerBN_d <- cienv$jnp$array(1)
     DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
     DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
@@ -491,16 +514,16 @@ PredictiveRun <- function(
                                                         no = list(X[obs_with_key,]))[[1]],
                                                  dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
     m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+cut_), inference = T), # m 
+                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L+cut_), inference = T), # m 
                                         cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                        StateList, cienv$jax$random$PRNGKey(900L+cut_), MPList, T)[[1]]
+                                        StateList, cienv$jax$random$key(900L+cut_), MPList, T)[[1]]
     GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
       m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                               m_ImageRep,
                               x[r_-1L,],
-                              cienv$jax$random$split(cienv$jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                              cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                               StateList,
-                              cienv$jax$random$PRNGKey(as.integer(runif(1,0,100000))),
+                              cienv$jax$random$key(as.integer(runif(1,0,100000))),
                               MPList, T)[[1]]
       if(is_binary){
         m <- cienv$jax$nn$sigmoid( m )

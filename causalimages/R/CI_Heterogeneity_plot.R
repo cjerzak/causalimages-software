@@ -220,10 +220,10 @@ CausalImageHeterogeneity_plot <- function(){
           nTimeSteps <- dim(ds_next_in[1,, , ,])[1]
           IG <- np$array(  ImGrad_fxn(ModelList,
                                       ModelList_fixed,
-                                      InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                                      cienv$jax$random$PRNGKey(400L),
+                                      InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$key(600L), inference = T)[0,,,],  # m
+                                      cienv$jax$random$key(400L),
                                       StateList,
-                                      cienv$jax$random$PRNGKey(430L),
+                                      cienv$jax$random$key(430L),
                                       MPList)[[1]] )
           for (t_ in 1L:nTimeSteps) {
             plotRBG <- !(length(plotBands) < 3 | dim(ds_next_in)[length(dim(ds_next_in))] < 3)
@@ -445,10 +445,10 @@ CausalImageHeterogeneity_plot <- function(){
             {
               gc(); py_gc$collect()
               IG <- ImGrad_fxn(ModelList, ModelList_fixed,
-                               InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L), inference = T)[0,,,],  # m
-                               cienv$jax$random$PRNGKey(400L),
+                               InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L), inference = T)[0,,,],  # m
+                               cienv$jax$random$key(400L),
                                StateList,
-                               cienv$jax$random$PRNGKey(430L),
+                               cienv$jax$random$key(430L),
                                MPList)
               IG[[1]] <- np$array(IG[[1]])[,,1] # magnitude
               IG[[2]] <- np$array(IG[[2]])[,,1] # direction

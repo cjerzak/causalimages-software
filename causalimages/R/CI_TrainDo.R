@@ -93,13 +93,13 @@ TrainDo <- function(){
       GetLoss(
         MPList[[1]]$cast_to_compute(ModelList),  # model list
         MPList[[1]]$cast_to_compute(ModelList_fixed), # model list
-        InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = F), # m
+        InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+i), inference = F), # m
         cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = cienv$jnp$float16), # x
         cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = cienv$jnp$float16), # treat
         cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = cienv$jnp$float16), # y 
-        cienv$jax$random$split(cienv$jax$random$PRNGKey( 500L+i ),length(batch_indices)),  # vseed for observations 
+        cienv$jax$random$split(cienv$jax$random$key( 500L+i ),length(batch_indices)),  # vseed for observations 
         StateList, # StateList
-        cienv$jax$random$PRNGKey( 123L+i ), # seed
+        cienv$jax$random$key( 123L+i ), # seed
         MPList, # MPlist
         FALSE) 
     }
@@ -107,28 +107,27 @@ TrainDo <- function(){
     # sanity check 
     if(FALSE){ 
       test_index <- 2
-      test <- GetElementFromTfRecordAtIndices(
+      GetElementFromTfRecordAtIndices(
         uniqueKeyIndices = which(unique(imageKeysOfUnits)==unique(imageKeysOfUnits)[test_index]),
         filename = file,
         readVideo = useVideoIndicator,
         nObs = length(unique(imageKeysOfUnits) ) )
-      test[[3]]
-      unique(imageKeysOfUnits)[test_index]
+      # unique(imageKeysOfUnits)[test_index]
     }
 
     # Sanity check for dimension swapping as i varies 
-    # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+sample(1:100,1)), inference = F)[2,,,1]))
-    
+    # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+sample(1:100,1)), inference = F)[2,,,1]))
+
     # Get gradient update packages 
     GradientUpdatePackage <- GradAndLossAndAux(
       MPList[[1]]$cast_to_compute(ModelList), MPList[[1]]$cast_to_compute(ModelList_fixed), # model lists
-      InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$PRNGKey(600L+i), inference = FALSE), # m
+      InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+i), inference = FALSE), # m
       cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]], dtype = ComputeDtype), # x
       cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = ComputeDtype), # treat (unused for prediction only runs)
       cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
-      cienv$jax$random$split(cienv$jax$random$PRNGKey( 50L+i ),length(batch_indices)),  # vseed for observations 
+      cienv$jax$random$split(cienv$jax$random$key( 50L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
-      cienv$jax$random$PRNGKey( 123L+i ), # seed
+      cienv$jax$random$key( 123L+i ), # seed
       MPList, # MPlist
       FALSE) # inference
 

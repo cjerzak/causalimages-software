@@ -151,6 +151,8 @@ AnalyzeImageConfounding <- function(
   if( !XisNull ){ if(any(apply(X,2,sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
   if( XisNull ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
   X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,sd))) )
+  # clip extreme standardized values 
+  X[X>8] <- 8; X[X < -8] <- -8
   {
     if(is.null(file)){stop("No file specified for tfrecord!")}
     changed_wd <- F; if(  !is.null(  file  )  ){
@@ -233,10 +235,11 @@ AnalyzeImageConfounding <- function(
     if(useTrainingPertubations){
       trainingPertubations <- cienv$jax$vmap( 
         trainingPertubations_OneObs <- function(im_, key){
-         # key <- cienv$jax$random$PRNGKey(c(sample(1:100,1)))
+         # key <- cienv$jax$random$key(c(sample(1:100,1)))
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
          
+         # flip paths
          # which_path of 0L -> do no flips 
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
                                    true_fun = function(){ cienv$jnp$flip(im_, 
@@ -251,7 +254,29 @@ AnalyzeImageConfounding <- function(
                                                                                         axis = AB+0L),
                                                                          axis = AB+1L) }, 
                                    false_fun = function(){im_})
-         return( im_ ) }, in_axes = list(0L,0L))
+         
+         # Add brightness perturbation (scalar addition)
+         key <- cienv$jax$random$split(key)  # Use second key from split for next ops; discard first if not needed
+         apply_bright <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+         im_ <- cienv$jax$lax$cond(apply_bright,
+                                   true_fun = function(){ im_ + cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1]], minval=-0.1, maxval=0.1,dtype = im_$dtype)}, # delta noise 
+                                   false_fun = function(){ im_ })
+         
+         # Add contrast perturbation (centered multiplication)
+         key <- cienv$jax$random$split(key[[1]])
+         apply_contrast <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+         im_ <- cienv$jax$lax$cond(apply_contrast,
+                                   true_fun = function(){ im_ * cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1L]], minval=0.8, maxval=1.2,dtype=im_$dtype) },
+                                   false_fun = function(){ im_ })
+         
+         # Add Gaussian noise perturbation (per-element)
+         key <- cienv$jax$random$split(key[[1L]])
+         apply_noise <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+         im_ <- cienv$jax$lax$cond(apply_noise,
+                                   true_fun = function(){ im_ + cienv$jax$random$normal(cienv$jax$random$split(key[[1]])[[1L]], shape=cienv$jnp$shape(im_),dtype=im_$dtype) * 0.05},
+                                   false_fun = function(){ im_ })
+         return( im_ ) },
+        in_axes = list(0L,0L))
     }
 
     InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
@@ -510,7 +535,7 @@ AnalyzeImageConfounding <- function(
                                                                          no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = cienv$jax$random$PRNGKey(d_ + 44L + as.integer(seed)))
+                                      use_bias = T, key = cienv$jax$random$key(d_ + 44L + as.integer(seed)))
           #LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name, momentum = 0.99, eps = 0.001, channelwise_affine = F)
           LayerBN_d <- cienv$jnp$array(1)
           DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
@@ -644,8 +669,116 @@ AnalyzeImageConfounding <- function(
           
           return( m )
         })
-
-        inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
+        
+        if(TRUE){    
+          t0_inference <- Sys.time()
+          inf_counter <- 0
+          nUniqueKeys <- length( unique(imageKeysOfUnits) )
+          KeyQuantCuts <- 1L:nUniqueKeys
+          batchSize <- 2L*batchSize # double the batch size for inference 
+          batchStarts       <- seq(1L, nUniqueKeys, by = batchSize)
+          passedIterator <- NULL; Results_by_keys <- list()
+          ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
+          pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
+          usedKeys <- c(); for (b in seq_along(batchStarts)) {
+            idx_start <- batchStarts[b]
+            idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
+            m_indices1 <- idx_start:idx_end    
+            
+            #gc(); cienv$py_gc$collect()
+            if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
+            setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+                uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
+                filename = file,
+                iterator = passedIterator,
+                readVideo = useVideoIndicator,
+                image_dtype = image_dtype_tf,
+                nObs = length(unique(imageKeysOfUnits)),
+                return_iterator = T ); setwd(new_wd)
+            tmp_updated_iterator <- ds_next_in[[2]]
+            outerBatchKeys <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+            ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
+            if( !all(outerBatchKeys==unique(imageKeysOfUnits)[m_indices1]) ){
+              stop("Key pairing mismatch in inference mode; check data! [Code ref. 134z]")
+            }
+            
+            # get summaries and save
+            usedKeys <- c(usedKeys, outerBatchKeys)
+            keyNames_xIndicesValues <- do.call(rbind, 
+                                          sapply(outerBatchKeys, function(key__){ 
+                                           val__ <- which(imageKeysOfUnits %in% key__)
+                                           list(cbind("key"=rep(key__,times=length(val__)),"value"=val__))
+                                           }))
+            keyNames_xIndicesValues_names <- keyNames_xIndicesValues[,1]
+            keyNames_xIndicesValues <- f2n(keyNames_xIndicesValues[,2])
+            names(keyNames_xIndicesValues) <- keyNames_xIndicesValues_names
+            # mean(names(keyNames_xIndicesValues) == names(keyNames_xIndicesValues))
+            
+            # inner loop 
+            batchStarts_inner <- seq(1, length(keyNames_xIndicesValues), by = batchSize)
+            for(bi_ in seq_along(batchStarts_inner)){
+              inf_counter <- inf_counter + 1
+              idx_start_inner <- batchStarts_inner[bi_]
+              idx_end_inner   <- idx_start_inner + batchSize - 1L
+              
+              in_xbatch_indices <- idx_start_inner:idx_end_inner
+              realSize_inner  <- length(in_xbatch_indices)
+              
+              # Pad last batch to 'batchSize' by repeating the final key index
+              in_xbatch_indices <- c(in_xbatch_indices,
+                                     rep(in_xbatch_indices[realSize_inner], batchSize - realSize_inner))
+              x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
+              m_indices <- match(names(x_indices), outerBatchKeys)
+              
+              # get image rep 
+              if(all(m_indices %in% 1:length(m_indices))){ 
+                m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+              }
+              if(!all(m_indices %in% 1:length(m_indices))){ 
+                m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
+                                                    cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+              }
+              x <- cienv$jnp$array(X[x_indices,], dtype = cienv$jnp$float16)
+              m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
+                                                  m, # m 
+                                                  x, # x
+                                                  StateList, cienv$jax$random$key(ai(900L+inf_counter)), MPList, TRUE)[[1]]
+              
+              # get final output from image rep 
+              if(b==1){ m_b <- m; x_b <- x }
+              # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
+              m <- GetDense_batch_jit(ModelList, ModelList_fixed,
+                                      m,
+                                      x, # x 
+                                      cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                      StateList,
+                                      cienv$jax$random$key(as.integer(runif(1,0,100000))),
+                                      MPList, TRUE)[[1]]
+              m <- cienv$jax$nn$sigmoid( m )
+              m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+              m <- as.matrix(cienv$np$array(m))
+              if(b==1){ pred_b <- m }
+              
+              ret_list <- list("ProbW" = m[1:realSize_inner,],
+                               "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
+                               "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
+              #Results_by_keys[[length(Results_by_keys)+1]] <- ret_list
+              Results_by_keys <- append(Results_by_keys, list(ret_list))
+            }
+            passedIterator <- tmp_updated_iterator # update iterator 
+          }; close(pb) 
+          Results_by_keys_orig <- Results_by_keys
+          Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
+          #Results_by_keys <- as.data.frame(apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+          Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
+          Results_by_keys1 <- Results_by_keys
+          message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
+        }
+        
+        if(FALSE){  
+        t0_inference <- Sys.time()
+        inference_counter <- 0
+        nUniqueKeys <- length( unique(imageKeysOfUnits) )
         KeyQuantCuts <- 1L:nUniqueKeys
         passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
         ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
@@ -654,8 +787,6 @@ AnalyzeImageConfounding <- function(
           # cut_ <- unique(KeyQuantCuts)[1]
           inference_counter <- inference_counter + 1
           zer <- which(cut_  ==  KeyQuantCuts)
-          #gc(); cienv$py_gc$collect()
-          atP <- max(zer)/nUniqueKeys
           if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
           {
             setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
@@ -665,10 +796,11 @@ AnalyzeImageConfounding <- function(
                                                 readVideo = useVideoIndicator,
                                                 image_dtype = image_dtype_tf,
                                                 nObs = length(unique(imageKeysOfUnits)),
-                                                return_iterator = T ); setwd(new_wd)
-            passedIterator <- ds_next_in[[2]]
+                                                return_iterator = TRUE ); setwd(new_wd)
             key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+            tmp_updated_iterator <- ds_next_in[[2]]
             ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
+            if( key_ != unique(imageKeysOfUnits)[zer] ){stop("Found mis-alignment in key-key sanity checks [code ref 4a34]")}
 
             # deal with batch 1 case here
             if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
@@ -683,17 +815,24 @@ AnalyzeImageConfounding <- function(
                                                               no = list(X[obs_with_key,]))[[1]],
                            dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
           m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$PRNGKey(600L+cut_), inference = T), # m 
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L+cut_), inference = TRUE), # m 
                                       cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                          StateList, cienv$jax$random$PRNGKey(900L+cut_), MPList, T)[[1]]
+                                          StateList, cienv$jax$random$key(900L+cut_), MPList, TRUE)[[1]]
+          #if( cut_ == 2 ){ browser() }
+          # m_one <- m_ImageRep; x_one <- x; ind4_ <- 2
+          # plot(c(cienv$np$array(m_one)),c(cienv$np$array(m_b)[ind4_,]));abline(a=0,b=1)
+          # plot(c(cienv$np$array(x_one)),c(cienv$np$array(x_b)[ind4_,]));abline(a=0,b=1)
+          # plot(c(cienv$np$array(x_one)),X[ind4_,]);abline(a=0,b=1)
+          # plot(c(cienv$np$array(x_b)[ind4_,]),X[ind4_,]);abline(a=0,b=1)
+          # GottenSummaries; Results_by_keys1[ind4_,]; pred_b[ind4_]
           GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
             m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                 m_ImageRep,
-                                x[r_-1L,],
-                                cienv$jax$random$split(cienv$jax$random$PRNGKey(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                cienv$jnp$take(x, ai(r_-1L), axis=0L),
+                                cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                 StateList,
-                                cienv$jax$random$PRNGKey(as.integer(runif(1,0,100000))),
-                                MPList, T)[[1]]
+                                cienv$jax$random$key(as.integer(runif(1,0,100000))),
+                                MPList, TRUE)[[1]]
             m <- cienv$jax$nn$sigmoid( m )
             m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
             if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
@@ -703,11 +842,29 @@ AnalyzeImageConfounding <- function(
           ret_list <- list("ProbW" = GottenSummaries,
                            "obsIndex" = as.matrix(obs_with_key),
                            "key" = as.matrix( rep(key_, length(obs_with_key)) ))
+          passedIterator <- tmp_updated_iterator # update iterator 
           Results_by_keys[[inference_counter]] <- ret_list
+        }; close(pb) 
+        Results_by_keys <- as.data.frame(apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+        Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
+        message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
+        
+        # sanity checks 
+        plot(Results_by_keys$obsIndex, Results_by_keys1$obsIndex)
+        mean(Results_by_keys$key == imageKeysOfUnits)
+        mean(Results_by_keys1$key == imageKeysOfUnits)
         }
-        close(pb)  # Close the progress bar after the loop
-        Results_by_keys <- as.data.frame(
-                        apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+        
+        # plot(f2n(Results_by_keys$ProbW),f2n(Results_by_keys1$ProbW));abline(a=0,b=1)
+        # plot(f2n(Results_by_keys$ProbW)[1:10],f2n(Results_by_keys1$ProbW)[1:10]);abline(a=0,b=1)
+        # plot(f2n(Results_by_keys$ProbW)[1:10]-f2n(Results_by_keys1$ProbW)[1:10]);abline(h=0)
+             
+        
+        if( !all(Results_by_keys1$key == imageKeysOfUnits) ){
+          stop("Problem in key alignment [code ref 3zf3]")
+        }
+        
+      
         prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
         if(any(is.na(prW_est))){
           warning("NAs in output probabilities...Imputing them with average estimate")
@@ -864,18 +1021,18 @@ AnalyzeImageConfounding <- function(
             in_counter <- in_counter + 1
             long_lat_in_ <- ""; if(  !is.null(lat)  ){ long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_])) }
 
-            im_orig <- im_ <- InitImageProcessFn( im = cienv$jnp$array(ds_next_in[[1]]), key = cienv$jax$random$PRNGKey(3L), inference = T )
+            im_orig <- im_ <- InitImageProcessFn( im = cienv$jnp$array(ds_next_in[[1]]), key = cienv$jax$random$key(3L), inference = TRUE )
             XToConcat_values <- cienv$jnp$array(t(X[in_,]),cienv$jnp$float16)
             im_ <- cienv$np$array(cienv$jnp$squeeze(im_,c(0L)))
 
             # calculate salience map using log probabilities
-            # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$PRNGKey(10L); vseed <- cienv$jnp$expand_dims(seed,0L)
+            # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$key(10L); vseed <- cienv$jnp$expand_dims(seed,0L)
             salience_map <- cienv$np$array(  ImGrad_fxn(
                                         cienv$jmp$cast_to_full(ModelList), cienv$jmp$cast_to_full(ModelList_fixed),
                                         cienv$jmp$cast_to_full(im_orig),
                                         cienv$jmp$cast_to_full(XToConcat_values),
-                                        cienv$jnp$expand_dims(cienv$jax$random$PRNGKey(10L),0L),
-                                        StateList, cienv$jax$random$PRNGKey(10L), MPList )[[1]] )
+                                        cienv$jnp$expand_dims(cienv$jax$random$key(10L),0L),
+                                        StateList, cienv$jax$random$key(10L), MPList )[[1]] )
             if(dataType == "image"){ salience_map <- salience_map[,,1] }
             if(dataType == "video"){ salience_map <- salience_map[,,,1] }
 
@@ -1045,13 +1202,13 @@ AnalyzeImageConfounding <- function(
           if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
           if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
 
-          im_ <- InitImageProcessFn( cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$PRNGKey(432L), T)
+          im_ <- InitImageProcessFn( cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$key(432L), T)
           x_ <- cienv$jnp$array(t(X[sampIndex_,]), cienv$jnp$float16)
           SalienceX_contrib <- cienv$np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
                         cienv$jmp$cast_to_full(im_),
                         cienv$jmp$cast_to_full(x_),
-                        cienv$jax$random$split(cienv$jax$random$PRNGKey( 500L+i ),x_$shape[[1]]),
-                        StateList, cienv$jax$random$PRNGKey(10L), MPList ) )
+                        cienv$jax$random$split(cienv$jax$random$key( 500L+i ),x_$shape[[1]]),
+                        StateList, cienv$jax$random$key(10L), MPList ) )
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)

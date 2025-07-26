@@ -216,13 +216,48 @@ AnalyzeImageHeterogeneity <- function(obsW,
 
   if(useTrainingPertubations){
     trainingPertubations_OneObs <- function(im_, key){
-        AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-        which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(0L)), true_fun = function(){ cienv$jnp$flip(im_, AB+1L) } , false_fun = function(){im_})
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), true_fun = function(){ cienv$jnp$flip(im_, AB+2L) }, false_fun = function(){im_})
-        im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)), true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, AB+1L),AB+2L) }, false_fun = function(){im_})
-        return( im_ )
-    } 
+      # key <- cienv$jax$random$key(c(sample(1:100,1)))
+      AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
+      which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+      
+      # flip paths
+      # which_path of 0L -> do no flips 
+      im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
+                                true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                      axis = AB+0L) }, 
+                                false_fun = function(){im_})
+      im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), 
+                                true_fun = function(){ cienv$jnp$flip(im_, 
+                                                                      axis = AB+1L) }, 
+                                false_fun = function(){im_})
+      im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)),
+                                true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, 
+                                                                                     axis = AB+0L),
+                                                                      axis = AB+1L) }, 
+                                false_fun = function(){im_})
+      
+      # Add brightness perturbation (scalar addition)
+      key <- cienv$jax$random$split(key)  # Use second key from split for next ops; discard first if not needed
+      apply_bright <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+      im_ <- cienv$jax$lax$cond(apply_bright,
+                                true_fun = function(){ im_ + cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1]], minval=-0.1, maxval=0.1,dtype = im_$dtype)}, # delta noise 
+                                false_fun = function(){ im_ })
+      
+      # Add contrast perturbation (centered multiplication)
+      key <- cienv$jax$random$split(key[[1]])
+      apply_contrast <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+      im_ <- cienv$jax$lax$cond(apply_contrast,
+                                true_fun = function(){ im_ * cienv$jax$random$uniform(cienv$jax$random$split(key[[1]])[[1L]], minval=0.8, maxval=1.2,dtype=im_$dtype) },
+                                false_fun = function(){ im_ })
+      
+      # Add Gaussian noise perturbation (per-element)
+      key <- cienv$jax$random$split(key[[1L]])
+      apply_noise <- cienv$jax$random$bernoulli(cienv$jax$random$split(key[[1]])[[1L]], p=0.25)
+      im_ <- cienv$jax$lax$cond(apply_noise,
+                                true_fun = function(){ im_ + cienv$jax$random$normal(cienv$jax$random$split(key[[1]])[[1L]], shape=cienv$jnp$shape(im_),dtype=im_$dtype) * 0.05},
+                                false_fun = function(){ im_ })
+      return( im_ ) 
+    }
     trainingPertubations <- cienv$jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
   }
   InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
@@ -879,9 +914,9 @@ AnalyzeImageHeterogeneity <- function(obsW,
     
           # get summaries and save
           GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(ai(runif(1,0, 10000))), inference = T),
-                                          cienv$jax$random$split(cienv$jax$random$PRNGKey(ai(runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                          StateList, cienv$jax$random$PRNGKey(ai(runif(1,0,100000))), MPList)
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$random(ai(runif(1,0, 10000))), inference = T),
+                                          cienv$jax$random$split(cienv$jax$random$random(ai(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                          StateList, cienv$jax$random$random(ai(runif(1,0,100000))), MPList)
 
           ret_list <- list("y0_" = as.matrix2(GottenSummaries$y0_),
                            "y1_" = as.matrix2(GottenSummaries$y1_),
@@ -980,8 +1015,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 cienv$jax$nn$softplus(getSDY_params(ModelList, "Y1", "SD")))
     SDDist_Y0_post <- oryx$distributions$Normal(getSDY_params(ModelList, "Y0", "Mean"),
                                  cienv$jax$nn$softplus(getSDY_params(ModelList, "Y0", "SD")))
-    Sigma1_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y1_post$sample(100L, seed = cienv$jax$random$PRNGKey(4L))),0L))
-    Sigma0_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y0_post$sample(100L, seed = cienv$jax$random$PRNGKey(4L))),0L))
+    Sigma1_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y1_post$sample(100L, seed = cienv$jax$random$random(4L))),0L))
+    Sigma0_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y0_post$sample(100L, seed = cienv$jax$random$random(4L))),0L))
 
     # get uncertainties
     if(  grepl(heterogeneityModelType, pattern="variational_minimal")  ){
@@ -991,7 +1026,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       doMean = F)
       MeanDist_Tau_post = (oryx$distributions$Normal(Tau_mean_vec, Tau_sd_vec <- cienv$jax$nn$softplus(getTau_sds(ModelList))))
       Tau_sd_vec_ <- as.numeric2(cienv$tf$sqrt(cienv$tf$math$reduce_variance(MeanDist_Tau_post$sample(
-                              100L, seed = cienv$jax$random$PRNGKey(45L)),0L)))
+                              100L, seed = cienv$jax$random$random(45L)),0L)))
       Tau_sd_vec <- Y_sd*sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
     }
   }
@@ -1018,7 +1053,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
           ds_next_in <- ds_next_in[[1]]
         }
-        im_keys <-  InitImageProcessFn( cienv$jnp$array(ds_next_in),  cienv$jax$random$PRNGKey(600L), inference = T)
+        im_keys <-  InitImageProcessFn( cienv$jnp$array(ds_next_in),  cienv$jax$random$random(600L), inference = T)
         pred_ <- replicate(nMonte_predictive,cienv$np$array(GetProbAndExpand(im_keys) ))
         list("mean"=apply(pred_[1,,,],1:2,mean),
              "var"=apply(pred_[1,,,],1:2,var))

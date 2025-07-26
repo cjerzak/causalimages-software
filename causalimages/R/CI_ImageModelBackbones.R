@@ -199,7 +199,7 @@ GetImageRepresentations <- function(
                    in_features  = ai(ncol(X)),
                    out_features = ai(nWidth_ImageRep),
                    use_bias     = FALSE,
-                   key          = cienv$jax$random$PRNGKey(ai(3324151433 + seed))
+                   key          = cienv$jax$random$key(ai(3324151433 + seed))
                 )
    } 
     
@@ -212,7 +212,7 @@ GetImageRepresentations <- function(
       InitImageProcess <- function(m, seed, inference){ 
         # normalize for this/these models
         if( grepl(pretrainedModel,pattern="clay")  ){ 
-          m <- InitImageProcess_orig(m, cienv$jax$random$PRNGKey(1L), T) 
+          m <- InitImageProcess_orig(m, cienv$jax$random$key(1L), T) 
         }
         
         # model specific transformations 
@@ -657,7 +657,7 @@ GetImageRepresentations <- function(
           message2(sprintf("Feed forward {%s layer %s}...",type, d_) )
           m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
                         ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj to high dim
-          m <- cienv$eq$nn$Dropout(p = dropoutRate, inference = inference)(m, key = seed, inference = inference) # dropout, per element 
+          m <- cienv$eq$nn$Dropout(p = dropoutRate)(m, key = seed, inference = inference) # dropout, per element 
           m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj to low dim
 
           message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
@@ -704,14 +704,14 @@ GetImageRepresentations <- function(
                                                                           readVideo = useVideo,
                                                                           image_dtype = image_dtype_tf,
                                                                           iterator = NULL); setwd(new_wd)
-      InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$PRNGKey(ai(2L+1 + seed)), inference = T);rm(batch_inference_)
+      InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$key(ai(2L+1 + seed)), inference = T);rm(batch_inference_)
       
       ModelList <- c("FTParams"= list(cienv$FeatureExtractor$params),
                      "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))),
                      "FTParams_Proj"= cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
                                                    out_features = ai(nWidth_ImageRep),
                                                    use_bias = F, # hidden bias
-                                                   key = cienv$jax$random$PRNGKey(ai(33440L)))
+                                                   key = cienv$jax$random$key(ai(33440L)))
                      )
       StateList <- list("None"=cienv$jnp$array(.0)) # initialize with 0's
       FTBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
@@ -741,11 +741,11 @@ GetImageRepresentations <- function(
           }
           if(is.null(nonLinearScaler)){
               if(is.null(nonLinearScaler)){
-                nonLinearScaler_ <- cienv$jnp$array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep ))^(-1/4) )
+                nonLinearScaler_ <- cienv$jnp$array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2) )
                 #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
               }
             if(dataType == "image"){ 
-                nonLinearScaler_ <- cienv$jnp$array( ( 2*nDepth_ImageRep )^(-1/4) ) 
+                nonLinearScaler_ <- cienv$jnp$array( ( 2*nDepth_ImageRep )^(-1/2) ) 
                 #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
               }
           }
@@ -757,19 +757,19 @@ GetImageRepresentations <- function(
                                     num_heads = 12L,
                                     use_output_bias = F,
                                     dropout_p = dropoutRate, 
-                                    key = cienv$jax$random$PRNGKey( ai(23453355L + seed + d_) ))
+                                    key = cienv$jax$random$key( ai(23453355L + seed + d_) ))
           FF_d <- list("FFWide1"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # hidden bias
-                                           key = cienv$jax$random$PRNGKey(ai(3340L + seed + d_))),
+                                           key = cienv$jax$random$key(ai(3340L + seed + d_))),
                               "FFWide2"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # swiglu bias
-                                           key = cienv$jax$random$PRNGKey(ai(3311L + seed + d_))),
+                                           key = cienv$jax$random$key(ai(3311L + seed + d_))),
                               "FFNarrow"=cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            out_features = nWidth_ImageRep,
                                            use_bias = F, # final bias
-                                           key = cienv$jax$random$PRNGKey(ai(33324L + seed +  d_))))
+                                           key = cienv$jax$random$key(ai(33324L + seed +  d_))))
           StateList[[d_]] <- list('BNState_ImRep'= cienv$jnp$array(0.))
           ModelList[[d_]] <- list("Multihead" = Multihead_d,
                                   "FF" = FF_d,
@@ -784,19 +784,19 @@ GetImageRepresentations <- function(
                                   in_features  = ai(nWidth_ImageRep*2L),
                                   out_features = ai(nWidth_ImageRep),
                                   use_bias     = FALSE,
-                                  key          = cienv$jax$random$PRNGKey(ai(3324 + seed))),
-          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(333324L + seed +  d_)),
+                                  key          = cienv$jax$random$key(ai(3324 + seed))),
+          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(333324L + seed +  d_)),
                                                   minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
-          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(33326124L + seed +  d_)),
+          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33326124L + seed +  d_)),
                                                 minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
                      num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
                      padding_mode = "REFLECT",
                      in_channels = rawChannelDims, use_bias = F,
-                     out_channels = nWidth_ImageRep, key = cienv$jax$random$PRNGKey(ai(4L+1040L+seed))), # patch embed
+                     out_channels = nWidth_ImageRep, key = cienv$jax$random$key(ai(4L+1040L+seed))), # patch embed
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                        use_bias = F, key = cienv$jax$random$PRNGKey(ai(999L + seed  ) )) # final dense proj
+                        use_bias = F, key = cienv$jax$random$key(ai(999L + seed  ) )) # final dense proj
         )
     }
     
@@ -810,39 +810,39 @@ GetImageRepresentations <- function(
                                          in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
                                          out_channels = dimsSpatial, use_bias = F,
                                          groups = dimsSpatial,
-                                         key = cienv$jax$random$PRNGKey(ai(4L+d_+seed)))
+                                         key = cienv$jax$random$key(ai(4L+d_+seed)))
       SeperableFeature <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
-                                         key = cienv$jax$random$PRNGKey(ai(50L+d_+seed)))
+                                         key = cienv$jax$random$key(ai(50L+d_+seed)))
       SeperableFeature2 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                          groups = 1L, 
                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                         key = cienv$jax$random$PRNGKey(ai(530L+d_+seed)))
+                                         key = cienv$jax$random$key(ai(530L+d_+seed)))
       SeperableFeature3 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$PRNGKey(ai(5340L+d_+seed)))
+                                          key = cienv$jax$random$key(ai(5340L+d_+seed)))
       SeperableFeature4 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                           out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
                                           groups = 1L, 
                                           num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$PRNGKey(ai(53140L+d_+seed)))
+                                          key = cienv$jax$random$key(ai(53140L+d_+seed)))
       ResidualTm1Path <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
                                         out_channels = nWidth_ImageRep,
                                         groups = 1L,
                                         kernel_size = c(1L,1L),
                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                        key = cienv$jax$random$PRNGKey(ai(3250L+d_+seed)))
+                                        key = cienv$jax$random$key(ai(3250L+d_+seed)))
       ResidualTPath <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
                                       out_channels = nWidth_ImageRep,
                                       groups = 1L,
                                       kernel_size = c(1L,1L),
                                       num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                      key = cienv$jax$random$PRNGKey(ai(32520L+d_+seed)))
+                                      key = cienv$jax$random$key(ai(32520L+d_+seed)))
 
         # setup bn for CNN block
         LayerBN1 <- cienv$eq$nn$BatchNorm(
@@ -873,7 +873,7 @@ GetImageRepresentations <- function(
     
     ModelList$SpatialTransformerSupp = list(
       "FinalCNNProj"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
-                          use_bias = F, key = cienv$jax$random$PRNGKey(ai(9989L + seed  ) ) ) ,
+                          use_bias = F, key = cienv$jax$random$key(ai(9989L + seed  ) ) ) ,
       "FinalCNNBN"= list("BN" = (LayerBN <- cienv$eq$nn$BatchNorm(input_size = nWidth_ImageRep,
                             axis_name = batch_axis_name,
                             momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)), 
@@ -894,20 +894,20 @@ GetImageRepresentations <- function(
                                     output_size = nWidth_VideoRep,
                                     num_heads = 8L,
                                     use_output_bias = F,
-                                    key = cienv$jax$random$PRNGKey( ai(2343355L + seed+dt_) ))
+                                    key = cienv$jax$random$key( ai(2343355L + seed+dt_) ))
         FF_d  <- list(
           "FFWide1" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # hidden bias
-                          key = cienv$jax$random$PRNGKey(ai(334300L + 1L+dt_ + seed  ))),
+                          key = cienv$jax$random$key(ai(334300L + 1L+dt_ + seed  ))),
           "FFWide2" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # swiglu bias
-                          key = cienv$jax$random$PRNGKey(ai(333110L + 1L+dt_ + seed ))),
+                          key = cienv$jax$random$key(ai(333110L + 1L+dt_ + seed ))),
           "FFNarrow" = cienv$eq$nn$Linear(in_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           out_features = nWidth_VideoRep,
                           use_bias = F, # final bias
-                          key = cienv$jax$random$PRNGKey(ai(3333924L + 1L + dt_ + seed ))))
+                          key = cienv$jax$random$key(ai(3333924L + 1L + dt_ + seed ))))
         eval(parse(text = sprintf('ModelList$Temporal_d%s <- 
                         list("TransformerRenormer" = TransformerRenormer_d,
                              "Multihead" = Multihead_d,
@@ -917,14 +917,14 @@ GetImageRepresentations <- function(
       }
       
       ModelList$TemporalTransformerSupp = list(
-        "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(33932124L + seed +  dt_)),
+        "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33932124L + seed +  dt_)),
                                      minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # start 
-        "StopEmbed" =  cienv$jax$random$uniform(key = cienv$jax$random$PRNGKey(ai(3324L + seed +  dt_)), 
+        "StopEmbed" =  cienv$jax$random$uniform(key = cienv$jax$random$key(ai(3324L + seed +  dt_)), 
                                      minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # stop
         "PatchEmbedder" =  cienv$jnp$array(0.), # unused  in temporal
         "FinalNormScaler" =  cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
         "FinalProj" =  cienv$eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
-                               use_bias = F, key = cienv$jax$random$PRNGKey(ai(1999L+dt_+seed  )))
+                               use_bias = F, key = cienv$jax$random$key(ai(1999L+dt_+seed  )))
         )
     }
     
@@ -1166,17 +1166,17 @@ GetImageRepresentations <- function(
       }
       
       gc(); cienv$py_gc$collect() # collect memory
-      # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)); inference = T
+      # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$key(ai(2L+ok_counter + seed)); inference = T
       # plot( cienv$np$array( cienv$jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
       # batch_inference[[1]][3,,,1] # check image inputs 
       representation_ <-  cienv$np$array( ImageRepArm_batch(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
-                                                                       cienv$jax$random$PRNGKey(ai(2L+ok_counter + seed)), inference = T),
+                                                                       cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T),
                                                       X_batch,
                                                       
                                                       StateList,
-                                                      cienv$jax$random$PRNGKey(ai(last_i + seed)),
+                                                      cienv$jax$random$key(ai(last_i + seed)),
                                                       MPList, 
                                                       TRUE # inference for testing 
                                                       )[[1]]  )
