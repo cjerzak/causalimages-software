@@ -424,8 +424,8 @@ AnalyzeImageConfounding <- function(
           myGlmnet_coefs <- myGlmnet_coefs_
           prW_est <- prW_est_
           GetTreatProb_batch <- function( ModelList, ModelList_fixed,
-                                          m, x, vseed,
-                                          StateList, seed, MPList, inference){
+                                          m, x, seed,
+                                          StateList, MPList, inference){
             ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, x,
                                              StateList, seed, MPList, inference)
             if(!XisNull){
@@ -546,7 +546,7 @@ AnalyzeImageConfounding <- function(
 
         # ModelList <- DenseList; StateList <- DenseStateList
         GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
-                                    vseed, StateList, seed, MPList, inference){
+                                    seed, StateList, MPList, inference){
           message2("Starting GetDense_OneObs()")
           
           if(!XCrossModal){
@@ -576,24 +576,24 @@ AnalyzeImageConfounding <- function(
         }
         GetDense_batch <- cienv$jax$vmap(  function(
                   ModelList, ModelList_fixed,
-                  m, x, vseed,
-                  StateList, seed, MPList, inference){
-                    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+                  m, x, seed,
+                  StateList, MPList, inference){
+                    GetDense_OneObs(ModelList, ModelList_fixed, m, x, seed, StateList, MPList, inference)
                 },
-                in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
+                in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L, NULL) )
         GetDense_batch_jit <- cienv$eq$filter_jit(   GetDense_batch  )
         GetTreatProb_batch <- function( ModelList, ModelList_fixed,
-                                        m, x, vseed,
-                                        StateList, seed, MPList, inference){
+                                        m, x, seed,
+                                        StateList, MPList, inference){
           message2("In GetTreatProb_batch() - image model")
           m <- ImageRepArm_batch_R(ModelList, m, x,
                                    StateList, seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
 
           message2("In GetTreatProb_batch() - dense model")
-          m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+          m <- GetDense_batch(ModelList, ModelList_fixed, m, x, seed, StateList, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
           
           # sigmoid & label smoothing to prevent NAs via log(0)
@@ -604,15 +604,15 @@ AnalyzeImageConfounding <- function(
         }
 
         GetLoss <-  function( ModelList, ModelList_fixed,
-                              m, x, treat, y, vseed,
-                              StateList, seed, MPList, inference ){
+                              m, x, treat, y, seed,
+                              StateList, MPList, inference ){
           ModelList <- MPList[[1]]$cast_to_compute( ModelList ) # compute to output dtype
           ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) # compute to output dtype
           StateList <- MPList[[1]]$cast_to_compute( StateList ) # compute to output dtype
 
           m <- GetTreatProb_batch( ModelList, ModelList_fixed,
-                                   m, x, vseed,
-                                   StateList, seed, MPList, inference )
+                                   m, x, seed,
+                                   StateList, MPList, inference )
           StateList <- m[[2]]; m <-  m[[1]]
 
           # compute negative log-likelihood loss
@@ -654,8 +654,8 @@ AnalyzeImageConfounding <- function(
       
         message2("Getting predicted quantities...")
         GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                 m, x, vseed,
-                 StateList, seed, MPList){
+                 m, x, seed,
+                 StateList, MPList){
           # image representation model
           m <- ImageRepArm_batch_R(ModelList, m, x, 
                                    StateList, seed, MPList, T)
@@ -675,7 +675,7 @@ AnalyzeImageConfounding <- function(
           inf_counter <- 0
           nUniqueKeys <- length( unique(imageKeysOfUnits) )
           KeyQuantCuts <- 1L:nUniqueKeys
-          batchSize <- 2L*batchSize # double the batch size for inference 
+          batchSize <- ai(2L*batchSize) # double the batch size for inference 
           batchStarts       <- seq(1L, nUniqueKeys, by = batchSize)
           passedIterator <- NULL; Results_by_keys <- list()
           ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
@@ -687,6 +687,7 @@ AnalyzeImageConfounding <- function(
             
             #gc(); cienv$py_gc$collect()
             if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
+            # if( b == length(seq_along(batchStarts)) ){ browser() }
             setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
                 filename = file,
@@ -722,12 +723,16 @@ AnalyzeImageConfounding <- function(
               idx_end_inner   <- idx_start_inner + batchSize - 1L
               
               in_xbatch_indices <- idx_start_inner:idx_end_inner
+              x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
+              in_xbatch_indices <- in_xbatch_indices[!is.na(x_indices)]
+              x_indices <- x_indices[!is.na(x_indices)]
+              
+              # get real size 
               realSize_inner  <- length(in_xbatch_indices)
               
               # Pad last batch to 'batchSize' by repeating the final key index
               in_xbatch_indices <- c(in_xbatch_indices,
                                      rep(in_xbatch_indices[realSize_inner], batchSize - realSize_inner))
-              x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
               m_indices <- match(names(x_indices), outerBatchKeys)
               
               # get image rep 
@@ -742,22 +747,22 @@ AnalyzeImageConfounding <- function(
               m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
                                                   m, # m 
                                                   x, # x
-                                                  StateList, cienv$jax$random$key(ai(900L+inf_counter)), MPList, TRUE)[[1]]
+                                                  StateList,
+                                                  cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize), #
+                                                  MPList, TRUE)[[1]]
               
               # get final output from image rep 
-              if(b==1){ m_b <- m; x_b <- x }
+              # if(b==1){ m_b <- m; x_b <- x }
               # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
               m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                       m,
                                       x, # x 
                                       cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                       StateList,
-                                      cienv$jax$random$key(as.integer(runif(1,0,100000))),
                                       MPList, TRUE)[[1]]
               m <- cienv$jax$nn$sigmoid( m )
               m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
               m <- as.matrix(cienv$np$array(m))
-              if(b==1){ pred_b <- m }
               
               ret_list <- list("ProbW" = m[1:realSize_inner,],
                                "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
@@ -831,7 +836,6 @@ AnalyzeImageConfounding <- function(
                                 cienv$jnp$take(x, ai(r_-1L), axis=0L),
                                 cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
                                 StateList,
-                                cienv$jax$random$key(as.integer(runif(1,0,100000))),
                                 MPList, TRUE)[[1]]
             m <- cienv$jax$nn$sigmoid( m )
             m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
@@ -859,11 +863,9 @@ AnalyzeImageConfounding <- function(
         # plot(f2n(Results_by_keys$ProbW)[1:10],f2n(Results_by_keys1$ProbW)[1:10]);abline(a=0,b=1)
         # plot(f2n(Results_by_keys$ProbW)[1:10]-f2n(Results_by_keys1$ProbW)[1:10]);abline(h=0)
              
-        
         if( !all(Results_by_keys1$key == imageKeysOfUnits) ){
           stop("Problem in key alignment [code ref 3zf3]")
         }
-        
       
         prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
         if(any(is.na(prW_est))){
@@ -905,8 +907,16 @@ AnalyzeImageConfounding <- function(
     lossClassError_IN <- 1/length(trainIndices) * (sum( prW_est[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
                                                      sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
     
+    # AOC calculations
+    roc_obj_IN <- pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
+    roc_obj_OUT <- pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
+    
+    # other metrics
+    
     # store output
     ModelEvaluationMetrics <- list(
+      "AUC_out" = pROC::auc(roc_obj_OUT), 
+      "AUC_in" = pROC::auc(roc_obj_IN), 
       "CELoss_out" = lossCE_OUT,
       "CELoss_out_baseline" = lossCE_OUT_baseline,
       "CELoss_in" = lossCE_IN,
@@ -945,24 +955,24 @@ AnalyzeImageConfounding <- function(
 
       for(pos_ in 2L:3L){
         dLogProb_d <- cienv$jax$grad(function(ModelList, ModelList_fixed,
-                                        m, x, vseed,
-                                        StateList, seed, MPList, inference){
+                                        m, x, seed,
+                                        StateList,  MPList, inference){
                     ModelList <- MPList[[1]]$cast_to_param( ModelList )
                     ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
                     StateList <- MPList[[1]]$cast_to_param( StateList )
                     m <- MPList[[1]]$cast_to_param( m ); x <- MPList[[1]]$cast_to_param( x )
                     m <- cienv$jax$device_put(m, cienv$jax$devices('cpu')[[1]])
                     out_ <-  GetTreatProb_batch(ModelList, ModelList_fixed,
-                                           m, x, vseed,
-                                           StateList, seed, MPList, T)[[1]]  # scaling for non-zero gradients
+                                           m, x, seed,
+                                           StateList, MPList, T)[[1]]  # scaling for non-zero gradients
                     out_ <- cienv$jnp$log(out_ / (1-out_))
                     return(  cienv$jnp$squeeze(out_)  ) }, pos_)
         if(pos_ == 2L){ dLogProb_dImage <- dLogProb_d }
         if(pos_ == 3L){ dLogProb_dX <- cienv$eq$filter_jit( dLogProb_d ) }
       }
       ImGrad_fxn <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                                            m, x, vseed,
-                                            StateList, seed, MPList){
+                                            m, x, seed,
+                                            StateList, MPList){
         # cast to float32
         ModelList <- MPList[[1]]$cast_to_param( ModelList )
         ModelList_fixed <- MPList[[1]]$cast_to_param( ModelList_fixed )
@@ -970,7 +980,7 @@ AnalyzeImageConfounding <- function(
         m <- MPList[[1]]$cast_to_param( m ); x <- MPList[[1]]$cast_to_param( x )
         m <- cienv$jax$device_put(m, cienv$jax$devices('cpu')[[1]])
         ImageGrad_o <- cienv$jnp$squeeze(dLogProb_dImage(ModelList, ModelList_fixed,
-                                       m, x, vseed, StateList, seed, MPList), 0L)
+                                       m, x, seed, StateList, MPList), 0L)
         reduceDim <- ifelse( dataType == "video", yes = 3L, no = 2L)
         ImageGrad_L2 <- cienv$jnp$linalg$norm(ImageGrad_o+0.000001, axis = reduceDim, keepdims = T)
         ImageGrad_mean <- cienv$jnp$mean(ImageGrad_o, axis = reduceDim, keepdims = T)
@@ -1026,13 +1036,14 @@ AnalyzeImageConfounding <- function(
             im_ <- cienv$np$array(cienv$jnp$squeeze(im_,c(0L)))
 
             # calculate salience map using log probabilities
-            # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$key(10L); vseed <- cienv$jnp$expand_dims(seed,0L)
+            # m <- cienv$jmp$cast_to_full(im_orig); x <- cienv$jmp$cast_to_full(XToConcat_values); seed <- cienv$jax$random$key(10L); 
             salience_map <- cienv$np$array(  ImGrad_fxn(
                                         cienv$jmp$cast_to_full(ModelList), cienv$jmp$cast_to_full(ModelList_fixed),
                                         cienv$jmp$cast_to_full(im_orig),
                                         cienv$jmp$cast_to_full(XToConcat_values),
                                         cienv$jnp$expand_dims(cienv$jax$random$key(10L),0L),
-                                        StateList, cienv$jax$random$key(10L), MPList )[[1]] )
+                                        StateList, 
+                                        MPList )[[1]] )
             if(dataType == "image"){ salience_map <- salience_map[,,1] }
             if(dataType == "video"){ salience_map <- salience_map[,,,1] }
 
@@ -1208,7 +1219,7 @@ AnalyzeImageConfounding <- function(
                         cienv$jmp$cast_to_full(im_),
                         cienv$jmp$cast_to_full(x_),
                         cienv$jax$random$split(cienv$jax$random$key( 500L+i ),x_$shape[[1]]),
-                        StateList, cienv$jax$random$key(10L), MPList ) )
+                        StateList, MPList ) )
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)

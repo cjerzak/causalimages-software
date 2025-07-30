@@ -623,48 +623,103 @@ GetImageRepresentations <- function(
       # append start and stop tokens
       m <- cienv$jnp$concatenate(list( eval(parse(text = sprintf("ModelList$%sTransformerSupp$StartEmbed",type))), m), 0L)
       m <- cienv$jnp$concatenate(list(m, eval(parse(text = sprintf("ModelList$%sTransformerSupp$StopEmbed",type)))), 0L) 
-
-      # start neural block
-      DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
-      message2(sprintf("Starting Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
-      mtm1 <- m; for(d_ in 1L:DepthOfThisTransformer){
-          message2(sprintf("Setup of depth: {%s}",d_))
-          ModelList_d <- eval(parse(text = sprintf("ModelList$%s_d%s", type, d_) ))
+      
+      
+      {
+          keepPath_rate <- 1 - ( dropPath_rate <- 0.1 )
           
-          message2(sprintf("Layer norm {%s layer %s}...",type, d_) )
-          m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler1
+          # Custom dropout layer with dynamic branching for JAX in R
+          # note: cienv$eq$nn$Dropout(p = dropoutRate) -> breaks gradients 
+          dropout_layer <- function(p) {
+            if (p == 0) {
+              # No‐op when dropout rate is zero
+              function(x, key, inference) {
+                return( x )
+              }
+            } else {
+              keep_prob <- 1 - p
+              function(x, key, inference) {
+                # Efficient dynamic branch: skip dropout at inference time
+                cienv$jax$lax$cond(
+                  inference,
+                  # true branch: inference ⇒ return input unchanged
+                  function(args){return(args[[1]])},
+                  # false branch: training ⇒ apply dropout mask
+                  function(args) {
+                    x   <- args[[1]]
+                    key <- args[[2]]
+                    mask <- cienv$jax$random$bernoulli(key, keep_prob, shape = x$shape)
+                    return(x * mask / keep_prob)
+                  },
+                  # pack arguments
+                  list(x, key)
+                ) }}}
+          compute_branch_attention <- function(ModelList_d, m, 
+                                               RotaryPositionalEmbeddings, seed, is_droppath, inference){
+            m <- RMS_norm(mtm1 <- m) * ModelList_d$TransformerRenormer$NormScaler1
+            m <- ModelList_d$Multihead(
+              query = (m_pos <- RotaryPositionalEmbeddings( m )),
+              key_  = m_pos,
+              value = m,
+              inference = TRUE)
+              #key = seed, inference = inference)
+            m     <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(m$dtype)
+            scale_factor <- 1 + is_droppath$astype(m) * (1/keepPath_rate - 1)
+            return( mtm1 + m / scale_factor ) }
 
-          message2(sprintf("Rotary embeddings {%s layer %s}...",type, d_) )
-          if(type == "Spatial"){ m_pos <- RotaryPositionalEmbeddings_spatial( m ) } 
-          if(type == "Temporal"){ m_pos <- RotaryPositionalEmbeddings_temporal( m ) } 
-
-          message2(sprintf("Multihead attention block {%s layer %s}...",type, d_) )
-          m <- ModelList_d$Multihead(
-                      query = m_pos,
-                      key_  = m_pos,
-                      value = m,
-                      key = seed,
-                      inference = inference
-                      )
-
-          message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
-          mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
-              ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
-
-          message2(sprintf("Layer norm {%s layer %s}...",type, d_) )
-          m <- RMS_norm(m) * ModelList_d$TransformerRenormer$NormScaler2
-
-          message2(sprintf("Feed forward {%s layer %s}...",type, d_) )
-          m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
-                        ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj to high dim
-          m <- cienv$eq$nn$Dropout(p = dropoutRate)(m, key = seed, inference = inference) # dropout, per element 
-          m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj to low dim
-
-          message2(sprintf("Residual connection {%s layer %s}...",type, d_) )
-          mtm1 <- m <- mtm1 + m*cienv$jax$nn$softplus( 
-                      ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(mtm1$dtype)
+          compute_branch_mlp <- function(ModelList_d, m, seed, is_droppath, inference){ 
+            m <- RMS_norm(mtm1 <- m) * ModelList_d$TransformerRenormer$NormScaler2
+            m <- cienv$jax$nn$swish(ffmap(ModelList_d$FF$FFWide1, m)) *
+              ffmap(ModelList_d$FF$FFWide2, m) # swiglu proj to high dim
+            m <- dropout_layer(dropoutRate)(m, key = seed, inference = inference) # dropout, per element
+            m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj to low dim
+            m     <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(m$dtype)
+            scale_factor <- 1 + is_droppath$astype(m) * (1/keepPath_rate - 1)
+            return( mtm1 + m/scale_factor ) }
+          
+          DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
+          #ModelList_type <- do.call(cienv$jax$tree_map, c(list(function(...) cienv$jnp$stack(list(...))), 
+                                                          #lapply(1L:DepthOfThisTransformer, function(d_) 
+                                                            #eval(parse(text = sprintf("ModelList$%s_d%s", type, d_)))) ))
+          layer_fn <- function(carry, ModelList_d){
+            m <- carry$m; seed <- carry$seed
+            
+            if( inference || dropoutRate == 0 ){
+              print("Not using droppath here...")
+               m <- compute_branch_attention(ModelList_d, m, 
+                                        RotaryPositionalEmbeddings_spatial, seed, 
+                                        cienv$jnp$array(FALSE),  # is droppath indicator 
+                                        inference)
+               seed   <- cienv$jax$random$split(seed)[[1L]]
+               m <- compute_branch_mlp(ModelList_d, m, seed, 
+                                       cienv$jnp$array(FALSE), # is droppath indicator 
+                                       inference)
+            }
+            if( !(inference || dropoutRate == 0) ){
+              print("Using droppath here...")
+              seed   <- cienv$jax$random$split(seed)[[1L]]
+              do_compute_indicator   <- cienv$jax$random$bernoulli(seed, keepPath_rate)
+              m   <- cienv$jax$lax$cond(do_compute_indicator, 
+                                        function(operands){ # true fun 
+                                          m_ <- compute_branch_attention(operands[[1]] , operands[[2]], 
+                                                                   operands[[3]], operands[[4]],
+                                                                   cienv$jnp$array(TRUE),
+                                                                   inference)
+                                          seed   <- cienv$jax$random$split(seed)[[1L]]
+                                          m_ <- compute_branch_mlp(operands[[1]] , m_, 
+                                                             seed, cienv$jnp$array(TRUE),
+                                                             inference)
+                                          return(m_)
+                                          },  
+                                        function(operands){return(operands[[2]])}, # false fun
+                                        list(ModelList_d, m, RotaryPositionalEmbeddings_spatial, seed))  # operands
+            }
+            seed   <- cienv$jax$random$split(seed)[[1L]]
+            return( list(list("m" = m, "seed" = seed), NULL) ) }
+          m <- cienv$jax$lax$scan(f = layer_fn, 
+                                  init = list(m = m, seed = seed), 
+                                  xs = ModelList$SpatialTransformer)[[1]]$m
       }
-      message2(sprintf("Done with Transformer block [depth %s, %s]...", DepthOfThisTransformer, type))
 
       # take CLS embedding from position 0 [Start]
       #m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
@@ -734,50 +789,60 @@ GetImageRepresentations <- function(
     # Transformer backbone 
     if(imageModelClass == "VisionTransformer"){
       StateList <- ModelList <- replicate(nDepth_ImageRep, cienv$jnp$array(0.)) # initialize with 0's
-      for(d_ in 1L:nDepth_ImageRep){
+      rand_array <- function(x,key){
+        x <- cienv$jnp$array( x )
+        return( x + cienv$jax$random$normal(shape = x$shape,dtype=x$dtype,key=key)*0.0001 )
+      }
+      base_seed <- cienv$jax$random$split(cienv$jax$random$key(seed),nDepth_ImageRep)
+      create_layer <- function(key){ 
           if(!is.null(nonLinearScaler)){
-              if(length(nonLinearScaler) == 1){nonLinearScaler_ <- nonLinearScaler }
-              if(length(nonLinearScaler) > 1){nonLinearScaler_ <- nonLinearScaler[d_] }
+              nonLinearScaler_ <- rand_array(nonLinearScaler, key)
           }
           if(is.null(nonLinearScaler)){
-              if(is.null(nonLinearScaler)){
-                nonLinearScaler_ <- cienv$jnp$array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2) )
-                #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
-              }
+            if(dataType == "video"){ 
+                nonLinearScaler_ <- rand_array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2), key )
+            }
             if(dataType == "image"){ 
-                nonLinearScaler_ <- cienv$jnp$array( ( 2*nDepth_ImageRep )^(-1/2) ) 
-                #nonLinearScaler_ <- cienv$jnp$array( 0.01 )
-              }
+                nonLinearScaler_ <- rand_array( ( 2*nDepth_ImageRep )^(-1/2) , key) 
+            }
           }
-          TransformerRenormer_d <- list("NormScaler1"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ),
-                                        "NormScaler2"=cienv$jnp$array( t(rep(1,times=nWidth_ImageRep) ) ))
+          key <- cienv$jax$random$split(key)[[1]]
+          TransformerRenormer_d <- list("NormScaler1"=rand_array( t(rep(1,times=nWidth_ImageRep) ),key ),
+                                        "NormScaler2"=rand_array( t(rep(1,times=nWidth_ImageRep) ),key ))
+          key <- cienv$jax$random$split(key)[[1]]
           Multihead_d <- cienv$eq$nn$MultiheadAttention(
                                     query_size = nWidth_ImageRep,
                                     output_size = nWidth_ImageRep,
                                     num_heads = 12L,
                                     use_output_bias = F,
-                                    dropout_p = dropoutRate, 
-                                    key = cienv$jax$random$key( ai(23453355L + seed + d_) ))
+                                    dropout_p = dropoutRate,
+                                    key = key )
+          key <- cienv$jax$random$split(key,3L)
           FF_d <- list("FFWide1"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # hidden bias
-                                           key = cienv$jax$random$key(ai(3340L + seed + d_))),
+                                           key = key[0L]),
                               "FFWide2"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # swiglu bias
-                                           key = cienv$jax$random$key(ai(3311L + seed + d_))),
+                                           key = key[2L]),
                               "FFNarrow"=cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            out_features = nWidth_ImageRep,
                                            use_bias = F, # final bias
-                                           key = cienv$jax$random$key(ai(33324L + seed +  d_))))
-          StateList[[d_]] <- list('BNState_ImRep'= cienv$jnp$array(0.))
-          ModelList[[d_]] <- list("Multihead" = Multihead_d,
+                                           key = key[3L])
+                                           )
+          key <- cienv$jax$random$split(key[[0]])[[1]]
+          ModelList_d <- list("Multihead" = Multihead_d,
                                   "FF" = FF_d,
                                   "ResidualWts" = list("RightWt1"=InvSoftPlus(nonLinearScaler_),
                                                        "RightWt2"=InvSoftPlus(nonLinearScaler_)),
                                   "TransformerRenormer" = TransformerRenormer_d)
+          return(ModelList_d)
       }
-      names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
+      # spatial transformer, vmapping over seeds 
+      ModelList$SpatialTransformer <- cienv$eq$filter_vmap(create_layer,in_axes = 0L, out_axes = 0L)(base_seed)
+      StateList <- cienv$jnp$array(0.)
+      
       ModelList$SpatialTransformerSupp = list(
           "XProj" = XProj,
           "MixCLSPool" = cienv$eq$nn$Linear(
@@ -785,9 +850,9 @@ GetImageRepresentations <- function(
                                   out_features = ai(nWidth_ImageRep),
                                   use_bias     = FALSE,
                                   key          = cienv$jax$random$key(ai(3324 + seed))),
-          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(333324L + seed +  d_)),
+          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(333324L + seed)),
                                                   minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
-          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33326124L + seed +  d_)),
+          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33326124L + seed )),
                                                 minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
                      num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
@@ -798,88 +863,6 @@ GetImageRepresentations <- function(
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
                         use_bias = F, key = cienv$jax$random$key(ai(999L + seed  ) )) # final dense proj
         )
-    }
-    
-    # CNN backbone 
-    if(imageModelClass == "CNN"){
-    StateList <- ModelList <- replicate(nDepth_ImageRep, list())
-    for(d_ in 1L:nDepth_ImageRep){
-      if(d_ > 1){ strides <- 1L }
-      SeperableSpatial <- cienv$eq$nn$Conv(kernel_size = c(kernelSize, kernelSize),
-                                         num_spatial_dims = 2L, stride = c(strides, strides),
-                                         in_channels = dimsSpatial <- ai(ifelse(d_ == 1L, yes = rawChannelDims, no = nWidth_ImageRep)),
-                                         out_channels = dimsSpatial, use_bias = F,
-                                         groups = dimsSpatial,
-                                         key = cienv$jax$random$key(ai(4L+d_+seed)))
-      SeperableFeature <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
-                                         out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                         groups = 1L, 
-                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = T,
-                                         key = cienv$jax$random$key(ai(50L+d_+seed)))
-      SeperableFeature2 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
-                                         out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                         groups = 1L, 
-                                         num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                         key = cienv$jax$random$key(ai(530L+d_+seed)))
-      SeperableFeature3 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
-                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                          groups = 1L, 
-                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$key(ai(5340L+d_+seed)))
-      SeperableFeature4 <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
-                                          out_channels = nWidth_ImageRep, kernel_size = c(1L,1L),
-                                          groups = 1L, 
-                                          num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                          key = cienv$jax$random$key(ai(53140L+d_+seed)))
-      ResidualTm1Path <- cienv$eq$nn$Conv(in_channels = dimsSpatial, 
-                                        out_channels = nWidth_ImageRep,
-                                        groups = 1L,
-                                        kernel_size = c(1L,1L),
-                                        num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                        key = cienv$jax$random$key(ai(3250L+d_+seed)))
-      ResidualTPath <- cienv$eq$nn$Conv(in_channels = nWidth_ImageRep, 
-                                      out_channels = nWidth_ImageRep,
-                                      groups = 1L,
-                                      kernel_size = c(1L,1L),
-                                      num_spatial_dims = 2L,stride = c(1L,1L), use_bias = F,
-                                      key = cienv$jax$random$key(ai(32520L+d_+seed)))
-
-        # setup bn for CNN block
-        LayerBN1 <- cienv$eq$nn$BatchNorm(
-          input_size = (BatchNormDim1 <- nWidth_ImageRep), # post-process norm
-          axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = (BN_ep <- 0.01^2), channelwise_affine = F)
-        LayerBN2 <- cienv$eq$nn$BatchNorm(
-          input_size = (BatchNormDim2 <- nWidth_ImageRep), 
-          axis_name = batch_axis_name,
-          momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)
-        StateList[[d_]] <- list('BNState1_ImRep'=cienv$eq$nn$State( LayerBN1 ),
-                                'BNState2_ImRep'=cienv$eq$nn$State( LayerBN2 ))
-        ModelList[[d_]] <- list("SeperableSpatial" = SeperableSpatial,
-                                  "SeperableFeature" = SeperableFeature,
-                                  "SeperableFeature2" = SeperableFeature2, 
-                                  "SeperableFeature3" = SeperableFeature3, 
-                                  "SeperableFeature4" = SeperableFeature4, 
-                                  "ResidualTm1Path" = ResidualTm1Path,
-                                  "ResidualTPath" = ResidualTPath,
-                                  "SpatialResidualWts" = list("RightWt1" = InvSoftPlus( NonLinearScaler ),
-                                                              "RightWt2" = InvSoftPlus( NonLinearScaler )),
-                                  "BN1_ImRep" = list("BN" = LayerBN1, 
-                                                     "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim1)) ),
-                                  "BN2_ImRep" = list("BN" = LayerBN2, 
-                                                     "BNRescaler" = cienv$jnp$array(rep(1.,times=BatchNormDim2)) ))
-    }
-    names(ModelList) <- names(StateList) <- paste0("Spatial_d",1:nDepth_ImageRep)
-    
-    ModelList$SpatialTransformerSupp = list(
-      "FinalCNNProj"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nWidth_ImageRep, # final dense proj
-                          use_bias = F, key = cienv$jax$random$key(ai(9989L + seed  ) ) ) ,
-      "FinalCNNBN"= list("BN" = (LayerBN <- cienv$eq$nn$BatchNorm(input_size = nWidth_ImageRep,
-                            axis_name = batch_axis_name,
-                            momentum = bn_momentum, eps = BN_ep, channelwise_affine = F)), 
-                         "BNRescaler" = cienv$jnp$array(rep(1.,times=nWidth_ImageRep) ) ) 
-    )
-    StateList$BNState_ImRep_FinalCNNBN <- cienv$eq$nn$State( LayerBN )
     }
     }
     
@@ -1001,74 +984,6 @@ GetImageRepresentations <- function(
                                    StateList, seed, MPList, inference, type = "Spatial")
           StateList <- m[[2]]; m <- m[[1]]
         }
-        if(imageModelClass == "CNN" ){
-            m <- cienv$jnp$transpose(m, c(2L, 0L, 1L)) # transpose to CWH
-            for(d__ in 1:nDepth_ImageRep){
-              message2(sprintf("CNN depth %s of %s",d__,nDepth_ImageRep))
-              
-              eval(parse(text = sprintf("ModelList_d <- ModelList$Spatial_d%s", d__)))
-              eval(parse(text = sprintf("StateList_d <- StateList$Spatial_d%s", d__)))
-              
-              # residual path 
-              mtm1 <- m
-              
-              # seperable spatial convolution   
-              m <- ModelList_d$SeperableFeature(
-                         ModelList_d$SeperableSpatial( m ) )
-  
-              if(! optimizeImageRep){
-                # hist(cienv$np$array(m$val)) 
-                m <- cienv$jnp$concatenate(list(mx_ <- cienv$jnp$max(m, axis = c(1L:2L)), 
-                                          mn_ <- cienv$jnp$mean(m, axis = c(1L:2L)), 
-                                          mx_ * mn_), 0L)
-                return( list(m, StateList)  )
-              }
-              
-              if( optimizeImageRep ){
-                if( T == T ){ 
-                  m <- ModelList_d$BN1_ImRep$BN(m, state = StateList_d$BNState1_ImRep, 
-                                                inference = inference)
-                  eval(parse(text = sprintf("StateList$Spatial_d%s$BNState1_ImRep <- m[[2]]", d__)))
-                  
-                  # rescale 
-                  m <- m[[1]] * cienv$jnp$expand_dims(cienv$jnp$expand_dims( ModelList_d$BN1_ImRep$BNRescaler,1L),1L)
-                }
-                
-                # swiglu 
-                m <- cienv$jax$nn$swish(  ModelList_d$SeperableFeature2(m) )  * ModelList_d$SeperableFeature3(m)
-                m <- ModelList_d$SeperableFeature4(m)
-                
-                # adaptive max pooling 
-                if(d__ %% 2 %in% c(0,1)){ 
-                  m <- cienv$eq$nn$AdaptiveMaxPool2d(list(ai(m$shape[[2]]*(SpatialShrinkRate <- 0.75)), 
-                                                    ai(m$shape[[3]]*SpatialShrinkRate)))( m ) 
-                  m <- ModelList_d$ResidualTPath(m)
-                }
-                
-                if(T == F){ 
-                  hist(c(cienv$np$array(mtm1$val))); apply(cienv$np$array(mtm1$val),2,sd)
-                  hist(c(cienv$np$array(m$val))); apply(cienv$np$array(m$val),2,sd)
-                }
-                
-                # residual connection 
-                m <- cienv$eq$nn$AdaptiveAvgPool2d(list(m$shape[[2]],m$shape[[3]]))(
-                        ModelList_d$ResidualTm1Path(mtm1)) +  
-                           m * cienv$jax$nn$softplus( ModelList_d$SpatialResidualWts$RightWt1$astype(cienv$jnp$float32)
-                                                )$astype(mtm1$dtype)
-              }
-            }
-            
-            # final pooling, final norm (if used), and projection 
-            m <- cienv$jnp$max(m, axis = c(1L:2L))
-            if(optimizeImageRep){
-                message2("Performing final CNN normalization...")
-                m <- ModelList$SpatialTransformerSupp$FinalCNNBN$BN(m, 
-                                                                    state = StateList$BNState_ImRep_FinalCNNBN, 
-                                                                    inference = inference)
-                StateList$BNState_ImRep_FinalCNNBN <- m[[2]]
-                m <- m[[1]] * ModelList$SpatialTransformerSupp$FinalCNNBN$BNRescaler
-            }
-        }
       }
       message2("Returning ImageRepArm_SpatialArm outputs...")
       return( list(m, StateList)  )
@@ -1094,7 +1009,7 @@ GetImageRepresentations <- function(
                 ImageRepArm_SpatialArm(ModelList, m, x,
                                        StateList, seed, MPList, inference) },
                    in_axes = list(NULL, 0L, 0L, 
-                                  NULL, NULL, NULL, NULL),
+                                  NULL, 0L, NULL, NULL),
                    axis_name = batch_axis_name,
                    out_axes = list(0L,NULL))(ModelList, m, x,
                                              StateList, seed, MPList, inference)
@@ -1110,7 +1025,7 @@ GetImageRepresentations <- function(
                       TransformerBackbone(ModelList, m, x,
                                           StateList, seed, MPList, inference, type = "Temporal")},
                         in_axes = list(NULL, 0L, 0L,
-                                       NULL, NULL, NULL, NULL),
+                                       NULL, 0L, NULL, NULL),
                         axis_name = batch_axis_name,
                         out_axes = list(0L,NULL))(ModelList, m, x,
                                                   StateList, cienv$jnp$add(seed,42L), MPList, inference)
@@ -1169,14 +1084,15 @@ GetImageRepresentations <- function(
       # im <- cienv$jnp$array(batch_inference[[1]]); seed <- cienv$jax$random$key(ai(2L+ok_counter + seed)); inference = T
       # plot( cienv$np$array( cienv$jnp$array(batch_inference[[1]]))[,,1,3])# check variability across units
       # batch_inference[[1]][3,,,1] # check image inputs 
-      representation_ <-  cienv$np$array( ImageRepArm_batch(
+      #representation_ <-  cienv$np$array( ImageRepArm_batch(
+      representation_ <-  cienv$np$array( ImageRepArm_batch_R(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
                                                                        cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T),
                                                       X_batch,
                                                       
                                                       StateList,
-                                                      cienv$jax$random$key(ai(last_i + seed)),
+                                                      cienv$jax$random$split(cienv$jax$random$key(ai(last_i + seed)), batchSize),
                                                       MPList, 
                                                       TRUE # inference for testing 
                                                       )[[1]]  )

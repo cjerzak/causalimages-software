@@ -94,14 +94,14 @@ TrainDo <- function(){
         MPList[[1]]$cast_to_compute(ModelList),  # model list
         MPList[[1]]$cast_to_compute(ModelList_fixed), # model list
         InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+i), inference = F), # m
+        #InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L), inference = FALSE), # m
         cienv$jnp$array(ifelse( !is.null(X), yes = list(X[batch_indices,]), no = list(1.))[[1]] , dtype = cienv$jnp$float16), # x
         cienv$jnp$array(as.matrix(obsW[batch_indices]), dtype = cienv$jnp$float16), # treat
         cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = cienv$jnp$float16), # y 
         cienv$jax$random$split(cienv$jax$random$key( 500L+i ),length(batch_indices)),  # vseed for observations 
         StateList, # StateList
-        cienv$jax$random$key( 123L+i ), # seed
         MPList, # MPlist
-        FALSE) 
+        FALSE)[[1]]
     }
     
     # sanity check 
@@ -127,7 +127,6 @@ TrainDo <- function(){
       cienv$jnp$array(as.matrix(obsY[batch_indices]), dtype = ComputeDtype), # y 
       cienv$jax$random$split(cienv$jax$random$key( 50L+i ),length(batch_indices)),  # vseed for observations 
       StateList, # StateList
-      cienv$jax$random$key( 123L+i ), # seed
       MPList, # MPlist
       FALSE) # inference
 
@@ -145,6 +144,7 @@ TrainDo <- function(){
       }
       GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
       GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_inexact_array)
+      #GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_array)
       GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
       
       # unscale + adjust loss scale is some non-finite or NA
@@ -183,11 +183,31 @@ TrainDo <- function(){
         GradientUpdatePackage <- MPList[[1]]$cast_to_param( GradientUpdatePackage )
         
         # get gradient updates 
-        GradientUpdatePackage <- jit_get_update( 
+        # GradientUpdatePackage$SpatialTransformer$ResidualWts # check non-zero gradients 
+        # GradientUpdatePackage$SpatialTransformer$TransformerRenormer # -> check non-zero gradients here (indicates problem with dropout)
+        GradientUpdatePackage <- jit_get_update(
           updates = GradientUpdatePackage,
           state = opt_state,
-          params = (cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )
+          params = (cienv$eq$partition(ModelList, cienv$eq$is_inexact_array)[[1]] )
         )
+
+        if(FALSE){
+          # Before the jit_get_update call, add:
+          params_tree = cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]
+          grads_tree = GradientUpdatePackage
+          
+          # Print tree structures
+          message2("Params tree structure:")
+          print(cienv$jax$tree$structure(params_tree))
+          message2("Grads tree structure:")
+          print(cienv$jax$tree$structure(grads_tree))
+          
+          # Check for None values
+          params_leaves = cienv$jax$tree$leaves(params_tree)
+          grads_leaves = cienv$jax$tree$leaves(grads_tree)
+          message2(sprintf("Params leaves: %d, Grads leaves: %d", 
+                           length(params_leaves), length(grads_leaves)))
+        }
         
         # separate updates from state
         opt_state <- GradientUpdatePackage[[2]]
@@ -197,9 +217,9 @@ TrainDo <- function(){
         # perform updates
         #ModelList_tminus1 <- ModelList
         ModelList <- cienv$eq$combine( jit_apply_updates(
-          params = cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]],
+          params = cienv$eq$partition(ModelList, cienv$eq$is_inexact_array)[[1]],
           updates = GradientUpdatePackage),
-          cienv$eq$partition(ModelList, cienv$eq$is_array)[[2]])
+          cienv$eq$partition(ModelList, cienv$eq$is_inexact_array)[[2]])
         StateList <- StateList_tmp
         if(FALSE){
           LayerWiseParamDiff <- function(params_new, params_old){

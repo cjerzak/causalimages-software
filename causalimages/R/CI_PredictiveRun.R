@@ -358,8 +358,8 @@ PredictiveRun <- function(
   }
   names(DenseList) <- names(DenseStateList) <- paste0("Dense", 1:nDepth_Dense)
   
-  GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x,
-                              vseed, StateList, seed, MPList, inference){
+  GetDense_OneObs <- function(ModelList, ModelList_fixed, m, x, seed, 
+                              StateList, MPList, inference){
     if(!XCrossModal){
       if(!XisNull){  m <- cienv$jnp$concatenate(list(m,x))  }
     }
@@ -385,22 +385,23 @@ PredictiveRun <- function(
   }
   GetDense_batch <- cienv$jax$vmap(  function(
   ModelList, ModelList_fixed,
-  m, x, vseed,
-  StateList, seed, MPList, inference){
-    GetDense_OneObs(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+  m, x, seed,
+  StateList, MPList, inference){
+    GetDense_OneObs(ModelList, ModelList_fixed, m, x, seed, 
+                    StateList, MPList, inference)
   },
-  in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL, NULL),
+  in_axes = list(NULL, NULL, 0L, 0L, 0L, NULL, NULL, NULL),
   axis_name = batch_axis_name,
   out_axes = list(0L, NULL) )
   GetDense_batch_jit <- cienv$eq$filter_jit(   GetDense_batch  )
   GetPredict_batch <- function( ModelList, ModelList_fixed,
-                                m, x, vseed,
-                                StateList, seed, MPList, inference){
+                                m, x, seed,
+                                StateList, MPList, inference){
     m <- ImageRepArm_batch_R(ModelList, m, x,
                              StateList, seed, MPList, inference)
     StateList <- m[[2]]; m <- m[[1]]
     
-    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, inference)
+    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, seed, StateList,  MPList, inference)
     StateList <- m[[2]]; m <- m[[1]]
     
     if(is_binary){
@@ -411,15 +412,15 @@ PredictiveRun <- function(
   }
   
   GetLoss <-  function( ModelList, ModelList_fixed,
-                        m, x, treat, y, vseed, # note: treat unused 
-                        StateList, seed, MPList, inference ){
+                        m, x, treat, y, seed, # note: treat unused 
+                        StateList, MPList, inference ){
     ModelList <- MPList[[1]]$cast_to_compute( ModelList ) 
     ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed ) 
     StateList <- MPList[[1]]$cast_to_compute( StateList ) 
     
     m <- GetPredict_batch( ModelList, ModelList_fixed,
-                           m, x, vseed,
-                           StateList, seed, MPList, inference )
+                           m, x, seed,
+                           StateList, MPList, inference )
     StateList <- m[[2]]; m <-  m[[1]]
     
     # compute loss
@@ -463,14 +464,14 @@ PredictiveRun <- function(
   
   message2("Getting predicted quantities...")
   GetPredict_OneObs <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                                                     m, x, vseed,
-                                                     StateList, seed, MPList){
+                                                     m, x, seed,
+                                                     StateList, MPList){
     # image representation model
     m <- ImageRepArm_batch_R(ModelList, m, x, 
                              StateList, seed, MPList, T)
     StateList <- m[[2]] ; m <- m[[1]]
     
-    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, vseed, StateList, seed, MPList, T)
+    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, seed, StateList, MPList, T)
     StateList <- m[[2]] ; m <- m[[1]]
     
     if(is_binary){
@@ -564,7 +565,13 @@ PredictiveRun <- function(
     auc_OUT <- as.numeric(roc(obsY[testIndices], predictedY[testIndices])$auc)
     auc_IN <- as.numeric(roc(obsY[trainIndices], predictedY[trainIndices])$auc)
     
+    # AOC calculations
+    roc_obj_IN <- pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
+    roc_obj_OUT <- pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
+    
     ModelEvaluationMetrics <- list(
+      "AUC_out" = pROC::auc(roc_obj_OUT), 
+      "AUC_in" = pROC::auc(roc_obj_IN), 
       "CELoss_out" = lossCE_OUT,
       "CELoss_in" = lossCE_IN,
       "Accuracy_out" = acc_OUT,

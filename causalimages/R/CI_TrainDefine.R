@@ -12,7 +12,8 @@
 TrainDefine <- function(){
   message2("Define optimizer and training step...") 
   {
-    LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(warmup_steps = (nWarmup <- min(c(max(0.25*nSGD,100L), nSGD))),
+    LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(
+                                                      warmup_steps = (nWarmup <- min(c(max(0.25*nSGD,100L), nSGD))),
                                                       decay_steps = max(c(101L, nSGD-nWarmup)),
                                                       init_value = learningRateMax/100, 
                                                       peak_value = learningRateMax, 
@@ -23,6 +24,7 @@ TrainDefine <- function(){
       cienv$optax$adabelief( learning_rate = LR_schedule )
       #cienv$optax$adam( learning_rate = LR_schedule )
     )
+    plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))),xlab = "Iteration", ylab = "Learning rate")
     
     # model partition, setup state, perform parameter count
     opt_state <- optax_optimizer$init(   cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )
