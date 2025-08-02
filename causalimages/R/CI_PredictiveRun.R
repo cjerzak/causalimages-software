@@ -565,19 +565,29 @@ PredictiveRun <- function(
     auc_OUT <- as.numeric(roc(obsY[testIndices], predictedY[testIndices])$auc)
     auc_IN <- as.numeric(roc(obsY[trainIndices], predictedY[trainIndices])$auc)
     
+    # AUPRC calculations 
+    auprc_OUT <- PRROC::pr.curve(scores.class0 = predictedY[testIndices][obsY[testIndices] == 1],
+                              scores.class1 = predictedY[testIndices][obsY[testIndices] == 0], 
+                              curve = FALSE)$auc.integral
+    auprc_IN  <- PRROC::pr.curve(scores.class0 = predictedY[trainIndices][obsY[trainIndices] == 1],
+                              scores.class1 = predictedY[trainIndices][obsY[trainIndices] == 0],
+                              curve = FALSE)$auc.integral
+    
     # AOC calculations
-    roc_obj_IN <- pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
-    roc_obj_OUT <- pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<")  # Assuming 1 is positive class
+    roc_obj_IN <- roc_obj_OUT(pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
+    roc_obj_OUT <- roc_obj_OUT(pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
     
     ModelEvaluationMetrics <- list(
-      "AUC_out" = pROC::auc(roc_obj_OUT), 
-      "AUC_in" = pROC::auc(roc_obj_IN), 
+      "AUC_out" = roc_obj_OUT, 
+      "AUC_in" = roc_obj_IN, 
       "CELoss_out" = lossCE_OUT,
       "CELoss_in" = lossCE_IN,
       "Accuracy_out" = acc_OUT,
       "Accuracy_in" = acc_IN,
       "AUC_out" = auc_OUT,
-      "AUC_in" = auc_IN
+      "AUC_in" = auc_IN,
+      "AUPRC_out" = auprc_OUT,
+      "AUPRC_in" = auprc_IN
     )
   } else {
     mse_OUT <- mean( (obsY[testIndices] - predictedY[testIndices])^2 )
