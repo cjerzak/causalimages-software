@@ -687,15 +687,14 @@ AnalyzeImageConfounding <- function(
             
             #gc(); cienv$py_gc$collect()
             if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
-            # if( b == length(seq_along(batchStarts)) ){ browser() }
-            setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+            setwd(orig_wd); ds_next_in <- try(GetElementFromTfRecordAtIndices(
                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
                 filename = file,
                 iterator = passedIterator,
                 readVideo = useVideoIndicator,
                 image_dtype = image_dtype_tf,
                 nObs = length(unique(imageKeysOfUnits)),
-                return_iterator = T ); setwd(new_wd)
+                return_iterator = T ),T); setwd(new_wd)
             tmp_updated_iterator <- ds_next_in[[2]]
             outerBatchKeys <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
             ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
@@ -743,7 +742,11 @@ AnalyzeImageConfounding <- function(
                 m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
                                                     cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
               }
-              x <- cienv$jnp$array(X[x_indices,], dtype = cienv$jnp$float16)
+              x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
+              if(batchSize != realSize_inner){
+                m <- cienv$jnp$take(m,cienv$jnp$array(in_xbatch_indices-0L),axis=0L)
+              }
+              if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
               m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
                                                   m, # m 
                                                   x, # x
@@ -757,7 +760,7 @@ AnalyzeImageConfounding <- function(
               m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                       m,
                                       x, # x 
-                                      cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                      cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), batchSize),
                                       StateList,
                                       MPList, TRUE)[[1]]
               m <- cienv$jax$nn$sigmoid( m )
