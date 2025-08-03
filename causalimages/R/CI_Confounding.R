@@ -309,7 +309,6 @@ AnalyzeImageConfounding <- function(
     })
 
     message2("Calibrating first moments for input data normalization...")
-    #if(grepl(file,pattern="imSeq")){browser()}
     # Input to reshape is a tensor with 58800 values, but the requested shape has 19600
     NORM_MEAN_array <- GetMoments(ds_iterator_train, 
                                   dataType = dataType, 
@@ -826,7 +825,6 @@ AnalyzeImageConfounding <- function(
                                           InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L+cut_), inference = TRUE), # m 
                                       cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
                                           StateList, cienv$jax$random$key(900L+cut_), MPList, TRUE)[[1]]
-          #if( cut_ == 2 ){ browser() }
           # m_one <- m_ImageRep; x_one <- x; ind4_ <- 2
           # plot(c(cienv$np$array(m_one)),c(cienv$np$array(m_b)[ind4_,]));abline(a=0,b=1)
           # plot(c(cienv$np$array(x_one)),c(cienv$np$array(x_b)[ind4_,]));abline(a=0,b=1)
