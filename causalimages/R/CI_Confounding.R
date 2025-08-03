@@ -912,11 +912,11 @@ AnalyzeImageConfounding <- function(
     roc_obj_OUT <- pROC::auc(pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<") ) # Assuming 1 is positive class
     
     # AUPRC calculations 
-    auprc_OUT <- PRROC::pr.curve(scores.class0 = predictedY[testIndices][obsY[testIndices] == 1],
-                                 scores.class1 = predictedY[testIndices][obsY[testIndices] == 0], 
+    auprc_OUT <- PRROC::pr.curve(scores.class0 = obsW[testIndices][obsW[testIndices] == 1],
+                                 scores.class1 = obsW[testIndices][obsW[testIndices] == 0], 
                                  curve = FALSE)$auc.integral
-    auprc_IN  <- PRROC::pr.curve(scores.class0 = predictedY[trainIndices][obsY[trainIndices] == 1],
-                                 scores.class1 = predictedY[trainIndices][obsY[trainIndices] == 0],
+    auprc_IN  <- PRROC::pr.curve(scores.class0 = obsW[trainIndices][obsW[trainIndices] == 1],
+                                 scores.class1 = obsW[trainIndices][obsW[trainIndices] == 0],
                                  curve = FALSE)$auc.integral
     
     # store output
