@@ -63,6 +63,7 @@ GetImageRepresentations <- function(
     patchEmbedDim = 16L,
     TfRecords_BufferScaler = 10L,
     dropoutRate,
+    droppathRate,
     dataType = "image",
     bn_momentum = 0.99,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
@@ -78,6 +79,7 @@ GetImageRepresentations <- function(
   
   # deal with null dropouts 
   if(is.null(dropoutRate)){ dropoutRate <- 0 }
+  if(is.null(droppathRate)){ droppathRate <- 0 }
 
   # image dtype
   if(is.null(image_dtype)){
@@ -618,7 +620,7 @@ GetImageRepresentations <- function(
         }
       }
       
-    keepPath_rate <- 1 - ( dropPath_rate <- 0.1 )
+    keepPath_rate <- 1 - ( droppathRate )
     # Custom dropout layer with dynamic branching for JAX in R
     # note: cienv$eq$nn$Dropout(p = dropoutRate) -> breaks gradients 
     #dropout_layer <- dropout_layer_init(dropoutRate)
@@ -681,7 +683,7 @@ GetImageRepresentations <- function(
           layer_fn <- function(carry, ModelList_d){
             m <- carry$m; seed <- carry$seed
             
-            if( inference || dropPath_rate == 0 ){
+            if( inference || droppathRate == 0 ){
               print("Not using droppath here...")
                m <- compute_branch_attention(ModelList_d, m, 
                                         RotaryPositionalEmbeddings_spatial, seed, 
@@ -692,7 +694,7 @@ GetImageRepresentations <- function(
                                        cienv$jnp$array(FALSE), # is droppath indicator 
                                        inference)
             }
-            if( !(inference || dropPath_rate == 0) ){
+            if( !(inference || droppathRate == 0) ){
               print("Using droppath here...")
               seed   <- cienv$jax$random$split(seed)[[1L]]
               do_path_indicator   <- cienv$jax$random$bernoulli(seed, p = keepPath_rate, shape = list()) 
@@ -709,7 +711,7 @@ GetImageRepresentations <- function(
                 m <- m + do_path_indicator$astype(m$dtype) * (m_ - m)
               }
               if(FALSE){
-              m   <- cienv$jax$lax$cond(pred = do_path_indicator$astype(cienv$jnp$bool), 
+              m   <- cienv$jax$lax$cond(pred = do_path_indicator$astype(cienv$jnp$bool_), 
                                         true_fun = function(operands){ # true fun 
                                           m_ <- compute_branch_attention(operands[[1]] , operands[[2]], 
                                                                    operands[[3]], operands[[4]],

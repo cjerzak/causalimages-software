@@ -18,6 +18,7 @@
 #' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
+#' @param droppathRate Droppath rate used in training to prevent overfitting (`droppathRate = 0` corresponds to no droppath).
 #' @param testFrac Default = `0.1`. Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
@@ -88,6 +89,7 @@ AnalyzeImageConfounding <- function(
                                    nDepth_TemporalRep = 3L,
                                    patchEmbedDim = 16L,
                                    dropoutRate = 0.1,
+                                   droppathRate = 0.1,
                                    batchSize = 16L,
                                    nSGD  = 400L,
                                    testFrac = 0.05,
@@ -362,6 +364,7 @@ AnalyzeImageConfounding <- function(
             strides = strides,
             nonLinearScaler = nonLinearScaler,
             dropoutRate = 0,
+            droppathRate = 0, 
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
@@ -463,6 +466,7 @@ AnalyzeImageConfounding <- function(
               strides = strides,
               nonLinearScaler = nonLinearScaler,
               dropoutRate = 0,
+              droppathRate = 0, 
               nDepth_TemporalRep = nDepth_TemporalRep,
               patchEmbedDim = patchEmbedDim,
               batchSize = batchSize,
@@ -503,6 +507,7 @@ AnalyzeImageConfounding <- function(
         strides = strides,
         nonLinearScaler = nonLinearScaler,
         dropoutRate = dropoutRate,
+        droppathRate = droppathRate, 
         nDepth_TemporalRep = nDepth_TemporalRep,
         patchEmbedDim = patchEmbedDim,
         batchSize = batchSize,
@@ -679,10 +684,11 @@ AnalyzeImageConfounding <- function(
           passedIterator <- NULL; Results_by_keys <- list()
           ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
           pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
+          browser()
           usedKeys <- c(); for (b in seq_along(batchStarts)) {
             idx_start <- batchStarts[b]
             idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
-            m_indices1 <- idx_start:idx_end    
+            m_indices1 <- idx_start:idx_end  
             
             #gc(); cienv$py_gc$collect()
             if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }

@@ -16,6 +16,7 @@
 #' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
+#' @param droppathRate Droppath rate used in training to prevent overfitting (`droppathRate = 0` corresponds to no droppath).
 #' @param testFrac Default = `0.1`. Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
@@ -79,6 +80,7 @@ PredictiveRun <- function(
     nDepth_TemporalRep = 3L,
     patchEmbedDim = 16L,
     dropoutRate = 0.1,
+    droppathRate = 0.1, 
     batchSize = 16L,
     nSGD  = 400L,
     testFrac = 0.05,
@@ -319,6 +321,7 @@ PredictiveRun <- function(
     strides = strides,
     nonLinearScaler = nonLinearScaler,
     dropoutRate = dropoutRate,
+    droppathRate = droppathRate,
     nDepth_TemporalRep = nDepth_TemporalRep,
     patchEmbedDim = patchEmbedDim,
     batchSize = batchSize,
@@ -481,6 +484,7 @@ PredictiveRun <- function(
     return( m )
   })
   
+  if(FALSE){ 
   inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
   KeyQuantCuts <- 1L:nUniqueKeys
   passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
@@ -540,7 +544,112 @@ PredictiveRun <- function(
   }
   close(pb)  
   Results_by_keys <- as.data.frame(
-    apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+      apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
+  }
+  if(TRUE){
+      t0_inference <- Sys.time()
+      inf_counter <- 0
+      nUniqueKeys <- length( unique(imageKeysOfUnits) )
+      batchSize <- ai(2L*batchSize)
+      batchStarts <- seq(1L, nUniqueKeys, by = batchSize)
+      passedIterator <- NULL; Results_by_keys <- list()
+      ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
+      pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)
+      usedKeys <- c(); for (b in seq_along(batchStarts)) {
+        idx_start <- batchStarts[b]
+        idx_end <- min(idx_start + batchSize - 1L, nUniqueKeys)
+        m_indices1 <- idx_start:idx_end
+        
+        gc(); cienv$py_gc$collect()
+        if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
+        setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
+          uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
+          filename = file,
+          iterator = passedIterator,
+          readVideo = useVideoIndicator,
+          image_dtype = image_dtype_tf,
+          nObs = length(unique(imageKeysOfUnits)),
+          return_iterator = T ); setwd(new_wd)
+        tmp_updated_iterator <- ds_next_in[[2]]
+        outerBatchKeys <- unlist( lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+        ds_next_in <- cienv$jnp$array( ds_next_in[[1]][[1]] )
+        
+        if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+        if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+        
+        if( !all(outerBatchKeys==unique(imageKeysOfUnits)[m_indices1]) ){
+          stop("Key pairing mismatch in inference mode; check data! [Code ref. 134z]")
+        }
+        
+        usedKeys <- c(usedKeys, outerBatchKeys)
+        keyNames_xIndicesValues <- do.call(rbind,
+                                           sapply(outerBatchKeys, function(key__){
+                                             val__ <- which(imageKeysOfUnits %in% key__)
+                                             list(cbind("key"=rep(key__,times=length(val__)),"value"=val__))
+                                           }))
+        keyNames_xIndicesValues_names <- keyNames_xIndicesValues[,1]
+        keyNames_xIndicesValues <- f2n(keyNames_xIndicesValues[,2])
+        names(keyNames_xIndicesValues) <- keyNames_xIndicesValues_names
+        
+        batchStarts_inner <- seq(1, length(keyNames_xIndicesValues), by = batchSize)
+        for(bi_ in seq_along(batchStarts_inner)){
+          inf_counter <- inf_counter + 1
+          idx_start_inner <- batchStarts_inner[bi_]
+          idx_end_inner <- idx_start_inner + batchSize - 1L
+          
+          in_xbatch_indices <- idx_start_inner:idx_end_inner
+          x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
+          in_xbatch_indices <- in_xbatch_indices[!is.na(x_indices)]
+          x_indices <- x_indices[!is.na(x_indices)]
+          
+          realSize_inner <- length(in_xbatch_indices)
+          
+          position_indices <- 1L:realSize_inner
+          position_indices <- c(position_indices, rep(realSize_inner, batchSize - realSize_inner))
+          
+          m_indices <- match(names(x_indices), outerBatchKeys)
+          
+          image_batch <- cienv$jnp$take(cienv$jnp$array(ds_next_in), cienv$jnp$array(ai(m_indices-1L)), axis = 0L)
+          m <- InitImageProcessFn(image_batch, cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+          
+          if(batchSize != realSize_inner){
+            m <- cienv$jnp$take(m, cienv$jnp$array(position_indices - 1L), axis=0L)
+          }
+          
+          x_indices_padded <- c(x_indices, rep(x_indices[realSize_inner], batchSize - realSize_inner))
+          x <- cienv$jnp$array(X[x_indices_padded,], dtype = cienv$jnp$float16)
+          
+          if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
+          
+          m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
+                                              m,
+                                              x,
+                                              StateList,
+                                              cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize),
+                                              MPList, TRUE)[[1]]
+          
+          GottenSummaries <- GetDense_batch_jit(ModelList, ModelList_fixed,
+                                                m_ImageRep,
+                                                x,
+                                                cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), batchSize),
+                                                StateList,
+                                                MPList, TRUE)[[1]]
+          if(is_binary){
+            GottenSummaries <- cienv$jax$nn$sigmoid( GottenSummaries )
+          }
+          GottenSummaries <- as.matrix(cienv$np$array(GottenSummaries))[1:realSize_inner,]
+          ret_list <- list("PredY" = GottenSummaries,
+                           "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
+                           "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
+          Results_by_keys <- append(Results_by_keys, list(ret_list))
+        }
+        passedIterator <- tmp_updated_iterator
+      }; close(pb)
+      Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
+      Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
+      message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
+  }
+  
   predictedY <-  Results_by_keys$PredY <-  f2n(  Results_by_keys$PredY ) 
   if(any(is.na(predictedY))){
     warning("NAs in predictions...Imputing them with average value")
