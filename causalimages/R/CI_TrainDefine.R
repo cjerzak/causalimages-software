@@ -22,7 +22,6 @@ TrainDefine <- function(){
     optax_optimizer <-  cienv$optax$chain(
       cienv$optax$adaptive_grad_clip(clipping = 0.15, eps = 0.001),
       cienv$optax$adabelief( learning_rate = LR_schedule )
-      #cienv$optax$adamw( learning_rate = LR_schedule )
     )
     plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))),xlab = "Iteration", ylab = "Learning rate")
     
