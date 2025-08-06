@@ -201,7 +201,7 @@ GetImageRepresentations <- function(
                    in_features  = ai(ncol(X)),
                    out_features = ai(nWidth_ImageRep),
                    use_bias     = FALSE,
-                   key          = cienv$jax$random$key(ai(3324151433 + seed))
+                   key          = cienv$jax$random$key(ai(33244151433 + seed))
                 )
    } 
     
@@ -632,7 +632,7 @@ GetImageRepresentations <- function(
         key_  = m_pos,
         value = m,
         inference = TRUE)
-      #key = seed, inference = inference)
+      #key = seed, inference = inference) # breaks gradient flow 
       m <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(m$dtype)
       scale_factor <- 1 / (1 - is_droppath * (1 - keepPath_rate))
       return( mtm1 + m * scale_factor ) }
@@ -676,7 +676,6 @@ GetImageRepresentations <- function(
       # append start and stop tokens
       m <- cienv$jnp$concatenate(list( eval(parse(text = sprintf("ModelList$%sTransformerSupp$StartEmbed",type))), m), 0L)
       m <- cienv$jnp$concatenate(list(m, eval(parse(text = sprintf("ModelList$%sTransformerSupp$StopEmbed",type)))), 0L) 
-      
       
       {
           DepthOfThisTransformer <- ifelse(type=="Spatial", yes = nDepth_ImageRep, no = nDepth_TemporalRep)
@@ -872,8 +871,8 @@ GetImageRepresentations <- function(
                                                 minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
                      num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
-                     padding_mode = "REFLECT",
-                     in_channels = rawChannelDims, use_bias = F,
+                     padding_mode = "ZEROS", # "REFLECT", "ZEROS", "REPLICATE", "CIRCULAR" 
+                     in_channels = rawChannelDims, use_bias = T,
                      out_channels = nWidth_ImageRep, key = cienv$jax$random$key(ai(4L+1040L+seed))), # patch embed
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,

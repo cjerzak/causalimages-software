@@ -154,7 +154,7 @@ AnalyzeImageConfounding <- function(
   if( XisNull ){ X <- matrix( rnorm(length(obsW)*2, sd = 0.01 ), ncol = 2) }
   X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,sd))) )
   # clip extreme standardized values 
-  X[X>8] <- 8; X[X < -8] <- -8
+  X[X > 4] <- 4; X[X < -4] <- -4
   {
     if(is.null(file)){stop("No file specified for tfrecord!")}
     changed_wd <- F; if(  !is.null(  file  )  ){
@@ -684,7 +684,6 @@ AnalyzeImageConfounding <- function(
           passedIterator <- NULL; Results_by_keys <- list()
           ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
           pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
-          browser()
           usedKeys <- c(); for (b in seq_along(batchStarts)) {
             idx_start <- batchStarts[b]
             idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
