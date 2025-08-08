@@ -116,7 +116,9 @@ TrainDo <- function(){
     }
 
     # Sanity check for dimension swapping as i varies 
+    if(i == 1){ message2("Training balance:"); print((table(obsW[batch_indices]))) } 
     # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+sample(1:100,1)), inference = F)[2,,,1]))
+    # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+sample(1:100,1)), inference = F)[1,,,1]))
 
     # Get gradient update packages 
     GradientUpdatePackage <- GradAndLossAndAux(
@@ -144,7 +146,6 @@ TrainDo <- function(){
       }
       GradientUpdatePackage <- GradientUpdatePackage[[2]] # grads
       GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_inexact_array)
-      #GradientUpdatePackage <- cienv$eq$partition(GradientUpdatePackage, cienv$eq$is_array)
       GradientUpdatePackage_aux <- GradientUpdatePackage[[2]]; GradientUpdatePackage <- GradientUpdatePackage[[1]]
       
       # unscale + adjust loss scale is some non-finite or NA

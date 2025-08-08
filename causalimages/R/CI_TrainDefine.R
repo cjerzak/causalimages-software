@@ -23,7 +23,7 @@ TrainDefine <- function(){
       cienv$optax$adaptive_grad_clip(clipping = 0.15, eps = 0.001),
       cienv$optax$adabelief( learning_rate = LR_schedule )
     )
-    plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))),xlab = "Iteration", ylab = "Learning rate")
+    plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))), xlab = "Iteration", ylab = "Learning rate")
     
     # model partition, setup state, perform parameter count
     opt_state <- optax_optimizer$init(   cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )

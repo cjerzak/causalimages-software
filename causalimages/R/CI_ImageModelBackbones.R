@@ -603,24 +603,7 @@ GetImageRepresentations <- function(
     
     # define a transformer backbone - background fxns 
     {
-      dropout_layer_algebraic <- function(p) {
-        keep_prob <- 1 - p
-        function(x, key, inference) {
-          # 1) sample train‐time mask ∈ {0,1}
-          mask_b <- cienv$jnp$astype(
-            cienv$jax$random$bernoulli(
-              key   = key,
-              p     = keep_prob, shape = x$shape),x$dtype)
-          # 2) rescale so E[mask]=1
-          mask_scaled <- mask_b / keep_prob
-          # 3) blend: when inference==1 → mask=1; when inference==0 → mask=mask_scaled
-          #    (1 − inference) * mask_scaled + inference * 1
-          mask_final <- mask_scaled * (1 - inference) + inference
-          return(x * mask_final)
-        }
-      }
-      
-    keepPath_rate <- 1 - ( droppathRate )
+    keeppathRate <- 1 - ( droppathRate )
     # Custom dropout layer with dynamic branching for JAX in R
     # note: cienv$eq$nn$Dropout(p = dropoutRate) -> breaks gradients 
     #dropout_layer <- dropout_layer_init(dropoutRate)
@@ -634,7 +617,7 @@ GetImageRepresentations <- function(
         inference = TRUE)
       #key = seed, inference = inference) # breaks gradient flow 
       m <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(m$dtype)
-      scale_factor <- 1 / (1 - is_droppath * (1 - keepPath_rate))
+      scale_factor <- (1 / keeppathRate)*is_droppath + (1-is_droppath)*1
       return( mtm1 + m * scale_factor ) }
     compute_branch_mlp <- function(ModelList_d, m, seed, is_droppath, inference){ 
       # Normalization and swiglu to high dim 
@@ -648,7 +631,7 @@ GetImageRepresentations <- function(
       # project back to low dim
       m <- ffmap(ModelList_d$FF$FFNarrow, m) # linear proj to low dim
       m <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt2$astype(cienv$jnp$float32) )$astype(m$dtype)
-      scale_factor <- 1 / (1 - is_droppath * (1 - keepPath_rate))
+      scale_factor <- (1 / keeppathRate)*is_droppath + (1-is_droppath)*1
       return( mtm1 + m*scale_factor ) }
     }
     
@@ -696,18 +679,27 @@ GetImageRepresentations <- function(
             if( !(inference || droppathRate == 0) ){
               print("Using droppath here...")
               seed   <- cienv$jax$random$split(seed)[[1L]]
-              do_path_indicator   <- cienv$jax$random$bernoulli(seed, p = keepPath_rate, shape = list()) 
-              seed   <- cienv$jax$random$split(seed)[[1L]]
               if(TRUE){
-                m_ <- compute_branch_attention(ModelList_d , m,
-                                               RotaryPositionalEmbeddings_spatial, seed,
-                                               cienv$jnp$array(TRUE), # is droppath
-                                               inference)
-                m_ <- compute_branch_mlp(ModelList_d , m_,
-                                         seed,
-                                         cienv$jnp$array(TRUE),# is droppath
-                                         inference)
-                m <- m + do_path_indicator$astype(m$dtype) * (m_ - m)
+                # --ATTENTION--
+                do_path_indicator   <- cienv$jax$random$bernoulli(seed, p = keeppathRate, shape = list()); seed   <- cienv$jax$random$split(seed)[[1L]]
+                mm_ <- compute_branch_attention(ModelList_d , 
+                                                m,
+                                                RotaryPositionalEmbeddings_spatial, seed,
+                                                cienv$jnp$array(TRUE), # is droppath
+                                                inference)
+                m <- m + do_path_indicator$astype(m$dtype) * (mm_ - m)
+                # Explanation: 
+                # m + 0 * (m_ - m) -> m -> follow old
+                # m + 1 * (m_ - m) -> m_ -> take new 
+                
+                # --MLP--
+                do_path_indicator   <- cienv$jax$random$bernoulli(seed, p = keeppathRate, shape = list()); seed   <- cienv$jax$random$split(seed)[[1L]]
+                mm_ <- compute_branch_mlp(ModelList_d , 
+                                          m,
+                                          seed,
+                                          cienv$jnp$array(TRUE),# is droppath
+                                          inference)
+                m <- m + do_path_indicator$astype(m$dtype) * (mm_ - m)
               }
               if(FALSE){
               m   <- cienv$jax$lax$cond(pred = do_path_indicator$astype(cienv$jnp$bool_), 
@@ -730,7 +722,8 @@ GetImageRepresentations <- function(
               }
             }
             seed  <- cienv$jax$random$split(seed)[[1L]]
-            return( list(list("m" = m, "seed" = seed), NULL) ) }
+            return( list(list("m"=m, 
+                              "seed"=seed), NULL) ) }
           m <- cienv$jax$lax$scan(f = layer_fn, 
                                   init = list(m = m, seed = seed), 
                                   xs = ModelList$SpatialTransformer)[[1]]$m
@@ -840,11 +833,11 @@ GetImageRepresentations <- function(
                               "FFWide2"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            use_bias = F, # swiglu bias
-                                           key = key[2L]),
+                                           key = key[1L]),
                               "FFNarrow"=cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
                                            out_features = nWidth_ImageRep,
                                            use_bias = F, # final bias
-                                           key = key[3L])
+                                           key = key[2L])
                                            )
           key <- cienv$jax$random$split(key[[0]])[[1]]
           ModelList_d <- list("Multihead" = Multihead_d,

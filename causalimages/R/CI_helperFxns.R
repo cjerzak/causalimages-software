@@ -265,17 +265,17 @@ cienv <- new.env( parent = emptyenv() )
 dropout_layer_init <- function(p) {
   if (p == 0) { return( function(x, key, inference) { return( x ) } )  }
   if (p != 0) {
-    keep_prob <- 1 - p
+    keep_prob <- (1 - p)
     return( 
       function(x, key, inference) {
         # Efficient dynamic branch: skip dropout at inference time
         cienv$jax$lax$cond(
           pred = inference, 
-          true_fun = function(args){return(args[[1]])},
+          true_fun = function(args){ return(args[[1]]) },
           false_fun = function(args){
             mask <- cienv$jax$lax$stop_gradient(
               #cienv$jax$random$bernoulli(key = args[[2]], p = keep_prob, shape = args[[1]]$shape)$astype(args[[1]])
-              cienv$jax$random$bernoulli(key = args[[2]], p = keep_prob, shape = args[[1]]$shape)$astype(args[[1]]$dtype)
+              cienv$jax$random$bernoulli(key = args[[2]], p = keep_prob, shape = args[[1]]$shape)$astype( args[[1]]$dtype )
             )
             return( args[[1]] * mask / keep_prob )
           },
