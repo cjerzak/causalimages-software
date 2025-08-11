@@ -52,6 +52,7 @@ GetImageRepresentations <- function(
     image_dtype = NULL, 
     image_dtype_tf = NULL,  
     XCrossModal = T, 
+    XForceModal = F, 
     nWidth_ImageRep = 64L,
     nDepth_ImageRep = 1L,
     nDepth_TemporalRep = 1L,
@@ -642,11 +643,17 @@ GetImageRepresentations <- function(
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(cienv$jnp$transpose(m, c(2L, 0L, 1L)))
           m <- cienv$jnp$transpose(cienv$jnp$reshape(m, list(m$shape[[1]],-1L)))
           
-          if (!is.null(X) & XCrossModal) {
+          if (!is.null(X) & XCrossModal & !XForceModal) {
             m <- cienv$jnp$concatenate(
                     list(m,   
                          ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
                          ),0L)
+          }
+          if (!is.null(X) & XForceModal) {
+             m <- cienv$jnp$concatenate(
+                    list(ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L)),
+                         ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+                    ),0L)
           }
           message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }

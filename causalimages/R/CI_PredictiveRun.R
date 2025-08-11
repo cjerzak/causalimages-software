@@ -68,7 +68,8 @@ PredictiveRun <- function(
     plotBands = 1L,
     plotResults = T,
     
-    XCrossModal = T, 
+    XCrossModal = T,
+    XForceModal = F, 
     optimizeImageRep = T,
     nWidth_ImageRep = 64L,  nDepth_ImageRep = 1L, kernelSize = 5L,
     nWidth_Dense = 64L,  nDepth_Dense = 1L,
@@ -332,6 +333,7 @@ PredictiveRun <- function(
     inputAvePoolingSize = inputAvePoolingSize,
     TfRecords_BufferScaler = 3L,
     XCrossModal = XCrossModal,
+    XForceModal = XForceModal, 
     imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
     returnContents = T,
     initializingFxns = T, 

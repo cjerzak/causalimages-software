@@ -30,6 +30,7 @@ AnalyzeImageConfounding(
   plotBands = 1L,
   plotResults = T,
   XCrossModal = T,
+  XForceModal = F,
   optimizeImageRep = T,
   nonLinearScaler = NULL,
   nWidth_ImageRep = 64L,
@@ -43,6 +44,7 @@ AnalyzeImageConfounding(
   nDepth_TemporalRep = 3L,
   patchEmbedDim = 16L,
   dropoutRate = 0.1,
+  droppathRate = 0.1,
   batchSize = 16L,
   nSGD = 400L,
   testFrac = 0.05,
@@ -101,6 +103,8 @@ AnalyzeImageConfounding(
 \item{strides}{(default = \code{2L}) Integer specifying the strides used in the convolutional layers.}
 
 \item{dropoutRate}{Dropout rate used in training to prevent overfitting (\code{dropoutRate = 0} corresponds to no dropout).}
+
+\item{droppathRate}{Droppath rate used in training to prevent overfitting (\code{droppathRate = 0} corresponds to no droppath).}
 
 \item{batchSize}{Batch size used in SGD optimization. Default = \code{50L}.}
 
