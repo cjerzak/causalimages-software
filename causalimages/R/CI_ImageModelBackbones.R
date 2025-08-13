@@ -1069,7 +1069,7 @@ GetImageRepresentations <- function(
       batchSizeOneCorrection <- ifelse(length(batch_indices) == 1, yes = TRUE, no = FALSE)
 
       # get the data
-      setwd(orig_wd); batch_inference <- GetElementFromTfRecordAtIndices( uniqueKeyIndices = batch_indices,
+      setwd(orig_wd); batch_inference <- try(GetElementFromTfRecordAtIndices( uniqueKeyIndices = batch_indices,
                                                             filename = file,
                                                             nObs = length(unique(imageKeysOfUnits)),
                                                             return_iterator = T,
@@ -1077,7 +1077,8 @@ GetImageRepresentations <- function(
                                                             image_dtype = image_dtype_tf,
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
-                                                                              no = list(NULL))[[1]] ); setwd(new_wd)
+                                                                              no = list(NULL))[[1]] ),T); setwd(new_wd)
+      if('try-error' %in% class(batch_inference)){browser()}
       if(batchSizeOneCorrection){
           batch_indices <- c(batch_indices,batch_indices)
           batch_inference[[1]][[1]] <- cienv$tf$concat(list(cienv$tf$expand_dims(batch_inference[[1]][[1]],0L),
@@ -1103,17 +1104,19 @@ GetImageRepresentations <- function(
       
       #dropout_layer(dropoutRate)(cienv$jnp$array(matrix(1:100.,nrow=10,ncol=10),dtype=cienv$jnp$float16),key = cienv$jax$random$key(10L), inference = FALSE) 
       #representation_ <-  cienv$np$array( ImageRepArm_batch_R(
-      representation_ <-  cienv$np$array( ImageRepArm_batch(
+      representation_ <-  try(cienv$np$array( ImageRepArm_batch(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
                                                                        cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T),
                                                       X_batch,
                                                       
                                                       StateList,
-                                                      cienv$jax$random$split(cienv$jax$random$key(ai(last_i + seed)), batchSize),
+                                                      cienv$jax$random$split(cienv$jax$random$key(ai(last_i + seed)), 
+                                                                             cienv$jnp$array(batch_inference[[1]]$shape)[0]),
                                                       MPList, 
                                                       TRUE # inference for testing 
-                                                      )[[1]]  )
+                                                      )[[1]]  ),T)
+      if('try-error' %in% class(representation_)){browser()}
       
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 
@@ -1133,7 +1136,9 @@ GetImageRepresentations <- function(
       if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
-      message2(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
+      if(last_i %% 100 == 0 | last_i < 10){ 
+        message2(sprintf("%.2f%% done getting image/video representations", 100*last_i / length(unique(imageKeysOfUnits))))
+      }
   }
   Representations <- Representations[match(as.character(imageKeysOfUnits), as.character(usedImageKeys) ),]
   message2("Done getting image/video representations!")
