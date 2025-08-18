@@ -61,6 +61,9 @@ AnalyzeImageConfounding <- function(
                                    inputAvePoolingSize = 1L,
                                    useTrainingPertubations = T,
                                    useScalePertubations = F,
+                                   
+                                   crossFit = FALSE, 
+                                   augmented = FALSE,
 
                                    orthogonalize = F,
                                    transportabilityMat = NULL,
@@ -156,84 +159,11 @@ AnalyzeImageConfounding <- function(
   X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,sd))) )
   # clip extreme standardized values 
   X[X > 4] <- 4; X[X < -4] <- -4
+
+  
   {
-    if(is.null(file)){stop("No file specified for tfrecord!")}
-    changed_wd <- F; if(  !is.null(  file  )  ){
-      message2("Establishing connection with tfrecord")
-      tf_record_name <- file
-      if( !grepl(tf_record_name, pattern = "/") ){
-        tf_record_name <- paste("./",tf_record_name, sep = "")
-      }
-      tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
-      new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
-      message2(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
-      changed_wd <- T; setwd( new_wd )
-
-      # define video indicator 
-      useVideoIndicator <- dataType == "video"
-      
-      # define tf record 
-      tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
-      
-      # helper functions
-      getParsed_tf_dataset_inference <- function(tf_dataset){
-        dataset <- tf_dataset$map( function(x){parse_tfr_element(x, 
-                                                                 readVideo = useVideoIndicator, 
-                                                                 image_dtype = image_dtype_tf)} )
-        return( dataset <- dataset$batch( ai(max(2L,round(batchSize/2L)  ))) )
-      }
-
-      message2("Setting up iterators...") # - skip the first test_size observations 
-      if(!is.null(TFRecordControl)){
-        getParsed_tf_dataset_train_Select <- function( tf_dataset ){
-          return( tf_dataset$map( function(x){ parse_tfr_element(x, 
-                                                                 readVideo = useVideoIndicator, 
-                                                                 image_dtype = image_dtype_tf)},
-                                     num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
-        }
-        getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-          tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                           dtype=cienv$tf$int64),
-                                     reshuffle_each_iteration = T) 
-          tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
-          tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
-          return( tf_dataset )
-        }
-        tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
-                            tf_dataset$skip(  test_size <-  ai( TFRecordControl$nTest)  )
-                            )$take( ai(TFRecordControl$nControl) )$`repeat`(-1L)  
-        tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
-                              tf_dataset$skip( test_size <-  ai( TFRecordControl$nTest) )
-                              )$skip( ai(TFRecordControl$nControl)+1L)$`repeat`(-1L) 
-        tf_dataset_train_treated <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_treated)
-        tf_dataset_train_control <- getParsed_tf_dataset_train_BatchAndShuffle(tf_dataset_train_control)
-        ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
-        ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
-        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train_control )
-      }
-      if(is.null(TFRecordControl)){
-        getParsed_tf_dataset_train <- function( tf_dataset ){
-          dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                     num_parallel_calls = cienv$tf$data$AUTOTUNE)
-          dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
-                                     reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
-          dataset <- dataset$batch(  ai(batchSize)   )
-          dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
-          return( dataset  )
-      }
-        
-        # shuffle (generating different train/test splits)
-        tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
-                                                      buffer_size = cienv$tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),
-                                                                                      dtype=cienv$tf$int64), reshuffle_each_iteration = F )
-        tf_dataset_train <- getParsed_tf_dataset_train( 
-                    tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
-        ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
-      }
-      # define inference iterator 
-      tf_dataset_inference <- getParsed_tf_dataset_inference( tf_dataset )
-      ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
-    }
+    message2("TfRecord management...")
+    LocalFxnSource(TFRecordManagement, evaluation_environment = environment())
 
     if(useTrainingPertubations){
       trainingPertubations <- cienv$jax$vmap( 
@@ -498,6 +428,114 @@ AnalyzeImageConfounding <- function(
     }
 
     if(optimizeImageRep){
+      justCheckIterators <- FALSE
+      if( ! crossFit ){ kFolds <- 1L }
+      if( crossFit ){ 
+        kFolds <- 3L 
+        nUniqueKeys <- length( unique( imageKeysOfUnits ) )
+        cf_keys_split <- 1*as.numeric(cut(1:nUniqueKeys,kFolds))
+        cf_keys_split <- sapply( 1:kFolds, function(l_){ list(which(cf_keys_split==l_))})
+        cf_keys_toSkip_bounds <- lapply(cf_keys_split,function(l_){c(min(l_), max(l_))})
+        
+        # shuffle for outer CF iteration 
+        if( is.null(TFRecordControl)){
+          tf_dataset_master <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+          tf_dataset_master_ <- getParsed_tf_dataset_train_Shuffle( tf_dataset_master )
+        }
+        
+        # Define master datasets and fold splits outside the loop (after tf_dataset_master_ definition in if(crossFit))
+        if( !is.null(TFRecordControl) ){
+          tf_dataset_master_control <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
+                                                        ai(TFRecordControl$nTest) )$take(
+                                                                ai(TFRecordControl$nControl))
+          tf_dataset_master_control_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_control)
+          
+          tf_dataset_master_treated <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
+                                                  ai(TFRecordControl$nTest + TFRecordControl$nControl+1L))$take(
+                                                          ai(TFRecordControl$nTreatment))
+          tf_dataset_master_treated_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_treated)
+          
+          nUniqueKeys_control <- TFRecordControl$nControl
+          cf_keys_split_control <- 1 * as.numeric(cut(1:nUniqueKeys_control, kFolds))
+          cf_keys_split_control <- sapply(1:kFolds, function(l_) { list(which(cf_keys_split_control == l_)) })
+          cf_keys_toSkip_bounds_control <- lapply(cf_keys_split_control, function(l_) { c(min(l_), max(l_)) })
+          nUniqueKeys_treated <- TFRecordControl$nTreatment
+          cf_keys_split_treated <- 1 * as.numeric(cut(1:nUniqueKeys_treated, kFolds))
+          cf_keys_split_treated <- sapply(1:kFolds, function(l_) { list(which(cf_keys_split_treated == l_)) })
+          cf_keys_toSkip_bounds_treated <- lapply(cf_keys_split_treated, function(l_) { c(min(l_), max(l_)) })
+        }
+      }
+      tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
+      trainIndices_list <- testIndices_list <- list() 
+      for( kf_ in 1:kFolds ){
+      message2(sprintf("k fold %s of %s",kf_,kFolds))
+      
+      # set up cross fitted iterators 
+      if( crossFit ){ 
+        if( is.null(TFRecordControl)){
+          # select a tf record indexed to (1:kFolds([!1:kFolds %in% kf_] (skip indices bounded by cf_keys_toSkip_bounds)
+          if(kf_ == 1){ 
+            tf_dataset_train <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) )$`repeat`(-1L) 
+          }
+          if(kf_ == kFolds){ 
+            tf_dataset_train <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) ) )$`repeat`(-1L) 
+          }
+          if(kf_ > 1 & kf_ < kFolds){ 
+            tf_dataset_train <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_$take( ai(cf_keys_toSkip_bounds[[kf_]][1]-1L) )$concatenate(
+                tf_dataset_master_$skip( ai(cf_keys_toSkip_bounds[[kf_]][2]) ) ))$`repeat`(-1L) # repeat to avoid out of sequence errors 
+          }
+          tf_dataset_train <- getParsed_tf_dataset_train_BatchAndShuffle( tf_dataset_train )
+          ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
+        }
+        if( !is.null(TFRecordControl)){
+          # control 
+          if(kf_ == 1){
+            tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_control_$skip(ai(cf_keys_toSkip_bounds_control[[kf_]][2]))
+            )$`repeat`(-1L)
+          }
+          if(kf_ > 1 & kf_ < kFolds){
+            tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_control_$take(ai(cf_keys_toSkip_bounds_control[[kf_]][1] - 1L))$concatenate(
+                tf_dataset_master_control_$skip(ai(cf_keys_toSkip_bounds_control[[kf_]][2]))
+              )
+            )$`repeat`(-1L)
+          }
+          if(kf_ == kFolds){
+            tf_dataset_train_control <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_control_$take(ai(cf_keys_toSkip_bounds_control[[kf_]][1] - 1L))
+            )$`repeat`(-1L)
+          }
+          
+          # treat
+          if(kf_ == 1){
+            tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_treated_$skip(ai(cf_keys_toSkip_bounds_treated[[kf_]][2]))
+            )$`repeat`(-1L)
+          }
+          if(kf_ > 1 & kf_ < kFolds){
+            tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_treated_$take(ai(cf_keys_toSkip_bounds_treated[[kf_]][1] - 1L))$concatenate(
+                tf_dataset_master_treated_$skip(ai(cf_keys_toSkip_bounds_treated[[kf_]][2]))
+              )
+            )$`repeat`(-1L)
+          }
+          if(kf_ == kFolds){
+            tf_dataset_train_treated <- getParsed_tf_dataset_train_Select(
+              tf_dataset_master_treated_$take(ai(cf_keys_toSkip_bounds_treated[[kf_]][1] - 1L))
+            )$`repeat`(-1L)
+          }
+          tf_dataset_train_control <- getParsed_tf_dataset_train_BatchAndShuffle( tf_dataset_train_control )
+          tf_dataset_train_treated <- getParsed_tf_dataset_train_BatchAndShuffle( tf_dataset_train_treated )
+          ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
+          ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
+        }
+      }
+        
+      seed <- seed + as.integer(kf_)
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
         X = X,
         file = file,
@@ -659,43 +697,81 @@ AnalyzeImageConfounding <- function(
         
         message2("Starting training...")
         LocalFxnSource(TrainDo, evaluation_environment = environment())
-      
-        message2("Getting predicted quantities...")
-        GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                 m, x, seed,
-                 StateList, MPList){
-          # image representation model
-          m <- ImageRepArm_batch_R(ModelList, m, x, 
-                                   StateList, seed, MPList, T)
-          StateList <- m[[2]] ; m <- m[[1]]
-          
-          # sigmoid 
-          m <- cienv$jax$nn$sigmoid( m )
-          
-          # label smoothing to prevent NAs via log(0)
-          m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
-          
-          return( m )
-        })
         
-        if(TRUE){    
-          t0_inference <- Sys.time()
-          inf_counter <- 0
-          nUniqueKeys <- length( unique(imageKeysOfUnits) )
-          KeyQuantCuts <- 1L:nUniqueKeys
-          batchSize <- ai(2L*batchSize) # double the batch size for inference 
-          batchStarts       <- seq(1L, nUniqueKeys, by = batchSize)
-          passedIterator <- NULL; Results_by_keys <- list()
-          ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
-          pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
-          usedKeys <- c(); for (b in seq_along(batchStarts)) {
-            idx_start <- batchStarts[b]
-            idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
-            m_indices1 <- idx_start:idx_end  
+        # check iterators 
+        {
+          # usedKeys  == unique(imageKeysOfUnits)
+          # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
+          # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
+          # mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
+          trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
+          testIndices_list[kf_] <- testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
+          trainIndices_list[kf_] <- list(trainIndices)
+          testIndices_list[kf_] <- list(testIndices)
+          if(FALSE){ 
+            # note: there will be some overlap in test due to TRUE test indices 
+            length(unique(unlist(trainIndices_list)))
+            length(unique(unlist(testIndices_list)))
+            plot(testIndices_list[[2]] %in% testIndices_list[[1]])
+            plot(testIndices_list[[1]] %in% testIndices_list[[2]])
+            plot(testIndices_list[[1]] %in% testIndices_list[[3]])
             
-            #gc(); cienv$py_gc$collect()
-            if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
-            setwd(orig_wd); ds_next_in <- try(GetElementFromTfRecordAtIndices(
+            table(obsW[ testIndices_list[[1]] %in% testIndices_list[[2]] ])
+            table(obsW[ !testIndices_list[[1]] %in% testIndices_list[[2]] ])
+            
+            table(obsW[ testIndices_list[[1]] %in% testIndices_list[[3]] ])
+            table(obsW[ !testIndices_list[[1]] %in% testIndices_list[[3]] ])
+            
+            obsW[testIndices_list[[2]]]
+            print(testIndices)
+            obsW[trainIndices_list[[1]]]
+            trainIndices_list[[1]]
+            mean(testIndices_list[[1]] %in% testIndices_list[[2]])
+            mean(testIndices_list[[2]] %in% testIndices_list[[3]])
+            mean(testIndices_list[[1]] %in% testIndices_list[[3]])
+            mean(trainIndices_list[[1]] %in% trainIndices_list[[3]])
+          }
+        }
+        
+        # inference on all observations
+        if(!justCheckIterators){
+          message2("Getting predicted quantities...")
+          GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
+                                                            m, x, seed,
+                                                            StateList, MPList){
+            # image representation model
+            m <- ImageRepArm_batch_R(ModelList, m, x, 
+                                     StateList, seed, MPList, T)
+            StateList <- m[[2]] ; m <- m[[1]]
+            
+            # sigmoid 
+            m <- cienv$jax$nn$sigmoid( m )
+            
+            # label smoothing to prevent NAs via log(0)
+            m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+            
+            return( m )
+          })
+          
+          # Get predicted quantities 
+          {    
+            t0_inference <- Sys.time()
+            inf_counter <- 0
+            nUniqueKeys <- length( unique(imageKeysOfUnits) )
+            KeyQuantCuts <- 1L:nUniqueKeys
+            batchSize <- ai(2L*batchSize) # double the batch size for inference 
+            batchStarts       <- seq(1L, nUniqueKeys, by = batchSize)
+            passedIterator <- NULL; Results_by_keys <- list()
+            ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
+            pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
+            usedKeys <- c(); for (b in seq_along(batchStarts)) {
+              idx_start <- batchStarts[b]
+              idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
+              m_indices1 <- idx_start:idx_end  
+              
+              #gc(); cienv$py_gc$collect()
+              if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
+              setwd(orig_wd); ds_next_in <- try(GetElementFromTfRecordAtIndices(
                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
                 filename = file,
                 iterator = passedIterator,
@@ -703,203 +779,142 @@ AnalyzeImageConfounding <- function(
                 image_dtype = image_dtype_tf,
                 nObs = length(unique(imageKeysOfUnits)),
                 return_iterator = T ),T); setwd(new_wd)
-            tmp_updated_iterator <- ds_next_in[[2]]
-            outerBatchKeys <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-            ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
-            if( !all(outerBatchKeys==unique(imageKeysOfUnits)[m_indices1]) ){
-              stop("Key pairing mismatch in inference mode; check data! [Code ref. 134z]")
-            }
-            
-            # get summaries and save
-            usedKeys <- c(usedKeys, outerBatchKeys)
-            keyNames_xIndicesValues <- do.call(rbind, 
-                                          sapply(outerBatchKeys, function(key__){ 
-                                           val__ <- which(imageKeysOfUnits %in% key__)
-                                           list(cbind("key"=rep(key__,times=length(val__)),"value"=val__))
-                                           }))
-            keyNames_xIndicesValues_names <- keyNames_xIndicesValues[,1]
-            keyNames_xIndicesValues <- f2n(keyNames_xIndicesValues[,2])
-            names(keyNames_xIndicesValues) <- keyNames_xIndicesValues_names
-            # mean(names(keyNames_xIndicesValues) == names(keyNames_xIndicesValues))
-            
-            # inner loop 
-            batchStarts_inner <- seq(1, length(keyNames_xIndicesValues), by = batchSize)
-            for(bi_ in seq_along(batchStarts_inner)){
-              inf_counter <- inf_counter + 1
-              idx_start_inner <- batchStarts_inner[bi_]
-              idx_end_inner   <- idx_start_inner + batchSize - 1L
-              
-              in_xbatch_indices <- idx_start_inner:idx_end_inner
-              x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
-              in_xbatch_indices <- in_xbatch_indices[!is.na(x_indices)]
-              x_indices <- x_indices[!is.na(x_indices)]
-              
-              # get real size 
-              realSize_inner  <- length(in_xbatch_indices)
-              
-              # Pad last batch to 'batchSize' by repeating the final key index
-              in_xbatch_indices <- c(in_xbatch_indices,
-                                     rep(in_xbatch_indices[realSize_inner], batchSize - realSize_inner))
-              m_indices <- match(names(x_indices), outerBatchKeys)
-              
-              # get image rep 
-              if(all(m_indices %in% 1:length(m_indices))){ 
-                m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+              tmp_updated_iterator <- ds_next_in[[2]]
+              outerBatchKeys <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
+              ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
+              if( !all(outerBatchKeys==unique(imageKeysOfUnits)[m_indices1]) ){
+                stop("Key pairing mismatch in inference mode; check data! [Code ref. 134z]")
               }
-              if(!all(m_indices %in% 1:length(m_indices))){ 
-                m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
-                                                    cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
-              }
-              x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
-              if(batchSize != realSize_inner){
-                m <- cienv$jnp$take(m,cienv$jnp$array(in_xbatch_indices-0L),axis=0L)
-              }
-              if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
-              m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                                  m, # m 
-                                                  x, # x
-                                                  StateList,
-                                                  cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize), #
-                                                  MPList, TRUE)[[1]]
               
-              # get final output from image rep 
-              # if(b==1){ m_b <- m; x_b <- x }
-              # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
-              m <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                                      m,
-                                      x, # x 
-                                      cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), batchSize),
-                                      StateList,
-                                      MPList, TRUE)[[1]]
-              m <- cienv$jax$nn$sigmoid( m )
-              m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
-              m <- as.matrix(cienv$np$array(m))
+              # get summaries and save
+              usedKeys <- c(usedKeys, outerBatchKeys)
+              keyNames_xIndicesValues <- do.call(rbind, 
+                                                 sapply(outerBatchKeys, function(key__){ 
+                                                   val__ <- which(imageKeysOfUnits %in% key__)
+                                                   list(cbind("key"=rep(key__,times=length(val__)),"value"=val__))
+                                                 }))
+              keyNames_xIndicesValues_names <- keyNames_xIndicesValues[,1]
+              keyNames_xIndicesValues <- f2n(keyNames_xIndicesValues[,2])
+              names(keyNames_xIndicesValues) <- keyNames_xIndicesValues_names
+              # mean(names(keyNames_xIndicesValues) == names(keyNames_xIndicesValues))
               
-              ret_list <- list("ProbW" = m[1:realSize_inner,],
-                               "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
-                               "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
-              #Results_by_keys[[length(Results_by_keys)+1]] <- ret_list
-              Results_by_keys <- append(Results_by_keys, list(ret_list))
-            }
-            passedIterator <- tmp_updated_iterator # update iterator 
-          }; close(pb) 
-          Results_by_keys_orig <- Results_by_keys
-          Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
-          #Results_by_keys <- as.data.frame(apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-          Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
-          Results_by_keys1 <- Results_by_keys
-          message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
-        }
-        
-        if(FALSE){  
-        t0_inference <- Sys.time()
-        inference_counter <- 0
-        nUniqueKeys <- length( unique(imageKeysOfUnits) )
-        KeyQuantCuts <- 1L:nUniqueKeys
-        passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
-        ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
-        pb <- txtProgressBar(min = 0, max = nUniqueKeys, style = 3)  # Initialize progress bar
-        usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
-          # cut_ <- unique(KeyQuantCuts)[1]
-          inference_counter <- inference_counter + 1
-          zer <- which(cut_  ==  KeyQuantCuts)
-          if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
-          {
-            setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
-                                                filename = file,
-                                                iterator = passedIterator,
-                                                readVideo = useVideoIndicator,
-                                                image_dtype = image_dtype_tf,
-                                                nObs = length(unique(imageKeysOfUnits)),
-                                                return_iterator = TRUE ); setwd(new_wd)
-            key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-            tmp_updated_iterator <- ds_next_in[[2]]
-            ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
-            if( key_ != unique(imageKeysOfUnits)[zer] ){stop("Found mis-alignment in key-key sanity checks [code ref 4a34]")}
-
-            # deal with batch 1 case here
-            if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-            if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+              # inner loop 
+              batchStarts_inner <- seq(1, length(keyNames_xIndicesValues), by = batchSize)
+              for(bi_ in seq_along(batchStarts_inner)){
+                inf_counter <- inf_counter + 1
+                idx_start_inner <- batchStarts_inner[bi_]
+                idx_end_inner   <- idx_start_inner + batchSize - 1L
+                
+                in_xbatch_indices <- idx_start_inner:idx_end_inner
+                x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
+                in_xbatch_indices <- in_xbatch_indices[!is.na(x_indices)]
+                x_indices <- x_indices[!is.na(x_indices)]
+                
+                # get real size 
+                realSize_inner  <- length(in_xbatch_indices)
+                
+                # Pad last batch to 'batchSize' by repeating the final key index
+                in_xbatch_indices <- c(in_xbatch_indices,
+                                       rep(in_xbatch_indices[realSize_inner], batchSize - realSize_inner))
+                m_indices <- match(names(x_indices), outerBatchKeys)
+                
+                # get image rep 
+                if(all(m_indices %in% 1:length(m_indices))){ 
+                  m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+                }
+                if(!all(m_indices %in% 1:length(m_indices))){ 
+                  m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
+                                                         cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+                }
+                x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
+                if(batchSize != realSize_inner){
+                  m <- cienv$jnp$take(m,cienv$jnp$array(in_xbatch_indices-0L),axis=0L)
+                }
+                if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
+                m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
+                                           m, # m 
+                                           x, # x
+                                           StateList,
+                                           cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize), #
+                                           MPList, TRUE)[[1]]
+                
+                # get final output from image rep 
+                # if(b==1){ m_b <- m; x_b <- x }
+                # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
+                m <- GetDense_batch_jit(ModelList, ModelList_fixed,
+                                        m,
+                                        x, # x 
+                                        cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), batchSize),
+                                        StateList,
+                                        MPList, TRUE)[[1]]
+                m <- cienv$jax$nn$sigmoid( m )
+                m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+                m <- as.matrix(cienv$np$array(m))
+                
+                ret_list <- list("ProbW" = m[1:realSize_inner,],
+                                 "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
+                                 "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
+                #Results_by_keys[[length(Results_by_keys)+1]] <- ret_list
+                Results_by_keys <- append(Results_by_keys, list(ret_list))
+              }
+              passedIterator <- tmp_updated_iterator # update iterator 
+            }; close(pb) 
+            Results_by_keys_orig <- Results_by_keys
+            Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
+            Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
+            Results_by_keys1 <- Results_by_keys
+            message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
           }
           
-          # get summaries and save
-          usedKeys <- c(usedKeys, key_)
-          obs_with_key <- which(imageKeysOfUnits %in% key_)
-          x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, 
-                                                              yes = list(t(X[obs_with_key,])),
-                                                              no = list(X[obs_with_key,]))[[1]],
-                           dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
-          m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L+cut_), inference = TRUE), # m 
-                                      cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                          StateList, cienv$jax$random$key(900L+cut_), MPList, TRUE)[[1]]
-          # m_one <- m_ImageRep; x_one <- x; ind4_ <- 2
-          # plot(c(cienv$np$array(m_one)),c(cienv$np$array(m_b)[ind4_,]));abline(a=0,b=1)
-          # plot(c(cienv$np$array(x_one)),c(cienv$np$array(x_b)[ind4_,]));abline(a=0,b=1)
-          # plot(c(cienv$np$array(x_one)),X[ind4_,]);abline(a=0,b=1)
-          # plot(c(cienv$np$array(x_b)[ind4_,]),X[ind4_,]);abline(a=0,b=1)
-          # GottenSummaries; Results_by_keys1[ind4_,]; pred_b[ind4_]
-          GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
-            m <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                                m_ImageRep,
-                                cienv$jnp$take(x, ai(r_-1L), axis=0L),
-                                cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                StateList,
-                                MPList, TRUE)[[1]]
-            m <- cienv$jax$nn$sigmoid( m )
-            m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
-            if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
-            return( m )
-          })
-          GottenSummaries <- as.matrix(cienv$np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
-          ret_list <- list("ProbW" = GottenSummaries,
-                           "obsIndex" = as.matrix(obs_with_key),
-                           "key" = as.matrix( rep(key_, length(obs_with_key)) ))
-          passedIterator <- tmp_updated_iterator # update iterator 
-          Results_by_keys[[inference_counter]] <- ret_list
-        }; close(pb) 
-        Results_by_keys <- as.data.frame(apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-        Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
-        message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
-        
-        # sanity checks 
-        plot(Results_by_keys$obsIndex, Results_by_keys1$obsIndex)
-        mean(Results_by_keys$key == imageKeysOfUnits)
-        mean(Results_by_keys1$key == imageKeysOfUnits)
+          # plot(f2n(Results_by_keys$ProbW),f2n(Results_by_keys1$ProbW));abline(a=0,b=1)
+          # plot(f2n(Results_by_keys$ProbW)[1:10],f2n(Results_by_keys1$ProbW)[1:10]);abline(a=0,b=1)
+          # plot(f2n(Results_by_keys$ProbW)[1:10]-f2n(Results_by_keys1$ProbW)[1:10]);abline(h=0)
+          
+          if( !all(Results_by_keys1$key == imageKeysOfUnits) ){
+            stop("Problem in key alignment [code ref 3zf3]")
+          }
+          
+          prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
+          if(any(is.na(prW_est))){
+            warning("NAs in output probabilities...Imputing them with average estimate")
+            prW_est[is.na(prW_est)] <- mean(prW_est, na.rm = T)
+          }
+          
+          # save QOI 
+          if(!crossFit){ 
+            tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/c(prW_est))) - 
+                       sum(obsY*prop.table((1-obsW)/c(1-prW_est) )) 
+            tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
+                          sum(  obsY[i_]*prop.table(obsW[i_]/c(prW_est[i_]))) -
+                            sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } ))
+          }
+          if(crossFit){ 
+            tauHat_propensityHajek_vec[kf_] <- sum(  obsY[testIndices]*prop.table(obsW[testIndices]/c(prW_est[testIndices]))) - 
+                sum(obsY[testIndices]*prop.table((1-obsW[testIndices])/c(1-prW_est[testIndices]) )) 
+          }
         }
-        
-        # plot(f2n(Results_by_keys$ProbW),f2n(Results_by_keys1$ProbW));abline(a=0,b=1)
-        # plot(f2n(Results_by_keys$ProbW)[1:10],f2n(Results_by_keys1$ProbW)[1:10]);abline(a=0,b=1)
-        # plot(f2n(Results_by_keys$ProbW)[1:10]-f2n(Results_by_keys1$ProbW)[1:10]);abline(h=0)
-             
-        if( !all(Results_by_keys1$key == imageKeysOfUnits) ){
-          stop("Problem in key alignment [code ref 3zf3]")
-        }
+      }
       
-        prW_est <-  Results_by_keys$ProbW <-  f2n(  Results_by_keys$ProbW ) 
-        if(any(is.na(prW_est))){
-          warning("NAs in output probabilities...Imputing them with average estimate")
-          prW_est[is.na(prW_est)] <- mean(prW_est, na.rm = T)
-        }
-        
-        # sanity checks
-        # usedKeys  == unique(imageKeysOfUnits)
-        # unlist(Results_by_keys[["key"]]) == unique(imageKeysOfUnits)
-        # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
-        # mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
-        trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
-        testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
-        tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/c(prW_est))) - sum(obsY*prop.table((1-obsW)/c(1-prW_est) ))
-        tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
-                        sum(  obsY[i_]*prop.table(obsW[i_]/c(prW_est[i_]))) -
-                          sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } ))
+      if(crossFit){
+        tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec)
+        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) / sqrt(length(tauHat_propensityHajek_vec))   # XXX
+      }
+      if(!crossFit){
+        tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec,na.rm=T)
+        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec,na.rm=T) 
+      }
     }
+    
+    # define true test indices 
+    trainIndices <- sort(unlist(trainIndices_list))
+    testIndices <- (1:length(obsY))[! ((1:length(obsY)) %in%  trainIndices)] 
 
     # process in and out of sample losses
     prWEst_baseline <- prW_est 
     prWEst_baseline[] <- mean( obsW[trainIndices] )
     
+    # model evaluation metrics 
+    { 
     # cross entropy loss calcs
     binaryCrossLoss <- function(W,prW){ return( - mean( log(prW)*W + log(1-prW)*(1-W) ) ) }
     lossCE_OUT_baseline <- binaryCrossLoss(obsW[testIndices], prWEst_baseline[testIndices])
@@ -944,7 +959,8 @@ AnalyzeImageConfounding <- function(
       "ClassError_in" = lossClassError_IN,
       "ClassError_in_baseline" = lossClassError_IN_baseline
     )
-
+    }
+    
     # reset to original wd which was altered during records initialization
     # do this before plotting to avoid disrupting plot save locations
     if( changed_wd ){ setwd(  orig_wd  ) }
@@ -1269,7 +1285,7 @@ AnalyzeImageConfounding <- function(
     message2("Done with image confounding analysis!" ); try(setwd(orig_wd), T)
     return(    list(
       "tauHat_propensityHajek"  = tauHat_propensityHajek,
-      "tauHat_propensityHajek_se"  = sd(tauHat_propensityHajek_vec,na.rm=T),
+      "tauHat_propensityHajek_se"  = tauHat_propensityHajek_se,
       "tauHat_diffInMeans"  = mean(obsY[which(obsW==1)],na.rm=T) - mean(obsY[which(obsW==0)],na.rm=T),
       "tauHat_diffInMeans_se"  = c(sqrt(se(obsY[which(obsW==1)])^2 + se(obsY[which(obsW==0)])^2)),
       "SalienceX" = SalienceX,
@@ -1286,7 +1302,9 @@ AnalyzeImageConfounding <- function(
       "nTrainableParameters" = nTrainable, # parameters actually trained 
       "nParamsRep" = nParamsRep, # parameters in representation 
       "trainIndices" = trainIndices,
-      "testIndices" = testIndices
+      "testIndices" = testIndices,
+      "trainIndices_list" = trainIndices_list,
+      "testIndices_list" = testIndices_list 
     ) )
   }
 }

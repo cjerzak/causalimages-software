@@ -81,12 +81,15 @@ TrainDo <- function(){
       ds_next_train <- cienv$tf$concat(list(ds_next_train_control[[1]],
                                       ds_next_train_treated[[1]]), 0L)
     }
-    if(any(!batch_indices %in% keysUsedInTraining)){ keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining]) }
+    if(any(!batch_indices %in% keysUsedInTraining)){ 
+      keysUsedInTraining <- c(keysUsedInTraining, batch_keys[!batch_keys %in% keysUsedInTraining])
+    }
     
     # if no treat, define it (unused in GetLoss)
     if(!"obsW" %in% ls()){ obsW <- obsY }
     
     # training step
+    if(!justCheckIterators){ 
     t1 <- Sys.time()
     if(i == 1){
       message2("Initial forward pass...") 
@@ -258,6 +261,7 @@ TrainDo <- function(){
         if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) ),spar=1,cv=TRUE), col="red",type = "l",lwd=5) }
         plot(GradNorm_vec[!is.infinite(GradNorm_vec) & !is.na(GradNorm_vec)], cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number")
       }
+    }
     }
   } # end for(i in i_:nSGD){
   par(mfrow=c(1,1))

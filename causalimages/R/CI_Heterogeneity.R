@@ -832,7 +832,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
         UniqueImageKeysByW <- tapply(imageKeysOfUnits,obsW,function(zer){sort(unique(zer))})
         L2grad_vec <- loss_vec <- rep(NA,times=(nSGD))
         keysUsedInTraining <- tauMeans <- c();
-        justCheckCrossFitter <- F; if(DoTraining <- T){ 
+        justCheckIterators <- F; if(DoTraining <- T){ 
           LocalFxnSource(TrainDo, evaluation_environment = environment())
         }
       }
@@ -841,7 +841,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
       trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
       testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
     
-    if(!justCheckCrossFitter){ 
+    if(!justCheckIterators){ 
       message("Getting predicted quantities...")
       #print("DEBUG MODE IS ON IN GetSummaries()");GetSummaries <- (function(ModelList, ModelList_fixed,
       GetSummaries <- cienv$eq$filter_jit(function(ModelList, ModelList_fixed,
@@ -968,7 +968,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     } # end k fold 
   }
   
-  if(justCheckCrossFitter){
+  if(justCheckIterators){
     return(list("CF_info" = list("TrainIndices_list"=TrainIndices_list, "TestIndices_list"=TestIndices_list)))
   }
   

@@ -465,6 +465,7 @@ PredictiveRun <- function(
   LocalFxnSource(TrainDefine, evaluation_environment = environment())
   
   message2("Starting training...")
+  justCheckIterators <- FALSE
   LocalFxnSource(TrainDo, evaluation_environment = environment())
   
   message2("Getting predicted quantities...")
