@@ -16,6 +16,8 @@ AnalyzeImageConfounding(
   inputAvePoolingSize = 1L,
   useTrainingPertubations = T,
   useScalePertubations = F,
+  crossFit = FALSE,
+  augmented = FALSE,
   orthogonalize = F,
   transportabilityMat = NULL,
   latTransport = NULL,
