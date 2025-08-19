@@ -755,17 +755,20 @@ AnalyzeImageConfounding <- function(
           
           # Get predicted quantities 
           {    
-            t0_inference <- Sys.time()
+            t0_inference <- Sys.time();gc()
             inf_counter <- 0
             nUniqueKeys <- length( unique(imageKeysOfUnits) )
             KeyQuantCuts <- 1L:nUniqueKeys
             batchSize <- ai(2L*batchSize) # double the batch size for inference 
-            batchStarts       <- seq(1L, nUniqueKeys, by = batchSize)
+            batchStarts <- seq(1L, nUniqueKeys, by = batchSize)
             passedIterator <- NULL; Results_by_keys <- list()
             ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
             pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
             usedKeys <- c(); for (b in seq_along(batchStarts)) {
               idx_start <- batchStarts[b]
+              # 2.390  mins to 10k, 2*batchSize
+              if( idx_start>1000  & !"tk1000" %in% ls()){ tk1000 <- TRUE;message2(sprintf("Time to >1000 inference fits: [%.3f mins]",difftime(Sys.time(),t0_inference,units="min") )) }
+              if( idx_start>10000  & !"tk10000" %in% ls()){ tk10000 <- TRUE;message2(sprintf("Time to >10000 inference fits: [%.3f mins]",difftime(Sys.time(),t0_inference,units="min") )) }
               idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
               m_indices1 <- idx_start:idx_end  
               
@@ -778,7 +781,7 @@ AnalyzeImageConfounding <- function(
                 readVideo = useVideoIndicator,
                 image_dtype = image_dtype_tf,
                 nObs = length(unique(imageKeysOfUnits)),
-                return_iterator = T ),T); setwd(new_wd)
+                return_iterator = TRUE ),T); setwd(new_wd)
               tmp_updated_iterator <- ds_next_in[[2]]
               outerBatchKeys <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
               ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
@@ -815,25 +818,32 @@ AnalyzeImageConfounding <- function(
                 
                 # Pad last batch to 'batchSize' by repeating the final key index
                 in_xbatch_indices <- c(in_xbatch_indices,
-                                       rep(in_xbatch_indices[realSize_inner], batchSize - realSize_inner))
+                                       rep(in_xbatch_indices[realSize_inner],
+                                           batchSize - realSize_inner))
                 m_indices <- match(names(x_indices), outerBatchKeys)
                 
                 # get image rep 
                 if(all(m_indices %in% 1:length(m_indices))){ 
-                  m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+                  m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), 
+                                          inference = TRUE)
                 }
                 if(!all(m_indices %in% 1:length(m_indices))){ 
                   m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
-                                                         cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+                                                         cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), 
+                                          inference = TRUE)
                 }
                 x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
                 if(batchSize != realSize_inner){
-                  m <- cienv$jnp$take(m,cienv$jnp$array(in_xbatch_indices-0L),axis=0L)
+                  m <- cienv$jnp$take(m,
+                                      cienv$jnp$array(in_xbatch_indices-1L),
+                                      axis=0L)
                 }
                 if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
-                m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                           m, # m 
-                                           x, # x
+                m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, 
+                                                  yes = list(ModelList), 
+                                                  no = list(ModelList_fixed) )[[1]],
+                                           m, 
+                                           x, 
                                            StateList,
                                            cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize), #
                                            MPList, TRUE)[[1]]
@@ -843,8 +853,9 @@ AnalyzeImageConfounding <- function(
                 # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
                 m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                                         m,
-                                        x, # x 
-                                        cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), batchSize),
+                                        x, 
+                                        cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), 
+                                                               batchSize),
                                         StateList,
                                         MPList, TRUE)[[1]]
                 m <- cienv$jax$nn$sigmoid( m )
@@ -854,7 +865,6 @@ AnalyzeImageConfounding <- function(
                 ret_list <- list("ProbW" = m[1:realSize_inner,],
                                  "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
                                  "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
-                #Results_by_keys[[length(Results_by_keys)+1]] <- ret_list
                 Results_by_keys <- append(Results_by_keys, list(ret_list))
               }
               passedIterator <- tmp_updated_iterator # update iterator 
@@ -863,7 +873,7 @@ AnalyzeImageConfounding <- function(
             Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
             Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
             Results_by_keys1 <- Results_by_keys
-            message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
+            message2(sprintf("Inference time: %.3f min", difftime(Sys.time(), t0_inference,units="min")))
           }
           
           # plot(f2n(Results_by_keys$ProbW),f2n(Results_by_keys1$ProbW));abline(a=0,b=1)
@@ -887,6 +897,8 @@ AnalyzeImageConfounding <- function(
             tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
                           sum(  obsY[i_]*prop.table(obsW[i_]/c(prW_est[i_]))) -
                             sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } ))
+            tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec,na.rm=T)
+            tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec,na.rm=T) 
           }
           if(crossFit){ 
             tauHat_propensityHajek_vec[kf_] <- sum(  obsY[testIndices]*prop.table(obsW[testIndices]/c(prW_est[testIndices]))) - 
@@ -898,10 +910,6 @@ AnalyzeImageConfounding <- function(
       if(crossFit){
         tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec)
         tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) / sqrt(length(tauHat_propensityHajek_vec))   # XXX
-      }
-      if(!crossFit){
-        tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec,na.rm=T)
-        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec,na.rm=T) 
       }
     }
     
