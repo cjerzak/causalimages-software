@@ -835,7 +835,7 @@ AnalyzeImageConfounding <- function(
                 x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
                 if(batchSize != realSize_inner){
                   m <- cienv$jnp$take(m,
-                                      cienv$jnp$array(in_xbatch_indices-1L),
+                                      cienv$jnp$array(in_xbatch_indices - 1L),
                                       axis=0L)
                 }
                 if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}

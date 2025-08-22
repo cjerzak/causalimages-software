@@ -25,6 +25,10 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto"){
                            conda = conda, 
                            pip = TRUE,
                            envname = conda_env)
+  
+  # from terminal: 
+  # uv pip install --upgrade uv tensorflow optax jax torch transformers pillow tf-keras equinox jmp
+  # pip install --upgrade "jax[cuda12]" # if on NVIDIA hardware 
   if(Sys.info()["sysname"] == "Linux"){
     # pip install --upgrade jax jaxlib==0.1.69+cuda111 -f https://storage.googleapis.com/jax-releases/jax_releases.html
     try_ <- try(system(sprintf("'%s' -m pip install --upgrade --no-user %s",
