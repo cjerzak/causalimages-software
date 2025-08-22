@@ -643,16 +643,21 @@ GetImageRepresentations <- function(
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(cienv$jnp$transpose(m, c(2L, 0L, 1L)))
           m <- cienv$jnp$transpose(cienv$jnp$reshape(m, list(m$shape[[1]],-1L)))
           
+          # incorporate X
           if (!is.null(X) & XCrossModal & !XForceModal) {
+            x_proj <- ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+            x_proj <- dropout_layer_init(dropoutRate)(x_proj, key = seed, inference = inference)
             m <- cienv$jnp$concatenate(
                     list(m,   
-                         ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+                         x_proj
                          ),0L)
           }
           if (!is.null(X) & XForceModal) {
+             x_proj <- ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+             x_proj <- dropout_layer_init(dropoutRate)(x_proj, key = seed, inference = inference)
              m <- cienv$jnp$concatenate(
-                    list(ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L)),
-                         ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
+                    list( x_proj,
+                          cienv$jnp$zeros_like(x_proj)
                     ),0L)
           }
           message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
