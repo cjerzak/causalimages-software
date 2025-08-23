@@ -275,7 +275,7 @@ TrainDo <- function(){
           
           if(curr_avg >= prev_avg - earlyStopThreshold & 
              curr_avg < 0.9*first_avg){
-            message2("Early stopping triggered.")
+            message2("Early stopping triggered - No more meaningful improvement.")
             break
           }
       } }
