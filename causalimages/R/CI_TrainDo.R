@@ -261,6 +261,24 @@ TrainDo <- function(){
         if(length(na.omit(loss_vec)) > 10){ points(smooth.spline( (na.omit(loss_vec) ),spar=1,cv=TRUE), col="red",type = "l",lwd=5) }
         plot(GradNorm_vec[!is.infinite(GradNorm_vec) & !is.na(GradNorm_vec)], cex.main = 0.95,ylab = "GradNorm",xlab="SGD Iteration Number")
       }
+      
+      # Early stopping 
+      if( !is.null(earlyStopThreshold) ){ 
+        if( i > 50 ){
+          first_avg <- mean(loss_vec[1:10], na.rm = TRUE)
+          prev_avg <- mean(loss_vec[(i-49):(i-25)], na.rm = TRUE)
+          curr_avg <- mean(loss_vec[(i-24):i], na.rm = TRUE)
+          
+          se_diff <- sqrt(var(loss_vec[(i-49):(i-25)], na.rm=TRUE)/25 +
+                              var(loss_vec[(i-24):i], na.rm=TRUE)/25)
+          earlyStopThreshold <- max(1e-5, 1.65 * se_diff)  # ~5% one-sided
+          
+          if(curr_avg >= prev_avg - earlyStopThreshold & 
+             curr_avg < 0.9*first_avg){
+            message2("Early stopping triggered.")
+            break
+          }
+      } }
     }
     }
   } # end for(i in i_:nSGD){

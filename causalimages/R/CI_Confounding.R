@@ -96,6 +96,7 @@ AnalyzeImageConfounding <- function(
                                    droppathRate = 0.1,
                                    batchSize = 16L,
                                    nSGD  = 400L,
+                                   earlyStopThreshold = NULL,
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
                                    learningRateMax = 0.001,
