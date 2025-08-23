@@ -267,18 +267,18 @@ TrainDo <- function(){
       if( !is.null(earlyStopThreshold) ){ 
         window <- 25
         if("patience_counter" %in% ls()){ patience_counter <- 0 }
-        if( i > 2*window & i > 75 ){
+        if( i > 2*window & i > 100 ){
           first_avg <- mean(loss_vec[1:10], na.rm = TRUE)
           prev_avg <- mean(loss_vec[(i-2*window):(i-window-1)], na.rm = TRUE)
           curr_avg <- mean(loss_vec[(i-window):i], na.rm = TRUE)
           
           se_diff <- sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window +
                              var(loss_vec[(i-window):i], na.rm=TRUE)/window )
-          earlyStopThreshold <- 1.96 * se_diff
           prev_avg_upper <- curr_avg + 1.96*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
-          curr_avg_lower <- curr_avg - 1.96*sqrt( var(loss_vec[(i-window):i], na.rm=TRUE)/window )
+          curr_avg_lower <- prev_avg - 1.96*sqrt( var(loss_vec[(i-window):i], na.rm=TRUE)/window )
           
-          if(curr_avg_lower >= prev_avg_upper - earlyStopThreshold & curr_avg < 0.8*first_avg){
+          if( curr_avg >= prev_avg - 1.96*se_diff & curr_avg < 0.8*first_avg ){
+            # if we fail to detect evidence of improvement, stop, with patience 
             patience_counter <- patience_counter + 1
             if(patience_counter >= (patience_limit <- 10)){
               message2("Early stopping triggered - No more meaningful improvement.")
