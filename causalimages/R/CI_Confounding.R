@@ -706,7 +706,7 @@ AnalyzeImageConfounding <- function(
           # mean(unlist(Results_by_keys[["key"]]) %in% imageKeysOfUnits)
           # mean(imageKeysOfUnits %in% unlist(  Results_by_keys[["key"]] ))
           trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
-          testIndices_list[kf_] <- testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
+          testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
           trainIndices_list[kf_] <- list(trainIndices)
           testIndices_list[kf_] <- list(testIndices)
           if(FALSE){ 
