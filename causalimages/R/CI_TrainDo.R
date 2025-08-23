@@ -266,7 +266,7 @@ TrainDo <- function(){
       
       if( !is.null(earlyStopThreshold) ){ 
         window <- 25
-        if("patience_counter" %in% ls()){ patience_counter <- 0 }
+        if(!"patience_counter" %in% ls()){ patience_counter <- 0 }
         if( i > 2*window & i > 100 ){
           first_avg <- mean(loss_vec[1:10], na.rm = TRUE)
           prev_avg <- mean(loss_vec[(i-2*window):(i-window-1)], na.rm = TRUE)
