@@ -263,22 +263,32 @@ TrainDo <- function(){
       }
       
       # Early stopping 
+      
       if( !is.null(earlyStopThreshold) ){ 
-        if( i > 50 ){
+        window <- 25
+        if("patience_counter" %in% ls()){ patience_counter <- 0 }
+        if( i > 2*window & i > 75 ){
           first_avg <- mean(loss_vec[1:10], na.rm = TRUE)
-          prev_avg <- mean(loss_vec[(i-49):(i-25)], na.rm = TRUE)
-          curr_avg <- mean(loss_vec[(i-24):i], na.rm = TRUE)
+          prev_avg <- mean(loss_vec[(i-2*window):(i-window-1)], na.rm = TRUE)
+          curr_avg <- mean(loss_vec[(i-window):i], na.rm = TRUE)
           
-          se_diff <- sqrt(var(loss_vec[(i-49):(i-25)], na.rm=TRUE)/25 +
-                              var(loss_vec[(i-24):i], na.rm=TRUE)/25)
-          earlyStopThreshold <- max(1e-5, 1.65 * se_diff)  # ~5% one-sided
+          se_diff <- sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window +
+                             var(loss_vec[(i-window):i], na.rm=TRUE)/window )
+          earlyStopThreshold <- 1.96 * se_diff
+          prev_avg_upper <- curr_avg + 1.96*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
+          curr_avg_lower <- curr_avg - 1.96*sqrt( var(loss_vec[(i-window):i], na.rm=TRUE)/window )
           
-          if(curr_avg >= prev_avg - earlyStopThreshold & 
-             curr_avg < 0.9*first_avg){
-            message2("Early stopping triggered - No more meaningful improvement.")
-            break
+          if(curr_avg_lower >= prev_avg_upper - earlyStopThreshold & curr_avg < 0.8*first_avg){
+            patience_counter <- patience_counter + 1
+            if(patience_counter >= (patience_limit <- 10)){
+              message2("Early stopping triggered - No more meaningful improvement.")
+              break
+            }
+          } else {
+            patience_counter <- 0  # reset when improvement detected
           }
-      } }
+        } 
+      }
     }
     }
   } # end for(i in i_:nSGD){
