@@ -275,7 +275,7 @@ TrainDo <- function(){
           
           se_diff <- sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window +
                              var(loss_vec[(i-window):i], na.rm=TRUE)/window )
-          prev_avg_upper <- curr_avg + (t_es<-2.58)*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
+          prev_avg_upper <- curr_avg + (t_es<-1.96)*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
           curr_avg_lower <- prev_avg - t_es*sqrt( var(loss_vec[(i-window):i], na.rm=TRUE)/window )
           
           if( curr_avg >= prev_avg - t_es*se_diff & curr_avg < 0.8*first_avg ){

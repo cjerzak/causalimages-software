@@ -983,7 +983,7 @@ AnalyzeImageConfounding <- function(
     if( changed_wd ){ setwd(  orig_wd  ) }
 
     # do some analysis with examples
-    processedDims <- NULL; if( plotResults ){
+    processedDims <- NULL; {
       message2("Plotting image confounding results...")
       indices_t <- (1:length(obsW))[which(obsW==1)]
       indices_c <- (1:length(obsW))[which(obsW==0)]
@@ -1041,6 +1041,7 @@ AnalyzeImageConfounding <- function(
       MPList <- list(cienv$jmp$Policy(compute_dtype="float32", param_dtype="float32", output_dtype="float32"),
                       cienv$jmp$DynamicLossScale(cienv$jnp$array(2^15), 
                                            period = 20L))
+      if(plotResults){ 
       makePlots <- function(){
         salience_try <- try({
         message2("Plotting salience maps...")
@@ -1242,6 +1243,7 @@ AnalyzeImageConfounding <- function(
       tryMakePlots_ <- try(makePlots(),TRUE)
       if("try-error" %in% class(tryMakePlots_)){
         warning("Tried but failed to make salience maps...")
+      }
       }
     }
 
