@@ -917,6 +917,14 @@ AnalyzeImageConfounding <- function(
     # define true test indices 
     trainIndices <- sort(unlist(trainIndices_list))
     testIndices <- (1:length(obsY))[! ((1:length(obsY)) %in%  trainIndices)] 
+    
+    if(!is.null(TFRecordControl) & TRUE){
+      testIndices_byClass <- tapply(testIndices, obsW[testIndices],c)
+      minPerClass <- min(unlist(lapply(testIndices_byClass,length)))
+      testIndices <- c(sample(testIndices_byClass[[1]],minPerClass),
+                       sample(testIndices_byClass[[2]],minPerClass))
+      table(obsW[testIndices])
+    }
 
     # process in and out of sample losses
     prWEst_baseline <- prW_est 
