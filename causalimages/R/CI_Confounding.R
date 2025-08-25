@@ -1251,7 +1251,10 @@ AnalyzeImageConfounding <- function(
     SalienceX_se <- SalienceX <- NULL; if(!XisNull){
     if( optimizeImageRep ){
         SalienceX <- c(); samp_counter <- 0
-        for(keyNum_ in sample(1:length(unique(imageKeysOfUnits)), 25, replace = T)){
+        SalienceX_SampledKeysIndex <- sample(1:length(unique(imageKeysOfUnits)), 25, replace = T)
+        # loop approach
+        if(FALSE){ 
+        for(keyNum_ in SalienceX_SampledKeysIndex){
           samp_counter <- samp_counter + 1
           if(samp_counter %% 5 == 0){  message2(sprintf("Tabular salience iteration %s of %s", samp_counter, 25)) }
           sampIndex_ <- which(imageKeysOfUnits %in% unique(imageKeysOfUnits)[keyNum_])[1]
@@ -1275,6 +1278,47 @@ AnalyzeImageConfounding <- function(
                         StateList, MPList ) )
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }
+        }
+        
+        # vectorized approach
+        if(TRUE){
+          # Fetch all unique sampled data in one batched call
+          setwd(orig_wd)
+          unique_indices <- which(
+                   unique(imageKeysOfUnits) %in% 
+                     (unique_sampled_keys <- unique(imageKeysOfUnits)[SalienceX_SampledKeysIndex])
+                  )
+          ds_next_in <- GetElementFromTfRecordAtIndices(
+            uniqueKeyIndices = unique_indices,
+            filename = file,
+            readVideo = useVideoIndicator,
+            nObs = length(unique(imageKeysOfUnits)),
+            return_iterator = FALSE  # Assuming it supports batch return
+          )
+          setwd(new_wd)
+          
+          # Process batched data
+          ims_ <- InitImageProcessFn(cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$key(432L), T)
+          xs_ <- cienv$jnp$array(X[match(unique(imageKeysOfUnits)[SalienceX_SampledKeysIndex], imageKeysOfUnits), ], 
+                                 dtype = cienv$jnp$float16)
+          
+          # Vectorize gradient computation with vmap
+          vmap_dLogProb_dX <- cienv$jax$vmap(dLogProb_dX, in_axes = list(NULL, NULL,
+                                                                   0L, 0L, 0L, NULL, NULL))
+          SalienceX_contribs <- cienv$np$array(vmap_dLogProb_dX(
+            ModelList, ModelList_fixed,
+            cienv$jmp$cast_to_full(cienv$jnp$expand_dims(ims_, 1L)),
+            cienv$jmp$cast_to_full(cienv$jnp$expand_dims(xs_, 1L)),
+            cienv$jax$random$split(cienv$jax$random$key(500L), c(length(unique_sampled_keys),1L)),
+            #cienv$jnp$expand_dims(cienv$jax$random$split(cienv$jax$random$key(500L), length(unique_sampled_keys)),1L),
+            StateList, MPList
+          ))
+          
+          #plot(colMeans(SalienceX),colMeans(SalienceX_contribs[,1,] )  );abline(a=0,b=1)
+          #SalienceX <- colMeans(SalienceX_contribs[,1,] ) * X_sd # rescale 
+          SalienceX <- SalienceX_contribs[,1,] 
+        }
+        
         SalienceX <- colMeans( SalienceX ); names( SalienceX ) <- colnames(X)
     }
     if( !optimizeImageRep ){
