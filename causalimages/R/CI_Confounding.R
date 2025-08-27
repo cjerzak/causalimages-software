@@ -378,7 +378,7 @@ AnalyzeImageConfounding <- function(
                             cienv$jnp$matmul(x_m, 
                                              ModelList$myGlmnet_coefs_tf ) 
                             )
-            my_probs <- cienv$jnp$clip( my_probs, 1e-4, 1 - 1e-4)
+            my_probs <- cienv$jnp$clip( my_probs, 1e-3, 1 - 1e-3)
             return( list(my_probs, StateList) )
           }
           ModelList <- list("myGlmnet_coefs_tf" = cienv$jnp$array(myGlmnet_coefs, dtype = cienv$jnp$float32))
@@ -647,7 +647,7 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]]; m <- m[[1]]
           
           # sigmoid 
-          m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
+          m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
           
           # return contents
           return( list(m, StateList) )
@@ -757,7 +757,7 @@ AnalyzeImageConfounding <- function(
             StateList <- m[[2]] ; m <- m[[1]]
             
             # sigmoid 
-            m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
+            m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
             
             return( m )
           })
@@ -867,7 +867,7 @@ AnalyzeImageConfounding <- function(
                                                                batchSize),
                                         StateList,
                                         MPList, TRUE)[[1]]
-                m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
+                m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
                 m <- as.matrix(cienv$np$array(m))
                 
                 ret_list <- list("ProbW" = m[1:realSize_inner,],
@@ -958,11 +958,11 @@ AnalyzeImageConfounding <- function(
                                                      sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
     
     # AOC calculations
-    roc_obj_IN <- pROC::auc(pROC::roc(obsW[trainIndices], 
-                                      prW_est[trainIndices],
+    roc_obj_IN <- pROC::auc(pROC::roc(response = obsW[trainIndices], 
+                                      predictor = prW_est[trainIndices],
                                       levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
-    roc_obj_OUT <- pROC::auc(pROC::roc(obsW[testIndices], 
-                                       prW_est[testIndices], 
+    roc_obj_OUT <- pROC::auc(pROC::roc(response = obsW[testIndices], 
+                                       predictor = prW_est[testIndices], 
                                        levels = c(0, 1),
                                        direction = "<") ) # Assuming 1 is positive class
     
