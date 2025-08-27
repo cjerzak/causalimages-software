@@ -906,9 +906,10 @@ AnalyzeImageConfounding <- function(
           if(!crossFit){ 
             tauHat_propensityHajek <- sum(  obsY*prop.table(obsW/c(prW_est))) - 
                        sum(obsY*prop.table((1-obsW)/c(1-prW_est) )) 
-            tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { i_ <- sample(1:length(obsW),length(obsW), T)
+            tauHat_propensityHajek_vec <- unlist(replicate(nBoot, { 
+                      i_ <- sample(1:length(obsW),length(obsW), T)
                           sum(  obsY[i_]*prop.table(obsW[i_]/c(prW_est[i_]))) -
-                            sum(obsY[i_]*prop.table((1-obsW)[i_]/(1-prW_est)[i_] )) } ))
+                            sum(obsY[i_]*prop.table((1-obsW[i_]) / (1-prW_est[i_]) )) } ))
             tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec,na.rm=T)
             tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec,na.rm=T) 
           }
@@ -1326,7 +1327,6 @@ AnalyzeImageConfounding <- function(
           ))
           
           #plot(colMeans(SalienceX),colMeans(SalienceX_contribs[,1,] )  );abline(a=0,b=1)
-          #SalienceX <- colMeans(SalienceX_contribs[,1,] ) * X_sd # rescale 
           SalienceX <- SalienceX_contribs[,1,] 
         }
         
@@ -1334,12 +1334,13 @@ AnalyzeImageConfounding <- function(
     }
     if( !optimizeImageRep ){
         SalienceX <- myGlmnet_coefs[-1][1:ncol(X)] # drop intercept, then extract variables of interest
-        SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)] * X_sd 
+        SalienceX_se <- apply(myGlmnet_coefs_mat, 2, sd)[-1][1:ncol(X)] / X_sd 
+        SalienceX_se[] <- NA
         if(!is.null(SalienceX)){ names(SalienceX_se) <- colnames(X) }
     } 
       
-    # rescale the salience map into original scale: Don't add back X_mean
-    SalienceX <- SalienceX*X_sd
+    # rescale the salience map into original scale (division required by chain rule)
+    SalienceX <- SalienceX / X_sd
     }
 
     postDiffInLat <- preDiffInLat <- NULL
