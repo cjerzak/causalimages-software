@@ -374,8 +374,11 @@ AnalyzeImageConfounding <- function(
             if(XisNull){
               x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
-            my_probs <- cienv$jax$nn$sigmoid(  cienv$jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) )
-            #my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
+            my_probs <- cienv$jax$nn$sigmoid(  
+                            cienv$jnp$matmul(x_m, 
+                                             ModelList$myGlmnet_coefs_tf ) 
+                            )
+            my_probs <- cienv$jnp$clip( my_probs, 1e-4, 1 - 1e-4)
             return( list(my_probs, StateList) )
           }
           ModelList <- list("myGlmnet_coefs_tf" = cienv$jnp$array(myGlmnet_coefs, dtype = cienv$jnp$float32))
@@ -644,10 +647,7 @@ AnalyzeImageConfounding <- function(
           StateList <- m[[2]]; m <- m[[1]]
           
           # sigmoid 
-          m <- cienv$jax$nn$sigmoid( m )
-          
-          # prediction smoothing to prevent NAs via log(0)
-          #m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+          m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
           
           # return contents
           return( list(m, StateList) )
@@ -757,10 +757,7 @@ AnalyzeImageConfounding <- function(
             StateList <- m[[2]] ; m <- m[[1]]
             
             # sigmoid 
-            m <- cienv$jax$nn$sigmoid( m )
-            
-            # label smoothing to prevent NAs via log(0)
-            # m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+            m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
             
             return( m )
           })
@@ -870,8 +867,7 @@ AnalyzeImageConfounding <- function(
                                                                batchSize),
                                         StateList,
                                         MPList, TRUE)[[1]]
-                m <- cienv$jax$nn$sigmoid( m )
-                #m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+                m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-4, 1 - 1e-4)
                 m <- as.matrix(cienv$np$array(m))
                 
                 ret_list <- list("ProbW" = m[1:realSize_inner,],
@@ -962,8 +958,13 @@ AnalyzeImageConfounding <- function(
                                                      sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
     
     # AOC calculations
-    roc_obj_IN <- pROC::auc(pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
-    roc_obj_OUT <- pROC::auc(pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<") ) # Assuming 1 is positive class
+    roc_obj_IN <- pROC::auc(pROC::roc(obsW[trainIndices], 
+                                      prW_est[trainIndices],
+                                      levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
+    roc_obj_OUT <- pROC::auc(pROC::roc(obsW[testIndices], 
+                                       prW_est[testIndices], 
+                                       levels = c(0, 1),
+                                       direction = "<") ) # Assuming 1 is positive class
     
     # AUPRC calculations 
     auprc_OUT <- PRROC::pr.curve(scores.class0 = prW_est[testIndices][obsW[testIndices] == 1],
