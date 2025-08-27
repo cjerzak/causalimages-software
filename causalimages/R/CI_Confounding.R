@@ -137,7 +137,7 @@ AnalyzeImageConfounding <- function(
                            kernelSize, inputAvePoolingSize,
                            optimizeImageRep, figuresTag)
   tagInFigures <- !is.null(figuresTag)
-  figuresTag < ifelse(is.null(figuresTag), yes = "", no = figuresTag)
+  figuresTag <- ifelse(is.null(figuresTag), yes = "", no = figuresTag)
 
   # make all directory logic explicit
   ImageRepresentations_df_transport <- ImageRepresentations_df <- myGlmnet_coefs <- loss_vec <- NULL
