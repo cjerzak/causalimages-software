@@ -364,19 +364,16 @@ AnalyzeImageConfounding <- function(
             ImageReps <- ImageRepArm_batch_R(ModelList_fixed, m, x,
                                              StateList, seed, MPList, inference)
             if(!XisNull){
-              if(XCrossModal & optimizeImageRep){ 
-                x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
-              }
-              if(!XCrossModal | !optimizeImageRep){ 
-                x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), x, ImageReps[[1]] ), 1L)
-              }
+                x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), 
+                                                   x, 
+                                                   ImageReps[[1]] ), 1L)
             }
             if(XisNull){
-              x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
+              x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), 
+                                                 ImageReps[[1]] ), 1L)
             }
             my_probs <- cienv$jax$nn$sigmoid(  
-                            cienv$jnp$matmul(x_m, 
-                                             ModelList$myGlmnet_coefs_tf ) 
+                            cienv$jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) 
                             )
             my_probs <- cienv$jnp$clip( my_probs, 1e-3, 1 - 1e-3)
             return( list(my_probs, StateList) )
@@ -581,10 +578,10 @@ AnalyzeImageConfounding <- function(
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
         for(d_ in 1L:nDepth_Dense){
           DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
-                                                                         yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
-                                                                         no =  nWidth_Dense),
+                                                          yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
+                                                          no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
-                                                                     yes = 1L,  no = nWidth_Dense),
+                                                      yes = 1L,  no = nWidth_Dense),
                                       use_bias = T, key = cienv$jax$random$key(d_ + 44L + as.integer(seed)))
           #LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name, momentum = 0.99, eps = 0.001, channelwise_affine = F)
           LayerBN_d <- cienv$jnp$array(1)
@@ -721,6 +718,7 @@ AnalyzeImageConfounding <- function(
           trainIndices_list[kf_] <- list(trainIndices)
           testIndices_list[kf_] <- list(testIndices)
           if(FALSE){ 
+            # sanity checks 
             # note: there will be some overlap in test due to TRUE test indices 
             length(unique(unlist(trainIndices_list)))
             length(unique(unlist(testIndices_list)))
@@ -734,10 +732,6 @@ AnalyzeImageConfounding <- function(
             table(obsW[ testIndices_list[[1]] %in% testIndices_list[[3]] ])
             table(obsW[ !testIndices_list[[1]] %in% testIndices_list[[3]] ])
             
-            obsW[testIndices_list[[2]]]
-            print(testIndices)
-            obsW[trainIndices_list[[1]]]
-            trainIndices_list[[1]]
             mean(testIndices_list[[1]] %in% testIndices_list[[2]])
             mean(testIndices_list[[2]] %in% testIndices_list[[3]])
             mean(testIndices_list[[1]] %in% testIndices_list[[3]])
@@ -748,19 +742,19 @@ AnalyzeImageConfounding <- function(
         # inference on all observations
         if(!justCheckIterators){
           message2("Getting predicted quantities...")
-          GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                                                            m, x, seed,
-                                                            StateList, MPList){
+          #GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
+          #                                                  m, x, seed,
+          #                                                  StateList, MPList){
             # image representation model
-            m <- ImageRepArm_batch_R(ModelList, m, x, 
-                                     StateList, seed, MPList, T)
-            StateList <- m[[2]] ; m <- m[[1]]
+          #  m <- ImageRepArm_batch_R(ModelList, m, x, 
+          #                           StateList, seed, MPList, T)
+          #  StateList <- m[[2]] ; m <- m[[1]]
             
-            # sigmoid 
-            m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
+          # sigmoid 
+          #  m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
             
-            return( m )
-          })
+          #  return( m )
+          #})
           
           # Get predicted quantities 
           {    
