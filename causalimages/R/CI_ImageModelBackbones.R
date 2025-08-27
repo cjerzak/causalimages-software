@@ -654,9 +654,9 @@ GetImageRepresentations <- function(
           if (!is.null(X) & XForceModal) {
              x_proj <- ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
              x_proj <- dropout_layer_init(dropoutRate)(x_proj, key = seed, inference = inference)
+             browser()
              m <- cienv$jnp$concatenate(
-                    list( x_proj, 
-                          cienv$jnp$zeros_like(x_proj)),0L)
+               list( x_proj, cienv$jnp$zeros_like(x_proj)),0L)
           }
           message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }

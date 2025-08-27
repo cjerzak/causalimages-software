@@ -431,7 +431,8 @@ PredictiveRun <- function(
     # compute loss
     m <- MPList[[1]]$cast_to_output( m )
     if(is_binary){
-      NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  y*cienv$jnp$log(m) +  (1-y)*cienv$jnp$log(1-m) )  ) 
+      NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  y*cienv$jnp$log(m) + 
+                                                       (1-y)*cienv$jnp$log(1-m) )  ) 
     }
     if(!is_binary){
       NegLL <-  cienv$jnp$mean( cienv$jnp$square(m - y) ) 

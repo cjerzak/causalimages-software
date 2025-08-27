@@ -375,7 +375,7 @@ AnalyzeImageConfounding <- function(
               x_m <- cienv$jnp$concatenate(list( cienv$jnp$ones(list(m$shape[[1]],1L)), ImageReps[[1]] ), 1L)
             }
             my_probs <- cienv$jax$nn$sigmoid(  cienv$jnp$matmul(x_m, ModelList$myGlmnet_coefs_tf ) )
-            my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
+            #my_probs <- (1. - EP_LSMOOTH) * my_probs + EP_LSMOOTH/2.
             return( list(my_probs, StateList) )
           }
           ModelList <- list("myGlmnet_coefs_tf" = cienv$jnp$array(myGlmnet_coefs, dtype = cienv$jnp$float32))
@@ -643,9 +643,12 @@ AnalyzeImageConfounding <- function(
           m <- GetDense_batch(ModelList, ModelList_fixed, m, x, seed, StateList, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
           
-          # sigmoid & label smoothing to prevent NAs via log(0)
-          m <- (1. - EP_LSMOOTH) * cienv$jax$nn$sigmoid( m ) + EP_LSMOOTH/2.
-
+          # sigmoid 
+          m <- cienv$jax$nn$sigmoid( m )
+          
+          # prediction smoothing to prevent NAs via log(0)
+          #m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+          
           # return contents
           return( list(m, StateList) )
         }
@@ -664,7 +667,15 @@ AnalyzeImageConfounding <- function(
 
           # compute negative log-likelihood loss
           m <- MPList[[1]]$cast_to_output( m )
-          NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  treat*cienv$jnp$log(m) +  (1-treat)*cienv$jnp$log(1-m) )  ) 
+          # NegLL <-  cienv$jnp$mean( cienv$jnp$negative(  treat*cienv$jnp$log(m) + (1-treat)*cienv$jnp$log(1-m) )  ) 
+          # compute smoothed negative log-likelihood
+          treat_smooth <- (1 - EP_LSMOOTH) * treat + EP_LSMOOTH / 2.
+          NegLL <- cienv$jnp$mean(
+            cienv$jnp$negative(
+              treat_smooth * cienv$jnp$log(m) + 
+                (1 - treat_smooth) * cienv$jnp$log(1 - m)
+            )
+          )
 
           message2("Returning loss + state...")
           if(image_dtype_char == "float16"){ 
@@ -749,7 +760,7 @@ AnalyzeImageConfounding <- function(
             m <- cienv$jax$nn$sigmoid( m )
             
             # label smoothing to prevent NAs via log(0)
-            m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+            # m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
             
             return( m )
           })
@@ -860,7 +871,7 @@ AnalyzeImageConfounding <- function(
                                         StateList,
                                         MPList, TRUE)[[1]]
                 m <- cienv$jax$nn$sigmoid( m )
-                m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
+                #m <- (1. - EP_LSMOOTH) * m + EP_LSMOOTH/2.
                 m <- as.matrix(cienv$np$array(m))
                 
                 ret_list <- list("ProbW" = m[1:realSize_inner,],
