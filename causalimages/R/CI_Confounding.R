@@ -912,13 +912,15 @@ AnalyzeImageConfounding <- function(
       
       if(crossFit){
         tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec)
-        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) / sqrt(length(tauHat_propensityHajek_vec))   # XXX
+        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) / 
+                                      sqrt(length(tauHat_propensityHajek_vec))  
       }
+      
+      # define true test indices 
+      trainIndices <- sort(unlist(trainIndices_list))
+      testIndices <- (1:length(obsY))[! ((1:length(obsY)) %in%  trainIndices)] 
     }
     
-    # define true test indices 
-    trainIndices <- sort(unlist(trainIndices_list))
-    testIndices <- (1:length(obsY))[! ((1:length(obsY)) %in%  trainIndices)] 
     
     if(!is.null(TFRecordControl) & TRUE){
       testIndices_byClass <- tapply(testIndices, obsW[testIndices],c)
