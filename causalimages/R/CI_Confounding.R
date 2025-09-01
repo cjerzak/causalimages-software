@@ -467,7 +467,7 @@ AnalyzeImageConfounding <- function(
       tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
       trainIndices_list <- testIndices_list <- list() 
       for( kf_ in 1:kFolds ){
-      gc(); XXX12344321
+      gc();cienv$py_gc$collect()
       message2(sprintf("k fold %s of %s",kf_,kFolds))
       
       # set up cross fitted iterators 
@@ -608,9 +608,7 @@ AnalyzeImageConfounding <- function(
 
             # BN + non-linearity
             if(d__ < nDepth_Dense){
-              m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)
-              eval(parse(text = sprintf("StateList$DenseList$Dense%s <- m[[2]]", d__)))
-              m <- m[[1]]
+              m <- DenseList_d$BN(m, state = StateDenseList_d, inference = inference)[[1]]
 
               # Non-linearity
               m <- cienv$jax$nn$swish(  m   )
@@ -703,6 +701,7 @@ AnalyzeImageConfounding <- function(
         
         message2("Define trainer...")
         LocalFxnSource(TrainDefine, evaluation_environment = environment())
+        gc(); cienv$py_gc$collect()
         
         message2("Starting training...")
         LocalFxnSource(TrainDo, evaluation_environment = environment())
@@ -742,10 +741,11 @@ AnalyzeImageConfounding <- function(
         # inference on all observations
         if(!justCheckIterators){
           message2("Getting predicted quantities...")
+          gc(); cienv$py_gc$collect()
           
           # Get predicted quantities 
           {    
-            t0_inference <- Sys.time();gc()
+            t0_inference <- Sys.time();
             inf_counter <- 0
             nUniqueKeys <- length( unique(imageKeysOfUnits) )
             KeyQuantCuts <- 1L:nUniqueKeys
