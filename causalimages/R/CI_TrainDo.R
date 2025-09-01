@@ -119,7 +119,16 @@ TrainDo <- function(){
     }
 
     # Sanity check for dimension swapping as i varies 
-    if(i == 1){ message2("Training balance:"); print((table(obsW[batch_indices]))) } 
+    if(i == 1){ 
+      message2(sprintf("Training balance: %s",
+                       paste(paste(names(table(obsW[batch_indices])),
+                             table(obsW[batch_indices]), sep = " has "),collapse="; ")
+                       ))
+      if(any(prop.table(table(obsW[batch_indices])) > 0.9) & 
+                !is.null(TFRecordControl)){
+        stop(  "Stopping - Balanced training not satisfied despite TFRecordControl being defined!"  ) 
+      }
+    }
     # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+sample(1:100,1)), inference = F)[2,,,1]))
     # causalimages::image2(cienv$np$array(InitImageProcessFn(cienv$jnp$array(ds_next_train),  cienv$jax$random$key(600L+sample(1:100,1)), inference = F)[1,,,1]))
 
@@ -275,7 +284,7 @@ TrainDo <- function(){
           
           se_diff <- sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window +
                              var(loss_vec[(i-window):i], na.rm=TRUE)/window )
-          prev_avg_upper <- curr_avg + (t_es<-1.96)*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
+          prev_avg_upper <- curr_avg + (t_es<-2.528)*sqrt( var(loss_vec[(i-2*window):(i-window-1)], na.rm=TRUE)/window )
           curr_avg_lower <- prev_avg - t_es*sqrt( var(loss_vec[(i-window):i], na.rm=TRUE)/window )
           
           if( curr_avg >= prev_avg - t_es*se_diff & curr_avg < 0.8*first_avg ){
@@ -286,7 +295,7 @@ TrainDo <- function(){
               break
             }
           } else {
-            patience_counter <- 0  # reset when improvement detected
+            patience_counter <- 0  # reset when any improvement detected
           }
         } 
       }

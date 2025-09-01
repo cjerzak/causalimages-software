@@ -105,9 +105,10 @@ WriteTfRecord <- function(file,
   tf_record_writer = cienv$tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
   setwd(  orig_wd )
   for(irz in 1:length(uniqueImageKeys)){
-    if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s",
+    if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s [%.3f%%]",
                                                   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-                                                  irz, length(uniqueImageKeys) ) ) }
+                                                  irz, length(uniqueImageKeys), 
+                                                  100*irz/length(uniqueImageKeys)) ) }
     tf_record_write_output <- parse_single_image(image = r2const(acquireImageFxn( uniqueImageKeys[irz]  ),
                                                           eval(parse(text = sprintf("cienv$tf$%s",image_dtype)))),
                                                  index = irz,

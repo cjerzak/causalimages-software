@@ -171,21 +171,19 @@ AnalyzeImageConfounding <- function(
         trainingPertubations_OneObs <- function(im_, key){
          # key <- cienv$jax$random$key(c(sample(1:100,1)))
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
-         which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
+         which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, 
+                                                                      logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
          
          # flip paths
          # which_path of 0L -> do no flips 
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(1L)),
-                                   true_fun = function(){ cienv$jnp$flip(im_, 
-                                                                         axis = AB+0L) }, 
+                                   true_fun = function(){ cienv$jnp$flip(im_, axis = AB+0L) }, 
                                    false_fun = function(){im_})
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(2L)), 
-                                   true_fun = function(){ cienv$jnp$flip(im_, 
-                                                                         axis = AB+1L) }, 
+                                   true_fun = function(){ cienv$jnp$flip(im_,  axis = AB+1L) }, 
                                    false_fun = function(){im_})
          im_ <- cienv$jax$lax$cond(cienv$jnp$equal(which_path,cienv$jnp$array(3L)),
-                                   true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, 
-                                                                                        axis = AB+0L),
+                                   true_fun = function(){ cienv$jnp$flip(cienv$jnp$flip(im_, axis = AB+0L),
                                                                          axis = AB+1L) }, 
                                    false_fun = function(){im_})
          
@@ -448,19 +446,19 @@ AnalyzeImageConfounding <- function(
         if( !is.null(TFRecordControl) ){
           tf_dataset_master_control <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
                                                         ai(TFRecordControl$nTest) )$take(
-                                                                ai(TFRecordControl$nControl))
+                                                                ai(TFRecordControl$nControlTrain))
           tf_dataset_master_control_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_control)
           
           tf_dataset_master_treated <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
-                                                  ai(TFRecordControl$nTest + TFRecordControl$nControl+1L))$take(
-                                                          ai(TFRecordControl$nTreatment))
+                                                  ai(TFRecordControl$nTest + TFRecordControl$nControlTrain ))$take(
+                                                          ai(TFRecordControl$nTreatmentTrain))
           tf_dataset_master_treated_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_treated)
           
-          nUniqueKeys_control <- TFRecordControl$nControl
+          nUniqueKeys_control <- TFRecordControl$nControlTrain
           cf_keys_split_control <- 1 * as.numeric(cut(1:nUniqueKeys_control, kFolds))
           cf_keys_split_control <- sapply(1:kFolds, function(l_) { list(which(cf_keys_split_control == l_)) })
           cf_keys_toSkip_bounds_control <- lapply(cf_keys_split_control, function(l_) { c(min(l_), max(l_)) })
-          nUniqueKeys_treated <- TFRecordControl$nTreatment
+          nUniqueKeys_treated <- TFRecordControl$nTreatmentTrain
           cf_keys_split_treated <- 1 * as.numeric(cut(1:nUniqueKeys_treated, kFolds))
           cf_keys_split_treated <- sapply(1:kFolds, function(l_) { list(which(cf_keys_split_treated == l_)) })
           cf_keys_toSkip_bounds_treated <- lapply(cf_keys_split_treated, function(l_) { c(min(l_), max(l_)) })
@@ -649,6 +647,7 @@ AnalyzeImageConfounding <- function(
           # return contents
           return( list(m, StateList) )
         }
+        GetTreatProb_batch_jit <- cienv$eq$filter_jit(   GetTreatProb_batch  )
 
         GetLoss <-  function( ModelList, ModelList_fixed,
                               m, x, treat, y, seed,
@@ -742,19 +741,6 @@ AnalyzeImageConfounding <- function(
         # inference on all observations
         if(!justCheckIterators){
           message2("Getting predicted quantities...")
-          #GetImageArm_OneX <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-          #                                                  m, x, seed,
-          #                                                  StateList, MPList){
-            # image representation model
-          #  m <- ImageRepArm_batch_R(ModelList, m, x, 
-          #                           StateList, seed, MPList, T)
-          #  StateList <- m[[2]] ; m <- m[[1]]
-            
-          # sigmoid 
-          #  m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
-            
-          #  return( m )
-          #})
           
           # Get predicted quantities 
           {    
@@ -769,13 +755,23 @@ AnalyzeImageConfounding <- function(
             pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)  # Initialize progress bar
             usedKeys <- c(); for (b in seq_along(batchStarts)) {
               idx_start <- batchStarts[b]
-              # 2.390  mins to 10k, 2*batchSize
-              if( idx_start>1000  & !"tk1000" %in% ls()){ tk1000 <- TRUE;message2(sprintf("Time to >1000 inference fits: [%.3f mins]",difftime(Sys.time(),t0_inference,units="min") )) }
-              if( idx_start>10000  & !"tk10000" %in% ls()){ tk10000 <- TRUE;message2(sprintf("Time to >10000 inference fits: [%.3f mins]",difftime(Sys.time(),t0_inference,units="min") )) }
+              if( idx_start>1000 & !"tk1000" %in% ls()){ 
+                tk1000 <- TRUE
+                elapsed <- difftime(Sys.time(),t0_inference,units="min")
+                processed <- idx_start - 1
+                remaining <- elapsed * (nUniqueKeys - processed) / processed
+                message2(sprintf("Time to >1000 inference fits: [%.3f mins], Est. remaining: [%.3f mins] ",elapsed, remaining )) 
+              }
+              if( idx_start>10000 & !"tk10000" %in% ls()){ 
+                tk10000 <- TRUE
+                elapsed <- difftime(Sys.time(),t0_inference,units="min")
+                processed <- idx_start - 1
+                remaining <- elapsed * (nUniqueKeys - processed) / processed
+                message2(sprintf("Time to >10000 inference fits: [%.3f mins], Est. remaining: [%.3f mins]",elapsed, remaining )) 
+              }
               idx_end   <- min(idx_start + batchSize - 1L, nUniqueKeys)
               m_indices1 <- idx_start:idx_end  
               
-              #gc(); cienv$py_gc$collect()
               if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
               setwd(orig_wd); ds_next_in <- try(GetElementFromTfRecordAtIndices(
                 uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
@@ -842,26 +838,14 @@ AnalyzeImageConfounding <- function(
                                       axis=0L)
                 }
                 if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
-                m <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, 
-                                                  yes = list(ModelList), 
-                                                  no = list(ModelList_fixed) )[[1]],
-                                           m, 
-                                           x, 
-                                           StateList,
-                                           cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize), #
-                                           MPList, TRUE)[[1]]
                 
-                # get final output from image rep 
-                # if(b==1){ m_b <- m; x_b <- x }
-                # plot(cienv$np$array(x)[2,],X[2,]);abline(a=0,b=1)
-                m <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                                        m,
-                                        x, 
-                                        cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), 
-                                                               batchSize),
-                                        StateList,
-                                        MPList, TRUE)[[1]]
-                m <- cienv$jnp$clip( cienv$jax$nn$sigmoid( m ), 1e-3, 1 - 1e-3)
+                m <- GetTreatProb_batch_jit(ModelList, ModelList_fixed,
+                                       m,
+                                       x, 
+                                       cienv$jax$random$split(cienv$jax$random$key(as.integer(runif(1,0, 10000))), 
+                                                              batchSize),
+                                       StateList,
+                                       MPList, TRUE)[[1]]
                 m <- as.matrix(cienv$np$array(m))
                 
                 ret_list <- list("ProbW" = m[1:realSize_inner,],
@@ -912,8 +896,8 @@ AnalyzeImageConfounding <- function(
       
       if(crossFit){
         tauHat_propensityHajek <- mean(tauHat_propensityHajek_vec)
-        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) / 
-                                      sqrt(length(tauHat_propensityHajek_vec))  
+        tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec) /
+                                      sqrt(length(tauHat_propensityHajek_vec))
       }
       
       # define true test indices 
@@ -970,12 +954,44 @@ AnalyzeImageConfounding <- function(
                                  scores.class1 = prW_est[trainIndices][obsW[trainIndices] == 0],
                                  curve = FALSE)$auc.integral
     
+    # Fbeta 
+    FBeta_max_OUT <- (function(obsW, prW_est, testIndices, beta = 2,
+                               thresholds = seq(0.1, 0.9, by = 0.1)) {
+      truth <- factor(obsW[testIndices], levels = c(0, 1))
+      pr    <- prW_est[testIndices]
+      
+      fvals <- vapply(thresholds, function(th) {
+        pred <- factor(as.integer(pr > th), levels = c(0, 1))
+        
+        # Confusion counts
+        TP <- sum(truth == "1" & pred == "1")
+        FP <- sum(truth == "0" & pred == "1")
+        FN <- sum(truth == "1" & pred == "0")
+        
+        # Precision & recall with safe denominators
+        precision <- if ((TP + FP) == 0) NA_real_ else TP / (TP + FP)
+        recall    <- if ((TP + FN) == 0) NA_real_ else TP / (TP + FN)
+        
+        # If undefined or both zero, return 0 (yardstick would yield NA)
+        if (is.na(precision) || is.na(recall) || (precision == 0 && recall == 0)) {
+          return(0)
+        }
+        
+        (1 + beta^2) * precision * recall / (beta^2 * precision + recall)
+      }, numeric(1))
+      
+      max(fvals, na.rm = TRUE)
+    })(obsW, prW_est, testIndices)
+    
+    
+    
     # store output
     ModelEvaluationMetrics <- list(
       "AUC_out" = roc_obj_OUT, 
       "AUC_in" = roc_obj_IN, 
       "AUPRC_out" = auprc_OUT,
       "AUPRC_in" = auprc_IN,
+      "FBeta_OUT" = FBeta_max_OUT,
       "CELoss_out" = lossCE_OUT,
       "CELoss_out_baseline" = lossCE_OUT_baseline,
       "CELoss_in" = lossCE_IN,
@@ -1262,7 +1278,7 @@ AnalyzeImageConfounding <- function(
         SalienceX <- c(); samp_counter <- 0
         SalienceX_SampledKeysIndex <- sample(1:length(unique(imageKeysOfUnits)), 25, replace = T)
         # loop approach
-        if(FALSE){ 
+        if(TRUE){ 
         for(keyNum_ in SalienceX_SampledKeysIndex){
           samp_counter <- samp_counter + 1
           if(samp_counter %% 5 == 0){  message2(sprintf("Tabular salience iteration %s of %s", samp_counter, 25)) }
@@ -1290,7 +1306,7 @@ AnalyzeImageConfounding <- function(
         }
         
         # vectorized approach
-        if(TRUE){
+        if(FALSE){
           # Fetch all unique sampled data in one batched call
           setwd(orig_wd)
           unique_indices <- which(
@@ -1372,7 +1388,7 @@ AnalyzeImageConfounding <- function(
       "ImageRepresentations_df_transport" = ImageRepresentations_df_transport, 
       "tauHat_propensityHajek_vec" = tauHat_propensityHajek_vec,
       "nTrainableParameters" = nTrainable, # parameters actually trained 
-      "nParamsRep" = nParamsRep, # parameters in representation 
+      "nParamsRep" = nParamsRep, # parameters in representation
       "trainIndices" = trainIndices,
       "testIndices" = testIndices,
       "trainIndices_list" = trainIndices_list,

@@ -13,14 +13,14 @@ TrainDefine <- function(){
   message2("Define optimizer and training step...") 
   {
     LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(
-                                                      warmup_steps = (nWarmup <- min(c(max(0.25*nSGD,100L), nSGD))),
+                                                      warmup_steps = (nWarmup <- min(c(max(0.05*nSGD,25L), nSGD))),
                                                       decay_steps = max(c(101L, nSGD-nWarmup)),
                                                       init_value = learningRateMax/100, 
                                                       peak_value = learningRateMax, 
                                                       end_value =  learningRateMax/100)
     plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))),xlab = "Iteration", ylab="Learning rate schedule")
     optax_optimizer <-  cienv$optax$chain(
-      cienv$optax$adaptive_grad_clip(clipping = 0.15, eps = 0.001),
+      cienv$optax$adaptive_grad_clip(clipping = 0.25, eps = 0.001),
       cienv$optax$adabelief( learning_rate = LR_schedule )
     )
     plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))), xlab = "Iteration", ylab = "Learning rate")

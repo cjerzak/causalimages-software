@@ -172,7 +172,11 @@ GetImageRepresentations <- function(
     ffmap <- cienv$jax$vmap(function(L_, x){ L_(x) }, in_axes = list(NULL,0L))
     RMS_norm <- function(x_){ cienv$jnp$divide( x_, cienv$jnp$sqrt(0.001+cienv$jnp$mean(cienv$jnp$square(x_), -1L, keepdims=T))) }
     LayerNorm <- function(x_){ cienv$jax$nn$standardize( x_, -1L, epsilon = 1e-5) }
-    InvSoftPlus <- function(x){ cienv$jnp$log(cienv$jnp$exp(x) - 1) }
+    # InvSoftPlus <- function(x){ cienv$jnp$log(cienv$jnp$exp(x) - 1) }
+    InvSoftPlus <- function(y) {  
+      y <- cienv$jnp$clip(y, 1e-6, 1e6)
+      y + cienv$jnp$log1p(-cienv$jnp$exp(-y))
+    }
     
     # Calculate number of patches
     nPatches_side = ai(rawSpatialDims / patchEmbedDim)
@@ -648,13 +652,13 @@ GetImageRepresentations <- function(
             x_proj <- ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
             x_proj <- dropout_layer_init(dropoutRate)(x_proj, key = seed, inference = inference)
             m <- cienv$jnp$concatenate(
-                    list(m, 
-                         x_proj),0L)
+                    list(m, x_proj), 
+                    axis = 0L)
           }
           if (!is.null(X) & XForceModal) {
              x_proj <- ffmap(ModelList$SpatialTransformerSupp$XProj, cienv$jnp$expand_dims(x,0L))
              x_proj <- dropout_layer_init(dropoutRate)(x_proj, key = seed, inference = inference)
-             # m <- cienv$jnp$concatenate( list( x_proj, cienv$jnp$zeros_like(x_proj)),0L)
+             m <- x_proj
           }
           message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
       }
@@ -710,6 +714,7 @@ GetImageRepresentations <- function(
                 m <- m + do_path_indicator$astype(m$dtype) * (mm_ - m)
               }
               if(FALSE){
+              # Note: conditional path via lax.cond is under construction 
               m   <- cienv$jax$lax$cond(pred = do_path_indicator$astype(cienv$jnp$bool_), 
                                         true_fun = function(operands){ # true fun 
                                           m_ <- compute_branch_attention(operands[[1]] , operands[[2]], 
@@ -741,9 +746,28 @@ GetImageRepresentations <- function(
       #m <- cienv$jnp$take(m, indices = 0L, axis = 0L)
       
       # CLS + global pooling
-      m <- cienv$jnp$squeeze(ffmap(ModelList$SpatialTransformerSupp$MixCLSPool,
-              cienv$jnp$expand_dims(cienv$jnp$concatenate( list(cienv$jnp$take(m, indices = 0L, axis = 0L),
-                cienv$jnp$mean(m, axis = 0L)), 0L),0L)),0L)
+      { 
+      #m <- cienv$jnp$squeeze(ffmap(ModelList$SpatialTransformerSupp$MixCLSPool,
+              #cienv$jnp$expand_dims(cienv$jnp$concatenate( 
+                #list(
+                     #cienv$jnp$take(m, indices = 0L, axis = 0L), # CLS 
+                     #cienv$jnp$mean(m, axis = 0L) # global pool 
+                    #), axis = 0L), 0L)),0L)
+      }
+      
+      # attention pooling
+      {
+          pooled <- ModelList$SpatialTransformerSupp$PoolMultihead(
+            query = cienv$jnp$expand_dims(cienv$jnp$take(m, 0L, axis = 0L), 0L),  # CLS
+            key_ = RotaryPositionalEmbeddings_spatial(m), 
+            value = m, 
+            inference = inference)
+          m <- cienv$jnp$squeeze(pooled, 0L)  
+          
+          # keep your projection + norm (optional, but preserves interface)
+          m <- ffmap(ModelList$SpatialTransformerSupp$PoolProject, cienv$jnp$expand_dims(m,0L))
+          m <- cienv$jnp$squeeze(m,0L)
+      }
 
       # output block -- only executed in final pass over sequences
       if( (dataType == "image" & type == "Spatial") |  (type == "Temporal") ){
@@ -810,16 +834,17 @@ GetImageRepresentations <- function(
         return( x + cienv$jax$random$normal(shape = x$shape,dtype=x$dtype,key=key)*0.0001 )
       }
       base_seed <- cienv$jax$random$split(cienv$jax$random$key(seed),nDepth_ImageRep)
-      create_layer <- function(key){ 
+      create_layer <- function(key, l_){ 
           if(!is.null(nonLinearScaler)){
-              nonLinearScaler_ <- rand_array(nonLinearScaler, key)
+              nonLinearScaler_ <- rand_array(rep(nonLinearScaler, times=nWidth_ImageRep), key)
           }
           if(is.null(nonLinearScaler)){
             if(dataType == "video"){ 
-                nonLinearScaler_ <- rand_array( ( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2), key )
+              nonLinearScaler_ <- rand_array( rep(( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2), times = nWidth_ImageRep), key )
             }
             if(dataType == "image"){ 
-                nonLinearScaler_ <- rand_array( ( 2*nDepth_ImageRep )^(-1/2) , key) 
+              #nonLinearScaler_ <- rand_array( rep(( 2*nDepth_ImageRep )^(-1/2), times = nWidth_ImageRep), key)
+              nonLinearScaler_ <- cienv$jnp$broadcast_to(cienv$jnp$array(nDepth_ImageRep,cienv$jnp$float32)^(-1/(2*l_-2)), ai(nWidth_ImageRep)) # Fixup Scaling
             }
           }
           key <- cienv$jax$random$split(key)[[1]]
@@ -856,7 +881,10 @@ GetImageRepresentations <- function(
           return(ModelList_d)
       }
       # spatial transformer, vmapping over seeds 
-      ModelList$SpatialTransformer <- cienv$eq$filter_vmap(create_layer,in_axes = 0L, out_axes = 0L)(base_seed)
+      ModelList$SpatialTransformer <- cienv$jax$vmap(create_layer, 
+                                                     in_axes = list(0L,0L),
+                                                     out_axes = 0L)(base_seed, 
+                                                                    cienv$jnp$array(as.matrix(1.:nDepth_ImageRep)))
       StateList <- cienv$jnp$array(0.)
       
       ModelList$SpatialTransformerSupp = list(
@@ -875,6 +903,26 @@ GetImageRepresentations <- function(
                      padding_mode = "ZEROS", # "REFLECT", "ZEROS", "REPLICATE", "CIRCULAR" 
                      in_channels = rawChannelDims, use_bias = T,
                      out_channels = nWidth_ImageRep, key = cienv$jax$random$key(ai(4L+1040L+seed))), # patch embed
+          
+          # new 
+          "PoolQuery" =
+            cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
+                               out_features = ai(1L),    # produce logits per token
+                               use_bias = TRUE,
+                               key = cienv$jax$random$key(ai(3322144 + seed))),
+          "PoolProject" =
+            cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
+                               out_features = ai(nWidth_ImageRep),
+                               use_bias = TRUE,
+                               key = cienv$jax$random$key(ai(332415 + seed))),
+          "PoolMultihead" =  cienv$eq$nn$MultiheadAttention(
+            query_size   = nWidth_ImageRep,
+            output_size  = nWidth_ImageRep,
+            num_heads    = ai(3L),            # set >1L for richer pooling
+            use_output_bias = TRUE,
+            key = cienv$jax$random$key(ai(70011 + seed))
+          ),
+          
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
                         use_bias = F, key = cienv$jax$random$key(ai(999L + seed  ) )) # final dense proj
