@@ -13,8 +13,8 @@ TrainDefine <- function(){
   message2("Define optimizer and training step...") 
   {
     LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(
-                                                      warmup_steps = (nWarmup <- min(c(max(0.05*nSGD,25L), nSGD))),
-                                                      decay_steps = max(c(101L, nSGD-nWarmup)),
+                                                      warmup_steps = (nWarmup <- (0.05*nSGD)),
+                                                      decay_steps = nSGD-nWarmup,
                                                       init_value = learningRateMax/100, 
                                                       peak_value = learningRateMax, 
                                                       end_value =  learningRateMax/100)

@@ -467,6 +467,7 @@ AnalyzeImageConfounding <- function(
       tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
       trainIndices_list <- testIndices_list <- list() 
       for( kf_ in 1:kFolds ){
+      gc(); XXX12344321
       message2(sprintf("k fold %s of %s",kf_,kFolds))
       
       # set up cross fitted iterators 
