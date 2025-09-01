@@ -249,7 +249,7 @@ AnalyzeImageConfounding <- function(
     NORM_SD <- NORM_MEAN_array$NORM_SD; NORM_SD_array <- NORM_MEAN_array$NORM_SD_array
     NORM_MEAN <- NORM_MEAN_array$NORM_MEAN; NORM_MEAN_array <- NORM_MEAN_array$NORM_MEAN_array
     EP_LSMOOTH <- cienv$jnp$array( 0.05 )
-    cienv$py_gc$collect()
+    gc(); cienv$py_gc$collect()
 
     # set up holders
     sigmoid <- function(x){1/(1+exp(-x))}
@@ -467,6 +467,13 @@ AnalyzeImageConfounding <- function(
       tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
       trainIndices_list <- testIndices_list <- list() 
       for( kf_ in 1:kFolds ){
+        
+      # remove old files and clear garbage 
+      for (nm in c(
+          "ds_iterator_train","ds_iterator_train_control","ds_iterator_train_treated",
+          "tf_dataset_train","tf_dataset_train_control","tf_dataset_train_treated"
+      )) if (exists(nm, inherits = TRUE)) rm(list = nm)
+      cienv$jax$clear_caches()  
       gc();cienv$py_gc$collect()
       message2(sprintf("k fold %s of %s",kf_,kFolds))
       
