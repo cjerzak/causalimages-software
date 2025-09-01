@@ -29,6 +29,9 @@ initialize_jax <- function(conda_env = "cienv",
   # set memory growth for tensorflow 
   for(device_ in cienv$tf$config$list_physical_devices()){ try(cienv$tf$config$experimental$set_memory_growth(device_, T),T) }
   
+  # ensure tensorflow doesn't use GPU
+  try(cienv$tf$config$set_visible_devices(list(), "GPU"), silent = TRUE)
+  
   # Disable 64-bit computations
   cienv$jax$config$update("jax_enable_x64", FALSE)
   cienv$jaxFloatType <- cienv$jnp$float32

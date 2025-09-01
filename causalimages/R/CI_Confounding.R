@@ -62,7 +62,7 @@ AnalyzeImageConfounding <- function(
                                    useTrainingPertubations = T,
                                    useScalePertubations = F,
                                    
-                                   crossFit = FALSE, 
+                                   kFolds = 2L, 
                                    augmented = FALSE,
 
                                    orthogonalize = F,
@@ -428,9 +428,9 @@ AnalyzeImageConfounding <- function(
 
     if(optimizeImageRep){
       justCheckIterators <- FALSE
-      if( ! crossFit ){ kFolds <- 1L }
-      if( crossFit ){ 
-        kFolds <- 3L 
+      if( kFolds == 1 ){ crossFit <- FALSE }
+      if( kFolds > 1 ){ 
+        crossFit = TRUE
         nUniqueKeys <- length( unique( imageKeysOfUnits ) )
         cf_keys_split <- 1*as.numeric(cut(1:nUniqueKeys,kFolds))
         cf_keys_split <- sapply( 1:kFolds, function(l_){ list(which(cf_keys_split==l_))})
@@ -467,16 +467,22 @@ AnalyzeImageConfounding <- function(
       tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
       trainIndices_list <- testIndices_list <- list() 
       for( kf_ in 1:kFolds ){
+        # Drop TF iterators & datasets
+        for (nm in c("ds_iterator_train","ds_iterator_train_control","ds_iterator_train_treated",
+                     "tf_dataset_train","tf_dataset_train_control","tf_dataset_train_treated")) {
+          if (exists(nm, inherits = TRUE)) rm(list = nm)
+        }
+        # Drop JAX model/state references that keep device buffers alive
+        for (nm in c("ModelList", "StateList", "MPList",
+                     "ImageRepArm_batch_R", "GetTreatProb_batch", "GetTreatProb_batch_jit",
+                     "GetDense_batch", "GetDense_batch_jit")) {
+          if (exists(nm, inherits = TRUE)) rm(list = nm)
+        }
+        cienv$jax$clear_caches()  
+        try(cienv$tf$keras$backend$clear_session(), TRUE)
+        gc();cienv$py_gc$collect()
+        message2(sprintf("k fold %s of %s",kf_,kFolds))
         
-      # remove old files and clear garbage 
-      for (nm in c(
-          "ds_iterator_train","ds_iterator_train_control","ds_iterator_train_treated",
-          "tf_dataset_train","tf_dataset_train_control","tf_dataset_train_treated"
-      )) if (exists(nm, inherits = TRUE)) rm(list = nm)
-      cienv$jax$clear_caches()  
-      gc();cienv$py_gc$collect()
-      message2(sprintf("k fold %s of %s",kf_,kFolds))
-      
       # set up cross fitted iterators 
       if( crossFit ){ 
         if( is.null(TFRecordControl)){
