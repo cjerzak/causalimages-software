@@ -17,6 +17,7 @@ initialize_jax <- function(conda_env = "cienv",
   if (!exists("jax", envir = cienv, inherits = FALSE)) {
     cienv$jax <- reticulate::import("jax")
     cienv$jnp <- reticulate::import("jax.numpy")
+    cienv$flash_mha <- try(import("flash_attn_jax.flash_mha"),TRUE)
     cienv$tf <- reticulate::import("tensorflow")
     cienv$np  <- reticulate::import("numpy")
     cienv$jmp  <- reticulate::import("jmp")

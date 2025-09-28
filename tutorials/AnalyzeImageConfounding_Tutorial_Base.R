@@ -29,7 +29,7 @@
   library( causalimages )
 
   # resave TfRecords?
-  reSaveTFRecord <- T
+  reSaveTFRecord <- TRUE
 
   # load in tutorial data
   data(  CausalImagesTutorialData )
@@ -40,7 +40,8 @@
   })
 
   # select observation subset to make the tutorial quick
-  set.seed(4321L);take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 100)}) )
+  set.seed(4321L);take_indices <- 
+    unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 300)}) )
 
   # perform causal inference with image and tabular confounding
   {

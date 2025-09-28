@@ -43,3 +43,6 @@ Suggests:
     rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 7.3.2
+RemoteType: local
+RemotePkgRef: local::~/Documents/causalimages-software/causalimages
+RemoteUrl: /Users/cjerzak/Documents/causalimages-software/causalimages

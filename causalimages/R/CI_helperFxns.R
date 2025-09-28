@@ -283,3 +283,12 @@ dropout_layer_init <- function(p) {
         ) }
     )
   }}
+
+wt_init <- function(shape, seed_key){
+  init_std <- sqrt(2.0 / as.numeric(shape[[1]] + shape[[1]]))
+  cienv$jax$random$normal(
+    key = seed_key,
+    shape = shape
+  ) * cienv$jnp$array(init_std)$astype( cienv$jaxFloatType )
+}
+

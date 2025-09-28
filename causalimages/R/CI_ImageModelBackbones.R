@@ -78,6 +78,72 @@ GetImageRepresentations <- function(
                    Sys.setenv_text = Sys.setenv_text) 
   }
   
+  FlashMultiheadAttention <- function(query, key_ = NULL, value = NULL, mask = NULL,
+                                      W_q, W_k, W_v, W_o,
+                                      num_heads = 12L, is_causal = FALSE) {
+    
+    # Default key and value to query if not provided
+    if(is.null(key_)) key_ <- query
+    if(is.null(value)) value <- query
+    
+    # 1) Linear projections: [T, D] @ [D, D] -> [T, D]
+    q <- cienv$jnp$dot(query, W_q)
+    k <- cienv$jnp$dot(key_, W_k)
+    v <- cienv$jnp$dot(value, W_v)
+    
+    # infer head dims
+    D <- as.integer(q$shape[[2]])
+    if (D %% as.integer(num_heads) != 0L) {
+      stop("Embedding dimension (D) must be divisible by num_heads")
+    }
+    head_dim <- as.integer(D / as.integer(num_heads))
+    
+    # 2) Reshape to heads: [T, D] -> [T, N, H]
+    q <- cienv$jnp$reshape(q, list(q$shape[[1]], num_heads, head_dim))
+    k <- cienv$jnp$reshape(k, list(k$shape[[1]], num_heads, head_dim))
+    v <- cienv$jnp$reshape(v, list(v$shape[[1]], num_heads, head_dim))
+    
+    # 3) Process mask if provided
+    mask_bool <- NULL
+    if(!is.null(mask)) {
+      # Convert to boolean and broadcast to [N, T, S]
+      mask_bool <- cienv$jnp$greater(mask, 0)
+      mask_bool <- cienv$jnp$expand_dims(mask_bool, 0L)
+      mask_bool <- cienv$jnp$broadcast_to(mask_bool, list(num_heads, q$shape[[1]], k$shape[[1]]))
+    }
+    
+    # Auto-detect backend
+    attention_path <- ifelse(any(sapply(cienv$jax$devices(), function(d) d$platform == "gpu")),
+                             yes = "cudnn", no = "xla")
+    if(attention_path == "xla") {
+      attn_out <- cienv$jax$nn$dot_product_attention(
+        q$astype(cienv$jnp$float32),
+        k$astype(cienv$jnp$float32),
+        v$astype(cienv$jnp$float32),
+        mask = mask_bool,
+        is_causal = is_causal,
+        implementation = "xla"
+      )$astype(k$dtype)
+    }
+    if(attention_path == "cudnn") {
+      attn_out <- cienv$flash_mha(
+        q$astype(cienv$jnp$float16),
+        k$astype(cienv$jnp$float16),
+        v$astype(cienv$jnp$float16),
+        is_causal = is_causal,
+        mask = mask_bool
+      )$astype(k$dtype)
+   }
+    
+    # 5) Merge heads back: [T, N, H] -> [T, D]
+    attn_out <- cienv$jnp$reshape(attn_out, list(attn_out$shape[[1]], num_heads * head_dim))
+    
+    # 6) Output projection: [T, D] @ [D, D] -> [T, D]
+    output <- cienv$jnp$dot(attn_out, W_o)
+    
+    return(output)
+  }
+  
   # deal with null dropouts 
   if(is.null(dropoutRate)){ dropoutRate <- 0 }
   if(is.null(droppathRate)){ droppathRate <- 0 }
@@ -615,12 +681,19 @@ GetImageRepresentations <- function(
     compute_branch_attention <- function(ModelList_d, m, 
                                          RotaryPositionalEmbeddings, seed, is_droppath, inference){
       m <- RMS_norm(mtm1 <- m) * ModelList_d$TransformerRenormer$NormScaler1
-      m <- ModelList_d$Multihead(
-        query = (m_pos <- RotaryPositionalEmbeddings( m )),
-        key_  = m_pos,
-        value = m,
-        inference = TRUE)
-      #key = seed, inference = inference) # breaks gradient flow 
+      m_pos <- RotaryPositionalEmbeddings(m)
+      m <- FlashMultiheadAttention(
+        query = m_pos,
+        key_ = m_pos, 
+        value = m, 
+        mask = NULL,
+        W_q = ModelList_d$Multihead$W_q,
+        W_k = ModelList_d$Multihead$W_k,
+        W_v = ModelList_d$Multihead$W_v,
+        W_o = ModelList_d$Multihead$W_o,
+        num_heads = 8L,
+        is_causal = FALSE
+      )
       m <- m * cienv$jax$nn$softplus( ModelList_d$ResidualWts$RightWt1$astype(cienv$jnp$float32) )$astype(m$dtype)
       scale_factor <- (1 / keeppathRate)*is_droppath + (1-is_droppath)*1
       return( mtm1 + m * scale_factor ) }
@@ -757,11 +830,18 @@ GetImageRepresentations <- function(
       
       # attention pooling
       {
-          pooled <- ModelList$SpatialTransformerSupp$PoolMultihead(
+          pooled <- FlashMultiheadAttention(
             query = cienv$jnp$expand_dims(cienv$jnp$take(m, 0L, axis = 0L), 0L),  # CLS
             key_ = RotaryPositionalEmbeddings_spatial(m), 
             value = m, 
-            inference = inference)
+            mask = NULL,
+            W_q = ModelList$SpatialTransformerSupp$PoolMultihead$W_q,
+            W_k = ModelList$SpatialTransformerSupp$PoolMultihead$W_k,
+            W_v = ModelList$SpatialTransformerSupp$PoolMultihead$W_v,
+            W_o = ModelList$SpatialTransformerSupp$PoolMultihead$W_o,
+            num_heads = 8L,
+            is_causal = FALSE
+          )
           m <- cienv$jnp$squeeze(pooled, 0L)  
           
           # keep your projection + norm (optional, but preserves interface)
@@ -851,13 +931,19 @@ GetImageRepresentations <- function(
           TransformerRenormer_d <- list("NormScaler1"=rand_array( t(rep(1,times=nWidth_ImageRep) ),key ),
                                         "NormScaler2"=rand_array( t(rep(1,times=nWidth_ImageRep) ),key ))
           key <- cienv$jax$random$split(key)[[1]]
-          Multihead_d <- cienv$eq$nn$MultiheadAttention(
-                                    query_size = nWidth_ImageRep,
-                                    output_size = nWidth_ImageRep,
-                                    num_heads = 12L,
-                                    use_output_bias = F,
-                                    #dropout_p = dropoutRate,
-                                    key = key )
+          {
+            # —— Define Q/K/V/O weights for (Flash) attention ——
+            # head_dim must divide ModelDims by TransformerHeads (already ensured elsewhere)
+            key <- cienv$jax$random$split(key,4L)
+            Multihead_d <- list(
+              # [D, D] projections: Q=xt_pos·W_q, K=xt_pos·W_k, V=xt·W_v; O merges heads back
+              "W_q" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), key[0L]),
+              "W_k" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), key[1L]),
+              "W_v" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), key[2L]),
+              "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), key[3L])
+            )
+            key <- cienv$jax$random$split(key[[1]])[[1]]
+          }
           key <- cienv$jax$random$split(key,3L)
           FF_d <- list("FFWide1"=cienv$eq$nn$Linear(in_features = nWidth_ImageRep,
                                            out_features = ai(nWidth_ImageRep*WideMultiplicationFactor),
@@ -915,12 +1001,12 @@ GetImageRepresentations <- function(
                                out_features = ai(nWidth_ImageRep),
                                use_bias = TRUE,
                                key = cienv$jax$random$key(ai(332415 + seed))),
-          "PoolMultihead" =  cienv$eq$nn$MultiheadAttention(
-            query_size   = nWidth_ImageRep,
-            output_size  = nWidth_ImageRep,
-            num_heads    = ai(3L),            # set >1L for richer pooling
-            use_output_bias = TRUE,
-            key = cienv$jax$random$key(ai(70011 + seed))
+          "PoolMultihead" =  list(
+            # [D, D] projections: Q=xt_pos·W_q, K=xt_pos·W_k, V=xt·W_v; O merges heads back
+            "W_q" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3325 + seed))),
+            "W_k" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3415 + seed))),
+            "W_v" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32415 + seed))),
+            "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32415 + seed)))
           ),
           
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
@@ -936,12 +1022,17 @@ GetImageRepresentations <- function(
       for(dt_ in 1L:nDepth_TemporalRep){
         TransformerRenormer_d <- list("NormScaler1" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                       "NormScaler2" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
-        Multihead_d <- cienv$eq$nn$MultiheadAttention(
-                                    query_size = nWidth_VideoRep,
-                                    output_size = nWidth_VideoRep,
-                                    num_heads = 8L,
-                                    use_output_bias = F,
-                                    key = cienv$jax$random$key( ai(2343355L + seed+dt_) ))
+        {
+          key <- cienv$jax$random$split(key,4L)
+          Multihead_d <- list(
+            # [D, D] projections: Q=xt_pos·W_q, K=xt_pos·W_k, V=xt·W_v; O merges heads back
+            "W_q" = wt_init(list(nWidth_VideoRep, nWidth_VideoRep), key[0L]),
+            "W_k" = wt_init(list(nWidth_VideoRep, nWidth_VideoRep), key[1L]),
+            "W_v" = wt_init(list(nWidth_VideoRep, nWidth_VideoRep), key[2L]),
+            "W_o" = wt_init(list(nWidth_VideoRep, nWidth_VideoRep), key[3L])
+          )
+          key <- cienv$jax$random$split(key[[1]])[[1]]
+        }
         FF_d  <- list(
           "FFWide1" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
@@ -1127,7 +1218,7 @@ GetImageRepresentations <- function(
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]] ),T); setwd(new_wd)
-      if('try-error' %in% class(batch_inference)){browser()}
+      if('try-error' %in% class(batch_inference)){print(batch_inference); browser()}
       if(batchSizeOneCorrection){
           batch_indices <- c(batch_indices,batch_indices)
           batch_inference[[1]][[1]] <- cienv$tf$concat(list(cienv$tf$expand_dims(batch_inference[[1]][[1]],0L),
@@ -1165,7 +1256,7 @@ GetImageRepresentations <- function(
                                                       MPList, 
                                                       TRUE # inference for testing 
                                                       )[[1]]  ),T)
-      if('try-error' %in% class(representation_)){browser()}
+      if('try-error' %in% class(representation_)){print(representation_);browser()}
       
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 

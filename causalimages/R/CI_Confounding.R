@@ -470,14 +470,13 @@ AnalyzeImageConfounding <- function(
         # Drop TF iterators & datasets
         for (nm in c("ds_iterator_train","ds_iterator_train_control","ds_iterator_train_treated",
                      "tf_dataset_train","tf_dataset_train_control","tf_dataset_train_treated")) {
-          if (exists(nm, inherits = TRUE)) rm(list = nm)
+          if (exists(nm, inherits = TRUE)){ rm(list = nm) }
         }
         # Drop JAX model/state references that keep device buffers alive
         for (nm in c("ModelList", "StateList", "MPList",
                      "ImageRepArm_batch_R", "GetTreatProb_batch", "GetTreatProb_batch_jit",
                      "GetDense_batch", "GetDense_batch_jit")) {
-          if (exists(nm, inherits = TRUE)) rm(list = nm)
-        }
+          if (exists(nm, inherits = TRUE)){ rm(list = nm)} }
         cienv$jax$clear_caches()  
         try(cienv$tf$keras$backend$clear_session(), TRUE)
         gc();cienv$py_gc$collect()
