@@ -37,6 +37,7 @@ GetImageRepresentations(
   dropoutRate,
   droppathRate,
   dataType = "image",
+  temporalAggregation = "transformer",
   bn_momentum = 0.99,
   inputAvePoolingSize = 1L,
   CleanupEnv = FALSE,
@@ -66,6 +67,8 @@ GetImageRepresentations(
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{dataType}{String specifying whether to assume \code{"image"} or \code{"video"} data types. Default is \code{"image"}.}
+
+\item{temporalAggregation}{String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are \code{"transformer"} (default) which uses a temporal transformer with attention pooling, or \code{"concatenate"} which simply concatenates the frame-level embeddings.}
 }
 \value{
 A list containing two items:

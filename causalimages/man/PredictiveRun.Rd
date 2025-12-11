@@ -45,6 +45,7 @@ PredictiveRun(
   learningRateMax = 0.001,
   TFRecordControl = NULL,
   dataType = "image",
+  temporalAggregation = "transformer",
   image_dtype = "float16",
   atError = "stop",
   seed = NULL,
@@ -104,6 +105,8 @@ PredictiveRun(
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
 \item{dataType}{(default = \code{"image"}) String specifying whether to assume \code{"image"} or \code{"video"} data types.}
+
+\item{temporalAggregation}{String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are \code{"transformer"} (default) which uses a temporal transformer with attention pooling, or \code{"concatenate"} which simply concatenates the frame-level embeddings.}
 
 \item{modelPath}{Path to save the trained model. Default = \code{"./trained_model.eqx"}.}
 
