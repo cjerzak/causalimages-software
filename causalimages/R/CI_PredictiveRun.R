@@ -21,6 +21,7 @@
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
 #' @param plotResults (default = `T`) Should analysis results be plotted?
 #' @param dataType (default = `"image"`) String specifying whether to assume `"image"` or `"video"` data types.
+#' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
 #' @param nWidth_ImageRep Integer specifying width of image model representation.
 #' @param nDepth_ImageRep Integer specifying depth of image model representation.
 #' @param nWidth_Dense Integer specifying width of image model representation.
@@ -87,10 +88,11 @@ PredictiveRun <- function(
     testFrac = 0.05,
     TfRecords_BufferScaler = 4L,
     learningRateMax = 0.001,
-    TFRecordControl = NULL, 
+    TFRecordControl = NULL,
     dataType = "image",
+    temporalAggregation = "transformer",
     image_dtype = "float16",
-    atError = "stop", 
+    atError = "stop",
     seed = NULL,
     modelPath = "./trained_model.eqx",
     metricsPath = "./evaluation_metrics.rds"
@@ -314,9 +316,10 @@ PredictiveRun <- function(
     X = X,
     file = file,
     dataType = dataType,
+    temporalAggregation = temporalAggregation,
     InitImageProcess = InitImageProcessFn,
-    NORM_MEAN = NORM_MEAN, 
-    NORM_SD = NORM_SD, 
+    NORM_MEAN = NORM_MEAN,
+    NORM_SD = NORM_SD,
     nWidth_ImageRep = nWidth_ImageRep,
     nDepth_ImageRep = nDepth_ImageRep,
     strides = strides,
@@ -327,16 +330,16 @@ PredictiveRun <- function(
     patchEmbedDim = patchEmbedDim,
     batchSize = batchSize,
     imageModelClass = imageModelClass,
-    pretrainedModel = pretrainedModel, 
-    optimizeImageRep = optimizeImageRep, 
+    pretrainedModel = pretrainedModel,
+    optimizeImageRep = optimizeImageRep,
     kernelSize = kernelSize,
     inputAvePoolingSize = inputAvePoolingSize,
     TfRecords_BufferScaler = 3L,
     XCrossModal = XCrossModal,
-    XForceModal = XForceModal, 
+    XForceModal = XForceModal,
     imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
     returnContents = T,
-    initializingFxns = T, 
+    initializingFxns = T,
     bn_momentum = 0.99,
     conda_env = conda_env,
     conda_env_required = conda_env_required,

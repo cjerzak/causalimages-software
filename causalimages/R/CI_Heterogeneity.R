@@ -32,6 +32,7 @@
 #' @param plotResults Should analysis results be plotted?
 #' @param plotBands An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types.
+#' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
 #' @param nWidth_ImageRep Integer specifying width of image model representation.
 #' @param nDepth_ImageRep Integer specifying depth of image model representation.
 #' @param nWidth_Dense Integer specifying width of image model representation.
@@ -106,7 +107,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       TfRecords_BufferScaler = 4L,
                                       temperature = 1,
                                       inputAvePoolingSize  = 1L,
-                                      dataType = "image"){
+                                      dataType = "image",
+                                      temporalAggregation = "transformer"){
   # create directory if needed
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
@@ -331,29 +333,30 @@ AnalyzeImageHeterogeneity <- function(obsW,
         setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
             file = file, conda_env = conda_env,
             dataType = dataType,
+            temporalAggregation = temporalAggregation,
             nWidth_ImageRep = nWidth_ImageRep,
             nDepth_ImageRep = nDepth_ImageRep,
-            NORM_MEAN = NORM_MEAN, 
-            NORM_SD = NORM_SD, 
+            NORM_MEAN = NORM_MEAN,
+            NORM_SD = NORM_SD,
             InitImageProcess = InitImageProcessFn,
             strides = strides,
-            nonLinearScaler = nonLinearScaler, 
+            nonLinearScaler = nonLinearScaler,
             nDepth_TemporalRep = nDepth_TemporalRep,
             patchEmbedDim = patchEmbedDim,
             batchSize = batchSize,
             imageModelClass = imageModelClass,
-            pretrainedModel = pretrainedModel, 
+            pretrainedModel = pretrainedModel,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
             imageKeysOfUnits = imageKeysOfUnits[tmp_i <- sample(1:length(imageKeysOfUnits),2*batchSize)],
-            lat = lat[tmp_i], 
-            long = long[tmp_i], 
-            image_dtype = image_dtype, 
-            image_dtype_tf = image_dtype_tf, 
+            lat = lat[tmp_i],
+            long = long[tmp_i],
+            image_dtype = image_dtype,
+            image_dtype_tf = image_dtype_tf,
             returnContents = T,
-            initializingFxns = T, 
+            initializingFxns = T,
             bn_momentum = bn_momentum,
-            seed = seed + ai(trainCounter) # seed 
+            seed = seed + ai(trainCounter) # seed
             ); setwd(new_wd)
             ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
             ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]

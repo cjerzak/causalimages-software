@@ -12,6 +12,7 @@
 #' @param InitImageProcess (default = `NULL`) Initial image processing function. Usually left `NULL`.
 #' @param batchSize Integer specifying batch size in obtaining representations.
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types. Default is `"image"`.
+#' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return A list containing two items:
@@ -66,6 +67,7 @@ GetImageRepresentations <- function(
     dropoutRate,
     droppathRate,
     dataType = "image",
+    temporalAggregation = "transformer",
     bn_momentum = 0.99,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     CleanupEnv = FALSE, 
@@ -144,9 +146,14 @@ GetImageRepresentations <- function(
     return(output)
   }
   
-  # deal with null dropouts 
+  # deal with null dropouts
   if(is.null(dropoutRate)){ dropoutRate <- 0 }
   if(is.null(droppathRate)){ droppathRate <- 0 }
+
+  # validate temporalAggregation parameter
+  if(!temporalAggregation %in% c("transformer", "concatenate")){
+    stop("temporalAggregation must be either 'transformer' or 'concatenate'")
+  }
 
   # image dtype
   if(is.null(image_dtype)){
@@ -212,6 +219,8 @@ GetImageRepresentations <- function(
   imageDims <- ai( length( rawShape ) - 2L )
   rawSpatialDims <- ai( rawShape[length(rawShape)-1] )
   rawChannelDims <- ai( rawShape[length(rawShape)] )
+  # for video data, rawShape is (1, time, height, width, channels)
+  nTimePeriods <- ifelse(dataType == "video", yes = ai(rawShape[2]), no = 1L)
   
   if(!is.null(pretrainedModel)){
     if(grepl(pretrainedModel,pattern="clip")){ nWidth_ImageRep <- nWidth_VideoRep <- 512L }
@@ -1173,18 +1182,28 @@ GetImageRepresentations <- function(
   
         # unsqueeze temporal dim if needed
         if(dataType == "video" | NeuralizeScale){
-          if( is.null(pretrainedModel) ){ m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) } 
+          if( is.null(pretrainedModel) ){ m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) }
           # (cienv$np$array(m)[1:5,,sample(1:10,1)]); m$shape
-          m <- cienv$jax$vmap(function(ModelList, m, x,
-                                       StateList, seed, MPList, inference){
-                      TransformerBackbone(ModelList, m, x,
-                                          StateList, seed, MPList, inference, type = "Temporal")},
-                        in_axes = list(NULL, 0L, 0L,
-                                       NULL, 0L, NULL, NULL),
-                        axis_name = batch_axis_name,
-                        out_axes = list(0L,NULL))(ModelList, m, x,
-                                                  StateList, cienv$jnp$add(seed,42L), MPList, inference)
-          StateList <- m[[2]]; m <- m[[1]]
+
+          # temporal aggregation: transformer or concatenate
+          if(temporalAggregation == "transformer"){
+            m <- cienv$jax$vmap(function(ModelList, m, x,
+                                         StateList, seed, MPList, inference){
+                        TransformerBackbone(ModelList, m, x,
+                                            StateList, seed, MPList, inference, type = "Temporal")},
+                          in_axes = list(NULL, 0L, 0L,
+                                         NULL, 0L, NULL, NULL),
+                          axis_name = batch_axis_name,
+                          out_axes = list(0L,NULL))(ModelList, m, x,
+                                                    StateList, cienv$jnp$add(seed,42L), MPList, inference)
+            StateList <- m[[2]]; m <- m[[1]]
+          }
+          if(temporalAggregation == "concatenate"){
+            # simply concatenate embeddings from all time periods
+            # m has shape (batch, time, embedding_dim), reshape to (batch, time * embedding_dim)
+            m <- cienv$jnp$reshape(m, c(m$shape[[1]], -1L))
+            message2(sprintf("Concatenated temporal embeddings: [%s]", paste(unlist(m$shape),collapse=",")))
+          }
           message2("Returning ImageRepArm_TemporalArm outputs...")
         }
       }
@@ -1194,9 +1213,18 @@ GetImageRepresentations <- function(
   }
   
   Representations <- NULL; if(getRepresentations){
-  Representations <- matrix(NA,nrow = length(unique(imageKeysOfUnits)), 
-                            ncol = ifelse(optimizeImageRep, yes = nWidth_ImageRep, 
-                                                            no = nWidth_ImageRep+2L*nWidth_ImageRep*(imageModelClass=="CNN")*is.null(pretrainedModel) ))
+  # calculate output dimension based on temporalAggregation method
+  baseRepWidth <- ifelse(optimizeImageRep, yes = nWidth_ImageRep,
+                         no = nWidth_ImageRep+2L*nWidth_ImageRep*(imageModelClass=="CNN")*is.null(pretrainedModel))
+  # for concatenate mode with video data, multiply by number of time periods
+  if(dataType == "video" && temporalAggregation == "concatenate"){
+    repWidth <- baseRepWidth * nTimePeriods
+    message2(sprintf("Using concatenate temporal aggregation: %d time periods x %d features = %d total features",
+                     nTimePeriods, baseRepWidth, repWidth))
+  } else {
+    repWidth <- baseRepWidth
+  }
+  Representations <- matrix(NA, nrow = length(unique(imageKeysOfUnits)), ncol = repWidth)
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
