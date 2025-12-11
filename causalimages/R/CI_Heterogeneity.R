@@ -41,7 +41,7 @@
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #'
 #' @return Returns a list consisting of \itemize{
-#'   \item `clusterTaus_mean` default
+#'   \item `clusterTaus_mean`. Estimated mean treatment effects for each cluster.
 #'   \item `clusterProbs_mean`. Estimated mean image effect cluster probabilities.
 #'   \item `clusterTaus_sigma`. Estimated cluster standard deviations.
 #'   \item `clusterProbs_lowerConf`. Estimated lower confidence for effect cluster probabilities.

@@ -79,14 +79,15 @@ r2const <- function(x, dtype){
 
 #' print2  print() with timestamps
 #'
-#' A function prints a string with date and time. 
+#' A function that prints a string with date and time.
 #'
-#' @param x Character string to be printed, with date and time. 
+#' @param text Character string to be printed, with date and time.
+#' @param quiet Logical. If TRUE, suppresses the print output. Default is FALSE.
 #'
-#' @return Prints with date and time. 
+#' @return Prints with date and time.
 #'
 #' @examples
-#' message("Hello world")
+#' print2("Hello world")
 #' @export
 #' @md
 #'

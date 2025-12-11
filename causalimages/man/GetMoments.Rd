@@ -11,13 +11,15 @@ GetMoments(iterator, dataType, image_dtype, momentCalIters = 34L)
 
 \item{dataType}{A string denoting data type}
 
+\item{image_dtype}{A string specifying the image data type (e.g., "float16", "float32")}
+
 \item{momentCalIters}{Number of minibatches with which to estimate moments}
 }
 \value{
 Returns mean/sd arrays for normalization.
 }
 \description{
-An internal function function for obtaining moments for channel normalization.
+An internal function for obtaining moments for channel normalization.
 }
 \examples{
 # (Not run)

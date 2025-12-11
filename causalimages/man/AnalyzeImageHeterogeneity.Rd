@@ -118,7 +118,7 @@ calculation of the expected likelihood in each training step.}
 }
 \value{
 Returns a list consisting of \itemize{
-\item \code{clusterTaus_mean} default
+\item \code{clusterTaus_mean}. Estimated mean treatment effects for each cluster.
 \item \code{clusterProbs_mean}. Estimated mean image effect cluster probabilities.
 \item \code{clusterTaus_sigma}. Estimated cluster standard deviations.
 \item \code{clusterProbs_lowerConf}. Estimated lower confidence for effect cluster probabilities.

@@ -20,7 +20,7 @@
 #' #set seed
 #' set.seed(1)
 #'
-#' #Geneate data
+#' #Generate data
 #' x <- matrix(rnorm(50*50), ncol = 50)
 #' diag(x) <- 3
 #'

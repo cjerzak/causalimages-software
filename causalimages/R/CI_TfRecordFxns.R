@@ -125,15 +125,15 @@ WriteTfRecord <- function(file,
 #'
 #' Reads unique key indices from a `.tfrecord` file saved via a call to `causalimages::WriteTfRecord`.
 #'
-#' @usage
-#'
-#' GetElementFromTfRecordAtIndices(uniqueKeyIndices, file,
-#'     conda_env, conda_env_required)
-#'
 #' @param uniqueKeyIndices (integer vector) Unique image indices to be retrieved from a `.tfrecord`
-#' @param file (character string) A character string stating the path to a `.tfrecord`
+#' @param filename (character string) A character string stating the path to a `.tfrecord`
+#' @param nObs (integer) Total number of observations in the tfrecord file
+#' @param readVideo (default = `FALSE`) A Boolean indicating whether to read video/sequence data
 #' @param conda_env (Default = `NULL`) A `conda` environment where tensorflow v2 lives. Used only if a version of tensorflow is not already active.
-#' @param conda_env_required (default = `F`) A Boolean stating whether use of the specified conda environment is required.
+#' @param conda_env_required (default = `FALSE`) A Boolean stating whether use of the specified conda environment is required.
+#' @param image_dtype (default = `"float16"`) A string specifying the image data type
+#' @param iterator (default = `NULL`) An optional iterator object for sequential reading
+#' @param return_iterator (default = `FALSE`) A Boolean indicating whether to return the iterator for subsequent calls
 #'
 #' @return Returns content from a `.tfrecord` associated with `uniqueKeyIndices`
 #'
@@ -141,7 +141,8 @@ WriteTfRecord <- function(file,
 #' # Example usage (not run):
 #' #GetElementFromTfRecordAtIndices(
 #'   #uniqueKeyIndices = 1:10,
-#'   #file = "./NigeriaConfoundApp.tfrecord")
+#'   #filename = "./NigeriaConfoundApp.tfrecord",
+#'   #nObs = 100)
 #'
 #' @export
 #' @md

@@ -7,14 +7,16 @@
 print2(text, quiet = F)
 }
 \arguments{
-\item{x}{Character string to be printed, with date and time.}
+\item{text}{Character string to be printed, with date and time.}
+
+\item{quiet}{Logical. If TRUE, suppresses the print output. Default is FALSE.}
 }
 \value{
 Prints with date and time.
 }
 \description{
-A function prints a string with date and time.
+A function that prints a string with date and time.
 }
 \examples{
-message("Hello world")
+print2("Hello world")
 }

@@ -1,10 +1,11 @@
 #' Get moments for normalization (internal function)
 #'
-#' An internal function function for obtaining moments for channel normalization. 
+#' An internal function for obtaining moments for channel normalization.
 #'
-#' @param iterator An iterator 
-#' @param dataType A string denoting data type 
-#' @param momentCalIters Number of minibatches with which to estimate moments 
+#' @param iterator An iterator
+#' @param dataType A string denoting data type
+#' @param image_dtype A string specifying the image data type (e.g., "float16", "float32")
+#' @param momentCalIters Number of minibatches with which to estimate moments
 #'
 #' @return Returns mean/sd arrays for normalization. 
 #'

@@ -2,7 +2,7 @@
 % Please edit documentation in R/CI_ImageModelBackbones.R
 \name{GetImageRepresentations}
 \alias{GetImageRepresentations}
-\title{Generates image and video representations useful in earth observation tasks for casual inference.}
+\title{Generates image and video representations useful in earth observation tasks for causal inference.}
 \usage{
 GetImageRepresentations(
   X = NULL,
@@ -79,7 +79,7 @@ A list containing two items:
 }
 }
 \description{
-Generates image and video representations useful in earth observation tasks for casual inference.
+Generates image and video representations useful in earth observation tasks for causal inference.
 }
 \section{References}{
 
