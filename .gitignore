@@ -3,10 +3,11 @@ __pycache__
 .DS_Store
 .history
 default.profraw
-
 build
 dist
 /misc/docker/binaries/
 /misc/docker/binaries/bin/
 /misc/docker/binaries/src/
 */.DS_Store
+CLAUDE.md
+./reports
