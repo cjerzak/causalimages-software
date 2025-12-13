@@ -10,5 +10,5 @@ dist
 /misc/docker/binaries/src/
 */.DS_Store
 CLAUDE.md
-./reports
+/reports/
 /tmp/
