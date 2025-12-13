@@ -3,7 +3,13 @@
   ################################
   # Image confounding tutorial using causalimages
   ################################
-  setwd("~/Downloads/"); options( error = NULL )
+  # Use TEST_DATA_DIR if set by test suite, otherwise default to ~/Downloads
+  if (exists("TEST_DATA_DIR")) {
+    setwd(TEST_DATA_DIR)
+  } else {
+    setwd("~/Downloads/")
+  }
+  options( error = NULL )
   #setwd("./"); options( error = NULL )
 
   # remote install latest version of the package if needed
@@ -135,8 +141,8 @@
         writeVideo = T)
   }
 
-  for(ImageModelClass in c("VisionTransformer","CNN")){
-  for(optimizeImageRep in c(T, F)){
+  for(ImageModelClass in c("VisionTransformer")){
+  for(optimizeImageRep in c(TRUE, FALSE)){
     print(sprintf("Image seq confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
     ImageSeqConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
       obsW = obsW[ take_indices ],

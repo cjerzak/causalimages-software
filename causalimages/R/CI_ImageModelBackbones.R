@@ -314,9 +314,18 @@ GetImageRepresentations <- function(
                 )
    } 
     
-    # setup initial processor 
+    # setup initial processor
     if( is.null(InitImageProcess) ){
       InitImageProcess <- (function(im, seed, inference =  F){ return( im  ) })
+    }
+    # Ensure InitImageProcess accepts batch_indices parameter for consistent calling
+    # (The batch_indices parameter is used for geospatial embedding in some pretrained models
+    # but must be accepted by all InitImageProcess functions for the call at line ~1505)
+    {
+      InitImageProcess_wrapper_base <- InitImageProcess
+      InitImageProcess <- function(m, seed, inference, batch_indices = NULL){
+        InitImageProcess_wrapper_base(m, seed, inference)
+      }
     }
     if( !is.null(pretrainedModel) ){
       InitImageProcess_orig <- InitImageProcess
@@ -539,35 +548,41 @@ GetImageRepresentations <- function(
             if(!"torchax" %in% ls(envir = cienv)){cienv$torchax <- reticulate::import("torchax")}
             if(!"transformers" %in% ls(envir = cienv)){cienv$transformers <- reticulate::import("transformers")}
 
-            # 2. Load the PyTorch CLIP model (flax-community/clip-rsicd-v2 has pytorch_model.bin)
+            # 2. Load the PyTorch CLIP model
             PretrainedImageModelName <- 'flax-community/clip-rsicd-v2'
             pt_model <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)
             pt_model$eval()
 
-            # 3. Extract and configure the vision model component
-            pt_vision_model <- pt_model$vision_model
-            pt_vision_model$config$return_dict <- FALSE
-            pt_vision_model$config$output_attentions <- FALSE
-            pt_vision_model$config$output_hidden_states <- FALSE
+            # 3. Create a wrapper module that calls get_image_features directly
+            # This avoids the BaseModelOutputWithPooling issue - get_image_features returns a simple tensor
+            reticulate::py_run_string("
+import torch
+import torch.nn as nn
 
-            # 4. Compile the vision model to JAX using torchax
-            JaxModelPackage <- cienv$torchax$extract_jax(pt_vision_model)
+class CLIPImageFeatureExtractor(nn.Module):
+    def __init__(self, clip_model):
+        super().__init__()
+        self.clip_model = clip_model
+
+    def forward(self, pixel_values):
+        # get_image_features returns (batch, 512) tensor directly
+        return self.clip_model.get_image_features(pixel_values)
+")
+            feature_extractor <- reticulate::py$CLIPImageFeatureExtractor(pt_model)
+            feature_extractor$eval()
+
+            # 4. Compile the wrapper to JAX using torchax
+            # Note: Don't use JIT - the non-JIT version returns proper JAX arrays directly
+            # JIT would return torchax.tensor.Tensor which requires .jax() conversion
+            JaxModelPackage <- cienv$torchax$extract_jax(feature_extractor)
             cienv$JAX_Weights <- JaxModelPackage[[1]]
             cienv$JAX_Model   <- JaxModelPackage[[2]]
-            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model )
 
-            # 5. Also compile the visual projection layer for CLIP embedding space
-            pt_visual_projection <- pt_model$visual_projection
-            JaxProjPackage <- cienv$torchax$extract_jax(pt_visual_projection)
-            cienv$JAX_Proj_Weights <- JaxProjPackage[[1]]
-            cienv$JAX_Proj_Model   <- JaxProjPackage[[2]]
-            cienv$JAX_Proj_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Proj_Model )
-
-            # 6. Set Metadata
+            # 5. Set Metadata
             cienv$nParameters_Pretrained <- pt_model$num_parameters()
             cienv$nWidth_ImageRep <- 512L  # CLIP embedding dimension
 
-            # 7. Define Preprocessing Constants (JAX Arrays)
+            # 6. Define Preprocessing Constants (JAX Arrays)
             # CLIP uses specific normalization values (OpenAI CLIP standard)
             cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.48145466, 0.4578275, 0.40821073)), list(1L, 3L, 1L, 1L))
             cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.26862954, 0.26130258, 0.27577711)), list(1L, 3L, 1L, 1L))
@@ -585,7 +600,7 @@ GetImageRepresentations <- function(
             }
 
             # Cleanup PyTorch models to free memory
-            try(rm("pt_model", "pt_vision_model", "pt_visual_projection", "JaxModelPackage", "JaxProjPackage"),T)
+            try(rm("pt_model", "feature_extractor", "JaxModelPackage"),T)
             cienv$py_gc$collect()
           }
 
@@ -607,21 +622,12 @@ GetImageRepresentations <- function(
           # 4. Apply CLIP normalization: (x - mean) / std
           m <- (m - cienv$MEAN_RESCALER) / cienv$SD_RESCALER
 
-          # 5. Execute the compiled JAX vision model
-          out <- cienv$JAX_Model(
+          # 5. Execute the compiled JAX model
+          # The wrapper calls get_image_features which returns (batch, 512) directly
+          m <- cienv$JAX_Model(
             cienv$JAX_Weights,
             tuple(m),          # positional: (pixel_values,)
             dict()             # kwargs empty
-          )
-
-          # 6. Extract pooler_output (CLIPVisionModel returns (last_hidden_state, pooler_output))
-          pooled_output <- out[[2]]
-
-          # 7. Apply visual projection to get CLIP image features (512-dim)
-          m <- cienv$JAX_Proj_Model(
-            cienv$JAX_Proj_Weights,
-            tuple(pooled_output),
-            dict()
           )
 
           # Handle output format (may be tuple, extract first element if so)

@@ -47,7 +47,12 @@ X <- apply(X,2,function(zer){
 take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 50) }) )
 
 # write tf record
-TfRecord_name <- "~/Downloads/CausalImagesTutorialDat.tfrecord"
+# Use TEST_DATA_DIR if set by test suite, otherwise default to ~/Downloads
+TfRecord_name <- if (exists("TEST_DATA_DIR")) {
+  file.path(TEST_DATA_DIR, "CausalImagesTutorialDat.tfrecord")
+} else {
+  "~/Downloads/CausalImagesTutorialDat.tfrecord"
+}
 causalimages::WriteTfRecord(  file =  TfRecord_name,
                 uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
                 acquireImageFxn = acquireImageFromMemory  )
@@ -57,6 +62,7 @@ MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageModelClass = "VisionTransformer",
   pretrainedModel = "clip-rsicd",
+  #pretrainedModel = "vit-base",
   imageKeysOfUnits = KeysOfObservations[ take_indices ] 
 )
 
