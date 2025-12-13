@@ -68,7 +68,7 @@
   }
 
   for(ImageModelClass in (c("VisionTransformer"))){
-  for(optimizeImageRep in c(T,F)){
+  for(optimizeImageRep in c(FALSE, TRUE)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
     obsW = obsW[ take_indices ],
@@ -91,7 +91,6 @@
     plotResults = T, figuresTag = "ConfoundingImTutorial",
     figuresPath = "./ImageTutorial")
     try(dev.off(), T)
-  #ImageConfoundingAnalysis$ModelEvaluationMetrics
   }
   }
 
@@ -103,7 +102,6 @@
 
   # some out-of-sample evaluation metrics
   ImageConfoundingAnalysis$ModelEvaluationMetrics
-
 }
 
   # perform causal inference with image *sequence*  and tabular confounding

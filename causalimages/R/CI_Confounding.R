@@ -285,6 +285,9 @@ AnalyzeImageConfounding <- function(
       inKeys <- unique(imageKeysOfUnits[!imageKeysOfUnits %in% outKeys])
       testIndices <- (1:length(obsY))[imageKeysOfUnits %in% outKeys]
       trainIndices <- (1:length(obsY))[imageKeysOfUnits %in% inKeys]
+      # Initialize list versions for return (no cross-fitting in !optimizeImageRep path)
+      trainIndices_list <- list(trainIndices)
+      testIndices_list <- list(testIndices)
 
       message2("Starting generation of image/video representation + outcome prediction [bootstrap done for uncertainty estimation]...")
       for(jr in 1L:(nBoot+1L)){
@@ -438,6 +441,8 @@ AnalyzeImageConfounding <- function(
           }
         }
       }
+      # Compute SE from bootstrap samples (positions 1:nBoot; position nBoot+1 is the actual estimate)
+      tauHat_propensityHajek_se <- sd(tauHat_propensityHajek_vec[1:nBoot], na.rm = TRUE)
     }
 
     if(optimizeImageRep){
@@ -965,14 +970,16 @@ AnalyzeImageConfounding <- function(
     lossClassError_IN <- 1/length(trainIndices) * (sum( prW_est[trainIndices][ obsW[trainIndices] == 1] < 0.5) +
                                                      sum( prW_est[trainIndices][ obsW[trainIndices] == 0] > 0.5))
     
-    # AOC calculations
-    roc_obj_IN <- pROC::auc(pROC::roc(response = obsW[trainIndices], 
+    # AUC calculations (wrapped in try() for edge cases with imbalanced test sets)
+    roc_obj_IN <- try(pROC::auc(pROC::roc(response = obsW[trainIndices],
                                       predictor = prW_est[trainIndices],
-                                      levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
-    roc_obj_OUT <- pROC::auc(pROC::roc(response = obsW[testIndices], 
-                                       predictor = prW_est[testIndices], 
+                                      levels = c(0, 1), direction = "<")), silent = TRUE)
+    if ("try-error" %in% class(roc_obj_IN)) roc_obj_IN <- NA
+    roc_obj_OUT <- try(pROC::auc(pROC::roc(response = obsW[testIndices],
+                                       predictor = prW_est[testIndices],
                                        levels = c(0, 1),
-                                       direction = "<") ) # Assuming 1 is positive class
+                                       direction = "<")), silent = TRUE)
+    if ("try-error" %in% class(roc_obj_OUT)) roc_obj_OUT <- NA
     
     # AUPRC calculations 
     auprc_OUT <- PRROC::pr.curve(scores.class0 = prW_est[testIndices][obsW[testIndices] == 1],
@@ -1410,7 +1417,7 @@ AnalyzeImageConfounding <- function(
       "SGD_loss_vec" = loss_vec,
       "LatitudeAnalysis" = list("preDiffInLat" = preDiffInLat, "postDiffInLat"  = postDiffInLat),
       "ModelEvaluationMetrics" = ModelEvaluationMetrics,
-      "AUC" = pROC::roc(obsW[testIndices], prW_est[testIndices])$auc,
+      "AUC" = roc_obj_OUT,
       "myGlmnet_coefs" = myGlmnet_coefs,
       "ImageRepresentations_df" = ImageRepresentations_df, 
       "ImageRepresentations_df_transport" = ImageRepresentations_df_transport, 
