@@ -9,11 +9,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          python-version: 3.10
+          python-version: '3.10'
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: '4.2'
@@ -22,7 +26,7 @@ jobs:
           Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org")'
       - name: Install package dependencies
         run: |
-          Rscript -e 'devtools::install_deps(dependencies = TRUE)'
+          Rscript -e 'devtools::install_deps("causalimages", dependencies = TRUE)'
       - name: Install causalimages package
         run: R CMD INSTALL causalimages
       - name: Build backend
@@ -32,4 +36,4 @@ jobs:
           mkdir -p "$HOME/Documents"
           ln -s "$GITHUB_WORKSPACE" "$HOME/Documents/causalimages-software"
       - name: Run tutorial tests
-        run: Rscript tests/Test_AAARunAllTutorialsSuite.R
+        run: Rscript causalimages/tests/Test_AAARunAllTutorialsSuite.R
