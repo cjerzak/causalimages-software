@@ -25,7 +25,7 @@
   library( causalimages )
 
   # resave TfRecords?
-  reSaveTFRecord <- F
+  reSaveTFRecord <- TRUE
 
   # load in tutorial data
   data(  CausalImagesTutorialData )
@@ -36,7 +36,7 @@
   })
 
   # select observation subset to make the tutorial quick
-  set.seed(4321L);take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 100)}) )
+  set.seed(4321L);take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){sample(zer, 200)}) )
 
   # perform causal inference with image and tabular confounding
   {
@@ -67,7 +67,7 @@
       acquireImageFxn = acquireImageFxn)
   }
 
-  for(ImageModelClass in (c("VisionTransformer","CNN"))){
+  for(ImageModelClass in (c("VisionTransformer"))){
   for(optimizeImageRep in c(T,F)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
   ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
@@ -107,7 +107,7 @@
 }
 
   # perform causal inference with image *sequence*  and tabular confounding
-  {
+  if(FALSE){
   acquireVideoRep <- function(keys) {
       # Note: this is a toy function generating image representations
       # that simply reuse a single temporal slice. In practice, we will

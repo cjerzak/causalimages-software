@@ -833,11 +833,11 @@ class CLIPImageFeatureExtractor(nn.Module):
           m = cienv$jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
           # plot(cienv$np$array(m)[,sample(1:10,2)])
         }
-        if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
+      if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
           # reshape if not using videomae
           m <- cienv$jnp$reshape(cienv$jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) 
         } 
-        if(grepl(pretrainedModel,pattern="videomae")){ 
+      if(grepl(pretrainedModel,pattern="videomae")){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
             message2("Loading a pre-trained model (videomae)...")
             PretrainedVideoModelName <- "MCG-NJU/videomae-base"
@@ -903,7 +903,7 @@ class CLIPImageFeatureExtractor(nn.Module):
           }
           m <- cienv$jnp$array( m_rep )
         }
-        return( m ) 
+      return( m ) 
       }
     }
     
