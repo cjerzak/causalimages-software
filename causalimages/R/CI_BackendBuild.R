@@ -156,6 +156,8 @@ BuildBackend <- function(conda_env = "CausalImagesEnv", conda = "auto") {
     "tensorflow",
     "optax",
     "torch",
+    "flax",
+    "torchax",
     "transformers",
     "pillow",
     "tf-keras",

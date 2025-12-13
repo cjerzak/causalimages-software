@@ -38,12 +38,36 @@ initialize_jax <- function(conda_env = "cienv",
   cienv$jaxFloatType <- cienv$jnp$float32
 }
 
-initialize_torch <- function(conda_env = "cienv", 
+initialize_torch <- function(conda_env = "cienv",
                            conda_env_required = TRUE,
                            Sys.setenv_text = NULL) {
-  # Import Python packages once, storing them in cienv
+  # Import torch BEFORE other libraries (JAX/TF/NumPy) to avoid conflicts
+  # This is critical for pretrained models using transformers
   if (!exists("torch", envir = cienv, inherits = FALSE)) {
+    message2("Initializing torch (must be imported before JAX/TF/NumPy for pretrained models)")
+
+    library(reticulate)
+
+    # Set up conda environment if not already done
+    reticulate::use_condaenv(condaenv = conda_env, required = conda_env_required)
+
+    if(!is.null(Sys.setenv_text)){
+      eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
+    }
+
+    # Import torch and transformers first
     cienv$torch <- reticulate::import("torch")
     cienv$transformers <- reticulate::import("transformers")
   }
+}
+
+# Helper function to check if a pretrained model requires torch/transformers
+pretrained_model_requires_torch <- function(pretrainedModel) {
+  if (is.null(pretrainedModel)) return(FALSE)
+  pretrainedModel <- as.character(pretrainedModel)
+  # Generic transformers-XXX pattern (e.g., "transformers-facebook/dinov2-base")
+  if (grepl("^transformers-", pretrainedModel, ignore.case = TRUE)) return(TRUE)
+  # These pretrained models use torch/transformers
+  torch_patterns <- c("clip", "swin", "vit-base", "clay", "videomae")
+  any(sapply(torch_patterns, function(p) grepl(p, pretrainedModel, ignore.case = TRUE)))
 }

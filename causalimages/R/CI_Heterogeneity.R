@@ -112,10 +112,20 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # create directory if needed
   if( !dir.exists(figuresPath) ){ dir.create(figuresPath) }
 
+  # IMPORTANT: If using a pretrained model that requires torch/transformers,
+  # initialize torch BEFORE JAX/TF/NumPy to avoid import conflicts
+  if (pretrained_model_requires_torch(pretrainedModel)) {
+    if (!"torch" %in% ls(envir = cienv)) {
+      initialize_torch(conda_env = conda_env,
+                       conda_env_required = conda_env_required,
+                       Sys.setenv_text = Sys.setenv_text)
+    }
+  }
+
   if(!"jax" %in% ls(envir = cienv)) {
-    initialize_jax(conda_env = conda_env, 
+    initialize_jax(conda_env = conda_env,
                    conda_env_required = conda_env_required,
-                   Sys.setenv_text = Sys.setenv_text) 
+                   Sys.setenv_text = Sys.setenv_text)
   }
   
   {

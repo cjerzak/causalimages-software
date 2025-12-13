@@ -14,6 +14,24 @@
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types. Default is `"image"`.
 #' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
+#' @param pretrainedModel Optional string specifying a pretrained vision model to use for feature extraction.
+#'   Built-in options include:
+#'   \itemize{
+#'     \item `"vit-base"` - Google's Vision Transformer (ViT-Base, 768-dim embeddings)
+#'     \item `"clip-rsicd"` - CLIP fine-tuned on remote sensing data (512-dim embeddings)
+#'     \item `"clip-rsicd-v0"` - Legacy CLIP-RSICD implementation
+#'   }
+#'   For generic HuggingFace models, use the `"transformers-"` prefix followed by the model name:
+#'   \itemize{
+#'     \item `"transformers-facebook/dinov2-base"` - DINOv2 self-supervised ViT
+#'     \item `"transformers-microsoft/resnet-50"` - ResNet-50
+#'     \item `"transformers-facebook/convnext-base-224"` - ConvNeXt
+#'     \item `"transformers-<any-huggingface-model>"` - Any vision model from HuggingFace
+#'   }
+#'   The generic handler uses `AutoModel.from_pretrained()` and automatically detects hidden dimensions,
+#'   input sizes, and handles various output formats. Default is `NULL` (uses custom model architecture).
+#' @param NORM_MEAN Numeric vector of length 1-3 specifying dataset mean(s) for normalization. Used with pretrained models.
+#' @param NORM_SD Numeric vector of length 1-3 specifying dataset standard deviation(s) for normalization. Used with pretrained models.
 #'
 #' @return A list containing two items:
 #' \itemize{
@@ -74,10 +92,21 @@ GetImageRepresentations <- function(
     initializingFxns = FALSE, 
     seed = NULL){
   
+  # IMPORTANT: If using a pretrained model that requires torch/transformers,
+
+  # initialize torch BEFORE JAX/TF/NumPy to avoid import conflicts
+  if (pretrained_model_requires_torch(pretrainedModel)) {
+    if (!"torch" %in% ls(envir = cienv)) {
+      initialize_torch(conda_env = conda_env,
+                       conda_env_required = conda_env_required,
+                       Sys.setenv_text = Sys.setenv_text)
+    }
+  }
+
   if(!"jax" %in% ls(envir = cienv)) {
-    initialize_jax(conda_env = conda_env, 
+    initialize_jax(conda_env = conda_env,
                    conda_env_required = conda_env_required,
-                   Sys.setenv_text = Sys.setenv_text) 
+                   Sys.setenv_text = Sys.setenv_text)
   }
   
   FlashMultiheadAttention <- function(query, key_ = NULL, value = NULL, mask = NULL,
@@ -291,7 +320,7 @@ GetImageRepresentations <- function(
     }
     if( !is.null(pretrainedModel) ){
       InitImageProcess_orig <- InitImageProcess
-      InitImageProcess <- function(m, seed, inference){ 
+      InitImageProcess <- function(m, seed, inference, batch_indices = NULL){ 
         # normalize for this/these models
         if( grepl(pretrainedModel,pattern="clay")  ){ 
           m <- InitImageProcess_orig(m, cienv$jax$random$key(1L), T) 
@@ -306,7 +335,7 @@ GetImageRepresentations <- function(
           if(m$shape[[4]] == 1L){ m <- m * cienv$jnp$expand_dims(cienv$jnp$expand_dims(cienv$jnp$array(t(c(1,1,1))),0L),0L)$astype(m$dtype) }
           if(m$shape[[4]] > 3L){ m <- cienv$jnp$take(m,0L:2L,axis=3L) }
         }
-        if( pretrainedModel == "clip-rsicd" ){
+        if( pretrainedModel == "clip-rsicd-v0" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
           if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
             message2("Loading a pre-trained model (clip-rsicd)...")
@@ -358,160 +387,357 @@ GetImageRepresentations <- function(
           # plot(m[,1:10])
           cienv$py_gc$collect()
         }
-        if(  grepl(pretrainedModel, pattern = "swin") ){
-          if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            message2("Setting up swin model...")
-            initialize_torch(conda_env = conda_env,
-                             conda_env_required = conda_env_required,
-                             Sys.setenv_text = Sys.setenv_text)
-            cienv$nParameters_Pretrained <- 1L
-            
-            # didn't get working (uses haiku)
-            #cienv$FeatureExtractor <- (jax_models <- import("jax_models",convert = T))$load_model('swin-tiny-224', num_classes=1000L, attach_head=FALSE, pretrained=TRUE)
-            #cienv$Processor <- cienv$transformers$Swin2SRImageProcessor('swin-tiny-224')
+        if( grepl("^transformers-", pretrainedModel) ){
+          # Generic handler for any HuggingFace transformers vision model
+          # Usage: pretrainedModel = "transformers-facebook/dinov2-base"
+          #        pretrainedModel = "transformers-microsoft/resnet-50"
+          #        pretrainedModel = "transformers-google/vit-base-patch16-224"
 
-            cienv$torch$set_default_device( RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
-                                     yes = list(cienv$torch$device("cuda")),  no = list(cienv$torch$device("cpu")))[[1]]  )
-            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
-            cienv$FeatureExtractor <- cienv$transformers$Swinv2Model$from_pretrained(PretrainedImageModelName <- "microsoft/swinv2-tiny-patch4-window8-256")$to(RunOnDevice)
-            cienv$Processor <- cienv$transformers$AutoImageProcessor$from_pretrained(PretrainedImageModelName)
-              
-            # got working (uses flax)
-            #jax_models$list_models()
-            #cienv$FeatureExtractor <- cienv$transformers$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <- "flax-community/clip-rsicd-v2")
-            #cienv$Processor <- cienv$transformers$CLIPProcessor$from_pretrained(PretrainedImageModelName)
-            #cienv$FeatureExtractor <- cienv$transformers$FlaxCLIPModel$from_pretrained(PretrainedImageModelName <- "openai/clip-vit-base-patch32")
-            
-            #cienv$nWidth_ImageRep <- cienv$nWidth_VideoRep <- 768L
-            #cienv$FeatureExtractor <- cienv$transformers$FlaxViTModel$from_pretrained(PretrainedImageModelName <- "facebook/vit-mae-base")
+          if(!"JAX_Model" %in% ls(envir = cienv)){
+            # Extract the actual HuggingFace model name from "transformers-XXX" pattern
+            PretrainedImageModelName <- sub("^transformers-", "", pretrainedModel)
+            message2(sprintf("Loading generic transformers model '%s' via torchax compilation...", PretrainedImageModelName))
 
-            # stretch and renormalization setups 
-            cienv$MEAN_RESCALER <- cienv$jnp$array(c(0,0,0))
-            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,list(1L,3L,1L,1L))
-            
-            cienv$SD_RESCALER <- cienv$jnp$array(c(1,1,1))
-            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,list(1L,3L,1L,1L))
-            
-            if(length(NORM_MEAN) == 1){ 
-              OrigImDim <- 1L
-              cienv$NORM_MEAN <- rep(NORM_MEAN,3); cienv$NORM_SD <- rep(NORM_SD,3)
+            # 1. Initialize TorchAx and Transformers if needed
+            if(!"torchax" %in% ls(envir = cienv)){cienv$torchax <- reticulate::import("torchax")}
+            if(!"transformers" %in% ls(envir = cienv)){cienv$transformers <- reticulate::import("transformers")}
+
+            # 2. Load the model using AutoModel for maximum flexibility
+            # AutoModel will automatically select the correct model class
+            pt_model <- cienv$transformers$AutoModel$from_pretrained(PretrainedImageModelName)
+            pt_model$eval()
+
+            # 3. Configure model for inference
+            pt_model$config$return_dict <- FALSE
+            pt_model$config$output_attentions <- FALSE
+            pt_model$config$output_hidden_states <- FALSE
+
+            # 4. Compile the PyTorch model to JAX using torchax
+            JaxModelPackage <- cienv$torchax$extract_jax(pt_model)
+            cienv$JAX_Weights <- JaxModelPackage[[1]]
+            cienv$JAX_Model   <- JaxModelPackage[[2]]
+            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model )
+
+            # 5. Detect model output dimension from config
+            # Different model architectures use different attribute names
+            model_config <- pt_model$config
+            hidden_dim <- NULL
+            if (!is.null(model_config$hidden_size)) {
+              hidden_dim <- as.integer(model_config$hidden_size)
+            } else if (!is.null(model_config$num_features)) {
+              hidden_dim <- as.integer(model_config$num_features)
+            } else if (!is.null(model_config$embed_dim)) {
+              hidden_dim <- as.integer(model_config$embed_dim)
+            } else {
+              # Fallback: use 768 (common ViT dimension)
+              hidden_dim <- 768L
+              message2(sprintf("Could not auto-detect hidden dimension, defaulting to %d", hidden_dim))
             }
-            if(length(NORM_MEAN) == 2){ 
-              NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
-              NORM_SD <- c(NORM_SD,NORM_SD[1])
+
+            # 6. Detect expected input image size from config
+            expected_size <- 224L  # Default
+            if (!is.null(model_config$image_size)) {
+              expected_size <- as.integer(model_config$image_size)
             }
-            
-            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
-            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
-            message2("Done setting up swin model!")
-          }
-          
-          # normalize and resize 
-          #m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
-          if(!NeuralizeScale){
-            m <- cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")
-          }
-          m <- cienv$jnp$transpose(m, c(0L,3L,1L,2L))
-          #m <- (m*SD_RESCALER)+cienv$MEAN_RESCALER
-          
-          #m <- 1 * (m - m$min(axis = 1L:3L,keepdims=T)) /  (m$max(axis = 1L:3L,keepdims=T) - m$min(axis = 1L:3L,keepdims=T))
-          #m <- 1 * (m - m$min()) /  (0.001+m$max() - m$min())
-          m <- cienv$jnp$clip(1 * (m - 0.) /  (0.001 + 256.  - 0.), 0.001, 0.999) #m / 256. 
-          #m <-  cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
-          m <-  cienv$torch$tensor( m, dtype = cienv$torch$float32)
-          m <- cienv$Processor(images = m, return_tensors="pt", do_rescale = F)$data$pixel_values # jax if using flax 
-          
-          #tmp <- cienv$FeatureExtractor$get_image_features(pixel_values =  cienv$jnp$transpose(cienv$jax$image$resize( image=m,shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear"), c(0L,3L,1L,2L)), params = cienv$FeatureExtractor$params, train = !inference )
-          #tmp1 <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params, train = !inference )
-          #hist(cienv$np$array(tmp)); hist(cienv$np$array(tmp1))
-          #plot(c(cienv$np$array(tmp)),cienv$np$array(tmp1)); abline(a=0,b=1)
-          
-          if(pretrainedModel != "swin-ft"){ 
-            m <- cienv$jnp$array(FeatureExtractor( cienv$torch$as_tensor( m, dtype= cienv$torch$float32) )$pooler_output$cpu()$detach()$numpy())
-            #m <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params,dropout_rng = seed,train = !inference) # for flax models  
-            #m <- cienv$FeatureExtractor$get_image_features(pixel_values = m, params = cienv$FeatureExtractor$params,dropout_rng = seed,train = !inference))$pooler_output # for flax models  (vae)
-          }
-          cienv$py_gc$collect()
-        }
-        if( grepl(pretrainedModel, pattern = "vit-base") ){ 
-          if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
-            message2("Loading a pre-trained model (vit-base)...")
-            initialize_torch(conda_env = conda_env,
-                             conda_env_required = conda_env_required,
-                             Sys.setenv_text = Sys.setenv_text)
-            
-            
-            PretrainedImageModelName <- 'google/vit-base-patch16-224-in21k'
-            cienv$FeatureExtractor <- cienv$transformers$ViTImageProcessor$from_pretrained(PretrainedImageModelName)
-            cienv$torch$set_default_device(
-              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
-                                     yes = list(cienv$torch$device("cuda")), 
-                                     no = list(cienv$torch$device("cpu")))[[1]] 
-            )
-            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
-            cienv$TransformersModel <- cienv$transformers$ViTModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
-            cienv$nParameters_Pretrained <- cienv$TransformersModel$num_parameters()
-            cienv$nWidth_ImageRep <- cienv$nWidth_VideoRep <- 768L
-            
-            cienv$MEAN_RESCALER <- cienv$jnp$array(c(0.5,0.5,0.5))
-            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$MEAN_RESCALER,list(1L,3L,1L,1L))
-            
-            cienv$SD_RESCALER <- cienv$jnp$array(c(0.5,0.5,0.5))
-            cienv$SD_RESCALER <- cienv$jnp$reshape(cienv$SD_RESCALER,list(1L,3L,1L,1L))
-            
-            if(length(NORM_MEAN) == 1){ 
-              OrigImDim <- 1L
-              cienv$NORM_MEAN <- rep(NORM_MEAN,3); cienv$NORM_SD <- rep(NORM_SD,3)
+            cienv$EXPECTED_IMAGE_SIZE <- expected_size
+
+            # 7. Set Metadata
+            cienv$nParameters_Pretrained <- pt_model$num_parameters()
+            cienv$nWidth_ImageRep <- hidden_dim
+            cienv$GENERIC_TRANSFORMERS_MODEL <- TRUE  # Flag for output handling
+
+            # Store model name for reference
+            cienv$TRANSFORMERS_MODEL_NAME <- PretrainedImageModelName
+
+            # 8. Define Preprocessing Constants (JAX Arrays)
+            # Use ImageNet normalization by default (most common for vision models)
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.485, 0.456, 0.406)), list(1L, 3L, 1L, 1L))
+            cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.229, 0.224, 0.225)), list(1L, 3L, 1L, 1L))
+
+            # Dataset-specific normalization (applied to NHWC input)
+            if(is.null(cienv$NORM_MEAN_array_inner)){
+              if(length(NORM_MEAN) == 1){
+                cienv$NORM_MEAN <- rep(NORM_MEAN, 3); cienv$NORM_SD <- rep(NORM_SD, 3)
+              }
+              if(length(NORM_MEAN) == 2){
+                NORM_MEAN <- c(NORM_MEAN, NORM_MEAN[1]); NORM_SD <- c(NORM_SD, NORM_SD[1])
+              }
+              cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN), list(1L, 1L, 1L, 3L))
+              cienv$NORM_SD_array_inner   <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD), list(1L, 1L, 1L, 3L))
             }
-            if(length(NORM_MEAN) == 2){ 
-              NORM_MEAN <- c(NORM_MEAN,NORM_MEAN[1])
-              NORM_SD <- c(NORM_SD,NORM_SD[1])
-            }
-            cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN),list(1L,1L,1L,3L))
-            cienv$NORM_SD_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD),list(1L,1L,1L,3L))
+
+            # Cleanup PyTorch model to free memory
+            try(rm("pt_model", "JaxModelPackage"),T)
+            cienv$py_gc$collect()
           }
 
-          # Images are resized/rescaled to the same resolution (224x224)
-          # and normalized across the RGB channels with mean (0.5, 0.5, 0.5) 
-          # and standard deviation (0.5, 0.5, 0.5)
-          # evidence: https://huggingface.co/google/vit-base-patch16-224-in21k  
-          # (see preprocessing)
-          # m_orig <- m
-          # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L:2L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L:2L)) 
-          
-          # causalimages::image2( cienv$np$array(m[1,,,1]) )
-          # causalimages::image2( cienv$np$array(m[1,,,2]) )
-          # causalimages::image2( cienv$np$array(m[1,,,3]) )
-          m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
-          
-          # resize information: 
-          #the output shape, as a sequence of integers with length equal to
-          #the number of dimensions of `image`. Note that :func:`resize` does not
-          #distinguish spatial dimensions from batch or channel dimensions, so this
-          #includes all dimensions of the image. To represent a batch or a channel
-          #dimension, simply leave that element of the shape unchanged.
-          
-          # sanity checks 
-          #image2(cienv$np$array(m[1,,,1]))
-          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 224L, 224L, 3L), method="bilinear")[1,,,1]))
-          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 64L, 64L, 3L), method="bilinear")[1,,,1]))
-          #image2(cienv$np$array(cienv$jax$image$resize( image=m, shape=c(m$shape[[1]], 32L, 32L, 3L), method="bilinear")[1,,,1]))
-          
-          # run resizing 
+          # --- JAX Preprocessing Pipeline ---
+          # 1. Normalize using Dataset Statistics (Standardization)
+          # Input 'm' is (Batch, Height, Width, Channel)
+          m <- (m - cienv$NORM_MEAN_array_inner) / cienv$NORM_SD_array_inner
+
+          # 2. Resize to expected size (typically 224x224)
+          target_size <- cienv$EXPECTED_IMAGE_SIZE
           m <- cienv$jax$image$resize(
-            image=m,
-            shape=c(m$shape[[1]], 224L, 224L, 3L),
-            method="bilinear")
-          
-          #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
-          m <- cienv$jnp$transpose(m, c(0L,3L,1L,2L))
-          m <- ( m*cienv$SD_RESCALER) + cienv$MEAN_RESCALER
-          #m <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
-          m <- cienv$torch$tensor( m, dtype = cienv$torch$float32)
-          m <- TransformersModel(m)$pooler_output$cpu()$detach()$numpy() 
+            image = m,
+            shape = c(m$shape[[1]], target_size, target_size, 3L),
+            method = "bilinear"
+          )
+
+          # 3. Transpose NHWC -> NCHW (PyTorch Model Requirement)
+          m <- cienv$jnp$transpose(m, c(0L, 3L, 1L, 2L))
+
+          # 4. Apply ImageNet normalization: (x - mean) / std
+          m <- (m - cienv$MEAN_RESCALER) / cienv$SD_RESCALER
+
+          # 5. Execute the compiled JAX model
+          out <- cienv$JAX_Model(
+            cienv$JAX_Weights,
+            tuple(m),          # positional: (pixel_values,)
+            dict()             # kwargs empty
+          )
+
+          # 6. Extract embeddings - handle various output formats
+          # Different models return different structures:
+          # - ViT-like: (last_hidden_state, pooler_output)
+          # - ResNet-like: (last_hidden_state,) or just features
+          # - DINOv2-like: (last_hidden_state, pooler_output)
+          if(inherits(out, "python.builtin.tuple") || is.list(out)){
+            if(length(out) >= 2 && !is.null(out[[2]])){
+              # Use pooler_output if available (CLS token or global avg pool)
+              m <- out[[2]]
+            } else {
+              # Otherwise use last_hidden_state and apply global average pooling
+              last_hidden <- out[[1]]
+              # Check dimensionality - if 3D (batch, seq, hidden), pool over seq
+              if(length(last_hidden$shape) == 3){
+                # Global average pooling over sequence dimension (excluding CLS for some models)
+                m <- cienv$jnp$mean(last_hidden, axis = 1L)
+              } else {
+                m <- last_hidden
+              }
+            }
+          } else {
+            # Single output tensor - assume it's already pooled
+            m <- out
+          }
+
+          # Handle if output is still wrapped in tuple/list
+          if(inherits(m, "python.builtin.tuple") || is.list(m)){
+            m <- m[[1]]
+          }
+
+          # Explicit garbage collection
           cienv$py_gc$collect()
         }
-        if( grepl(pretrainedModel, pattern = "clay") ){ 
+      if( pretrainedModel == "clip-rsicd" ){
+          # https://huggingface.co/flax-community/clip-rsicd-v2
+          if(!"JAX_Model" %in% ls(envir = cienv)){
+            message2("Loading clip-rsicd model via torchax compilation...")
+
+            # 1. Initialize TorchAx and Transformers if needed
+            if(!"torchax" %in% ls(envir = cienv)){cienv$torchax <- reticulate::import("torchax")}
+            if(!"transformers" %in% ls(envir = cienv)){cienv$transformers <- reticulate::import("transformers")}
+
+            # 2. Load the PyTorch CLIP model (flax-community/clip-rsicd-v2 has pytorch_model.bin)
+            PretrainedImageModelName <- 'flax-community/clip-rsicd-v2'
+            pt_model <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)
+            pt_model$eval()
+
+            # 3. Extract and configure the vision model component
+            pt_vision_model <- pt_model$vision_model
+            pt_vision_model$config$return_dict <- FALSE
+            pt_vision_model$config$output_attentions <- FALSE
+            pt_vision_model$config$output_hidden_states <- FALSE
+
+            # 4. Compile the vision model to JAX using torchax
+            JaxModelPackage <- cienv$torchax$extract_jax(pt_vision_model)
+            cienv$JAX_Weights <- JaxModelPackage[[1]]
+            cienv$JAX_Model   <- JaxModelPackage[[2]]
+            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model )
+
+            # 5. Also compile the visual projection layer for CLIP embedding space
+            pt_visual_projection <- pt_model$visual_projection
+            JaxProjPackage <- cienv$torchax$extract_jax(pt_visual_projection)
+            cienv$JAX_Proj_Weights <- JaxProjPackage[[1]]
+            cienv$JAX_Proj_Model   <- JaxProjPackage[[2]]
+            cienv$JAX_Proj_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Proj_Model )
+
+            # 6. Set Metadata
+            cienv$nParameters_Pretrained <- pt_model$num_parameters()
+            cienv$nWidth_ImageRep <- 512L  # CLIP embedding dimension
+
+            # 7. Define Preprocessing Constants (JAX Arrays)
+            # CLIP uses specific normalization values (OpenAI CLIP standard)
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.48145466, 0.4578275, 0.40821073)), list(1L, 3L, 1L, 1L))
+            cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.26862954, 0.26130258, 0.27577711)), list(1L, 3L, 1L, 1L))
+
+            # Dataset-specific normalization (applied to NHWC input)
+            if(is.null(cienv$NORM_MEAN_array_inner)){
+              if(length(NORM_MEAN) == 1){
+                cienv$NORM_MEAN <- rep(NORM_MEAN, 3); cienv$NORM_SD <- rep(NORM_SD, 3)
+              }
+              if(length(NORM_MEAN) == 2){
+                NORM_MEAN <- c(NORM_MEAN, NORM_MEAN[1]); NORM_SD <- c(NORM_SD, NORM_SD[1])
+              }
+              cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN), list(1L, 1L, 1L, 3L))
+              cienv$NORM_SD_array_inner   <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD), list(1L, 1L, 1L, 3L))
+            }
+
+            # Cleanup PyTorch models to free memory
+            try(rm("pt_model", "pt_vision_model", "pt_visual_projection", "JaxModelPackage", "JaxProjPackage"),T)
+            cienv$py_gc$collect()
+          }
+
+          # --- JAX Preprocessing Pipeline ---
+          # 1. Normalize using Dataset Statistics (Standardization)
+          # Input 'm' is (Batch, Height, Width, Channel)
+          m <- (m - cienv$NORM_MEAN_array_inner) / cienv$NORM_SD_array_inner
+
+          # 2. Resize to 224x224 (CLIP Requirement)
+          m <- cienv$jax$image$resize(
+            image = m,
+            shape = c(m$shape[[1]], 224L, 224L, 3L),
+            method = "bilinear"
+          )
+
+          # 3. Transpose NHWC -> NCHW (PyTorch Model Requirement)
+          m <- cienv$jnp$transpose(m, c(0L, 3L, 1L, 2L))
+
+          # 4. Apply CLIP normalization: (x - mean) / std
+          m <- (m - cienv$MEAN_RESCALER) / cienv$SD_RESCALER
+
+          # 5. Execute the compiled JAX vision model
+          out <- cienv$JAX_Model(
+            cienv$JAX_Weights,
+            tuple(m),          # positional: (pixel_values,)
+            dict()             # kwargs empty
+          )
+
+          # 6. Extract pooler_output (CLIPVisionModel returns (last_hidden_state, pooler_output))
+          pooled_output <- out[[2]]
+
+          # 7. Apply visual projection to get CLIP image features (512-dim)
+          m <- cienv$JAX_Proj_Model(
+            cienv$JAX_Proj_Weights,
+            tuple(pooled_output),
+            dict()
+          )
+
+          # Handle output format (may be tuple, extract first element if so)
+          if(inherits(m, "python.builtin.tuple") || is.list(m)){
+            m <- m[[1]]
+          }
+
+          # Explicit garbage collection
+          cienv$py_gc$collect()
+      }
+      if( grepl(pretrainedModel, pattern = "vit-base") ){
+          if(!"JAX_Model" %in% ls(envir = cienv)){
+            message2("Loading vit-base model via torchax compilation...")
+            
+            # 1. Initialize TorchAx and Transformers if needed
+            if(!"torchax" %in% ls(envir = cienv)){cienv$torchax <- reticulate::import("torchax")}
+            if(!"transformers" %in% ls(envir = cienv)){cienv$transformers <- reticulate::import("transformers")}
+            
+            # 2. Load the standard PyTorch ViT model
+            # Matches the checkpoint used in the 'vit-base-XXX' reference
+            PretrainedImageModelName <- 'google/vit-base-patch16-224-in21k'
+            pt_model <- cienv$transformers$ViTModel$from_pretrained(PretrainedImageModelName)
+            pt_model$eval()
+            pt_model$config$return_dict <- FALSE
+            pt_model$config$output_attentions <- FALSE
+            pt_model$config$output_hidden_states <- FALSE
+            
+            # 3. Compile the PyTorch model to a JAX function using torchax
+            # This returns a JIT-compatible function that accepts JAX arrays
+            JaxModelPackage <- cienv$torchax$extract_jax(pt_model)
+            cienv$JAX_Weights <- JaxModelPackage[[1]]
+            cienv$JAX_Model   <- JaxModelPackage[[2]]
+            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model ) 
+            
+            # 4. Set Metadata
+            cienv$nParameters_Pretrained <- pt_model$num_parameters()
+            cienv$nWidth_ImageRep <- 768L
+            
+            # 5. Define Preprocessing Constants (JAX Arrays)
+            # Model-specific rescaling (Affine transform: *0.5 + 0.5)
+            # Reshaped for NCHW format broadcasting: (1, 3, 1, 1)
+            cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.5, 0.5, 0.5)), list(1L, 3L, 1L, 1L))
+            cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.5, 0.5, 0.5)), list(1L, 3L, 1L, 1L))
+            
+            # Dataset-specific normalization (applied to NHWC input)
+            # Replicates the robust setup logic from the reference branch
+            if(is.null(cienv$NORM_MEAN_array_inner)){
+              if(length(NORM_MEAN) == 1){ 
+                cienv$NORM_MEAN <- rep(NORM_MEAN, 3); cienv$NORM_SD <- rep(NORM_SD, 3)
+              }
+              if(length(NORM_MEAN) == 2){ 
+                NORM_MEAN <- c(NORM_MEAN, NORM_MEAN[1]); NORM_SD <- c(NORM_SD, NORM_SD[1])
+              }
+              cienv$NORM_MEAN_array_inner <- cienv$jnp$reshape(cienv$jnp$array(NORM_MEAN), list(1L, 1L, 1L, 3L))
+              cienv$NORM_SD_array_inner   <- cienv$jnp$reshape(cienv$jnp$array(NORM_SD), list(1L, 1L, 1L, 3L))
+            }
+            
+            # Cleanup PyTorch model to free memory
+            try(rm("pt_model","JaxModelPackage"),T)
+            cienv$py_gc$collect()
+          }
+          
+          # --- JAX Preprocessing Pipeline ---
+          # 1. Normalize using Dataset Statistics (Standardization)
+          # Input 'm' is (Batch, Height, Width, Channel)
+          m <- (m - cienv$NORM_MEAN_array_inner) / cienv$NORM_SD_array_inner
+          
+          # 2. Resize to 224x224 (ViT Requirement)
+          m <- cienv$jax$image$resize(
+            image = m,
+            shape = c(m$shape[[1]], 224L, 224L, 3L),
+            method = "bilinear"
+          )
+          
+          # 3. Transpose NHWC -> NCHW (PyTorch Model Requirement)
+          m <- cienv$jnp$transpose(m, c(0L, 3L, 1L, 2L))
+          
+          # 4. Rescale to Model Statistics
+          # Matches reference logic: m_final = m_std * 0.5 + 0.5
+          m <- (m * cienv$SD_RESCALER) + cienv$MEAN_RESCALER
+          
+          # 5. Execute the compiled JAX model
+          #out <- cienv$JAX_ViT_Model(
+          out <- cienv$JAX_Model(
+            cienv$JAX_Weights,
+            tuple(m),          # positional: (pixel_values,)
+            dict()             # kwargs empty
+          )
+          
+          if(FALSE){ # working pipeline
+            pt_model <- cienv$transformers$ViTModel$from_pretrained(PretrainedImageModelName)
+            pt_model$eval()
+            pt_model$config$return_dict <- FALSE
+            pt_model$config$output_attentions <- FALSE
+            pt_model$config$output_hidden_states <- FALSE
+            weights_func <- cienv$torchax$extract_jax(pt_model)
+            cienv$JAX_ViT_Weights <- weights_func[[1]]
+            cienv$JAX_ViT_Model   <- weights_func[[2]]
+            cienv$JAX_ViT_Model_compiled   <- cienv$torchax$interop$jax_jit( cienv$JAX_ViT_Model ) 
+            
+            out <- cienv$JAX_ViT_Model_compiled(
+              cienv$JAX_ViT_Weights,
+              tuple(m),  # positional: (pixel_values,)
+              #dict(return_dict = FALSE,output_hidden_states = FALSE,output_attentions = FALSE)
+              dict()
+            )
+          }
+          
+          # 6. Extract the CLS token embedding (pooler_output)
+          # in second element (first entry is activations)
+          m <- out[[2]]
+          
+          # Explicit garbage collection
+          cienv$py_gc$collect()
+      }
+      if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
           if(!"ClayModel" %in% ls(.GlobalEnv)){
@@ -900,7 +1126,7 @@ GetImageRepresentations <- function(
       StateList <- list("None"=cienv$jnp$array(.0)) # initialize with 0's
       FTBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
         #m <- FeatureExtractor(
-        m <- cienv$FeatureExtractorget_image_features(
+        m <- cienv$FeatureExtractor$get_image_features(
                 pixel_values = cienv$jnp$expand_dims(m,0L),
                 params = ModelList$FTParams,
                 dropout_rng = seed,
@@ -1015,7 +1241,7 @@ GetImageRepresentations <- function(
             "W_q" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3325 + seed))),
             "W_k" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3415 + seed))),
             "W_v" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32415 + seed))),
-            "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32415 + seed)))
+            "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32416 + seed)))
           ),
           
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
@@ -1028,6 +1254,7 @@ GetImageRepresentations <- function(
     # Temporal backbone
     if(dataType == "video" | NeuralizeScale){
       message2("Setting up temporal backbone...")
+      key <- cienv$jax$random$key(ai(seed + 10000L))
       for(dt_ in 1L:nDepth_TemporalRep){
         TransformerRenormer_d <- list("NormScaler1" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                       "NormScaler2" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
@@ -1058,8 +1285,8 @@ GetImageRepresentations <- function(
         eval(parse(text = sprintf('ModelList$Temporal_d%s <- 
                         list("TransformerRenormer" = TransformerRenormer_d,
                              "Multihead" = Multihead_d,
-                             "ResidualWts" = list("RightWt1" = InvSoftPlus( NonLinearScaler ), 
-                                                  "RightWt2" = InvSoftPlus( NonLinearScaler )),
+                             "ResidualWts" = list("RightWt1" = InvSoftPlus( nonLinearScaler_ ),
+                                                  "RightWt2" = InvSoftPlus( nonLinearScaler_ )),
                              "FF" = FF_d)', dt_)))
       }
       
@@ -1160,7 +1387,7 @@ GetImageRepresentations <- function(
       StateList <- MPList[[1]]$cast_to_compute( StateList )
 
       # squeeze temporal dim if needed
-      thisPath <- T; if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel,pattern="video") }
+      thisPath <- T; if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel, pattern="video") }
       if(thisPath){
         if(dataType == "video" & is.null(pretrainedModel)){ m <- cienv$jnp$reshape(m, c(-1L, (orig_shape_m <- cienv$jnp$shape(m))[3:5])) }
   
@@ -1275,7 +1502,7 @@ GetImageRepresentations <- function(
       representation_ <-  try(cienv$np$array( ImageRepArm_batch(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
-                                                                       cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T),
+                                                                       cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T, batch_indices = batch_indices),
                                                       X_batch,
                                                       
                                                       StateList,
@@ -1314,7 +1541,7 @@ GetImageRepresentations <- function(
 
   # reset wd (may have been changed via tfrecords use)
   setwd(  orig_wd  )
-  
+
   message2("Obtaining approximate parameter count...")
   cienv$nParamsRep <- sum(unlist(lapply(cienv$jax$tree$leaves(cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]]), function(zer){zer$size})))
   if(is.null(pretrainedModel) & optimizeImageRep == F){ cienv$nParamsRep <- cienv$nParamsRep }
@@ -1330,9 +1557,10 @@ GetImageRepresentations <- function(
   }
   
   if(CleanupEnv){
-    suppressWarnings( rm(PretrainedImageModelName, FeatureExtractor, ClayModel, TransformersModel, cienv$nParameters_Pretrained, pos = .GlobalEnv) ) 
+    suppressWarnings( try(rm(PretrainedImageModelName, FeatureExtractor, ClayModel, TransformersModel, cienv$nParameters_Pretrained, pos = .GlobalEnv),T) ) 
   }
   if(returnContents){
+   print("Returning contents in GetImageRepresentations()!")
    return( list( "ImageRepresentations"= Representations,
                  "ImageRepArm_batch_R" = ImageRepArm_batch_R,
                  "ImageRepArm_batch" = ImageRepArm_batch,

@@ -74,10 +74,54 @@ python3 -m pip install jax-metal
 ?causalimages::WriteTfRecord
 ```
 
-*3. Generate image representations for downstream tasks.* You sometimes will only want to extract representations of your image or image sequence corpus. In that case, you'll use `GetImageRepresentations()`. For tutorial, see [`tutorials/ExtractImageRepresentations_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R). 
+*3. Generate image representations for downstream tasks.* You sometimes will only want to extract representations of your image or image sequence corpus. In that case, you'll use `GetImageRepresentations()`. For tutorial, see [`tutorials/ExtractImageRepresentations_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R).
 ```
-# for help, see:  
+# for help, see:
 ?causalimages::GetImageRepresentations
+```
+
+### Pretrained Models
+
+`GetImageRepresentations()` supports several pretrained vision models via the `pretrainedModel` parameter:
+
+**Built-in Models:**
+- `"vit-base"` - Google's Vision Transformer (ViT-Base, 768-dim embeddings)
+- `"clip-rsicd"` - CLIP fine-tuned on remote sensing data (512-dim embeddings)
+- `"clip-rsicd-v0"` - Legacy CLIP-RSICD implementation
+
+**Generic Transformers Models:**
+
+You can use any HuggingFace vision model by using the `transformers-` prefix:
+
+```r
+# DINOv2 (self-supervised vision transformer)
+pretrainedModel = "transformers-facebook/dinov2-base"
+
+# ResNet-50
+pretrainedModel = "transformers-microsoft/resnet-50"
+
+# ConvNeXt
+pretrainedModel = "transformers-facebook/convnext-base-224"
+
+# Any other HuggingFace vision model
+pretrainedModel = "transformers-google/vit-large-patch16-224"
+```
+
+The generic handler uses `AutoModel.from_pretrained()` for maximum flexibility and automatically:
+- Detects the model's hidden dimension from its config
+- Uses the model's expected input size (defaults to 224×224)
+- Applies ImageNet normalization (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+- Handles different output formats (pooler_output, global average pooling, etc.)
+
+Example usage:
+```r
+ImageReps <- causalimages::GetImageRepresentations(
+  file = "~/Downloads/CausalIm.tfrecord",
+  imageKeysOfUnits = KeysOfObservations,
+  pretrainedModel = "transformers-facebook/dinov2-base",
+  NORM_MEAN = c(0, 0, 0),  # dataset-specific normalization
+  NORM_SD = c(1, 1, 1)
+)
 ``` 
 
 *4. Perform causal image analysis.* Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R). 

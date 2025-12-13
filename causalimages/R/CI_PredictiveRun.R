@@ -98,13 +98,23 @@ PredictiveRun <- function(
     metricsPath = "./evaluation_metrics.rds"
 ){
   {
+    # IMPORTANT: If using a pretrained model that requires torch/transformers,
+    # initialize torch BEFORE JAX/TF/NumPy to avoid import conflicts
+    if (pretrained_model_requires_torch(pretrainedModel)) {
+      if (!"torch" %in% ls(envir = cienv)) {
+        initialize_torch(conda_env = conda_env,
+                         conda_env_required = conda_env_required,
+                         Sys.setenv_text = Sys.setenv_text)
+      }
+    }
+
     if(!"jax" %in% ls(envir = cienv)) {
-      initialize_jax(conda_env = conda_env, 
+      initialize_jax(conda_env = conda_env,
                      conda_env_required = conda_env_required,
-                     Sys.setenv_text = Sys.setenv_text) 
+                     Sys.setenv_text = Sys.setenv_text)
     }
     message2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
-    
+
     # set float type
     library( tensorflow );
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
