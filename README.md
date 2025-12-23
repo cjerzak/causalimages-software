@@ -309,18 +309,30 @@ Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.129
 --->
 
 ```
-          .::.   .::.   .::.   .::.   .::.   .::.   .::.
-          '::'   '::'   '::'   '::'   '::'   '::'   '::'
-           ||     ||     ||     ||     ||     ||     ||
-           \/     \/     \/     \/     \/     \/     \/
- 
-                       ██████  ██████  ██
-                       ██  ██  ██      ██
-                       ██████  ██      ██
-                       ██      ██      ██
-                       ██      ██████  ██
- 
-      P L A N E T A R Y   C A U S A L   I N F E R E N C E
-      ___________________________________________________
-        From Pixels to People  ::  From Orbit to Outcome
+.   * .   o    .
+       * [SATELLITE]  *
+      o  .    \ /    .  o
+    HIGH-RES   v   DATA
+      OBS.      |    CONVERGING
+        \       |       /
+         \      |      /
+          \   DOWN    /
+           \   TO    /
+            \ EARTH /
+             \  |  /
+              \ v /
+               \|/
+    .=========================.
+    | PLANETARY CAUSAL INFERENCE |
+    |=========================|
+    | Unifying global imagery |
+    | with local ground-truth |
+    '========================='
+               /|\
+              / ^ \
+             /  |  \
+            /RIPPLING\
+           / INSIGHTS \
+    ~~~~~~/ ACROSS SCALES \~~~~~~
+    From Households to Village to the Globe
 ```
