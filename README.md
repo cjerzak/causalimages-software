@@ -308,11 +308,11 @@ Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.129
 [<img src="https://i0.wp.com/connorjerzak.com/wp-content/uploads/2024/08/EO_WorkflowVizV52.png?resize=1187%2C1536&ssl=1">](https://connorjerzak.com/gci-overview/)
 --->
 
-```
-.   * .   o    .
-       * [SATELLITE]  *
-      o  .    \ /    .  o
-    HIGH-RES   v   DATA
+``` 
+      .   * .   o    .
+        * [SATELLITE]  *
+       o  .    \ /    .  o
+     HIGH-RES   v   DATA
       OBS.      |    CONVERGING
         \       |       /
          \      |      /
