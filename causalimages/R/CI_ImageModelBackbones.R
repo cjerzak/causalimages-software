@@ -12,7 +12,7 @@
 #' @param InitImageProcess (default = `NULL`) Initial image processing function. Usually left `NULL`.
 #' @param batchSize Integer specifying batch size in obtaining representations.
 #' @param dataType String specifying whether to assume `"image"` or `"video"` data types. Default is `"image"`.
-#' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
+#' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` which uses a temporal transformer with attention pooling, `"concatenate"` which simply concatenates the frame-level embeddings, `"difference"` which computes temporal differences to capture change dynamics (outputs mean embeddings concatenated with mean of first-order differences), or `"variance"` which concatenates temporal mean with temporal variance to capture both typical state and volatility/instability.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #' @param pretrainedModel Optional string specifying a pretrained vision model to use for feature extraction.
 #'   Built-in options include:
@@ -85,7 +85,7 @@ GetImageRepresentations <- function(
     dropoutRate=0,
     droppathRate=0,
     dataType = "image",
-    temporalAggregation = "transformer",
+    temporalAggregation = "concatenate",
     bn_momentum = 0.99,
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     CleanupEnv = FALSE, 
@@ -180,8 +180,8 @@ GetImageRepresentations <- function(
   if(is.null(droppathRate)){ droppathRate <- 0 }
 
   # validate temporalAggregation parameter
-  if(!temporalAggregation %in% c("transformer", "concatenate")){
-    stop("temporalAggregation must be either 'transformer' or 'concatenate'")
+  if(!temporalAggregation %in% c("transformer", "concatenate", "difference", "variance")){
+    stop("temporalAggregation must be 'transformer', 'concatenate', 'difference', or 'variance'")
   }
 
   # image dtype
@@ -189,7 +189,7 @@ GetImageRepresentations <- function(
     image_dtype <- cienv$jnp$float16
     image_dtype_tf <- cienv$tf$float16
   }
-  NeuralizeScale <- FALSE; nScalePatches <- ai(3L^2)
+  nScalePatches <- ai(3L^2)
   seed <- as.integer(runif(1,1,10^8))
   
   message2("Setting input types in GetImageRepresentations()...") 
@@ -288,17 +288,11 @@ GetImageRepresentations <- function(
     InitialPatchDims <- ai( (nPatches_side*patchEmbedDim*nPatches_side*patchEmbedDim)/nPatches * rawChannelDims )
     
     # adjust widths as needed 
-    nWidth_VideoRep <- ifelse(optimizeImageRep,
-                              yes = nWidth_ImageRep,
-                              no = nWidth_ImageRep + 2L*nWidth_ImageRep*(imageModelClass=="CNN" & 
-                                                                           optimizeImageRep == F ))
+    nWidth_VideoRep <- nWidth_ImageRep
     if(!is.null(pretrainedModel)){ if(grepl(pretrainedModel, pattern = "videomae")){ nWidth_ImageRep <- nWidth_VideoRep <- 2L*768L } }  
     
     # rotary embedding setup
-    RotaryPositionalEmbeddings_spatial <- cienv$eq$nn$RotaryPositionalEmbedding( ifelse(optimizeImageRep, 
-                                                                          yes = nWidth_ImageRep, 
-                                                                          no = ifelse(imageModelClass == "CNN" & is.null(pretrainedModel), 
-                                                                                      yes = 3L*nWidth_ImageRep, no = nWidth_ImageRep) ) ) 
+    RotaryPositionalEmbeddings_spatial <- cienv$eq$nn$RotaryPositionalEmbedding( nWidth_ImageRep ) 
     RotaryPositionalEmbeddings_temporal <- cienv$eq$nn$RotaryPositionalEmbedding( nWidth_VideoRep  ) 
     WideMultiplicationFactor <- 3.5
     nTransformerOutputWidth <- nWidth_ImageRep
@@ -539,7 +533,7 @@ GetImageRepresentations <- function(
           # Explicit garbage collection
           cienv$py_gc$collect()
         }
-      if( pretrainedModel == "clip-rsicd" ){
+        if( pretrainedModel == "clip-rsicd" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
           if(!"JAX_Model" %in% ls(envir = cienv)){
             message2("Loading clip-rsicd model via torchax compilation...")
@@ -638,7 +632,7 @@ class CLIPImageFeatureExtractor(nn.Module):
           # Explicit garbage collection
           cienv$py_gc$collect()
       }
-      if( grepl(pretrainedModel, pattern = "vit-base") ){
+        if( grepl(pretrainedModel, pattern = "vit-base") ){
           if(!"JAX_Model" %in% ls(envir = cienv)){
             message2("Loading vit-base model via torchax compilation...")
             
@@ -743,7 +737,7 @@ class CLIPImageFeatureExtractor(nn.Module):
           # Explicit garbage collection
           cienv$py_gc$collect()
       }
-      if( grepl(pretrainedModel, pattern = "clay") ){ 
+        if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
           if(!"ClayModel" %in% ls(.GlobalEnv)){
@@ -833,11 +827,11 @@ class CLIPImageFeatureExtractor(nn.Module):
           m = cienv$jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
           # plot(cienv$np$array(m)[,sample(1:10,2)])
         }
-      if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
+        if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
           # reshape if not using videomae
           m <- cienv$jnp$reshape(cienv$jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) 
-        } 
-      if(grepl(pretrainedModel,pattern="videomae")){ 
+         } 
+        if(grepl(pretrainedModel,pattern="videomae")){ 
           if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
             message2("Loading a pre-trained model (videomae)...")
             PretrainedVideoModelName <- "MCG-NJU/videomae-base"
@@ -903,7 +897,7 @@ class CLIPImageFeatureExtractor(nn.Module):
           }
           m <- cienv$jnp$array( m_rep )
         }
-      return( m ) 
+        return( m ) 
       }
     }
     
@@ -975,11 +969,6 @@ class CLIPImageFeatureExtractor(nn.Module):
              m <- x_proj
           }
           message2(sprintf("Transformer dims: [%s]", paste(unlist(m$shape),collapse=",")))
-      }
-      
-      if(NeuralizeScale){ 
-        message2("Neuralizing scale...")
-        m_orig <- m
       }
 
       # append start and stop tokens
@@ -1098,11 +1087,6 @@ class CLIPImageFeatureExtractor(nn.Module):
 
         # linear proj, note: dense layers starts with linear projection, so generally this is not needed
         # m <- eval(parse(text = sprintf("ModelList$%sTransformerSupp$FinalProj",type)))( m )  
-        
-        if(NeuralizeScale){
-          m <- cienv$jnp$sum(m_orig * 
-             cienv$jnp$expand_dims(cienv$jax$nn$softmax(  cienv$jnp$take(m, cienv$jnp$array(0L:(nScalePatches-1L)))  ), 1L), axis = 0L)
-        }
       }
       message2("Returning output in TransformerBackbone()")
       return( list(m, StateList) )
@@ -1120,7 +1104,7 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                                           readVideo = useVideo,
                                                                           image_dtype = image_dtype_tf,
                                                                           iterator = NULL); setwd(new_wd)
-      InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$key(ai(2L+1 + seed)), inference = T);rm(batch_inference_)
+      InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$key(ai(2000L + seed)), inference = T);rm(batch_inference_)
       
       ModelList <- c("FTParams"= list(cienv$FeatureExtractor$params),
                      "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))),
@@ -1258,7 +1242,7 @@ class CLIPImageFeatureExtractor(nn.Module):
     }
     
     # Temporal backbone
-    if(dataType == "video" | NeuralizeScale){
+    if(dataType == "video"){
       message2("Setting up temporal backbone...")
       key <- cienv$jax$random$key(ai(seed + 10000L))
       for(dt_ in 1L:nDepth_TemporalRep){
@@ -1288,6 +1272,13 @@ class CLIPImageFeatureExtractor(nn.Module):
                           out_features = nWidth_VideoRep,
                           use_bias = F, # final bias
                           key = cienv$jax$random$key(ai(3333924L + 1L + dt_ + seed ))))
+        # Define nonLinearScaler_ for temporal backbone
+        if(!is.null(nonLinearScaler)){
+            nonLinearScaler_ <- cienv$jnp$broadcast_to(cienv$jnp$array(nonLinearScaler, cienv$jnp$float32), ai(nWidth_VideoRep))
+        }
+        if(is.null(nonLinearScaler)){
+            nonLinearScaler_ <- cienv$jnp$broadcast_to(cienv$jnp$array(( 2*(nDepth_ImageRep + nDepth_TemporalRep) )^(-1/2), cienv$jnp$float32), ai(nWidth_VideoRep))
+        }
         eval(parse(text = sprintf('ModelList$Temporal_d%s <- 
                         list("TransformerRenormer" = TransformerRenormer_d,
                              "Multihead" = Multihead_d,
@@ -1314,65 +1305,7 @@ class CLIPImageFeatureExtractor(nn.Module):
     ImageRepArm_SpatialArm <- function(ModelList, m, x,
                                        StateList, seed, MPList, inference){
       if(DoFineTuning){
-          if( NeuralizeScale ){ 
-            # Define the patchify_array function in R
-            patchify_array <- function(arr, h_patches = 3L, w_patches = 3L){
-              # Get the shape of the input array
-              arr_shape <- arr$shape
-              X <- arr_shape[[1]]
-              H <- arr_shape[[2]]
-              W <- arr_shape[[3]]
-              
-              # Calculate the padding needed for height and width
-              pad_h <- (-H) %% h_patches
-              pad_w <- (-W) %% w_patches
-              
-              # Pad the array using jax.numpy.pad
-              arr_padded <- cienv$jnp$pad(
-                arr,
-                pad_width = list(
-                  c(0L, 0L),      # No padding on the batch dimension
-                  c(0L, pad_h),   # Pad height dimension
-                  c(0L, pad_w)    # Pad width dimension
-                ),
-                mode = "constant"
-              )
-              
-              # Update the padded dimensions
-              H_padded <- H + pad_h
-              W_padded <- W + pad_w
-              
-              # Compute the size of each patch
-              patch_size_h <- as.integer(H_padded / h_patches)
-              patch_size_w <- as.integer(W_padded / w_patches)
-              
-              # Reshape and transpose the array
-              arr_reshaped <- arr_padded$reshape(
-                as.integer(c(X, h_patches, patch_size_h, w_patches, patch_size_w))
-              )
-              arr_patched <- cienv$jnp$transpose(
-                arr_reshaped, 
-                as.integer(c(0L, 1L, 3L, 2L, 4L))
-              )
-              
-              # Return the patched array
-              return(arr_patched)
-            }
-            nChannels <- m$shape[[1]]
-            m <- patchify_array(m) # nChannels by patchx by patchy by spatial 
-            m <- cienv$jax$vmap(cienv$jax$vmap(function(m_){
-              cienv$jax$image$resize( image=m_,
-                                shape=c(3L, 224L, 224L), method="bilinear")
-            }, in_axes = list(1L)),in_axes = list(2L))( m )
-            m <- cienv$jax$vmap( cienv$jax$vmap(FTBackbone,
-                                      list(NULL, 1L, NULL, NULL, NULL, NULL, NULL) ), 
-                             list(NULL, 2L, NULL, NULL, NULL, NULL, NULL) )(
-                          ModelList, m, StateList, seed, MPList, inference, "Spatial" )
-            m[[1]] <- cienv$jnp$reshape(m[[1]], shape = list(-1L, nWidth_ImageRep))
-          }
-          if( !NeuralizeScale ){ 
-            m <- FTBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
-          }
+          m <- FTBackbone(ModelList, m, StateList, seed, MPList, inference, type = "Spatial")
           StateList <- cienv$jnp$array(1.); m <- m[[1]]
       }
       if(!DoFineTuning){
@@ -1414,12 +1347,14 @@ class CLIPImageFeatureExtractor(nn.Module):
         }
   
         # unsqueeze temporal dim if needed
-        if(dataType == "video" | NeuralizeScale){
-          if( is.null(pretrainedModel) ){ m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) }
+        if(dataType == "video"){
+          if( is.null(pretrainedModel) ){ 
+            m <- cienv$jnp$reshape(m, c(orig_shape_m[1:2], -1L)) 
+          }
           # (cienv$np$array(m)[1:5,,sample(1:10,1)]); m$shape
 
           # temporal aggregation: transformer or concatenate
-          if(temporalAggregation == "transformer"){
+          if( temporalAggregation == "transformer" ){
             m <- cienv$jax$vmap(function(ModelList, m, x,
                                          StateList, seed, MPList, inference){
                         TransformerBackbone(ModelList, m, x,
@@ -1428,14 +1363,37 @@ class CLIPImageFeatureExtractor(nn.Module):
                                          NULL, 0L, NULL, NULL),
                           axis_name = batch_axis_name,
                           out_axes = list(0L,NULL))(ModelList, m, x,
-                                                    StateList, cienv$jnp$add(seed,42L), MPList, inference)
+                                                    StateList, seed, MPList, inference)
             StateList <- m[[2]]; m <- m[[1]]
           }
           if(temporalAggregation == "concatenate"){
             # simply concatenate embeddings from all time periods
-            # m has shape (batch, time, embedding_dim), reshape to (batch, time * embedding_dim)
             m <- cienv$jnp$reshape(m, c(m$shape[[1]], -1L))
             message2(sprintf("Concatenated temporal embeddings: [%s]", paste(unlist(m$shape),collapse=",")))
+          }
+          if(temporalAggregation == "difference"){
+            # compute temporal differences to capture change dynamics
+            # m shape: [batch, time, dim]
+            # compute mean level (average across time)
+            m_mean <- cienv$jnp$mean(m, axis = 1L)  # [batch, dim]
+            # compute first-order differences between consecutive frames
+            m_diffs <- m[, 2L:as.integer(m$shape[[2]]), ] - m[, 1L:(as.integer(m$shape[[2]])-1L), ]  # [batch, time-1, dim]
+            # average the differences to get mean change
+            m_diff_mean <- cienv$jnp$mean(m_diffs, axis = 1L)  # [batch, dim]
+            # concatenate level and change: [batch, 2*dim]
+            m <- cienv$jnp$concatenate(list(m_mean, m_diff_mean), axis = -1L)
+            message2(sprintf("Difference temporal embeddings (level + change): [%s]", paste(unlist(m$shape),collapse=",")))
+          }
+          if(temporalAggregation == "variance"){
+            # compute mean and variance to capture typical state and volatility
+            # m shape: [batch, time, dim]
+            # compute mean level (average across time)
+            m_mean <- cienv$jnp$mean(m, axis = 1L)  # [batch, dim]
+            # compute temporal variance (volatility/instability)
+            m_var <- cienv$jnp$var(m, axis = 1L)  # [batch, dim]
+            # concatenate mean and variance: [batch, 2*dim]
+            m <- cienv$jnp$concatenate(list(m_mean, m_var), axis = -1L)
+            message2(sprintf("Variance temporal embeddings (mean + variance): [%s]", paste(unlist(m$shape),collapse=",")))
           }
           message2("Returning ImageRepArm_TemporalArm outputs...")
         }
@@ -1448,12 +1406,22 @@ class CLIPImageFeatureExtractor(nn.Module):
   Representations <- NULL; if(getRepresentations){
   # calculate output dimension based on temporalAggregation method
   baseRepWidth <- ifelse(optimizeImageRep, yes = nWidth_ImageRep,
-                         no = nWidth_ImageRep+2L*nWidth_ImageRep*(imageModelClass=="CNN")*is.null(pretrainedModel))
+                         no = nWidth_ImageRep)
   # for concatenate mode with video data, multiply by number of time periods
   if(dataType == "video" && temporalAggregation == "concatenate"){
     repWidth <- baseRepWidth * nTimePeriods
     message2(sprintf("Using concatenate temporal aggregation: %d time periods x %d features = %d total features",
                      nTimePeriods, baseRepWidth, repWidth))
+  } else if(dataType == "video" && temporalAggregation == "difference"){
+    # difference mode outputs mean level + mean change = 2 * baseRepWidth
+    repWidth <- baseRepWidth * 2L
+    message2(sprintf("Using difference temporal aggregation: %d features (level) + %d features (change) = %d total features",
+                     baseRepWidth, baseRepWidth, repWidth))
+  } else if(dataType == "video" && temporalAggregation == "variance"){
+    # variance mode outputs mean + variance = 2 * baseRepWidth
+    repWidth <- baseRepWidth * 2L
+    message2(sprintf("Using variance temporal aggregation: %d features (mean) + %d features (variance) = %d total features",
+                     baseRepWidth, baseRepWidth, repWidth))
   } else {
     repWidth <- baseRepWidth
   }
