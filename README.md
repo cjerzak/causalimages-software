@@ -17,7 +17,7 @@ Tests not ready
 | [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
 
 Additional tutorials: 
-[**Image-based De-confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R)
+[**Image-based De-confounding**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial_Base.R)
 | [**Image/Video Representations**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/ExtractImageRepresentations_Tutorial.R) | [**Building tfrecord corpus**](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 
 Replication data: 
@@ -53,7 +53,7 @@ Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 wi
 
 *1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct path to the conda executable by typing ``where conda`` in the terminal: 
 ```
-causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/python")
+causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/conda")
 ```
 
 If you prefer to manually install the backend, create a conda environment and
@@ -68,7 +68,7 @@ python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_
 python3 -m pip install jax-metal
 ```
 
-*2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/CausalImage_TfRecordFxns.R`](https://github.com/cjerzak/causalimages-software/blob/main/causalimages/R/CausalImage_TfRecordFxns.R)
+*2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/UsingTfRecords_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 ```
 # see: 
 ?causalimages::WriteTfRecord
