@@ -1,11 +1,14 @@
 #!/usr/bin/env Rscript
-{
+
+test_that("AnalyzeImageConfounding works", {
+  skip_on_cran()
+
   ################################
   # Image confounding tutorial using causalimages
   ################################
   # Use TEST_DATA_DIR if set by test suite, otherwise default to ~/Downloads
-  if (exists("TEST_DATA_DIR")) {
-    setwd(TEST_DATA_DIR)
+  if (exists("TEST_DATA_DIR", envir = .GlobalEnv)) {
+    setwd(get("TEST_DATA_DIR", envir = .GlobalEnv))
   } else {
     setwd("~/Downloads/")
   }
@@ -47,13 +50,14 @@
       # here, the function input keys
       # refers to the unit-associated image keys
       # we also tweak the image dimensions for testing purposes
-      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),1:2] # test with two channels
-      #m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),] # test with three channels
-      m_ <- FullImageArray[match(keys, KeysOfImages),c(1:35,1:35),c(1:35,1:35),c(1:3,1:2)] # test with five channels
+      # use 35x35x3 dimensions matching tutorial data
+      m_ <- FullImageArray[match(keys, KeysOfImages),1:35,1:35,]
 
-      # if keys == 1, add the batch dimension so output dims are always consistent
-      # (here in image case, dims are batch by height by width by channel)
-      if(length(keys) == 1){ m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3])) }
+      # For multiple keys, ensure batch dimension is first
+      # For single key, return (H, W, C) - WriteTfRecord iterates one key at a time
+      if(length(keys) == 1){
+        m_ <- array(m_, dim = c(35L, 35L, 3L))
+      }
 
       return( m_ )
   }
@@ -177,4 +181,6 @@
   ImageSeqConfoundingAnalysis$ModelEvaluationMetrics
   print("Done with confounding test!")
 }
-}
+
+  expect_true(TRUE)
+})

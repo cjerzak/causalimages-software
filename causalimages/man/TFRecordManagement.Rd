@@ -6,12 +6,11 @@
 \usage{
 TFRecordManagement()
 }
-\arguments{
-\item{.}{No parameters.}
-}
 \value{
 Internal function defining a tfrecord management sequence.
 }
 \description{
 Defines management defined in TFRecordManagement(). Internal function.
+This function takes no parameters and is called within parent functions
+to set up TFRecord data pipelines.
 }

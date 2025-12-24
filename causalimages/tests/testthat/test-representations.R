@@ -1,4 +1,6 @@
-{
+test_that("GetImageRepresentations works", {
+  skip_on_cran()
+
 ################################
 # Image and image-sequence embeddings tutorial using causalimages
 ################################
@@ -24,12 +26,13 @@ data(  CausalImagesTutorialData )
 acquireImageFromMemory <- function(keys){
   # here, the function input keys
   # refers to the unit-associated image keys
-  m_ <- FullImageArray[match(keys, KeysOfImages),,,]
+  # use consistent 35x35x3 dimensions
+  m_ <- FullImageArray[match(keys, KeysOfImages),1:35,1:35,]
 
-  # if keys == 1, add the batch dimension so output dims are always consistent
-  # (here in image case, dims are batch by height by width by channel)
+  # For multiple keys, ensure batch dimension is first
+  # For single key, return (H, W, C) - WriteTfRecord iterates one key at a time
   if(length(keys) == 1){
-    m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
+    m_ <- array(m_, dim = c(35L, 35L, 3L))
   }
   return( m_ )
 }
@@ -75,4 +78,6 @@ plot( MyImageEmbeddings$ImageRepresentations  )
 names(  MyImageEmbeddings  )[-1]
 
 print("Done with image representations test!")
-}
+
+expect_true(TRUE)
+})

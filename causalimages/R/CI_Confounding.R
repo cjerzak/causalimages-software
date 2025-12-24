@@ -30,6 +30,29 @@
 #' @param nDepth_Dense Integer specifying depth of dense model representation.
 #' @param kernelSize Dimensions used in spatial convolutions.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
+#' @param fileTransport Path to a tfrecord file for transportability analysis (out-of-sample prediction).
+#' @param imageKeysOfUnitsTransport A vector of image keys for transportability analysis units.
+#' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
+#' @param useScalePertubations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
+#' @param kFolds Integer specifying the number of cross-validation folds. Default = `2L`.
+#' @param augmented Boolean specifying whether to use augmented inverse probability weighting. Default = `FALSE`.
+#' @param orthogonalize Boolean specifying whether to orthogonalize outcomes with respect to tabular covariates `X`. Default = `FALSE`.
+#' @param latTransport Optional vector of latitudes for transportability analysis units.
+#' @param longTransport Optional vector of longitudes for transportability analysis units.
+#' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
+#' @param XCrossModal Boolean specifying whether to use cross-modal learning with tabular data. Default = `TRUE`.
+#' @param XForceModal Boolean specifying whether to force modal learning. Default = `FALSE`.
+#' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
+#' @param imageModelClass String specifying the image model architecture. Options include `"VisionTransformer"` (default) or `"CNN"`.
+#' @param pretrainedModel Optional string specifying a pretrained model to use. Options include `"vit-base"`, `"clip-rsicd"`, or HuggingFace model names with `"transformers-"` prefix.
+#' @param nDepth_TemporalRep Integer specifying depth of temporal representation model. Default = `3L`.
+#' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
+#' @param earlyStopThreshold Optional numeric threshold for early stopping based on validation loss.
+#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param TFRecordControl Optional list for advanced TFRecord configuration.
+#' @param image_dtype String specifying image data type. Options are `"float16"` (default), `"bfloat16"`, or `"float32"`.
+#' @param atError String specifying behavior on error. Options are `"stop"` (default) or `"debug"`.
+#' @param seed Optional integer for reproducibility.
 #'
 #' @return Returns a list consisting of
 #' \itemize{
@@ -1143,7 +1166,7 @@ AnalyzeImageConfounding <- function(
             in_counter <- in_counter + 1
             long_lat_in_ <- ""; if(  !is.null(lat)  ){ long_lat_in_ <- sprintf("Lat-Lon: %.3f, %.3f", f2n(lat[in_]), f2n(long[in_])) }
 
-            im_orig <- im_ <- InitImageProcessFn( im = cienv$jnp$array(ds_next_in[[1]]), key = cienv$jax$random$key(3L), inference = TRUE )
+            im_orig <- im_ <- InitImageProcessFn( cienv$jnp$array(ds_next_in[[1]]), cienv$jax$random$key(3L), TRUE )
             XToConcat_values <- cienv$jnp$array(t(X[in_,]),cienv$jnp$float16)
             im_ <- cienv$np$array(cienv$jnp$squeeze(im_,c(0L)))
 
@@ -1267,16 +1290,18 @@ AnalyzeImageConfounding <- function(
         }
 
         if(optimizeImageRep){
+          try({
           pdf(sprintf("%s/Loss_%s.pdf", figuresPath,FigNameAppend))
-          { 
+          {
             par(mar = c(6,5,1,1))
             try(plot(loss_vec, cex = 1.5, cex.lab = 2,
                      xlab = "Iteration", ylab = "Loss"),T);
             try(points(smooth.spline(na.omit(loss_vec)),type="l",lwd=3),T)
-            mtext(side = 1, ifelse(tagInFigures, yes = figuresTag, no = ""), 
+            mtext(side = 1, ifelse(tagInFigures, yes = figuresTag, no = ""),
                   line = 4.5, cex = 1)
           }
           dev.off()
+          }, T)
         }
 
         try({

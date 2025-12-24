@@ -6,12 +6,11 @@
 \usage{
 TrainDo()
 }
-\arguments{
-\item{.}{No parameters.}
-}
 \value{
 Internal function performing model training.
 }
 \description{
 Runs trainers defined in TrainDefine(). Internal function.
+This function takes no parameters and is called within parent functions
+to execute the training loop.
 }

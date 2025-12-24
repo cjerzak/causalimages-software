@@ -1,9 +1,9 @@
 #' Defines an internal TFRecord management routine (internal function)
 #'
-#' Defines management defined in TFRecordManagement(). Internal function. 
+#' Defines management defined in TFRecordManagement(). Internal function.
+#' This function takes no parameters and is called within parent functions
+#' to set up TFRecord data pipelines.
 #'
-#' @param . No parameters. 
-#' 
 #' @return Internal function defining a tfrecord management sequence. 
 #'
 #' @import reticulate rrapply

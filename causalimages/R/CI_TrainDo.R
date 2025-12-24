@@ -1,9 +1,9 @@
 #' Runs a training routine (internal function)
 #'
-#' Runs trainers defined in TrainDefine(). Internal function. 
+#' Runs trainers defined in TrainDefine(). Internal function.
+#' This function takes no parameters and is called within parent functions
+#' to execute the training loop.
 #'
-#' @param . No parameters. 
-#' 
 #' @return Internal function performing model training. 
 #'
 #' @import reticulate rrapply

@@ -1,5 +1,10 @@
 #!/usr/bin/env Rscript
-{
+
+test_that("AnalyzeImageHeterogeneity works", {
+  skip_on_cran()
+  skip_if_not(file.exists(path.expand("~/Downloads/UgandaAnalysis/UgandaDataProcessed.csv")),
+              "Uganda data not available - download from Harvard Dataverse")
+
 ################################
 # Image heterogeneity tutorial using causalimages
 ################################
@@ -251,4 +256,6 @@ for(ImageModelClass in c("VisionTransformer","CNN")){
   }
 }
 print("Done with image heterogeneity test!")
-}
+
+expect_true(TRUE)
+})

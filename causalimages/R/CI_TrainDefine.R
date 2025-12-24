@@ -1,9 +1,9 @@
 #' Defines an internal training routine (internal function)
 #'
-#' Defines trainers defined in TrainDefine(). Internal function. 
+#' Defines trainers defined in TrainDefine(). Internal function.
+#' This function takes no parameters and is called within parent functions
+#' to set up the optimizer and training step.
 #'
-#' @param . No parameters. 
-#' 
 #' @return Internal function defining a training sequence. 
 #'
 #' @import reticulate rrapply

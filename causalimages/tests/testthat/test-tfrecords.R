@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
-{
+
+test_that("WriteTfRecord works", {
+  skip_on_cran()
+
   ################################
   # Image confounding tutorial using causalimages
   # and tfrecords for faster results
@@ -28,14 +31,11 @@
     # refers to the unit-associated image keys
     m_ <- FullImageArray[match(keys, KeysOfImages),,,]
 
-    # if keys == 1, add the batch dimension so output dims are always consistent
-    # (here in image case, dims are batch by height by width by channel)
+    # For multiple keys, ensure batch dimension is first
+    # For single key, return (H, W, C) - WriteTfRecord iterates one key at a time
     if(length(keys) == 1){
-      m_ <- array(m_,dim = c(1L,dim(m_)[1],dim(m_)[2],dim(m_)[3]))
+      m_ <- array(m_, dim = c(35L, 35L, 3L))
     }
-
-    # uncomment for a test with different image dimensions
-    #if(length(keys) == 1){ m_ <- abind::abind(m_,m_,m_,along = 3L) }; if(length(keys) > 1){ m_ <- abind::abind(m_,m_,m_,.along = 4L) }
     return( m_ )
   }
 
@@ -78,5 +78,7 @@
   causalimages::WriteTfRecord(  file = tfrecord_loc,
                   uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
                   acquireImageFxn = acquireImageFromMemory )
-}
+
+  expect_true(file.exists(tfrecord_loc))
+})
 

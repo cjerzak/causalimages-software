@@ -25,9 +25,13 @@ A key grabs an image/video array via \code{acquireImageFxn(key)}.}
 
 \item{writeVideo}{(default = \code{FALSE}) Should we assume we're writing image sequence data of form batch by time by height by width by channels?}
 
+\item{image_dtype}{String specifying image data type for storage. Default is \code{"float16"}.}
+
 \item{conda_env}{(default = \code{"CausalImagesEnv"}) A \code{conda} environment where computational environment lives, usually created via \code{causalimages::BuildBackend()}}
 
 \item{conda_env_required}{(default = \code{T}) A Boolean stating whether use of the specified conda environment is required.}
+
+\item{Sys.setenv_text}{Optional string for setting environment variables before Python initialization.}
 }
 \value{
 Writes a unique key-referenced \code{.tfrecord} from an image/video corpus for use in image-based causal inference training.

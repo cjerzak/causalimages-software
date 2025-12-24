@@ -32,6 +32,28 @@
 #'   input sizes, and handles various output formats. Default is `NULL` (uses custom model architecture).
 #' @param NORM_MEAN Numeric vector of length 1-3 specifying dataset mean(s) for normalization. Used with pretrained models.
 #' @param NORM_SD Numeric vector of length 1-3 specifying dataset standard deviation(s) for normalization. Used with pretrained models.
+#' @param X Optional numeric matrix of tabular covariates for cross-modal learning.
+#' @param returnContents Boolean specifying whether to return internal model contents. Default = `TRUE`.
+#' @param getRepresentations Boolean specifying whether to compute and return representations. Default = `TRUE`.
+#' @param imageModelClass String specifying the image model architecture. Options include `"VisionTransformer"` (default) or `"CNN"`.
+#' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
+#' @param lat,long Optional vectors specifying latitude and longitude coordinates for spatial context.
+#' @param image_dtype JAX dtype for image data. Usually set internally.
+#' @param image_dtype_tf TensorFlow dtype for image data. Usually set internally.
+#' @param XCrossModal Boolean specifying whether to use cross-modal learning with tabular data. Default = `TRUE`.
+#' @param XForceModal Boolean specifying whether to force modal learning. Default = `FALSE`.
+#' @param nDepth_ImageRep Integer specifying depth of image representation model. Default = `1L`.
+#' @param nDepth_TemporalRep Integer specifying depth of temporal representation model for video data. Default = `1L`.
+#' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
+#' @param optimizeImageRep Boolean specifying whether to optimize image representation parameters. Default = `TRUE`.
+#' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
+#' @param dropoutRate Dropout rate used in training. Default = `0`.
+#' @param droppathRate Droppath rate used in training. Default = `0`.
+#' @param bn_momentum Batch normalization momentum. Default = `0.99`.
+#' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L`.
+#' @param CleanupEnv Boolean specifying whether to clean up environment after processing. Default = `FALSE`.
+#' @param initializingFxns Boolean specifying whether to only initialize functions without computing representations. Default = `FALSE`.
+#' @param seed Optional integer for reproducibility.
 #'
 #' @return A list containing two items:
 #' \itemize{

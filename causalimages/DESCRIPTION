@@ -38,9 +38,11 @@ Imports:
     sf,
     data.table,
     pROC
-Suggests: 
+Suggests:
+    abind,
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3
 RemoteType: local

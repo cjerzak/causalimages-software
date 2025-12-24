@@ -6,12 +6,11 @@
 \usage{
 TrainDefine()
 }
-\arguments{
-\item{.}{No parameters.}
-}
 \value{
 Internal function defining a training sequence.
 }
 \description{
 Defines trainers defined in TrainDefine(). Internal function.
+This function takes no parameters and is called within parent functions
+to set up the optimizer and training step.
 }

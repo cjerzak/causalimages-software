@@ -39,6 +39,20 @@
 #' @param nDepth_Dense Integer specifying depth of dense model representation.
 #' @param kernelSize Dimensions used in spatial convolutions.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
+#' @param heterogeneityModelType String specifying the heterogeneity model type. Options include `"variational_minimal"` (default).
+#' @param nDepth_TemporalRep Integer specifying depth of temporal representation model for video data. Default = `1L`.
+#' @param useTrainingPertubations Boolean specifying whether to use image perturbations during training. Default = `TRUE`.
+#' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
+#' @param pretrainedModel Optional string specifying a pretrained model to use. Options include `"vit-base"`, `"clip-rsicd"`, or HuggingFace model names with `"transformers-"` prefix.
+#' @param testFrac Fraction of observations held out as a test set. Default = `0.1`.
+#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param TFRecordControl Optional list for advanced TFRecord configuration.
+#' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
+#' @param seed Optional integer for reproducibility.
+#' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
+#' @param imageModelClass String specifying the image model architecture. Options include `"VisionTransformer"` (default) or `"CNN"`.
+#' @param temperature Temperature parameter for the relaxed categorical distribution in variational inference. Default = `1`.
+#' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
 #'
 #' @return Returns a list consisting of \itemize{
 #'   \item `clusterTaus_mean`. Estimated mean treatment effects for each cluster.

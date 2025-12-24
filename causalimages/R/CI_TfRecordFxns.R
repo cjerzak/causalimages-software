@@ -12,6 +12,8 @@
 #' @param conda_env (default = `"CausalImagesEnv"`) A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`
 #' @param conda_env_required (default = `T`) A Boolean stating whether use of the specified conda environment is required.
 #' @param writeVideo (default = `FALSE`) Should we assume we're writing image sequence data of form batch by time by height by width by channels?
+#' @param image_dtype String specifying image data type for storage. Default is `"float16"`.
+#' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
 #'
 #' @return Writes a unique key-referenced `.tfrecord` from an image/video corpus for use in image-based causal inference training.
 #'

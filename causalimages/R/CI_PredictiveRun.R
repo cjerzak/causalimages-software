@@ -6,7 +6,6 @@
 #' @param conda_env A `conda` environment where computational environment lives, usually created via `causalimages::BuildBackend()`. Default = `"CausalImagesEnv"`.
 #' @param conda_env_required A Boolean stating whether use of the specified conda environment is required.
 #' @param X An optional numeric matrix containing tabular information. `X` is normalized internally.
-#' @param transportabilityMat Optional matrix with a column named `imageKeysOfUnits` specifying keys to be used by the package for generating predictions for out-of-sample points.
 #' @param figuresTag A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath A string specifying file path for saved figures made in the analysis.
 #' @param plotBands An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
@@ -30,6 +29,23 @@
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #' @param modelPath Path to save the trained model. Default = `"./trained_model.eqx"`.
 #' @param metricsPath Path to save the evaluation metrics as a RDS file. Default = `"./evaluation_metrics.rds"`.
+#' @param fileTransport Path to a tfrecord file for transportability analysis (out-of-sample prediction).
+#' @param imageKeysOfUnitsTransport A vector of image keys for transportability analysis units.
+#' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
+#' @param useScalePertubations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
+#' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
+#' @param XCrossModal Boolean specifying whether to use cross-modal learning with tabular data. Default = `TRUE`.
+#' @param XForceModal Boolean specifying whether to force modal learning. Default = `FALSE`.
+#' @param imageModelClass String specifying the image model architecture. Options include `"VisionTransformer"` (default) or `"CNN"`.
+#' @param pretrainedModel Optional string specifying a pretrained model to use. Options include `"vit-base"`, `"clip-rsicd"`, or HuggingFace model names with `"transformers-"` prefix.
+#' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
+#' @param nDepth_TemporalRep Integer specifying depth of temporal representation model. Default = `3L`.
+#' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
+#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param TFRecordControl Optional list for advanced TFRecord configuration.
+#' @param image_dtype String specifying image data type. Options are `"float16"` (default), `"bfloat16"`, or `"float32"`.
+#' @param atError String specifying behavior on error. Options are `"stop"` (default) or `"debug"`.
+#' @param seed Optional integer for reproducibility.
 #'
 #' @return Returns a list consisting of
 #' \itemize{

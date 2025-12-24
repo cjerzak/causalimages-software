@@ -81,6 +81,8 @@ AnalyzeImageHeterogeneity(
 
 \item{plotBands}{An integer or vector specifying which band position (from the acquired image representation) should be plotted in the visual results. If a vector, \code{plotBands} should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).}
 
+\item{heterogeneityModelType}{String specifying the heterogeneity model type. Options include \code{"variational_minimal"} (default).}
+
 \item{plotResults}{Should analysis results be plotted?}
 
 \item{optimizeImageRep}{Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).}
@@ -93,13 +95,35 @@ AnalyzeImageHeterogeneity(
 
 \item{nDepth_Dense}{Integer specifying depth of dense model representation.}
 
+\item{nDepth_TemporalRep}{Integer specifying depth of temporal representation model for video data. Default = \code{1L}.}
+
+\item{useTrainingPertubations}{Boolean specifying whether to use image perturbations during training. Default = \code{TRUE}.}
+
 \item{strides}{Integer specifying the strides used in the convolutional layers.}
 
+\item{nonLinearScaler}{Optional string specifying non-linear scaling function for outputs.}
+
+\item{pretrainedModel}{Optional string specifying a pretrained model to use. Options include \code{"vit-base"}, \code{"clip-rsicd"}, or HuggingFace model names with \code{"transformers-"} prefix.}
+
+\item{testFrac}{Fraction of observations held out as a test set. Default = \code{0.1}.}
+
 \item{kernelSize}{Dimensions used in spatial convolutions.}
+
+\item{learningRateMax}{Maximum learning rate for the optimizer. Default = \code{0.001}.}
+
+\item{TFRecordControl}{Optional list for advanced TFRecord configuration.}
+
+\item{patchEmbedDim}{Integer specifying patch embedding dimension for Vision Transformer. Default = \code{16L}.}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations.}
 
 \item{batchSize}{Batch size used in SGD optimization.}
+
+\item{seed}{Optional integer for reproducibility.}
+
+\item{Sys.setenv_text}{Optional string for setting environment variables before Python initialization.}
+
+\item{imageModelClass}{String specifying the image model architecture. Options include \code{"VisionTransformer"} (default) or \code{"CNN"}.}
 
 \item{nMonte_predictive}{An integer specifying how many Monte Carlo iterations to use in the calculation
 of posterior means (e.g., mean cluster probabilities).}
@@ -111,6 +135,10 @@ of the salience maps (e.g., image gradients of expected cluster probabilities).}
 calculation of the expected likelihood in each training step.}
 
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
+
+\item{temperature}{Temperature parameter for the relaxed categorical distribution in variational inference. Default = \code{1}.}
+
+\item{inputAvePoolingSize}{Integer specifying average pooling size for downshifting image resolution. Default = \code{1L} (no downshift).}
 
 \item{dataType}{String specifying whether to assume \code{"image"} or \code{"video"} data types.}
 

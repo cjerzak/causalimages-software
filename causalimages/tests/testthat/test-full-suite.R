@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
-{
+
+test_that("Full test suite works", {
+  skip_on_cran()
+
   # remove all dim calls to arrays
   ##########################################
   # Code for testing most functionalities of CausalImage on your hardware.
@@ -54,22 +57,27 @@
     ##########################################
 
     print("Starting image TfRecords"); setwd(TEST_DATA_DIR);
-    TfRecordsTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/Test_UsingTFRecords.R")),T)
-    if("try-error" %in% class(TfRecordsTest)){ stop("Failed at TfRecordsTest (1)") }; try(dev.off(), T)
+    TfRecordsTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-tfrecords.R")),T)
+    if("try-error" %in% class(TfRecordsTest)){ stop("Failed at TfRecordsTest (1)") }
+    while(!is.null(dev.list())) try(dev.off(), TRUE)
 
     print("Starting ImageRepTest"); setwd(TEST_DATA_DIR);
-    ImageRepTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/Test_ExtractImageRepresentations.R")),T)
-    if("try-error" %in% class(ImageRepTest)){ stop("Failed at ImageRepTest (2)") }; try(dev.off(), T)
+    ImageRepTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-representations.R")),T)
+    if("try-error" %in% class(ImageRepTest)){ stop("Failed at ImageRepTest (2)") }
+    while(!is.null(dev.list())) try(dev.off(), TRUE)
 
     print("Starting ImConfoundTest"); setwd(TEST_DATA_DIR);
-    ImConfoundTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/Test_AnalyzeImageConfounding.R")),T)
-    if("try-error" %in% class(ImConfoundTest)){ stop("Failed at ImConfoundTest (3)") }; try(dev.off(), T)
+    ImConfoundTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-confounding.R")),T)
+    if("try-error" %in% class(ImConfoundTest)){ stop("Failed at ImConfoundTest (3)") }
+    while(!is.null(dev.list())) try(dev.off(), TRUE)
 
     #print("Starting HetTest");  setwd(TEST_DATA_DIR);
-    #HetTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/Test_AnalyzeImageHeterogeneity.R")),T)
+    #HetTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-heterogeneity.R")),T)
     #if("try-error" %in% class(HetTest)){ stop("Failed at HetTest") }; try(dev.off(), T)
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed"); print( tryTests ); stop(tryTests) }
   if(!'try-error' %in% class(tryTests)){ print("All tests succeeded!") }
-}
+
+  expect_true(TRUE)
+})
