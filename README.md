@@ -11,7 +11,7 @@ Tests not ready
 | [**Installation**](#installation)
 | [**Pipeline**](#pipeline)
 | [**Image Heterogeneity Tutorial**](#tutorial)
-| [**Other Package Functions**](#otherfunctions)
+| [**Pretrained Models**](#pretrained-models)
 | [**Data**](https://connorjerzak.com/data/)
 | [**References**](#references)
 | [**Documentation**](https://github.com/cjerzak/causalimages-software/blob/main/causalimages.pdf)
@@ -51,16 +51,20 @@ library(   causalimages  )
 # Pipeline<a id="pipeline"></a>
 Use of `causalimages` generally follows the following pipeline. Steps 1 and 2 will be necessary for all downstream tasks. 
 
-*1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct path to the conda executable by typing ``where conda`` in the terminal: 
-```
-causalimages::BuildBackend(conda = "/Users/cjerzak/miniforge3/bin/conda")
+*1. Build package backend.* This establishes the necessary modules, including JAX and Equinox, used in the causal image modeling. We attempt to establish GPU acceleration where that hardware is available. For tutorial, see [`tutorials/BuildBackend_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/BuildBackend_Tutorial.R) for more information. You can try using `conda="auto"` or finding the correct path to the conda executable by typing `which conda` (macOS/Linux) or `where conda` (Windows) in the terminal:
+```r
+# Automatic detection (recommended)
+causalimages::BuildBackend(conda = "auto")
+
+# Or specify path explicitly
+causalimages::BuildBackend(conda = "/path/to/your/conda")
 ```
 
 If you prefer to manually install the backend, create a conda environment and
 install the Python packages used by `causalimages`. The commands below replicate
-what `BuildBackend()` performs under the hood (Python 3.10 or newer is
-recommended):
+what `BuildBackend()` performs under the hood (Python 3.11 recommended):
 
+**macOS (Apple Silicon):**
 ```bash
 conda create -n CausalImagesEnv python=3.11
 conda activate CausalImagesEnv
@@ -68,7 +72,22 @@ python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_
 python3 -m pip install jax-metal
 ```
 
-*2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/UsingTfRecords_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
+**Linux (CUDA):**
+```bash
+conda create -n CausalImagesEnv python=3.11
+conda activate CausalImagesEnv
+pip install tensorflow optax equinox jmp tensorflow_probability
+pip install --upgrade "jax[cuda12]"
+```
+
+**CPU-only (Any OS):**
+```bash
+conda create -n CausalImagesEnv python=3.11
+conda activate CausalImagesEnv
+pip install tensorflow optax equinox jmp tensorflow_probability jax
+```
+
+*2. Write TfRecord.* Next, you will need to write a TfRecord representation of your image or image sequence corpus. TfRecord is a binary format optimized for high-throughput sequential reading, which is essential for training deep learning models on large image datasets that don't fit in memory. This function converts your image corpus into efficient float16 representations for fast reading of the images into memory for model training and output generation. For a tutorial, see [`tutorials/UsingTfRecords_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/UsingTfRecords_Tutorial.R)
 ```
 # see: 
 ?causalimages::WriteTfRecord
@@ -115,8 +134,11 @@ The generic handler uses `AutoModel.from_pretrained()` for maximum flexibility a
 
 Example usage:
 ```r
+# Create a temporary file path for the tfrecord
+tfrecord_path <- tempfile(fileext = ".tfrecord")
+
 ImageReps <- causalimages::GetImageRepresentations(
-  file = "~/Downloads/CausalIm.tfrecord",
+  file = tfrecord_path,
   imageKeysOfUnits = KeysOfObservations,
   pretrainedModel = "transformers-facebook/dinov2-base",
   NORM_MEAN = c(0, 0, 0),  # dataset-specific normalization
@@ -195,8 +217,11 @@ causalimages::image2( ImageSample[3,,,1] )
 ```
 
 Now, let's write the `tfrecord`:
-```
-causalimages::WriteTfRecord(  file = "~/Downloads/CausalIm.tfrecord",
+```r
+# Define output path (use tempfile() for reproducible examples)
+tfrecord_path <- tempfile(fileext = ".tfrecord")
+
+causalimages::WriteTfRecord(  file = tfrecord_path,
                   uniqueImageKeys = unique( KeysOfObservations ),
                   acquireImageFxn = acquireImageFromMemory )
 # Note: You first may need to call causalimages::BuildBackend() to build the backend (done only once)
@@ -210,19 +235,22 @@ Now that we've established some understanding of the data and written the `acqui
 
 *Note: The images used here are heavily clipped to keep this tutorial fast; the model parameters chosen here are selected to make training rapid too. The function output here should therefore not be interpreted too seriously.* 
 
-```
+```r
+# Set up output paths
+figures_dir <- tempdir()
+
 ImageHeterogeneityResults <- causalimages::AnalyzeImageHeterogeneity(
           # data inputs
           obsW =  obsW,
           obsY = obsY,
           imageKeysOfUnits =  KeysOfObservations,
-          file = "~/Downloads/CausalIm.tfrecord", # this points to the tfrecord
-          X = X, 
-          
-          # inputs to control where visual results are saved as PDF or PNGs 
+          file = tfrecord_path, # this points to the tfrecord created above
+          X = X,
+
+          # inputs to control where visual results are saved as PDF or PNGs
           # (these image grids are large and difficult to display in RStudio's interactive mode)
           plotResults = T,
-          figuresPath = "~/Downloads/CausalImagesTutorial",
+          figuresPath = figures_dir,
 
           # other modeling options
           kClust_est = 2,
@@ -290,7 +318,7 @@ Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2301.129
 }
 ```
 
-[3.] [Connor T. Jerzak](https://github.com/cjerzak/), [Adel Daoud](https://github.com/adeldaoud). CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2301.12985.pdf`](https://arxiv.org/pdf/2310.00233.pdf)
+[3.] [Connor T. Jerzak](https://github.com/cjerzak/), [Adel Daoud](https://github.com/adeldaoud). CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images. *ArXiv Preprint*, 2023. [`arxiv.org/pdf/2310.00233.pdf`](https://arxiv.org/pdf/2310.00233.pdf)
 ```
 @article{JerDao2023,
   title={CausalImages: An R Package for Causal Inference with Earth Observation, Bio-medical, and Social Science Images},
