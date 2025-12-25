@@ -35,15 +35,19 @@ WriteTfRecord <- function(file,
                           conda_env_required = T,
                           Sys.setenv_text = NULL){
   if(!"jax" %in% ls(envir = cienv)) {
-      initialize_jax(conda_env = conda_env, 
+      initialize_jax(conda_env = conda_env,
                      conda_env_required = conda_env_required,
-                     Sys.setenv_text = Sys.setenv_text) 
+                     Sys.setenv_text = Sys.setenv_text)
   }
 
-  if(length(uniqueImageKeys) != length(unique(uniqueImageKeys))){
-    stop("Stopping because length(uniqueImageKeys) != length(unique(uniqueImageKeys)) \n
-         Remember: Input to WriteTFRecord is uniqueImageKeys, not imageKeysOfUnits where redundancies may live")
-  }
+  # Validate inputs before proceeding
+  .validate_inputs(
+    uniqueImageKeys = uniqueImageKeys,
+    acquireImageFxn = acquireImageFxn,
+    file = file,
+    dataType = ifelse(writeVideo, "video", "image"),
+    context = "pre_write"
+  )
 
   # helper fxns
   message2("Initializing tfrecord helpers...")

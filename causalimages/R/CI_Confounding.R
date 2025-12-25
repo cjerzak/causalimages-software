@@ -155,11 +155,26 @@ AnalyzeImageConfounding <- function(
     if(is.null(seed)){ seed <- ai(runif(1,1,10000)) }
     obsW <- f2n(obsW); obsY <- f2n(obsY)
     
-    # set memory growth for tensorflow 
+    # set memory growth for tensorflow
     for(device_ in cienv$tf$config$list_physical_devices()){
        try(cienv$tf$config$experimental$set_memory_growth(device_, T),T)
     }
   }
+
+  # Validate inputs before proceeding
+  .validate_inputs(
+    obsW = obsW,
+    obsY = obsY,
+    imageKeysOfUnits = imageKeysOfUnits,
+    X = X,
+    file = file,
+    dataType = dataType,
+    batchSize = batchSize,
+    learningRateMax = learningRateMax,
+    nSGD = nSGD,
+    testFrac = testFrac,
+    context = "pre_analysis"
+  )
 
   message2("Setting input types in AnalyzeImageConfounding()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 

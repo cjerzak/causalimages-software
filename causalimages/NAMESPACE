@@ -3,6 +3,7 @@
 export(AnalyzeImageConfounding)
 export(AnalyzeImageHeterogeneity)
 export(BuildBackend)
+export(CheckDataQuality)
 export(GetAndSaveGeolocatedImages)
 export(GetElementFromTfRecordAtIndices)
 export(GetImageRepresentations)

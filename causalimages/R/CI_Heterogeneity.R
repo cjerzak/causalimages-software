@@ -157,6 +157,22 @@ AnalyzeImageHeterogeneity <- function(obsW,
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
     if(is.null(seed)){ seed <- ai(runif(1,1,100000)) }
   }
+
+  # Validate inputs before proceeding
+  .validate_inputs(
+    obsW = obsW,
+    obsY = obsY,
+    imageKeysOfUnits = imageKeysOfUnits,
+    X = X,
+    file = file,
+    dataType = dataType,
+    batchSize = batchSize,
+    learningRateMax = learningRateMax,
+    nSGD = nSGD,
+    testFrac = testFrac,
+    context = "pre_analysis"
+  )
+
   if(!optimizeImageRep & nDepth_ImageRep > 1){ stop("Stopping: When nDepth_ImageRep = T, nDepth_imageRep must be 1L") }
   
   message("Setting up wd logic")
