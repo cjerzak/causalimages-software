@@ -1,6 +1,8 @@
 {
   rm(list = ls())
+  #Sys.setenv(PATH = paste("/Users/cjerzak/miniconda3/bin", Sys.getenv("PATH"), sep = ":"))
   options(error = NULL)
+  # install.packages("~/Documents/causalimages-software/causalimages", repos = NULL, type = "source", force = FALSE)
 
   # Set path and specify package name
   package_name <- "causalimages"
@@ -28,11 +30,11 @@
   system(sprintf("R CMD Rd2pdf %s", package_path))
 
   # Run tests (stop on failure)
-  test_results <- devtools::test(package_path)
-  if (any(as.data.frame(test_results)$failed > 0)) {
+  test_results <- as.data.frame(devtools::test(package_path))
+  if (any(test_results$failed > 0)) {
     stop("Tests failed! Stopping build process.")
   }
-  cat("\n\u2713 All tests passed!\n\n")
+  #cat("\n\u2713 All tests passed!\n\n")
   
   #tmp <- as.data.frame(test_results)
   #tmp[tmp$passed==0,]
@@ -53,7 +55,7 @@
   # Check as CRAN
   system(paste(
     shQuote(file.path(R.home("bin"), "R")),
-    "CMD check --as-cran",
+    "CMD check --as-cran --no-tests",
     shQuote(paste0(package_name, "_", versionNumber, ".tar.gz"))
   ))
 

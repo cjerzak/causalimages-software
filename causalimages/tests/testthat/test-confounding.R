@@ -53,10 +53,10 @@ test_that("AnalyzeImageConfounding works", {
       # use 35x35x3 dimensions matching tutorial data
       m_ <- FullImageArray[match(keys, KeysOfImages),1:35,1:35,]
 
-      # For multiple keys, ensure batch dimension is first
-      # For single key, return (H, W, C) - WriteTfRecord iterates one key at a time
+      # Always return (batch, H, W, C) shape as per documentation
+      # For single key, keep batch dimension as 1
       if(length(keys) == 1){
-        m_ <- array(m_, dim = c(35L, 35L, 3L))
+        m_ <- array(m_, dim = c(1L, 35L, 35L, 3L))
       }
 
       return( m_ )

@@ -6,9 +6,455 @@
     GNU Fortran (GCC) 14.2.0
 * running under: macOS Tahoe 26.2
 * using session charset: UTF-8
-* using options ‘--no-examples --no-tests --no-manual --no-vignettes’
-* checking for file ‘causalimages/DESCRIPTION’ ... ERROR
-Required fields missing or empty:
-  ‘Author’ ‘Maintainer’
+* using options ‘--no-tests --as-cran’
+* checking for file ‘causalimages/DESCRIPTION’ ... OK
+* this is package ‘causalimages’ version ‘0.1’
+* package encoding: UTF-8
+* checking CRAN incoming feasibility ... [3s/20s] NOTE
+Maintainer: ‘Connor Jerzak <connor.jerzak@gmail.com>’
+
+New submission
+
+Unknown, possibly misspelled, fields in DESCRIPTION:
+  ‘RemoteType’ ‘RemotePkgRef’ ‘RemoteUrl’
+
+Package has a VignetteBuilder field but no prebuilt vignette index.
+
+The Title field should be in title case. Current version is:
+  ‘Causal Inference with Earth Observation, Bio-medical, and Social Science Images’
+In title case that is:
+  ‘Causal Inference with Earth Observation, Bio-Medical, and Social Science Images’
+
+The Description field contains
+  Jerzak and Daoud (2023) <arXiv:2310.00233>.
+Please refer to arXiv e-prints via their arXiv DOI <doi:10.48550/arXiv.YYMM.NNNNN>.
+* checking package namespace information ... OK
+* checking package dependencies ... INFO
+Vignette dependency required without any vignettes: ‘knitr’
+* checking if this is a source package ... OK
+* checking if there is a namespace ... OK
+* checking for executable files ... OK
+* checking for hidden files and directories ... OK
+* checking for portable file names ... OK
+* checking for sufficient/correct file permissions ... OK
+* checking whether package ‘causalimages’ can be installed ... [11s/11s] OK
+* checking installed package size ... OK
+* checking package directory ... OK
+* checking for future file timestamps ... OK
+* checking DESCRIPTION meta-information ... OK
+* checking top-level files ... OK
+* checking for left-over files ... OK
+* checking index information ... OK
+* checking package subdirectories ... OK
+* checking code files for non-ASCII characters ... OK
+* checking R files for syntax errors ... OK
+* checking whether the package can be loaded ... OK
+* checking whether the package can be loaded with stated dependencies ... OK
+* checking whether the package can be unloaded cleanly ... OK
+* checking whether the namespace can be loaded with stated dependencies ... OK
+* checking whether the namespace can be unloaded cleanly ... OK
+* checking use of S3 registration ... OK
+* checking dependencies in R code ... OK
+* checking S3 generic/method consistency ... OK
+* checking replacement functions ... OK
+* checking foreign function calls ... OK
+* checking R code for possible problems ... [17s/17s] NOTE
+AnalyzeImageConfounding : <anonymous> : <anonymous>: no visible global
+  function definition for ‘scalePertubations’
+AnalyzeImageConfounding: no visible binding for global variable
+  ‘new_wd’
+AnalyzeImageConfounding: no visible binding for global variable
+  ‘tf_record_name’
+AnalyzeImageConfounding: no visible global function definition for
+  ‘getParsed_tf_dataset_train_Shuffle’
+AnalyzeImageConfounding: no visible global function definition for
+  ‘getParsed_tf_dataset_train_Select’
+AnalyzeImageConfounding: no visible global function definition for
+  ‘getParsed_tf_dataset_train_BatchAndShuffle’
+AnalyzeImageConfounding : GetDense_OneObs: no visible binding for
+  global variable ‘DenseList_d’
+AnalyzeImageConfounding : GetDense_OneObs: no visible binding for
+  global variable ‘StateDenseList_d’
+AnalyzeImageConfounding: no visible binding for global variable
+  ‘keysUsedInTraining’
+AnalyzeImageConfounding: no visible global function definition for
+  ‘txtProgressBar’
+AnalyzeImageConfounding: no visible global function definition for
+  ‘setTxtProgressBar’
+AnalyzeImageConfounding: no visible binding for global variable
+  ‘useVideoIndicator’
+AnalyzeImageConfounding: no visible binding for global variable
+  ‘changed_wd’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘layout’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘par’
+AnalyzeImageConfounding : makePlots: no visible binding for global
+  variable ‘useVideoIndicator’
+AnalyzeImageConfounding : makePlots: no visible binding for global
+  variable ‘new_wd’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘mtext’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘pdf’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘points’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘smooth.spline’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘na.omit’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘dev.off’
+AnalyzeImageConfounding : makePlots: no visible global function
+  definition for ‘axis’
+AnalyzeImageConfounding: no visible binding for global variable ‘i’
+AnalyzeImageConfounding: no visible binding for global variable ‘sd’
+AnalyzeImageHeterogeneity: no visible binding for global variable ‘tmp’
+AnalyzeImageHeterogeneity : <anonymous> : <anonymous>: no visible
+  global function definition for ‘AvePoolingDownshift’
+AnalyzeImageHeterogeneity: no visible global function definition for
+  ‘resid’
+AnalyzeImageHeterogeneity: no visible global function definition for
+  ‘lm’
+AnalyzeImageHeterogeneity: no visible global function definition for
+  ‘var’
+AnalyzeImageHeterogeneity: no visible global function definition for
+  ‘na.omit’
+AnalyzeImageHeterogeneity: no visible binding for global variable
+  ‘oryx’
+AnalyzeImageHeterogeneity : GetDenseNet: no visible binding for global
+  variable ‘ModelList_d’
+AnalyzeImageHeterogeneity : getClusterSamp_logitInput: no visible
+  binding for global variable ‘oryx’
+AnalyzeImageHeterogeneity : GetEY1_batch: no visible global function
+  definition for ‘GetEY0_batch’
+AnalyzeImageHeterogeneity : GetEY1_batch: no visible global function
+  definition for ‘GetTau_batch’
+AnalyzeImageHeterogeneity : GetEY1_batch: no visible binding for global
+  variable ‘oryx’
+AnalyzeImageHeterogeneity : GetLikelihoodDraw_batch: no visible global
+  function definition for ‘GetEY0_batch’
+AnalyzeImageHeterogeneity : GetLikelihoodDraw_batch: no visible global
+  function definition for ‘GetTau_batch’
+AnalyzeImageHeterogeneity : GetLikelihoodDraw_batch: no visible binding
+  for global variable ‘oryx’
+AnalyzeImageHeterogeneity : <anonymous>: no visible binding for global
+  variable ‘oryx’
+AnalyzeImageHeterogeneity : <anonymous>: no visible binding for global
+  variable ‘tfd’
+AnalyzeImageHeterogeneity : GetLoss: no visible binding for global
+  variable ‘klContrib’
+AnalyzeImageHeterogeneity : <anonymous> : <anonymous>: no visible
+  global function definition for ‘GetEY0_batch’
+AnalyzeImageHeterogeneity : <anonymous> : <anonymous>: no visible
+  global function definition for ‘GetTau_batch’
+AnalyzeImageHeterogeneity: no visible global function definition for
+  ‘abline’
+AnalyzeImageHeterogeneity : GetProbAndExpand: no visible global
+  function definition for ‘GetTau’
+AnalyzeImageHeterogeneity : <anonymous>: no visible binding for global
+  variable ‘var’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘heterogeneityModelType’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘as.numeric2’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘Tau_mean_vec’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘Tau_sd_vec’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘ClusterProbs’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘kClust_est’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘pdf’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘figuresPath’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘figuresTag’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘par’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘axis’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘points’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘legend’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘dev.off’
+CausalImageHeterogeneity_plot: no visible global function definition
+  for ‘cor’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘ClusterProbs_est’
+CausalImageHeterogeneity_plot: no visible binding for global variable
+  ‘py_gc’
+CausalImageHeterogeneity_plot : LogProb_Image: no visible binding for
+  global variable ‘SharedImageRepresentation’
+CausalImageHeterogeneity_plot : LogProb_Image: no visible global
+  function definition for ‘ImageRepArm_batch_R’
+CausalImageHeterogeneity_plot : LogProb_Image: no visible binding for
+  global variable ‘optimizeImageRep’
+CausalImageHeterogeneity_plot : LogProb_Image: no visible binding for
+  global variable ‘nMonte_salience’
+CausalImageHeterogeneity_plot : LogProb_Image : <anonymous>: no visible
+  global function definition for ‘GetTau’
+CausalImageHeterogeneity_plot : LogProb_Image: no visible binding for
+  global variable ‘kClust_est’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘py_gc’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_std’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_lower_conf’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_est_full’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘long’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘lat’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘imageKeysOfUnits’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘orig_wd’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘useVideoIndicator’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘image_dtype_tf’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘new_wd’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible global
+  function definition for ‘par’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘plotBands’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘np’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘ModelList’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘ModelList_fixed’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible global
+  function definition for ‘InitImageProcessFn’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘StateList’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible global
+  function definition for ‘as.matrix2’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘Tau_mean_vec’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘orthogonalize’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘figuresPath’
+CausalImageHeterogeneity_plot : video_plotting_fxn: no visible binding
+  for global variable ‘figuresTag’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘pdf’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘figuresPath’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘heterogeneityModelType’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘orthogonalize’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘figuresTag’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘par’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘kClust_est’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘layout’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘py_gc’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_std’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_lower_conf’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘ClusterProbs_est_full’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘long’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘lat’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘imageKeysOfUnits’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘orig_wd’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘useVideoIndicator’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘image_dtype_tf’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘new_wd’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘plotBands’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘np’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘as.matrix2’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘Tau_mean_vec’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘axis’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘ModelList’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘ModelList_fixed’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘InitImageProcessFn’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible binding
+  for global variable ‘StateList’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘hcl.colors’
+CausalImageHeterogeneity_plot : image_plotting_fxn: no visible global
+  function definition for ‘dev.off’
+GetImageRepresentations : InitImageProcess: no visible binding for
+  global variable ‘NORM_MEAN_array_inner’
+GetImageRepresentations : InitImageProcess: no visible binding for
+  global variable ‘NORM_SD_array_inner’
+GetImageRepresentations : InitImageProcess: no visible binding for
+  global variable ‘SD_RESCALER’
+GetImageRepresentations : InitImageProcess: no visible binding for
+  global variable ‘MEAN_RESCALER’
+GetImageRepresentations : InitImageProcess: no visible global function
+  definition for ‘TransformersModel’
+GetImageRepresentations : InitImageProcess: no visible binding for
+  global variable ‘sd’
+GetImageRepresentations: no visible binding for global variable
+  ‘PretrainedImageModelName’
+GetImageRepresentations: no visible binding for global variable
+  ‘FeatureExtractor’
+GetImageRepresentations: no visible binding for global variable
+  ‘ClayModel’
+GetImageRepresentations: no visible binding for global variable
+  ‘TransformersModel’
+GetMoments: no visible binding for global variable ‘sd’
+GetMoments: no visible binding for global variable ‘var’
+PredictiveRun : <anonymous> : <anonymous>: no visible global function
+  definition for ‘scalePertubations’
+PredictiveRun : GetDense_OneObs: no visible binding for global variable
+  ‘DenseList_d’
+PredictiveRun : GetDense_OneObs: no visible binding for global variable
+  ‘StateDenseList_d’
+PredictiveRun: no visible global function definition for
+  ‘txtProgressBar’
+PredictiveRun: no visible global function definition for
+  ‘setTxtProgressBar’
+PredictiveRun: no visible binding for global variable
+  ‘keysUsedInTraining’
+PredictiveRun: no visible global function definition for ‘roc’
+PredictiveRun: no visible binding for global variable ‘obsW’
+PredictiveRun: no visible binding for global variable ‘prW_est’
+PredictiveRun: no visible global function definition for ‘var’
+TFRecordManagement : getParsed_tf_dataset_inference : <anonymous>: no
+  visible binding for global variable ‘image_dtype_tf’
+TFRecordManagement : getParsed_tf_dataset_inference: no visible binding
+  for global variable ‘batchSize’
+TFRecordManagement : getParsed_tf_dataset_train_Select : <anonymous>:
+  no visible binding for global variable ‘image_dtype_tf’
+TFRecordManagement : getParsed_tf_dataset_train_BatchAndShuffle: no
+  visible binding for global variable ‘TfRecords_BufferScaler’
+TFRecordManagement : getParsed_tf_dataset_train_BatchAndShuffle: no
+  visible binding for global variable ‘batchSize’
+TFRecordManagement: no visible binding for global variable
+  ‘TFRecordControl’
+TFRecordManagement : getParsed_tf_dataset_train : <anonymous>: no
+  visible binding for global variable ‘image_dtype_tf’
+TFRecordManagement : getParsed_tf_dataset_train: no visible binding for
+  global variable ‘TfRecords_BufferScaler’
+TFRecordManagement : getParsed_tf_dataset_train: no visible binding for
+  global variable ‘batchSize’
+TFRecordManagement: no visible binding for global variable
+  ‘TfRecords_BufferScaler’
+TFRecordManagement: no visible binding for global variable ‘batchSize’
+TFRecordManagement: no visible binding for global variable ‘testFrac’
+TFRecordManagement: no visible binding for global variable
+  ‘imageKeysOfUnits’
+TFRecordManagement : getParsed_tf_dataset_train_Shuffle: no visible
+  binding for global variable ‘TfRecords_BufferScaler’
+TFRecordManagement : getParsed_tf_dataset_train_Shuffle: no visible
+  binding for global variable ‘batchSize’
+TrainDefine: no visible binding for global variable ‘nSGD’
+TrainDefine: no visible binding for global variable ‘learningRateMax’
+TrainDefine: no visible binding for global variable ‘ModelList’
+TrainDo: no visible global function definition for ‘par’
+TrainDo: no visible binding for global variable ‘imageKeysOfUnits’
+TrainDo: no visible binding for global variable ‘nSGD’
+TrainDo: no visible binding for global variable ‘TFRecordControl’
+TrainDo: no visible binding for global variable ‘tf_dataset_train’
+TrainDo: no visible binding for global variable ‘batchSize’
+TrainDo: no visible binding for global variable
+  ‘tf_dataset_train_control’
+TrainDo: no visible binding for global variable
+  ‘tf_dataset_train_treated’
+TrainDo: no visible binding for global variable ‘obsY’
+TrainDo: no visible binding for global variable ‘justCheckIterators’
+TrainDo: no visible global function definition for ‘GetLoss’
+TrainDo: no visible binding for global variable ‘ModelList_fixed’
+TrainDo: no visible global function definition for ‘InitImageProcessFn’
+TrainDo: no visible binding for global variable ‘X’
+TrainDo: no visible global function definition for ‘GradAndLossAndAux’
+TrainDo: no visible binding for global variable ‘ComputeDtype’
+TrainDo: no visible binding for global variable ‘image_dtype_char’
+TrainDo: no visible global function definition for ‘jit_get_update’
+TrainDo: no visible global function definition for ‘jit_apply_updates’
+TrainDo: no visible binding for global variable ‘BNInfo’
+TrainDo: no visible global function definition for ‘coef’
+TrainDo: no visible global function definition for ‘lm’
+TrainDo: no visible global function definition for ‘na.omit’
+TrainDo: no visible global function definition for ‘points’
+TrainDo: no visible global function definition for ‘smooth.spline’
+TrainDo: no visible binding for global variable ‘earlyStopThreshold’
+TrainDo: no visible global function definition for ‘var’
+image2: no visible global function definition for ‘axis’
+se: no visible global function definition for ‘na.omit’
+se: no visible global function definition for ‘var’
+Undefined global functions or variables:
+  AvePoolingDownshift BNInfo ClayModel ClusterProbs ClusterProbs_est
+  ClusterProbs_est_full ClusterProbs_lower_conf ClusterProbs_std
+  ComputeDtype DenseList_d FeatureExtractor GetEY0_batch GetLoss GetTau
+  GetTau_batch GradAndLossAndAux ImageRepArm_batch_R InitImageProcessFn
+  MEAN_RESCALER ModelList ModelList_d ModelList_fixed
+  NORM_MEAN_array_inner NORM_SD_array_inner PretrainedImageModelName
+  SD_RESCALER SharedImageRepresentation StateDenseList_d StateList
+  TFRecordControl Tau_mean_vec Tau_sd_vec TfRecords_BufferScaler
+  TransformersModel X abline as.matrix2 as.numeric2 axis batchSize
+  changed_wd coef cor dev.off earlyStopThreshold figuresPath figuresTag
+  getParsed_tf_dataset_train_BatchAndShuffle
+  getParsed_tf_dataset_train_Select getParsed_tf_dataset_train_Shuffle
+  hcl.colors heterogeneityModelType i imageKeysOfUnits image_dtype_char
+  image_dtype_tf jit_apply_updates jit_get_update justCheckIterators
+  kClust_est keysUsedInTraining klContrib lat layout learningRateMax
+  legend lm long mtext nMonte_salience nSGD na.omit new_wd np obsW obsY
+  optimizeImageRep orig_wd orthogonalize oryx par pdf plotBands points
+  prW_est py_gc resid roc scalePertubations sd setTxtProgressBar
+  smooth.spline testFrac tf_dataset_train tf_dataset_train_control
+  tf_dataset_train_treated tf_record_name tfd tmp txtProgressBar
+  useVideoIndicator var
+Consider adding
+  importFrom("grDevices", "dev.off", "hcl.colors", "pdf")
+  importFrom("graphics", "abline", "axis", "layout", "legend", "mtext",
+             "par", "points")
+  importFrom("stats", "coef", "cor", "lm", "na.omit", "resid", "sd",
+             "smooth.spline", "var")
+  importFrom("utils", "setTxtProgressBar", "txtProgressBar")
+to your NAMESPACE file.
+* checking Rd files ... OK
+* checking Rd metadata ... OK
+* checking Rd line widths ... OK
+* checking Rd cross-references ... OK
+* checking for missing documentation entries ... OK
+* checking for code/documentation mismatches ... OK
+* checking Rd \usage sections ... OK
+* checking Rd contents ... OK
+* checking for unstated dependencies in examples ... OK
+* checking contents of ‘data’ directory ... OK
+* checking data for non-ASCII characters ... OK
+* checking data for ASCII and uncompressed saves ... OK
+* checking examples ... OK
+* checking for unstated dependencies in ‘tests’ ... OK
+* checking tests ... SKIPPED
+* checking PDF version of manual ... OK
+* checking HTML version of manual ... OK
+* checking for non-standard things in the check directory ... OK
+* checking for detritus in the temp directory ... OK
 * DONE
-Status: 1 ERROR
+Status: 2 NOTEs

@@ -28,7 +28,7 @@ TrainDo <- function(){
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-      if(!RestartedIterator){ if(dim(ds_next_train[[1]])[1] != batchSize){
+      if(!RestartedIterator){ if(as.integer(ds_next_train[[1]]$shape[[0]]) != batchSize){
         message2("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
         ds_next_train <-  ds_iterator_train$`next`(); gc(); cienv$py_gc$collect()
@@ -51,7 +51,7 @@ TrainDo <- function(){
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-      if(!RestartedIterator){ if(dim(ds_next_train_control[[1]])[1] != batchSize){
+      if(!RestartedIterator){ if(as.integer(ds_next_train_control[[1]]$shape[[0]]) != batchSize){
         message2("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_control <- reticulate::as_iterator( tf_dataset_train_control )
         ds_next_train_control <-  ds_iterator_train_control$`next`(); gc(); cienv$py_gc$collect()
@@ -68,7 +68,7 @@ TrainDo <- function(){
       }
       
       # get a new batch if size mismatch - size mismatches generate new cached compiled fxns
-      if(!RestartedIterator){ if(dim(ds_next_train_treated[[1]])[1] != batchSize){
+      if(!RestartedIterator){ if(as.integer(ds_next_train_treated[[1]]$shape[[0]]) != batchSize){
         message2("Re-setting iterator! (type 2)"); gc(); cienv$py_gc$collect()
         ds_iterator_train_treated <- reticulate::as_iterator( tf_dataset_train_treated )
         ds_next_train_treated <-  ds_iterator_train_treated$`next`(); gc(); cienv$py_gc$collect()

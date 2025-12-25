@@ -29,7 +29,6 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: false
 Imports:
-    tensorflow,
     reticulate,
     geosphere,
     raster,
@@ -40,9 +39,14 @@ Imports:
     pROC
 Suggests:
     abind,
+    animation,
+    gtools,
     knitr,
+    PRROC,
     rmarkdown,
-    testthat (>= 3.0.0)
+    tensorflow,
+    testthat (>= 3.0.0),
+    viridis
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3
 RemoteType: local

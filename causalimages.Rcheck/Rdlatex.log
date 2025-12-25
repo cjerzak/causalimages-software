@@ -1,0 +1,697 @@
+Hmm ... looks like a package
+Converting parsed Rd's to LaTeX .
+Creating pdf output from LaTeX ...
+
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+No file Rd2.aux.
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+No file Rd2.toc.
+[1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/l
+ocal/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr/local/texlive/20
+24/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}] [2]
+Overfull \hbox (9.47821pt too wide) in paragraph at lines 126--127
+[]\T1/ptm/m/n/10 An op-tional nu-meric ma-trix con-tain-ing tab-u-lar in-for-ma
+-tion used if []\T1/zi4/m/n/10 orthogonalize
+[3]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 190--191
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 192--193
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+[4]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 212--213
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 220--221
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 222--223
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+[5] [6]
+Overfull \hbox (41.83833pt too wide) in paragraph at lines 351--352
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the het-ero-gene-ity model type. Op-tions
+ in-clude []\T1/zi4/m/n/10 "variational_minimal"
+[7]
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 373--374
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 393--394
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 404--405
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+[8]
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 412--413
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+[9] [10] [11]
+Overfull \hbox (6.17735pt too wide) in paragraph at lines 610--611
+[]\T1/ptm/m/n/10 String: "pre_write" for WriteT-fRecord checks, "pre_analysis" 
+for anal-y-sis checks.
+[12] [13]
+Overfull \hbox (34.34856pt too wide) in paragraph at lines 688--689
+[]\T1/ptm/m/n/10 (default = []\T1/zi4/m/n/10 "."[]\T1/ptm/m/n/10 ) What folder 
+should be used to save the out-put? Ex-am-ple: []\T1/zi4/m/n/10 "~/Downloads" 
+
+Overfull \hbox (4.11911pt too wide) in paragraph at lines 721--722
+[]\T1/ptm/m/n/10 Reads unique key in-dices from a []\T1/zi4/m/n/10 .tfrecord []
+\T1/ptm/m/n/10 file saved via a call to []\T1/zi4/m/n/10 causalimages::WriteTfR
+ecord[]\T1/ptm/m/n/10 . 
+[14] [15] [16]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 843--844
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (0.4377pt too wide) in paragraph at lines 845--846
+[]\T1/ptm/m/n/10 Numeric vec-tor of length 1-3 spec-i-fy-ing dataset mean(s) fo
+r nor-mal-iza-tion. Used
+[17]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 904--905
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 912--913
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.78995pt too wide) in paragraph at lines 931--932
+[]\T1/zi4/m/n/10 ImageRepArm_OneObs,ImageRepArm_batch_R, ImageRepArm_batch \T1/
+ptm/m/n/10 (func-tions) Im-age mod-
+[18] [19] [20]
+Overfull \hbox (6.71034pt too wide) in paragraph at lines 1090--1090
+ []\T1/zi4/m/n/9 #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +l
+at_2=33 +lon_0=-100 +ellps=WGS84"))[] 
+[21] [22] [23]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 1234--1235
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 1236--1237
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 1256--1257
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 1264--1265
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 1266--1267
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+[24]
+Overfull \hbox (47.02783pt too wide) in paragraph at lines 1274--1275
+[]\T1/ptm/m/n/10 Path to save the eval-u-a-tion met-rics as a RDS file. De-faul
+t = []\T1/zi4/m/n/10 "./evaluation_metrics.rds"[]\T1/ptm/m/n/10 . 
+[25] [26]
+Overfull \hbox (122.28847pt too wide) in paragraph at lines 1389--1392
+\T1/ptm/m/n/10 turns the cor-re-spond-ing im-age or video as an ar-ray of di-me
+n-sions \T1/zi4/m/n/10 (length(keys), nSpatialDim1, nSpatialDim2, nChannels)
+
+Overfull \hbox (60.50006pt too wide) in paragraph at lines 1416--1417
+\T1/ptm/m/n/10 for im-ages and \T1/zi4/m/n/10 (length(keys), nTimeSteps, nSpati
+alDim1, nSpatialDim2, nChannels)
+[27]
+No file Rd2.ind.
+[28]
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.aux)
+
+Package rerunfilecheck Warning: File `Rd2.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+ )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></usr/local/texliv
+e/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2024/tex
+mf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fo
+nts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/
+urw/times/utmri8a.pfb>
+Output written on Rd2.pdf (28 pages, 137605 bytes).
+Transcript written on Rd2.log.
+This is makeindex, version 2.17 [TeX Live 2024] (kpathsea + Thai support).
+Scanning input file Rd2.idx....done (30 entries accepted, 0 rejected).
+Sorting entries....done (164 comparisons).
+Generating output file Rd2.ind....done (84 lines written, 0 warnings).
+Output written in Rd2.ind.
+Transcript written in Rd2.ilg.
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.toc [1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/p
+dftex.map}{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr
+/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+[2]
+Overfull \hbox (9.47821pt too wide) in paragraph at lines 126--127
+[]\T1/ptm/m/n/10 An op-tional nu-meric ma-trix con-tain-ing tab-u-lar in-for-ma
+-tion used if []\T1/zi4/m/n/10 orthogonalize
+[3] [4]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 190--191
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 192--193
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 212--213
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 220--221
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 222--223
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+[5] [6] [7]
+Overfull \hbox (41.83833pt too wide) in paragraph at lines 351--352
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the het-ero-gene-ity model type. Op-tions
+ in-clude []\T1/zi4/m/n/10 "variational_minimal"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 373--374
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+[8]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 393--394
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 404--405
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 412--413
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+[9] [10] [11]
+Overfull \hbox (6.17735pt too wide) in paragraph at lines 610--611
+[]\T1/ptm/m/n/10 String: "pre_write" for WriteT-fRecord checks, "pre_analysis" 
+for anal-y-sis checks.
+[12] [13]
+Overfull \hbox (34.34856pt too wide) in paragraph at lines 688--689
+[]\T1/ptm/m/n/10 (default = []\T1/zi4/m/n/10 "."[]\T1/ptm/m/n/10 ) What folder 
+should be used to save the out-put? Ex-am-ple: []\T1/zi4/m/n/10 "~/Downloads" 
+
+Overfull \hbox (4.11911pt too wide) in paragraph at lines 721--722
+[]\T1/ptm/m/n/10 Reads unique key in-dices from a []\T1/zi4/m/n/10 .tfrecord []
+\T1/ptm/m/n/10 file saved via a call to []\T1/zi4/m/n/10 causalimages::WriteTfR
+ecord[]\T1/ptm/m/n/10 . 
+[14] [15] [16]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 843--844
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (0.4377pt too wide) in paragraph at lines 845--846
+[]\T1/ptm/m/n/10 Numeric vec-tor of length 1-3 spec-i-fy-ing dataset mean(s) fo
+r nor-mal-iza-tion. Used
+[17]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 904--905
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 912--913
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+[18]
+Overfull \hbox (5.78995pt too wide) in paragraph at lines 931--932
+[]\T1/zi4/m/n/10 ImageRepArm_OneObs,ImageRepArm_batch_R, ImageRepArm_batch \T1/
+ptm/m/n/10 (func-tions) Im-age mod-
+[19] [20]
+Overfull \hbox (6.71034pt too wide) in paragraph at lines 1090--1090
+ []\T1/zi4/m/n/9 #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +l
+at_2=33 +lon_0=-100 +ellps=WGS84"))[] 
+[21] [22] [23]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 1234--1235
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 1236--1237
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+[24]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 1256--1257
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 1264--1265
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 1266--1267
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+
+Overfull \hbox (47.02783pt too wide) in paragraph at lines 1274--1275
+[]\T1/ptm/m/n/10 Path to save the eval-u-a-tion met-rics as a RDS file. De-faul
+t = []\T1/zi4/m/n/10 "./evaluation_metrics.rds"[]\T1/ptm/m/n/10 . 
+[25] [26]
+Overfull \hbox (122.28847pt too wide) in paragraph at lines 1389--1392
+\T1/ptm/m/n/10 turns the cor-re-spond-ing im-age or video as an ar-ray of di-me
+n-sions \T1/zi4/m/n/10 (length(keys), nSpatialDim1, nSpatialDim2, nChannels)
+[27]
+Overfull \hbox (60.50006pt too wide) in paragraph at lines 1416--1417
+\T1/ptm/m/n/10 for im-ages and \T1/zi4/m/n/10 (length(keys), nTimeSteps, nSpati
+alDim1, nSpatialDim2, nChannels)
+
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.ind [28]
+
+LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
+(Font)              using `T1/zi4/m/n' instead on input line 24.
+
+[29])
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+
+Package rerunfilecheck Warning: File `Rd2.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+ )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></usr/local/texliv
+e/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive
+/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2024/texm
+f-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fon
+ts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/u
+rw/times/utmri8a.pfb>
+Output written on Rd2.pdf (29 pages, 151084 bytes).
+Transcript written on Rd2.log.
+This is makeindex, version 2.17 [TeX Live 2024] (kpathsea + Thai support).
+Scanning input file Rd2.idx....done (30 entries accepted, 0 rejected).
+Sorting entries....done (164 comparisons).
+Generating output file Rd2.ind....done (84 lines written, 0 warnings).
+Output written in Rd2.ind.
+Transcript written in Rd2.ilg.
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.toc [1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/p
+dftex.map}{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr
+/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+[2]
+Overfull \hbox (9.47821pt too wide) in paragraph at lines 126--127
+[]\T1/ptm/m/n/10 An op-tional nu-meric ma-trix con-tain-ing tab-u-lar in-for-ma
+-tion used if []\T1/zi4/m/n/10 orthogonalize
+[3] [4]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 190--191
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 192--193
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 212--213
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 220--221
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 222--223
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+[5] [6] [7]
+Overfull \hbox (41.83833pt too wide) in paragraph at lines 351--352
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the het-ero-gene-ity model type. Op-tions
+ in-clude []\T1/zi4/m/n/10 "variational_minimal"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 373--374
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+[8]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 393--394
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 404--405
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 412--413
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+[9] [10] [11]
+Overfull \hbox (6.17735pt too wide) in paragraph at lines 610--611
+[]\T1/ptm/m/n/10 String: "pre_write" for WriteT-fRecord checks, "pre_analysis" 
+for anal-y-sis checks.
+[12] [13]
+Overfull \hbox (34.34856pt too wide) in paragraph at lines 688--689
+[]\T1/ptm/m/n/10 (default = []\T1/zi4/m/n/10 "."[]\T1/ptm/m/n/10 ) What folder 
+should be used to save the out-put? Ex-am-ple: []\T1/zi4/m/n/10 "~/Downloads" 
+
+Overfull \hbox (4.11911pt too wide) in paragraph at lines 721--722
+[]\T1/ptm/m/n/10 Reads unique key in-dices from a []\T1/zi4/m/n/10 .tfrecord []
+\T1/ptm/m/n/10 file saved via a call to []\T1/zi4/m/n/10 causalimages::WriteTfR
+ecord[]\T1/ptm/m/n/10 . 
+[14] [15] [16]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 843--844
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (0.4377pt too wide) in paragraph at lines 845--846
+[]\T1/ptm/m/n/10 Numeric vec-tor of length 1-3 spec-i-fy-ing dataset mean(s) fo
+r nor-mal-iza-tion. Used
+[17]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 904--905
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 912--913
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+[18]
+Overfull \hbox (5.78995pt too wide) in paragraph at lines 931--932
+[]\T1/zi4/m/n/10 ImageRepArm_OneObs,ImageRepArm_batch_R, ImageRepArm_batch \T1/
+ptm/m/n/10 (func-tions) Im-age mod-
+[19] [20]
+Overfull \hbox (6.71034pt too wide) in paragraph at lines 1090--1090
+ []\T1/zi4/m/n/9 #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +l
+at_2=33 +lon_0=-100 +ellps=WGS84"))[] 
+[21] [22] [23]
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 1234--1235
+[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
+s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 1236--1237
+[]\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
+ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
+[24]
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 1256--1257
+[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
+/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
+ .
+
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 1264--1265
+[]\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
+me pe-ri-ods for video/image
+
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 1266--1267
+[]\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
+m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
+ptm/m/n/10 ,
+
+Overfull \hbox (47.02783pt too wide) in paragraph at lines 1274--1275
+[]\T1/ptm/m/n/10 Path to save the eval-u-a-tion met-rics as a RDS file. De-faul
+t = []\T1/zi4/m/n/10 "./evaluation_metrics.rds"[]\T1/ptm/m/n/10 . 
+[25] [26]
+Overfull \hbox (122.28847pt too wide) in paragraph at lines 1389--1392
+\T1/ptm/m/n/10 turns the cor-re-spond-ing im-age or video as an ar-ray of di-me
+n-sions \T1/zi4/m/n/10 (length(keys), nSpatialDim1, nSpatialDim2, nChannels)
+[27]
+Overfull \hbox (60.50006pt too wide) in paragraph at lines 1416--1417
+\T1/ptm/m/n/10 for im-ages and \T1/zi4/m/n/10 (length(keys), nTimeSteps, nSpati
+alDim1, nSpatialDim2, nChannels)
+
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.ind [28]
+
+LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
+(Font)              using `T1/zi4/m/n' instead on input line 24.
+
+[29])
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpGgTWFC/Rd2pdfc06a
+2698d3bc/Rd2.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ )
+(see the transcript file for additional information)</usr/local/texlive/2024/te
+xmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></usr/local/texliv
+e/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive
+/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2024/texm
+f-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fon
+ts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/u
+rw/times/utmri8a.pfb>
+Output written on Rd2.pdf (29 pages, 151612 bytes).
+Transcript written on Rd2.log.
+Saving output to ‘causalimages-manual.pdf’ ...
+Done
+You may want to clean up by 'rm -Rf /var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T//RtmpGgTWFC/Rd2pdfc06a2698d3bc'
