@@ -62,11 +62,11 @@ causalimages::BuildBackend(conda = "/path/to/your/conda")
 
 If you prefer to manually install the backend, create a conda environment and
 install the Python packages used by `causalimages`. The commands below replicate
-what `BuildBackend()` performs under the hood (Python 3.11 recommended):
+what `BuildBackend()` performs under the hood (Python 3.13 recommended):
 
 **macOS (Apple Silicon):**
 ```bash
-conda create -n CausalImagesEnv python=3.11
+conda create -n CausalImagesEnv python=3.13
 conda activate CausalImagesEnv
 python3 -m pip install tensorflow tensorflow-metal optax equinox jmp tensorflow_probability
 python3 -m pip install jax-metal
@@ -74,7 +74,7 @@ python3 -m pip install jax-metal
 
 **Linux (CUDA):**
 ```bash
-conda create -n CausalImagesEnv python=3.11
+conda create -n CausalImagesEnv python=3.13
 conda activate CausalImagesEnv
 pip install tensorflow optax equinox jmp tensorflow_probability
 pip install --upgrade "jax[cuda12]"
@@ -82,7 +82,7 @@ pip install --upgrade "jax[cuda12]"
 
 **CPU-only (Any OS):**
 ```bash
-conda create -n CausalImagesEnv python=3.11
+conda create -n CausalImagesEnv python=3.13
 conda activate CausalImagesEnv
 pip install tensorflow optax equinox jmp tensorflow_probability jax
 ```
@@ -146,7 +146,7 @@ ImageReps <- causalimages::GetImageRepresentations(
 )
 ``` 
 
-*4. Perform causal image analysis.* Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial.R). 
+*4. Perform causal image analysis.* Finally, you may also want to perform a causal analysis using the image or image sequence data. For a tutorial on image-based treatment effect heterogeneity, see [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R). For a tutorial on image-based confounding analysis, see [`tutorials/AnalyzeImageConfounding_Tutorial_Base.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageConfounding_Tutorial_Base.R). 
 ```
 # for help, see also: 
 ?causalimages::AnalyzeImageHeterogeneity
