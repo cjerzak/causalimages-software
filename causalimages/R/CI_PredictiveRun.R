@@ -135,6 +135,7 @@ PredictiveRun <- function(
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; ComputeDtype <- image_dtype <- cienv$jnp$bfloat16 }
     if(is.null(seed)){ seed <- as.integer(stats::runif(1,1,10000)) }
+    seed <- ci_int32_scalar(seed, "PredictiveRun seed")
     obsY <- f2n(obsY)
     
     # set memory growth for tensorflow 
@@ -148,6 +149,12 @@ PredictiveRun <- function(
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
   if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
+  predictive_seed_value <- function(offset = 0L, label = "PredictiveRun seed") {
+    ci_seed_int32(seed = seed, offset = offset, label = label)
+  }
+  predictive_seed_key <- function(offset = 0L, label = "PredictiveRun seed") {
+    ci_jax_key(seed = seed, offset = offset, label = label)
+  }
   
   # figure name info 
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
@@ -369,7 +376,7 @@ PredictiveRun <- function(
     conda_env = conda_env,
     conda_env_required = conda_env_required,
     Sys.setenv_text = Sys.setenv_text,
-    seed = as.integer(4003L + seed)  ); setwd(new_wd)
+    seed = predictive_seed_value(offset = 4003L, label = "PredictiveRun optimized representation seed")  ); setwd(new_wd)
   ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
   ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
   InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
@@ -383,7 +390,7 @@ PredictiveRun <- function(
                                                                    no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = cienv$jax$random$key(d_ + 44L + as.integer(seed)))
+                                      use_bias = T, key = predictive_seed_key(offset = d_ + 44L, label = "PredictiveRun dense layer seed"))
     LayerBN_d <- cienv$jnp$array(1)
     DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
     DenseList[[d_]] <- list("DenseProj" = DenseProj_d,
@@ -551,9 +558,9 @@ PredictiveRun <- function(
                                                         no = list(X[obs_with_key,]))[[1]],
                                                  dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
     m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(600L+cut_), inference = T), # m 
+                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), ci_jax_key(seed = cut_, offset = 600L, label = "PredictiveRun per-key init seed"), inference = T), # m 
                                         cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                        StateList, cienv$jax$random$key(900L+cut_), MPList, T)[[1]]
+                                        StateList, ci_jax_key(seed = cut_, offset = 900L, label = "PredictiveRun per-key representation seed"), MPList, T)[[1]]
     GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
       m <- GetDense_batch_jit(ModelList, ModelList_fixed,
                               m_ImageRep,
@@ -642,7 +649,7 @@ PredictiveRun <- function(
           m_indices <- match(names(x_indices), outerBatchKeys)
           
           image_batch <- cienv$jnp$take(cienv$jnp$array(ds_next_in), cienv$jnp$array(ai(m_indices-1L)), axis = 0L)
-          m <- InitImageProcessFn(image_batch, cienv$jax$random$key(ai(600L+inf_counter)), inference = TRUE)
+          m <- InitImageProcessFn(image_batch, ci_jax_key(seed = inf_counter, offset = 600L, label = "PredictiveRun inference init seed"), inference = TRUE)
           
           if(batchSize != realSize_inner){
             m <- cienv$jnp$take(m, cienv$jnp$array(position_indices - 1L), axis=0L)
@@ -657,7 +664,7 @@ PredictiveRun <- function(
                                               m,
                                               x,
                                               StateList,
-                                              cienv$jax$random$split(cienv$jax$random$key(ai(900L+inf_counter)),batchSize),
+                                              cienv$jax$random$split(ci_jax_key(seed = inf_counter, offset = 900L, label = "PredictiveRun inference representation seed"),batchSize),
                                               MPList, TRUE)[[1]]
           
           GottenSummaries <- GetDense_batch_jit(ModelList, ModelList_fixed,

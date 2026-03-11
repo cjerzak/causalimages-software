@@ -152,6 +152,7 @@ AnalyzeImageConfounding <- function(
     if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
     if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; ComputeDtype <- image_dtype <- cienv$jnp$bfloat16 }
     if(is.null(seed)){ seed <- ai(stats::runif(1,1,10000)) }
+    seed <- ci_int32_scalar(seed, "AnalyzeImageConfounding seed")
     obsW <- f2n(obsW); obsY <- f2n(obsY)
     
     # set memory growth for tensorflow
@@ -180,6 +181,12 @@ AnalyzeImageConfounding <- function(
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(as.character(optimizeImageRep)) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
   if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
+  confounding_seed_value <- function(offset = 0L, label = "AnalyzeImageConfounding seed") {
+    ci_seed_int32(seed = seed, offset = offset, label = label)
+  }
+  confounding_seed_key <- function(offset = 0L, label = "AnalyzeImageConfounding seed") {
+    ci_jax_key(seed = seed, offset = offset, label = label)
+  }
   
   # figure name info 
   FigNameAppend <- sprintf("KW%s_InputAvePool%s_OptimizeImageRep%s_Tag%s",
@@ -369,7 +376,7 @@ AnalyzeImageConfounding <- function(
             conda_env = conda_env,
             conda_env_required = conda_env_required,
             Sys.setenv_text = Sys.setenv_text,
-            seed = ai(400L + jr)  ); setwd(new_wd)
+            seed = confounding_seed_value(offset = 400L + jr, label = "AnalyzeImageConfounding bootstrap representation seed")  ); setwd(new_wd)
           ImageRepresentations_df <- as.data.frame(  ImageRepresentations$ImageRepresentations )
           row.names(ImageRepresentations_df) <- as.character(unique(imageKeysOfUnits))
           ImageRepresentations_df <- ImageRepresentations_df[as.character(imageKeysOfUnits),]
@@ -473,7 +480,7 @@ AnalyzeImageConfounding <- function(
               conda_env = conda_env,
               conda_env_required = conda_env_required,
               Sys.setenv_text = Sys.setenv_text,
-              seed = ai(400L + jr)  ); setwd(new_wd)
+              seed = confounding_seed_value(offset = 400L + jr, label = "AnalyzeImageConfounding transport representation seed")  ); setwd(new_wd)
             ImageRepresentations_df_transport <- as.data.frame(  ImageRepresentations_df_transport$ImageRepresentations )
           }
         }
@@ -603,7 +610,7 @@ AnalyzeImageConfounding <- function(
         }
       }
         
-      seed <- seed + as.integer(kf_)
+      seed <- ci_seed_int32(seed = seed, offset = kf_, label = "AnalyzeImageConfounding fold seed")
       setwd(orig_wd); ImageRepresentations <- GetImageRepresentations(
         X = X,
         file = file,
@@ -636,7 +643,7 @@ AnalyzeImageConfounding <- function(
         conda_env = conda_env,
         conda_env_required = conda_env_required,
         Sys.setenv_text = Sys.setenv_text,
-        seed = ai(4003L + seed)  ); setwd(new_wd)
+        seed = confounding_seed_value(offset = 4003L, label = "AnalyzeImageConfounding optimized representation seed")  ); setwd(new_wd)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
         InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
@@ -650,7 +657,7 @@ AnalyzeImageConfounding <- function(
                                                           no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                       yes = 1L,  no = nWidth_Dense),
-                                      use_bias = T, key = cienv$jax$random$key(d_ + 44L + as.integer(seed)))
+                                      use_bias = T, key = confounding_seed_key(offset = d_ + 44L, label = "AnalyzeImageConfounding dense layer seed"))
           #LayerBN_d  <- cienv$eq$nn$BatchNorm( input_size = outd_, axis_name = batch_axis_name, momentum = 0.99, eps = 0.001, channelwise_affine = F)
           LayerBN_d <- cienv$jnp$array(1)
           DenseStateList[[d_]] <- list('BNState' = cienv$eq$nn$State( LayerBN_d ))
@@ -893,12 +900,12 @@ AnalyzeImageConfounding <- function(
                 
                 # get image rep 
                 if(all(m_indices %in% 1:length(m_indices))){ 
-                  m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), cienv$jax$random$key(ai(600L+inf_counter)), 
+                  m <- InitImageProcessFn(cienv$jnp$array(ds_next_in), confounding_seed_key(offset = 600L + inf_counter, label = "AnalyzeImageConfounding inference init seed"), 
                                           inference = TRUE)
                 }
                 if(!all(m_indices %in% 1:length(m_indices))){ 
                   m <- InitImageProcessFn(cienv$jnp$take(cienv$jnp$array(ds_next_in),
-                                                         cienv$jnp$array(ai(m_indices-1L)), axis = 0L), cienv$jax$random$key(ai(600L+inf_counter)), 
+                                                         cienv$jnp$array(ai(m_indices-1L)), axis = 0L), confounding_seed_key(offset = 600L + inf_counter, label = "AnalyzeImageConfounding indexed inference init seed"), 
                                           inference = TRUE)
                 }
                 x <- cienv$jnp$array(X[x_indices[in_xbatch_indices],], dtype = cienv$jnp$float16)
@@ -1373,7 +1380,7 @@ AnalyzeImageConfounding <- function(
           SalienceX_contrib <- cienv$np$array(  dLogProb_dX(  ModelList, ModelList_fixed,
                         cienv$jmp$cast_to_full(im_),
                         cienv$jmp$cast_to_full(x_),
-                        cienv$jax$random$split(cienv$jax$random$key( 500L+i ),x_$shape[[1]]),
+                        cienv$jax$random$split(ci_jax_key(seed = i, offset = 500L, label = "AnalyzeImageConfounding tabular salience seed"),x_$shape[[1]]),
                         StateList, MPList ) )
           SalienceX <- rbind(SalienceX, SalienceX_contrib)
         }

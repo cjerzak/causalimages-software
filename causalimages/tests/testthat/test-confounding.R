@@ -74,27 +74,37 @@ test_that("AnalyzeImageConfounding works", {
   for(ImageModelClass in (c("VisionTransformer"))){
   for(optimizeImageRep in c(FALSE, TRUE)){
   print(sprintf("Image confounding analysis & optimizeImageRep: %s & ImageModelClass: %s",optimizeImageRep, ImageModelClass))
-  ImageConfoundingAnalysis <- causalimages::AnalyzeImageConfounding(
-    obsW = obsW[ take_indices ],
-    obsY = obsY[ take_indices ],
-    X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
-    long = LongLat$geo_long[ take_indices ],  # optional argument
-    lat = LongLat$geo_lat[ take_indices ], # optional argument
-    imageKeysOfUnits = KeysOfObservations[ take_indices ],
-    file = TFRecordName_im,
+  warnings_seen <- character()
+  ImageConfoundingAnalysis <- withCallingHandlers(
+    causalimages::AnalyzeImageConfounding(
+      obsW = obsW[ take_indices ],
+      obsY = obsY[ take_indices ],
+      X = X[ take_indices,apply(X[ take_indices,],2,sd)>0],
+      long = LongLat$geo_long[ take_indices ],  # optional argument
+      lat = LongLat$geo_lat[ take_indices ], # optional argument
+      imageKeysOfUnits = KeysOfObservations[ take_indices ],
+      file = TFRecordName_im,
 
-    batchSize = 16L,
-    nBoot = 5L,
-    optimizeImageRep = optimizeImageRep,
-    imageModelClass = ImageModelClass,
-    nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
-    nWidth_ImageRep = as.integer(2L^6),
-    learningRateMax  = 0.001, nSGD = 10L, #
-    dropoutRate = NULL, # 0.1,
-    plotBands = c(1,2,3),
-    plotResults = T, figuresTag = "ConfoundingImTutorial",
-    figuresPath = "./ImageTutorial")
-    try(dev.off(), T)
+      batchSize = 16L,
+      nBoot = 5L,
+      optimizeImageRep = optimizeImageRep,
+      imageModelClass = ImageModelClass,
+      nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
+      nWidth_ImageRep = as.integer(2L^6),
+      learningRateMax  = 0.001, nSGD = 10L, #
+      dropoutRate = NULL, # 0.1,
+      plotBands = c(1,2,3),
+      plotResults = T, figuresTag = "ConfoundingImTutorial",
+      figuresPath = "./ImageTutorial"
+    ),
+    warning = function(w) {
+      warnings_seen <<- c(warnings_seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(any(grepl("nSGD = 10 is low", warnings_seen, fixed = TRUE)))
+  expect_false(any(grepl("NAs introduced by coercion to integer range", warnings_seen, fixed = TRUE)))
+  try(dev.off(), T)
   }
   }
 
