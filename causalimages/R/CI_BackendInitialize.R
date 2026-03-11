@@ -1,3 +1,42 @@
+ci_python_distribution_version <- function(dist_name) {
+  tryCatch({
+    as.character(
+      reticulate::import("importlib.metadata", delay_load = FALSE)$version(dist_name)
+    )
+  }, error = function(e) {
+    NA_character_
+  })
+}
+
+ci_stop_backend_incompatibility <- function(conda_env, original_error,
+                                            dist_names = c("torch", "transformers",
+                                                           "huggingface-hub",
+                                                           "tokenizers")) {
+  detected <- vapply(dist_names, ci_python_distribution_version, character(1))
+  detected[is.na(detected)] <- "<not found>"
+
+  stop(
+    paste(
+      sprintf(
+        "The Python backend in conda env '%s' is incompatible with causalimages.",
+        conda_env
+      ),
+      sprintf("Supported backend: %s", ci_supported_backend_summary()),
+      sprintf(
+        "Detected core packages: %s",
+        paste(sprintf("%s=%s", names(detected), detected), collapse = ", ")
+      ),
+      sprintf(
+        "Rebuild the environment with causalimages::BuildBackend(conda_env = '%s').",
+        conda_env
+      ),
+      sprintf("Original Python import error: %s", conditionMessage(original_error)),
+      sep = "\n"
+    ),
+    call. = FALSE
+  )
+}
+
 initialize_jax <- function(conda_env = "cienv", 
                            conda_env_required = TRUE,
                            Sys.setenv_text = NULL) {
@@ -13,7 +52,8 @@ initialize_jax <- function(conda_env = "cienv",
   }
   
   # Import Python packages once, storing them in cienv
-  if (!exists("jax", envir = cienv, inherits = FALSE)) {
+  required_modules <- c("jax", "jnp", "tf", "np", "jmp", "optax", "eq", "py_gc")
+  if (!all(required_modules %in% ls(envir = cienv))) {
     cienv$jax <- reticulate::import("jax")
     cienv$jnp <- reticulate::import("jax.numpy")
     cienv$flash_mha <- try(import("flash_attn_jax.flash_mha"),TRUE)
@@ -42,7 +82,8 @@ initialize_torch <- function(conda_env = "cienv",
                            Sys.setenv_text = NULL) {
   # Import torch BEFORE other libraries (JAX/TF/NumPy) to avoid conflicts
   # This is critical for pretrained models using transformers
-  if (!exists("torch", envir = cienv, inherits = FALSE)) {
+  required_modules <- c("torch", "transformers")
+  if (!all(required_modules %in% ls(envir = cienv))) {
     message2("Initializing torch (must be imported before JAX/TF/NumPy for pretrained models)")
 
     if (!requireNamespace("reticulate", quietly = TRUE)) stop("Package 'reticulate' required")
@@ -55,8 +96,16 @@ initialize_torch <- function(conda_env = "cienv",
     }
 
     # Import torch and transformers first
-    cienv$torch <- reticulate::import("torch")
-    cienv$transformers <- reticulate::import("transformers")
+    tryCatch({
+      cienv$torch <- reticulate::import("torch")
+      cienv$transformers <- reticulate::import("transformers")
+    }, error = function(e) {
+      loaded_modules <- intersect(required_modules, ls(envir = cienv))
+      if (length(loaded_modules) > 0L) {
+        rm(list = loaded_modules, envir = cienv)
+      }
+      ci_stop_backend_incompatibility(conda_env = conda_env, original_error = e)
+    })
   }
 }
 
