@@ -23,6 +23,7 @@ GetMoments              Get moments for normalization (internal
 LongLat2CRS             Get the spatial point of long/lat coordinates
 PredictiveRun           Perform predictive modeling using images or
                         videos
+PredictiveScore         Score a saved predictive model on a tfrecord
 TFRecordManagement      Defines an internal TFRecord management routine
                         (internal function)
 TrainDefine             Defines an internal training routine (internal

@@ -66,14 +66,20 @@ test_that("Full test suite works", {
     if("try-error" %in% class(ImageRepTest)){ stop("Failed at ImageRepTest (2)") }
     while(!is.null(dev.list())) try(dev.off(), TRUE)
 
+    print("Starting PredictiveTest"); setwd(TEST_DATA_DIR);
+    PredictiveTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-predictive.R")),T)
+    if("try-error" %in% class(PredictiveTest)){ stop("Failed at PredictiveTest (2b)") }
+    while(!is.null(dev.list())) try(dev.off(), TRUE)
+
     print("Starting ImConfoundTest"); setwd(TEST_DATA_DIR);
     ImConfoundTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-confounding.R")),T)
     if("try-error" %in% class(ImConfoundTest)){ stop("Failed at ImConfoundTest (3)") }
     while(!is.null(dev.list())) try(dev.off(), TRUE)
 
-    #print("Starting HetTest");  setwd(TEST_DATA_DIR);
-    #HetTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-heterogeneity.R")),T)
-    #if("try-error" %in% class(HetTest)){ stop("Failed at HetTest") }; try(dev.off(), T)
+    print("Starting HetTransportTest");  setwd(TEST_DATA_DIR);
+    HetTransportTest <- try(source(file.path(REPO_ROOT, "causalimages/tests/testthat/test-heterogeneity-transport.R")),T)
+    if("try-error" %in% class(HetTransportTest)){ stop("Failed at HetTransportTest (4)") }
+    while(!is.null(dev.list())) try(dev.off(), TRUE)
   }, T)
 
   if('try-error' %in% class(tryTests)){ print("At least one test failed"); print( tryTests ); stop(tryTests) }

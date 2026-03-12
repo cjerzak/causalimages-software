@@ -141,6 +141,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                    conda_env_required = conda_env_required,
                    Sys.setenv_text = Sys.setenv_text)
   }
+  ci_ensure_oryx()
   
   {
     # image dtype management
@@ -1078,46 +1079,86 @@ AnalyzeImageHeterogeneity <- function(obsW,
   cluster_prob_transport_means <- NULL; if(!is.null(transportabilityMat)){
     message("Getting posterior predictive mean probabilities for transportability analysis...")
     {
+      transportabilityMat <- as.data.frame(transportabilityMat, stringsAsFactors = FALSE)
+      if(!"key" %in% names(transportabilityMat)){
+        stop("transportabilityMat must contain a column named 'key'.", call. = FALSE)
+      }
       if(grepl(heterogeneityModelType, pattern = "variational")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( cienv$jax$nn$softmax(GetTau(m,inference = T)),0L) }}
       if(grepl(heterogeneityModelType, pattern = "tarnet")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( GetTau(m,inference = T),0L) }}
-      full_tab <- sort( 1:nrow(transportabilityMat) %% round(nrow(transportabilityMat)/max(1,round(batchFracOut*batchSize))));
-      cluster_prob_transport_info <- tapply(1:nrow(transportabilityMat),full_tab,function(zer){
+      transport_keys <- as.character(transportabilityMat$key)
+      unique_transport_keys <- unique(transport_keys)
+      tfrecord_key_info <- ci_tfrecord_key_index_map(file)
+      transport_key_indices <- tfrecord_key_info$key_index_map[unique_transport_keys]
+      if(any(is.na(transport_key_indices))){
+        missing_keys <- unique_transport_keys[is.na(transport_key_indices)]
+        stop(
+          sprintf(
+            "Some transportability keys are missing from the tfrecord. Examples: %s",
+            paste(utils::head(missing_keys, 5L), collapse = ", ")
+          ),
+          call. = FALSE
+        )
+      }
+
+      transport_lookup <- data.frame(
+        key = unique_transport_keys,
+        tf_idx = as.integer(transport_key_indices),
+        stringsAsFactors = FALSE
+      )
+      transport_lookup <- transport_lookup[order(transport_lookup$tf_idx), , drop = FALSE]
+      transport_batch_size <- max(1L, round(batchFracOut * batchSize))
+      batch_starts <- seq(1L, nrow(transport_lookup), by = transport_batch_size)
+      passedIterator <- NULL
+      cluster_prob_transport_info <- lapply(batch_starts, function(start_idx){
         gc(); cienv$py_gc$collect()
-        atP <- max(  zer / nrow(transportabilityMat))
+        batch_rows <- start_idx:min(start_idx + transport_batch_size - 1L, nrow(transport_lookup))
+        batch_lookup <- transport_lookup[batch_rows, , drop = FALSE]
+        atP <- max(batch_rows / nrow(transport_lookup))
         if((round(atP,2)*100) %% 10 == 0){ message(atP) }
-        {
-          setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-                                                         uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% imageKeysOfUnits[zer]),
-                                                         filename = file,
-                                                         readVideo = useVideoIndicator,
-                                                         image_dtype = image_dtype_tf,
-                                                         nObs = nrow(transportabilityMat) ); setwd(new_wd)
-          if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
-          if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
-          ds_next_in <- ds_next_in[[1]]
+        ds_next_in <- GetElementFromTfRecordAtIndices(
+          uniqueKeyIndices = batch_lookup$tf_idx,
+          filename = file,
+          iterator = passedIterator,
+          readVideo = useVideoIndicator,
+          image_dtype = image_dtype_tf,
+          nObs = tfrecord_key_info$n_keys,
+          return_iterator = TRUE
+        )
+        passedIterator <<- ds_next_in[[2]]
+        batch_keys <- unlist(lapply(p2l(ds_next_in[[1]][[3]]$numpy()), as.character))
+        ds_next_in <- ds_next_in[[1]][[1]]
+        if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$tf$expand_dims(ds_next_in, 0L) }
+        if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$tf$expand_dims(ds_next_in, 0L) }
+        if(!identical(as.character(batch_keys), as.character(batch_lookup$key))){
+          stop("Key pairing mismatch in transportability analysis; check tfrecord key ordering.", call. = FALSE)
         }
         im_keys <-  InitImageProcessFn( cienv$jnp$array(ds_next_in),  cienv$jax$random$random(600L), inference = T)
         pred_ <- replicate(nMonte_predictive,cienv$np$array(GetProbAndExpand(im_keys) ))
-        list("mean"=apply(pred_[1,,,],1:2,mean),
-             "var"=apply(pred_[1,,,],1:2,var))
+        list(
+          "key" = batch_lookup$key,
+          "mean" = apply(pred_[1,,,],1:2,mean),
+          "var" = apply(pred_[1,,,],1:2,var)
+        )
       })
-      cluster_prob_transport_info <- do.call(rbind,cluster_prob_transport_info)
-      cluster_prob_transport_means <- do.call(rbind, cluster_prob_transport_info[,1])
-      cluster_prob_transport_var <- do.call(rbind, cluster_prob_transport_info[,2])
+      cluster_prob_transport_means <- do.call(rbind, lapply(cluster_prob_transport_info, function(x){ x$mean }))
+      cluster_prob_transport_var <- do.call(rbind, lapply(cluster_prob_transport_info, function(x){ x$var }))
+      transport_result_keys <- unlist(lapply(cluster_prob_transport_info, function(x){ x$key }))
+      rownames(cluster_prob_transport_means) <- transport_result_keys
+      rownames(cluster_prob_transport_var) <- transport_result_keys
       colnames(cluster_prob_transport_means) <- paste('mean_k',1:ncol(cluster_prob_transport_means), sep = "")
       colnames(cluster_prob_transport_var) <- paste('var_k',1:ncol(cluster_prob_transport_means), sep = "")
-      }
-    if(TRUE %in% transportabilityMat){
-        transportabilityMat <- as.data.frame(cbind(
-                                     "key"=imageKeysOfUnits,
-                                     "long"=long,
-                                     "lat"=lat))
-        cluster_prob_transport_means <- Results_by_keys$ClusterProbs_est_
-        cluster_prob_transport_var <-  Results_by_keys$ClusterProbs_std_^2
-      }
-    transportabilityMat <- try(cbind(transportabilityMat,
-                                   cluster_prob_transport_means,
-                                   cluster_prob_transport_var),T)
+
+      transport_stats <- cbind(
+        transport_lookup[match(rownames(cluster_prob_transport_means), transport_lookup$key), "key", drop = FALSE],
+        cluster_prob_transport_means,
+        cluster_prob_transport_var
+      )
+      row_match <- match(transport_keys, transport_stats$key)
+      transportabilityMat <- cbind(
+        transportabilityMat,
+        transport_stats[row_match, setdiff(colnames(transport_stats), "key"), drop = FALSE]
+      )
+    }
   }
 
   # perform plots

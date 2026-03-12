@@ -73,7 +73,6 @@
 #' # github.com/cjerzak/causalimages-software/
 #'
 #' @export
-#' @md
 
 GetImageRepresentations <- function(
     X = NULL,
@@ -864,7 +863,7 @@ class CLIPImageFeatureExtractor(nn.Module):
                  "pixels" = cienv$torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = cienv$torch$float32),
                  "gsd" = cienv$torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
                  'waves' = cienv$torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RGB
-                 #'waves' = cienv$torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
+                 # 'waves' = cienv$torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
             )
           )[[1]]  
           # The first embedding is the [CLS], which is a global embedding

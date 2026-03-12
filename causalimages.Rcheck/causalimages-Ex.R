@@ -290,6 +290,32 @@ base::assign(".ptime", proc.time(), pos = "CheckExEnv")
 base::assign(".dptime", (proc.time() - get(".ptime", pos = "CheckExEnv")), pos = "CheckExEnv")
 base::cat("PredictiveRun", base::get(".format_ptime", pos = 'CheckExEnv')(get(".dptime", pos = "CheckExEnv")), "\n", file=base::get(".ExTimings", pos = 'CheckExEnv'), append=TRUE, sep="\t")
 cleanEx()
+nameEx("PredictiveScore")
+### * PredictiveScore
+
+flush(stderr()); flush(stdout())
+
+base::assign(".ptime", proc.time(), pos = "CheckExEnv")
+### Name: PredictiveScore
+### Title: Score a saved predictive model on a tfrecord
+### Aliases: PredictiveScore
+
+### ** Examples
+
+## Not run: 
+##D preds <- PredictiveScore(
+##D   modelPath = "./trained_model.eqx",
+##D   file = "./new_data.tfrecord",
+##D   imageKeysOfUnits = new_keys
+##D )
+## End(Not run)
+
+
+
+
+base::assign(".dptime", (proc.time() - get(".ptime", pos = "CheckExEnv")), pos = "CheckExEnv")
+base::cat("PredictiveScore", base::get(".format_ptime", pos = 'CheckExEnv')(get(".dptime", pos = "CheckExEnv")), "\n", file=base::get(".ExTimings", pos = 'CheckExEnv'), append=TRUE, sep="\t")
+cleanEx()
 nameEx("WriteTfRecord")
 ### * WriteTfRecord
 

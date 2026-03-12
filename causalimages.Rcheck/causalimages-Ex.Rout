@@ -314,6 +314,32 @@ obsW
 > base::assign(".dptime", (proc.time() - get(".ptime", pos = "CheckExEnv")), pos = "CheckExEnv")
 > base::cat("PredictiveRun", base::get(".format_ptime", pos = 'CheckExEnv')(get(".dptime", pos = "CheckExEnv")), "\n", file=base::get(".ExTimings", pos = 'CheckExEnv'), append=TRUE, sep="\t")
 > cleanEx()
+> nameEx("PredictiveScore")
+> ### * PredictiveScore
+> 
+> flush(stderr()); flush(stdout())
+> 
+> base::assign(".ptime", proc.time(), pos = "CheckExEnv")
+> ### Name: PredictiveScore
+> ### Title: Score a saved predictive model on a tfrecord
+> ### Aliases: PredictiveScore
+> 
+> ### ** Examples
+> 
+> ## Not run: 
+> ##D preds <- PredictiveScore(
+> ##D   modelPath = "./trained_model.eqx",
+> ##D   file = "./new_data.tfrecord",
+> ##D   imageKeysOfUnits = new_keys
+> ##D )
+> ## End(Not run)
+> 
+> 
+> 
+> 
+> base::assign(".dptime", (proc.time() - get(".ptime", pos = "CheckExEnv")), pos = "CheckExEnv")
+> base::cat("PredictiveScore", base::get(".format_ptime", pos = 'CheckExEnv')(get(".dptime", pos = "CheckExEnv")), "\n", file=base::get(".ExTimings", pos = 'CheckExEnv'), append=TRUE, sep="\t")
+> cleanEx()
 > nameEx("WriteTfRecord")
 > ### * WriteTfRecord
 > 
@@ -380,9 +406,9 @@ obsW
 > ### ** Examples
 > 
 > message2("Hello world")
-[2026-03-11 22:20:21] Hello world
+[2026-03-12 09:47:04] Hello world
 > message2("Process completed", quiet = FALSE)
-[2026-03-11 22:20:21] Process completed
+[2026-03-12 09:47:04] Process completed
 > 
 > 
 > 
@@ -402,7 +428,7 @@ obsW
 > ### ** Examples
 > 
 > print2("Hello world")
-[1] "[2026-03-11 22:20:21] Hello world"
+[1] "[2026-03-12 09:47:04] Hello world"
 > 
 > 
 > 
@@ -413,7 +439,7 @@ obsW
 > cleanEx()
 > options(digits = 7L)
 > base::cat("Time elapsed: ", proc.time() - base::get("ptime", pos = 'CheckExEnv'),"\n")
-Time elapsed:  2.877 0.047 2.928 0 0 
+Time elapsed:  6.18 0.135 6.632 0 0 
 > grDevices::dev.off()
 null device 
           1 

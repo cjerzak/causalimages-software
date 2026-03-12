@@ -148,7 +148,6 @@ initialize_jax <- function(conda_env = "cienv",
       cienv$np  <- reticulate::import("numpy")
       cienv$jmp  <- reticulate::import("jmp")
       cienv$optax  <- reticulate::import("optax")
-      #cienv$oryx  <- reticulate::import("tensorflow_probability.substrates.jax")
       cienv$eq  <- reticulate::import("equinox")
       cienv$py_gc  <- reticulate::import("gc")
     }, error = function(e) {
@@ -156,7 +155,7 @@ initialize_jax <- function(conda_env = "cienv",
       stop(e)
     })
   }
-  
+
   # set memory growth for tensorflow 
   for(device_ in cienv$tf$config$list_physical_devices()){ try(cienv$tf$config$experimental$set_memory_growth(device_, T),T) }
   
@@ -209,4 +208,24 @@ pretrained_model_requires_torch <- function(pretrainedModel) {
   # These pretrained models use torch/transformers
   torch_patterns <- c("clip", "swin", "vit-base", "clay", "videomae")
   any(sapply(torch_patterns, function(p) grepl(p, pretrainedModel, ignore.case = TRUE)))
+}
+
+ci_ensure_oryx <- function() {
+  if (!exists("oryx", envir = cienv, inherits = FALSE)) {
+    tryCatch({
+      cienv$oryx <- reticulate::import("tensorflow_probability.substrates.jax")
+    }, error = function(e) {
+      stop(
+        paste(
+          "AnalyzeImageHeterogeneity() requires the Python module 'tensorflow_probability'.",
+          "Install it in the active backend environment or rebuild the backend with causalimages::BuildBackend().",
+          sprintf("Original import error: %s", conditionMessage(e)),
+          sep = "\n"
+        ),
+        call. = FALSE
+      )
+    })
+  }
+
+  invisible(cienv$oryx)
 }

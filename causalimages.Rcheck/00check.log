@@ -10,7 +10,7 @@
 * checking for file ‘causalimages/DESCRIPTION’ ... OK
 * this is package ‘causalimages’ version ‘0.1’
 * package encoding: UTF-8
-* checking CRAN incoming feasibility ... NOTE
+* checking CRAN incoming feasibility ... [2s/12s] NOTE
 Maintainer: ‘Connor Jerzak <connor.jerzak@gmail.com>’
 
 New submission
@@ -37,11 +37,10 @@ Vignette dependency required without any vignettes: ‘knitr’
 * checking for hidden files and directories ... OK
 * checking for portable file names ... OK
 * checking for sufficient/correct file permissions ... OK
-* checking whether package ‘causalimages’ can be installed ... OK
+* checking whether package ‘causalimages’ can be installed ... [13s/14s] OK
 * checking installed package size ... OK
 * checking package directory ... OK
-* checking for future file timestamps ... NOTE
-unable to verify current time
+* checking for future file timestamps ... OK
 * checking DESCRIPTION meta-information ... OK
 * checking top-level files ... OK
 * checking for left-over files ... OK
@@ -59,7 +58,7 @@ unable to verify current time
 * checking S3 generic/method consistency ... OK
 * checking replacement functions ... OK
 * checking foreign function calls ... OK
-* checking R code for possible problems ... [10s/11s] NOTE
+* checking R code for possible problems ... [24s/26s] NOTE
 AnalyzeImageConfounding : <anonymous> : <anonymous>: no visible global
   function definition for ‘scalePertubations’
 AnalyzeImageConfounding: no visible binding for global variable
@@ -335,16 +334,8 @@ PredictiveRun : GetDense_OneObs: no visible binding for global variable
   ‘DenseList_d’
 PredictiveRun : GetDense_OneObs: no visible binding for global variable
   ‘StateDenseList_d’
-PredictiveRun: no visible global function definition for
-  ‘txtProgressBar’
-PredictiveRun: no visible global function definition for
-  ‘setTxtProgressBar’
 PredictiveRun: no visible binding for global variable
   ‘keysUsedInTraining’
-PredictiveRun: no visible global function definition for ‘roc’
-PredictiveRun: no visible binding for global variable ‘obsW’
-PredictiveRun: no visible binding for global variable ‘prW_est’
-PredictiveRun: no visible global function definition for ‘var’
 TFRecordManagement : getParsed_tf_dataset_inference : <anonymous>: no
   visible binding for global variable ‘image_dtype_tf’
 TFRecordManagement : getParsed_tf_dataset_inference: no visible binding
@@ -424,10 +415,10 @@ Undefined global functions or variables:
   hcl.colors heterogeneityModelType i imageKeysOfUnits image_dtype_char
   image_dtype_tf jit_apply_updates jit_get_update justCheckIterators
   kClust_est keysUsedInTraining klContrib lat layout learningRateMax
-  legend lm long mtext nMonte_salience nSGD na.omit new_wd np obsW obsY
+  legend lm long mtext nMonte_salience nSGD na.omit new_wd np obsY
   optimizeImageRep orig_wd orthogonalize oryx par pdf plotBands points
-  prW_est py_gc resid roc scalePertubations sd setTxtProgressBar
-  smooth.spline testFrac tf_dataset_train tf_dataset_train_control
+  py_gc resid scalePertubations sd setTxtProgressBar smooth.spline
+  testFrac tf_dataset_train tf_dataset_train_control
   tf_dataset_train_treated tf_record_name tfd tmp txtProgressBar
   useVideoIndicator var
 Consider adding
@@ -458,4 +449,4 @@ to your NAMESPACE file.
 * checking for non-standard things in the check directory ... OK
 * checking for detritus in the temp directory ... OK
 * DONE
-Status: 3 NOTEs
+Status: 2 NOTEs

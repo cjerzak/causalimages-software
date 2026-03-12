@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.4.5)  11 MAR 2026 22:20
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.4.5)  12 MAR 2026 09:47
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -347,8 +347,8 @@ File: l3backend-pdftex.def 2024-02-20 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count294
 \l__pdf_internal_box=\box58
 )
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.aux)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.aux)
 \openout1 = `Rd2.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 8.
@@ -386,10 +386,10 @@ LaTeX Font Info:    ... okay on input line 8.
 )
 Package hyperref Info: Link coloring ON on input line 8.
 
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.out)
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.out)
 \@outlinefile=\write4
 \openout4 = `Rd2.out'.
 
@@ -425,8 +425,8 @@ LaTeX Font Info:    Trying to load font information for U+rsfs on input line 31
 (/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd
 File: ursfs.fd 1998/03/24 rsfs font definition file (jk)
 )
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.toc [1
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.toc [1
 
 
 {/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
@@ -528,9 +528,9 @@ ecord[]\T1/ptm/m/n/10 .
  []
 
 [15] [16]
-Overfull \hbox (31.82806pt too wide) in paragraph at lines 863--864
-[]\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
-s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
+Overfull \hbox (2.68779pt too wide) in paragraph at lines 859--860
+[]\T1/ptm/m/n/10 Boolean spec-i-fy-ing whether to re-turn in-ter-nal model con-
+tents. De-fault = `TRUE`. 
  []
 
 
@@ -539,11 +539,16 @@ Overfull \hbox (0.4377pt too wide) in paragraph at lines 865--866
 r nor-mal-iza-tion. Used
  []
 
+
+Overfull \hbox (0.51822pt too wide) in paragraph at lines 878--879
+[]\T1/ptm/m/n/10 `"swin"` - Mi-crosoft's Swin Trans-former (Swin-Tiny, 768-dim 
+em-bed-dings) 
+ []
+
 [17]
-Overfull \hbox (14.82986pt too wide) in paragraph at lines 925--926
-[]\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
-/n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
- .
+Overfull \hbox (0.61765pt too wide) in paragraph at lines 925--926
+[]\T1/ptm/m/n/10 The buffer size used in `tfrecords` mode is `batch-Size*TfReco
+rds_BufferScaler`.
  []
 
 
@@ -552,83 +557,89 @@ Overfull \hbox (12.21773pt too wide) in paragraph at lines 933--934
 me pe-ri-ods for video/image
  []
 
-[18]
-Overfull \hbox (5.78995pt too wide) in paragraph at lines 952--953
-[]\T1/zi4/m/n/10 ImageRepArm_OneObs,ImageRepArm_batch_R, ImageRepArm_batch \T1/
-ptm/m/n/10 (func-tions) Im-age mod-
- []
-
-[19] [20]
+[18] [19] [20]
 Overfull \hbox (6.71034pt too wide) in paragraph at lines 1111--1111
  []\T1/zi4/m/n/9 #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +l
 at_2=33 +lon_0=-100 +ellps=WGS84"))[] 
  []
 
 [21] [22] [23]
-Overfull \hbox (31.82806pt too wide) in paragraph at lines 1255--1256
+Overfull \hbox (5.72832pt too wide) in paragraph at lines 1242--1244
+[]\T1/ptm/m/n/10 Reserved for com-pat-i-bil-ity with older pre-dic-tive plot-ti
+ng code. []\T1/zi4/m/n/10 PredictiveRun()
+ []
+
+
+Overfull \hbox (5.72832pt too wide) in paragraph at lines 1245--1247
+[]\T1/ptm/m/n/10 Reserved for com-pat-i-bil-ity with older pre-dic-tive plot-ti
+ng code. []\T1/zi4/m/n/10 PredictiveRun()
+ []
+
+
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 1264--1265
 []\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
 s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
  []
 
 
-Overfull \hbox (8.68805pt too wide) in paragraph at lines 1257--1258
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 1266--1267
 []\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
 ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
  []
 
 [24]
-Overfull \hbox (14.82986pt too wide) in paragraph at lines 1277--1278
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 1286--1287
 []\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
 /n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
  .
  []
 
 
-Overfull \hbox (12.21773pt too wide) in paragraph at lines 1285--1286
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 1294--1295
 []\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
 me pe-ri-ods for video/image
  []
 
 
-Overfull \hbox (5.40855pt too wide) in paragraph at lines 1287--1288
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 1296--1297
 []\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
 m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
 ptm/m/n/10 ,
  []
 
 
-Overfull \hbox (47.02783pt too wide) in paragraph at lines 1295--1296
+Overfull \hbox (47.02783pt too wide) in paragraph at lines 1305--1306
 []\T1/ptm/m/n/10 Path to save the eval-u-a-tion met-rics as a RDS file. De-faul
 t = []\T1/zi4/m/n/10 "./evaluation_metrics.rds"[]\T1/ptm/m/n/10 . 
  []
 
-[25] [26]
-Overfull \hbox (122.28847pt too wide) in paragraph at lines 1410--1413
+[25] [26] [27]
+Overfull \hbox (122.28847pt too wide) in paragraph at lines 1496--1499
 \T1/ptm/m/n/10 turns the cor-re-spond-ing im-age or video as an ar-ray of di-me
 n-sions \T1/zi4/m/n/10 (length(keys), nSpatialDim1, nSpatialDim2, nChannels)
  []
 
-[27]
-Overfull \hbox (60.50006pt too wide) in paragraph at lines 1437--1438
+[28]
+Overfull \hbox (60.50006pt too wide) in paragraph at lines 1523--1524
 \T1/ptm/m/n/10 for im-ages and \T1/zi4/m/n/10 (length(keys), nTimeSteps, nSpati
 alDim1, nSpatialDim2, nChannels)
  []
 
-
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.ind [28]
+[29]
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.ind [30]
 
 LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
 (Font)              using `T1/zi4/m/n' instead on input line 25.
 
 LaTeX Font Info:    Font shape `T1/zi4/m/it' will be
 (Font)              scaled to size 10.0pt on input line 42.
-[29
+[31
 
 
 ])
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpAugw5q/Rd2pdf1702
-577a7dba3/Rd2.aux)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpNmTMei/Rd2pdf12e9
+77d035a36/Rd2.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-02-20>
@@ -638,26 +649,26 @@ L3 programming layer <2024-02-20>
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
 Package rerunfilecheck Info: File `Rd2.out' has not changed.
-(rerunfilecheck)             Checksum: 542B8A1FC2E6201DB89DB9FB9CB0329E;2730.
+(rerunfilecheck)             Checksum: CD91A3DB5592C76B8155EDD1CB8AEC2E;2861.
  ) 
 Here is how much of TeX's memory you used:
- 10694 strings out of 474116
- 161971 string characters out of 5743683
+ 10704 strings out of 474116
+ 162103 string characters out of 5743683
  1940187 words of memory out of 5000000
- 32707 multiletter control sequences out of 15000+600000
+ 32708 multiletter control sequences out of 15000+600000
  591936 words of font info for 79 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 92i,6n,95p,672b,737s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 92i,6n,95p,652b,737s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2024/texmf-dist/fonts/type1/public/inconsolata/Inconsolat
 a-zi4r.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/c
 msy10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb>
 </usr/local/texlive/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/loca
 l/texlive/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/
 2024/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on Rd2.pdf (29 pages, 151723 bytes).
+Output written on Rd2.pdf (31 pages, 153631 bytes).
 PDF statistics:
- 460 PDF objects out of 1000 (max. 8388607)
- 412 compressed objects within 5 object streams
- 169 named destinations out of 1000 (max. 500000)
- 161 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 482 PDF objects out of 1000 (max. 8388607)
+ 432 compressed objects within 5 object streams
+ 178 named destinations out of 1000 (max. 500000)
+ 169 words of extra memory for PDF output out of 10000 (max. 10000000)
 

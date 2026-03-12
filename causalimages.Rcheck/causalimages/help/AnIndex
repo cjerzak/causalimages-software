@@ -18,6 +18,7 @@ message2	message2
 obsW	CausalImagesTutorialData
 obsY	CausalImagesTutorialData
 PredictiveRun	PredictiveRun
+PredictiveScore	PredictiveScore
 print2	print2
 TFRecordManagement	TFRecordManagement
 TrainDefine	TrainDefine

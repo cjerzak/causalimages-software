@@ -129,11 +129,11 @@ code. \code{PredictiveRun()} currently does not plot results.}
 
 \item{droppathRate}{Droppath rate used in training to prevent overfitting (\code{droppathRate = 0} corresponds to no droppath).}
 
-\item{batchSize}{Batch size used in SGD optimization. Default = \code{16L}.}
+\item{batchSize}{Batch size used in SGD optimization. Default = \code{50L}.}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations. Default = \code{400L}}
 
-\item{testFrac}{Default = \code{0.05}. Fraction of observations held out as a test set to evaluate out-of-sample loss values.}
+\item{testFrac}{Default = \code{0.1}. Fraction of observations held out as a test set to evaluate out-of-sample loss values.}
 
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
