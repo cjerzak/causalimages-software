@@ -87,16 +87,13 @@ Type 'q()' to quit R.
 > 
 > base::assign(".ptime", proc.time(), pos = "CheckExEnv")
 > ### Name: BuildBackend
-> ### Title: Build the environment for CausalImages models. Builds a conda
-> ###   environment in which jax, tensorflow, tensorflow-probability optax,
-> ###   equinox, and jmp are installed.
+> ### Title: Build the environment for CausalImages models.
 > ### Aliases: BuildBackend
 > 
 > ### ** Examples
 > 
 > # For a tutorial, see
 > # github.com/cjerzak/causalimages-software/
-> 
 > 
 > 
 > 
@@ -383,9 +380,9 @@ obsW
 > ### ** Examples
 > 
 > message2("Hello world")
-[2025-12-25 09:55:08] Hello world
+[2026-03-11 20:52:47] Hello world
 > message2("Process completed", quiet = FALSE)
-[2025-12-25 09:55:08] Process completed
+[2026-03-11 20:52:47] Process completed
 > 
 > 
 > 
@@ -405,7 +402,7 @@ obsW
 > ### ** Examples
 > 
 > print2("Hello world")
-[1] "[2025-12-25 09:55:08] Hello world"
+[1] "[2026-03-11 20:52:48] Hello world"
 > 
 > 
 > 
@@ -416,7 +413,7 @@ obsW
 > cleanEx()
 > options(digits = 7L)
 > base::cat("Time elapsed: ", proc.time() - base::get("ptime", pos = 'CheckExEnv'),"\n")
-Time elapsed:  5.268 0.106 5.383 0 0 
+Time elapsed:  3.057 0.05 3.113 0 0 
 > grDevices::dev.off()
 null device 
           1 

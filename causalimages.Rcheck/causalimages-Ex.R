@@ -68,16 +68,13 @@ flush(stderr()); flush(stdout())
 
 base::assign(".ptime", proc.time(), pos = "CheckExEnv")
 ### Name: BuildBackend
-### Title: Build the environment for CausalImages models. Builds a conda
-###   environment in which jax, tensorflow, tensorflow-probability optax,
-###   equinox, and jmp are installed.
+### Title: Build the environment for CausalImages models.
 ### Aliases: BuildBackend
 
 ### ** Examples
 
 # For a tutorial, see
 # github.com/cjerzak/causalimages-software/
-
 
 
 

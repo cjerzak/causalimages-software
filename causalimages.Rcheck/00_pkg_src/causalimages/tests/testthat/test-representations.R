@@ -29,10 +29,10 @@ acquireImageFromMemory <- function(keys){
   # use consistent 35x35x3 dimensions
   m_ <- FullImageArray[match(keys, KeysOfImages),1:35,1:35,]
 
-  # For multiple keys, ensure batch dimension is first
-  # For single key, return (H, W, C) - WriteTfRecord iterates one key at a time
+  # Always return (batch, H, W, C) shape as per documentation
+  # For single key, keep batch dimension as 1
   if(length(keys) == 1){
-    m_ <- array(m_, dim = c(35L, 35L, 3L))
+    m_ <- array(m_, dim = c(1L, 35L, 35L, 3L))
   }
   return( m_ )
 }
@@ -65,19 +65,19 @@ MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageModelClass = "VisionTransformer",
   pretrainedModel = "clip-rsicd",
+  batchSize = 16L,
   #pretrainedModel = "vit-base",
   imageKeysOfUnits = KeysOfObservations[ take_indices ] 
 )
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location
-dim(  MyImageEmbeddings$ImageRepresentations )
-plot( MyImageEmbeddings$ImageRepresentations  )
-
-# other output quantities include the image model functions and model parameters
-names(  MyImageEmbeddings  )[-1]
+expect_true(is.matrix(MyImageEmbeddings$ImageRepresentations))
+expect_equal(
+  dim(MyImageEmbeddings$ImageRepresentations),
+  c(length(KeysOfObservations[take_indices]), 512L)
+)
+expect_false(anyNA(MyImageEmbeddings$ImageRepresentations))
 
 print("Done with image representations test!")
-
-expect_true(TRUE)
 })

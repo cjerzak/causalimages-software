@@ -250,6 +250,63 @@ LinearizeNestedList <- function (NList,
 
 ai <- as.integer
 
+ci_int32_scalar <- function(value, label = "value") {
+  if (length(value) != 1L) {
+    stop(sprintf("%s must be a scalar.", label), call. = FALSE)
+  }
+
+  value_num <- suppressWarnings(as.numeric(value))
+  if (is.na(value_num) || !is.finite(value_num)) {
+    stop(sprintf("%s must be a finite numeric scalar.", label), call. = FALSE)
+  }
+
+  rounded_value <- round(value_num)
+  if (!isTRUE(all.equal(value_num, rounded_value, tolerance = sqrt(.Machine$double.eps)))) {
+    stop(sprintf("%s must be an integer-like value, got %s.", label, format(value_num)),
+         call. = FALSE)
+  }
+
+  if (rounded_value < -2147483648 || rounded_value > 2147483647) {
+    stop(
+      sprintf(
+        "%s=%s is outside the supported 32-bit integer range [%s, %s].",
+        label,
+        format(rounded_value, scientific = FALSE, trim = TRUE),
+        "-2147483648",
+        "2147483647"
+      ),
+      call. = FALSE
+    )
+  }
+
+  as.integer(rounded_value)
+}
+
+ci_seed_int32 <- function(seed, offset = 0L, label = "seed") {
+  seed_value <- as.numeric(ci_int32_scalar(seed, label = label))
+  offset_value <- as.numeric(ci_int32_scalar(offset, label = sprintf("%s offset", label)))
+  combined_value <- seed_value + offset_value
+
+  if (combined_value < -2147483648 || combined_value > 2147483647) {
+    stop(
+      sprintf(
+        "%s + offset overflowed the supported 32-bit integer range: %s + %s = %s.",
+        label,
+        format(seed_value, scientific = FALSE, trim = TRUE),
+        format(offset_value, scientific = FALSE, trim = TRUE),
+        format(combined_value, scientific = FALSE, trim = TRUE)
+      ),
+      call. = FALSE
+    )
+  }
+
+  as.integer(combined_value)
+}
+
+ci_jax_key <- function(seed, offset = 0L, label = "seed") {
+  cienv$jax$random$key(ci_seed_int32(seed = seed, offset = offset, label = label))
+}
+
 se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
 
 LocalFxnSource <- function(fxn, evaluation_environment){
@@ -292,4 +349,3 @@ wt_init <- function(shape, seed_key){
     shape = shape
   ) * cienv$jnp$array(init_std)$astype( cienv$jaxFloatType )
 }
-

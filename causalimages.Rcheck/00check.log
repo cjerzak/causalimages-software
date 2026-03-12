@@ -4,13 +4,13 @@
 * R was compiled by
     Apple clang version 16.0.0 (clang-1600.0.26.6)
     GNU Fortran (GCC) 14.2.0
-* running under: macOS Tahoe 26.2
+* running under: macOS Tahoe 26.3.1
 * using session charset: UTF-8
 * using options ‘--no-tests --as-cran’
 * checking for file ‘causalimages/DESCRIPTION’ ... OK
 * this is package ‘causalimages’ version ‘0.1’
 * package encoding: UTF-8
-* checking CRAN incoming feasibility ... [3s/20s] NOTE
+* checking CRAN incoming feasibility ... NOTE
 Maintainer: ‘Connor Jerzak <connor.jerzak@gmail.com>’
 
 New submission
@@ -19,6 +19,16 @@ Unknown, possibly misspelled, fields in DESCRIPTION:
   ‘RemoteType’ ‘RemotePkgRef’ ‘RemoteUrl’
 
 Package has a VignetteBuilder field but no prebuilt vignette index.
+
+Found the following (possibly) invalid URLs:
+  URL: https://github.com/cjerzak/causalimages-software
+    From: DESCRIPTION
+    Status: 502
+    Message: Bad Gateway
+  URL: https://github.com/cjerzak/causalimages-software/issues
+    From: DESCRIPTION
+    Status: 502
+    Message: Bad Gateway
 
 The Title field should be in title case. Current version is:
   ‘Causal Inference with Earth Observation, Bio-medical, and Social Science Images’
@@ -37,10 +47,11 @@ Vignette dependency required without any vignettes: ‘knitr’
 * checking for hidden files and directories ... OK
 * checking for portable file names ... OK
 * checking for sufficient/correct file permissions ... OK
-* checking whether package ‘causalimages’ can be installed ... [11s/11s] OK
+* checking whether package ‘causalimages’ can be installed ... OK
 * checking installed package size ... OK
 * checking package directory ... OK
-* checking for future file timestamps ... OK
+* checking for future file timestamps ... NOTE
+unable to verify current time
 * checking DESCRIPTION meta-information ... OK
 * checking top-level files ... OK
 * checking for left-over files ... OK
@@ -58,7 +69,7 @@ Vignette dependency required without any vignettes: ‘knitr’
 * checking S3 generic/method consistency ... OK
 * checking replacement functions ... OK
 * checking foreign function calls ... OK
-* checking R code for possible problems ... [17s/17s] NOTE
+* checking R code for possible problems ... [11s/11s] NOTE
 AnalyzeImageConfounding : <anonymous> : <anonymous>: no visible global
   function definition for ‘scalePertubations’
 AnalyzeImageConfounding: no visible binding for global variable
@@ -457,4 +468,4 @@ to your NAMESPACE file.
 * checking for non-standard things in the check directory ... OK
 * checking for detritus in the temp directory ... OK
 * DONE
-Status: 2 NOTEs
+Status: 3 NOTEs

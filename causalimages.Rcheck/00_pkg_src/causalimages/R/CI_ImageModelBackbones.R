@@ -125,7 +125,7 @@ GetImageRepresentations <- function(
     }
   }
 
-  if(!"jax" %in% ls(envir = cienv)) {
+  if(!ci_backend_ready()) {
     initialize_jax(conda_env = conda_env,
                    conda_env_required = conda_env_required,
                    Sys.setenv_text = Sys.setenv_text)
@@ -212,7 +212,11 @@ GetImageRepresentations <- function(
     image_dtype_tf <- cienv$tf$float16
   }
   nScalePatches <- ai(3L^2)
-  seed <- as.integer(stats::runif(1,1,10^8))
+  if(is.null(seed)){ seed <- as.integer(stats::runif(1,1,10^8)) }
+  seed <- ci_int32_scalar(seed, "GetImageRepresentations seed")
+  image_seed_key <- function(offset = 0L, label = "GetImageRepresentations seed") {
+    ci_jax_key(seed = seed, offset = offset, label = label)
+  }
   
   message2("Setting input types in GetImageRepresentations()...") 
   if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
@@ -326,7 +330,10 @@ GetImageRepresentations <- function(
                    in_features  = ai(ncol(X)),
                    out_features = ai(nWidth_ImageRep),
                    use_bias     = FALSE,
-                   key          = cienv$jax$random$key(ai(33244151433 + seed))
+                   key          = image_seed_key(
+                     offset = 33244151L,
+                     label = "GetImageRepresentations XProj seed"
+                   )
                 )
    } 
     
@@ -557,7 +564,11 @@ GetImageRepresentations <- function(
         }
         if( pretrainedModel == "clip-rsicd" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
-          if(!"JAX_Model" %in% ls(envir = cienv)){
+          clip_model_objects <- c(
+            "JAX_CLIP_Feature_Weights",
+            "JAX_CLIP_Feature_Model"
+          )
+          if(!all(clip_model_objects %in% ls(envir = cienv))){
             message2("Loading clip-rsicd model via torchax compilation...")
 
             # 1. Initialize TorchAx and Transformers if needed
@@ -569,8 +580,10 @@ GetImageRepresentations <- function(
             pt_model <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)
             pt_model$eval()
 
-            # 3. Create a wrapper module that calls get_image_features directly
-            # This avoids the BaseModelOutputWithPooling issue - get_image_features returns a simple tensor
+            # 3. Compile a wrapper that explicitly performs the CLIP image path:
+            # vision_model -> pooler_output -> visual_projection.
+            # This keeps the historical 512-d contract even when
+            # transformers changes get_image_features() return types.
             reticulate::py_run_string("
 import torch
 import torch.nn as nn
@@ -578,27 +591,26 @@ import torch.nn as nn
 class CLIPImageFeatureExtractor(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
-        self.clip_model = clip_model
+        self.vision_model = clip_model.vision_model
+        self.visual_projection = clip_model.visual_projection
 
     def forward(self, pixel_values):
-        # get_image_features returns (batch, 512) tensor directly
-        return self.clip_model.get_image_features(pixel_values)
+        vision_out = self.vision_model(pixel_values=pixel_values)
+        pooled_output = vision_out.pooler_output if hasattr(vision_out, 'pooler_output') else vision_out[1]
+        return self.visual_projection(pooled_output)
 ")
             feature_extractor <- reticulate::py$CLIPImageFeatureExtractor(pt_model)
             feature_extractor$eval()
 
-            # 4. Compile the wrapper to JAX using torchax
-            # Note: Don't use JIT - the non-JIT version returns proper JAX arrays directly
-            # JIT would return torchax.tensor.Tensor which requires .jax() conversion
             JaxModelPackage <- cienv$torchax$extract_jax(feature_extractor)
-            cienv$JAX_Weights <- JaxModelPackage[[1]]
-            cienv$JAX_Model   <- JaxModelPackage[[2]]
+            cienv$JAX_CLIP_Feature_Weights <- JaxModelPackage[[1]]
+            cienv$JAX_CLIP_Feature_Model   <- JaxModelPackage[[2]]
 
-            # 5. Set Metadata
+            # 4. Set Metadata
             cienv$nParameters_Pretrained <- pt_model$num_parameters()
             cienv$nWidth_ImageRep <- 512L  # CLIP embedding dimension
 
-            # 6. Define Preprocessing Constants (JAX Arrays)
+            # 5. Define Preprocessing Constants (JAX Arrays)
             # CLIP uses specific normalization values (OpenAI CLIP standard)
             cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.48145466, 0.4578275, 0.40821073)), list(1L, 3L, 1L, 1L))
             cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.26862954, 0.26130258, 0.27577711)), list(1L, 3L, 1L, 1L))
@@ -638,15 +650,13 @@ class CLIPImageFeatureExtractor(nn.Module):
           # 4. Apply CLIP normalization: (x - mean) / std
           m <- (m - cienv$MEAN_RESCALER) / cienv$SD_RESCALER
 
-          # 5. Execute the compiled JAX model
-          # The wrapper calls get_image_features which returns (batch, 512) directly
-          m <- cienv$JAX_Model(
-            cienv$JAX_Weights,
+          # 5. Execute the compiled CLIP image-feature wrapper.
+          m <- cienv$JAX_CLIP_Feature_Model(
+            cienv$JAX_CLIP_Feature_Weights,
             tuple(m),          # positional: (pixel_values,)
             dict()             # kwargs empty
           )
 
-          # Handle output format (may be tuple, extract first element if so)
           if(inherits(m, "python.builtin.tuple") || is.list(m)){
             m <- m[[1]]
           }
@@ -1126,7 +1136,11 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                                           readVideo = useVideo,
                                                                           image_dtype = image_dtype_tf,
                                                                           iterator = NULL); setwd(new_wd)
-      InitImageProcess(cienv$jnp$array( batch_inference_[[1]][[1]]), cienv$jax$random$key(ai(2000L + seed)), inference = T);rm(batch_inference_)
+      InitImageProcess(
+        cienv$jnp$array(batch_inference_[[1]][[1]]),
+        image_seed_key(offset = 2000L, label = "GetImageRepresentations fine-tuning init seed"),
+        inference = T
+      );rm(batch_inference_)
       
       ModelList <- c("FTParams"= list(cienv$FeatureExtractor$params),
                      "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))),
@@ -1160,7 +1174,10 @@ class CLIPImageFeatureExtractor(nn.Module):
         x <- cienv$jnp$array( x )
         return( x + cienv$jax$random$normal(shape = x$shape,dtype=x$dtype,key=key)*0.0001 )
       }
-      base_seed <- cienv$jax$random$split(cienv$jax$random$key(seed),nDepth_ImageRep)
+      base_seed <- cienv$jax$random$split(
+        image_seed_key(label = "GetImageRepresentations transformer base seed"),
+        nDepth_ImageRep
+      )
       create_layer <- function(key, l_){ 
           if(!is.null(nonLinearScaler)){
               nonLinearScaler_ <- rand_array(rep(nonLinearScaler, times=nWidth_ImageRep), key)
@@ -1226,39 +1243,39 @@ class CLIPImageFeatureExtractor(nn.Module):
                                   in_features  = ai(nWidth_ImageRep*2L),
                                   out_features = ai(nWidth_ImageRep),
                                   use_bias     = FALSE,
-                                  key          = cienv$jax$random$key(ai(3324 + seed))),
-          "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(333324L + seed)),
+                                  key          = image_seed_key(offset = 3324L, label = "GetImageRepresentations MixCLSPool seed")),
+          "StartEmbed" = cienv$jax$random$uniform(key = image_seed_key(offset = 333324L, label = "GetImageRepresentations spatial start embed seed"),
                                                   minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Start
-          "StopEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33326124L + seed )),
+          "StopEmbed" = cienv$jax$random$uniform(key = image_seed_key(offset = 33326124L, label = "GetImageRepresentations spatial stop embed seed"),
                                                 minval = -sqrt(6/nWidth_ImageRep), maxval = sqrt(6/nWidth_ImageRep), shape = list(1L,nWidth_ImageRep)), # Stop
           "PatchEmbedder" = cienv$eq$nn$Conv(kernel_size = ai(c(patchEmbedDim, patchEmbedDim)),
                      num_spatial_dims = 2L, stride = ai(c(patchEmbedDim,patchEmbedDim)),
                      padding_mode = "ZEROS", # "REFLECT", "ZEROS", "REPLICATE", "CIRCULAR" 
                      in_channels = rawChannelDims, use_bias = T,
-                     out_channels = nWidth_ImageRep, key = cienv$jax$random$key(ai(4L+1040L+seed))), # patch embed
+                     out_channels = nWidth_ImageRep, key = image_seed_key(offset = 1044L, label = "GetImageRepresentations patch embed seed")), # patch embed
           
           # new 
           "PoolQuery" =
             cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
                                out_features = ai(1L),    # produce logits per token
                                use_bias = TRUE,
-                               key = cienv$jax$random$key(ai(3322144 + seed))),
+                               key = image_seed_key(offset = 3322144L, label = "GetImageRepresentations pool query seed")),
           "PoolProject" =
             cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
                                out_features = ai(nWidth_ImageRep),
                                use_bias = TRUE,
-                               key = cienv$jax$random$key(ai(332415 + seed))),
+                               key = image_seed_key(offset = 332415L, label = "GetImageRepresentations pool project seed")),
           "PoolMultihead" =  list(
             # [D, D] projections: Q=xt_pos·W_q, K=xt_pos·W_k, V=xt·W_v; O merges heads back
-            "W_q" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3325 + seed))),
-            "W_k" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(3415 + seed))),
-            "W_v" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32415 + seed))),
-            "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), cienv$jax$random$key(ai(32416 + seed)))
+            "W_q" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), image_seed_key(offset = 3325L, label = "GetImageRepresentations pool multihead W_q seed")),
+            "W_k" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), image_seed_key(offset = 3415L, label = "GetImageRepresentations pool multihead W_k seed")),
+            "W_v" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), image_seed_key(offset = 32415L, label = "GetImageRepresentations pool multihead W_v seed")),
+            "W_o" = wt_init(list(nWidth_ImageRep, nWidth_ImageRep), image_seed_key(offset = 32416L, label = "GetImageRepresentations pool multihead W_o seed"))
           ),
           
           "FinalNormScaler" = cienv$jnp$array(rep(1,times = nWidth_ImageRep)),  # RMS weighter
           "FinalProj" = cienv$eq$nn$Linear(in_features = nWidth_ImageRep, out_features =  nTransformerOutputWidth,
-                        use_bias = F, key = cienv$jax$random$key(ai(999L + seed  ) )) # final dense proj
+                        use_bias = F, key = image_seed_key(offset = 999L, label = "GetImageRepresentations final projection seed")) # final dense proj
         )
     }
     }
@@ -1266,7 +1283,7 @@ class CLIPImageFeatureExtractor(nn.Module):
     # Temporal backbone
     if(dataType == "video"){
       message2("Setting up temporal backbone...")
-      key <- cienv$jax$random$key(ai(seed + 10000L))
+      key <- image_seed_key(offset = 10000L, label = "GetImageRepresentations temporal backbone seed")
       for(dt_ in 1L:nDepth_TemporalRep){
         TransformerRenormer_d <- list("NormScaler1" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
                                       "NormScaler2" = cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ))
@@ -1285,15 +1302,15 @@ class CLIPImageFeatureExtractor(nn.Module):
           "FFWide1" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # hidden bias
-                          key = cienv$jax$random$key(ai(334300L + 1L+dt_ + seed  ))),
+                          key = image_seed_key(offset = 334301L + dt_, label = "GetImageRepresentations temporal FFWide1 seed")),
           "FFWide2" = cienv$eq$nn$Linear(in_features = nWidth_VideoRep,
                           out_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           use_bias = F, # swiglu bias
-                          key = cienv$jax$random$key(ai(333110L + 1L+dt_ + seed ))),
+                          key = image_seed_key(offset = 333111L + dt_, label = "GetImageRepresentations temporal FFWide2 seed")),
           "FFNarrow" = cienv$eq$nn$Linear(in_features = ai(nWidth_VideoRep*WideMultiplicationFactor),
                           out_features = nWidth_VideoRep,
                           use_bias = F, # final bias
-                          key = cienv$jax$random$key(ai(3333924L + 1L + dt_ + seed ))))
+                          key = image_seed_key(offset = 3333925L + dt_, label = "GetImageRepresentations temporal FFNarrow seed")))
         # Define nonLinearScaler_ for temporal backbone
         if(!is.null(nonLinearScaler)){
             nonLinearScaler_ <- cienv$jnp$broadcast_to(cienv$jnp$array(nonLinearScaler, cienv$jnp$float32), ai(nWidth_VideoRep))
@@ -1310,14 +1327,14 @@ class CLIPImageFeatureExtractor(nn.Module):
       }
       
       ModelList$TemporalTransformerSupp = list(
-        "StartEmbed" = cienv$jax$random$uniform(key = cienv$jax$random$key(ai(33932124L + seed +  dt_)),
+        "StartEmbed" = cienv$jax$random$uniform(key = image_seed_key(offset = 33932124L + dt_, label = "GetImageRepresentations temporal start embed seed"),
                                      minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # start 
-        "StopEmbed" =  cienv$jax$random$uniform(key = cienv$jax$random$key(ai(3324L + seed +  dt_)), 
+        "StopEmbed" =  cienv$jax$random$uniform(key = image_seed_key(offset = 3324L + dt_, label = "GetImageRepresentations temporal stop embed seed"), 
                                      minval = -sqrt(6/nWidth_VideoRep), maxval = sqrt(6/nWidth_VideoRep), shape = list(1L,nWidth_VideoRep)), # stop
         "PatchEmbedder" =  cienv$jnp$array(0.), # unused  in temporal
         "FinalNormScaler" =  cienv$jnp$array( t(rep(1,times=nWidth_VideoRep) ) ),
         "FinalProj" =  cienv$eq$nn$Linear(in_features = nWidth_VideoRep, out_features =  nWidth_VideoRep,
-                               use_bias = F, key = cienv$jax$random$key(ai(1999L+dt_+seed  )))
+                               use_bias = F, key = image_seed_key(offset = 1999L + dt_, label = "GetImageRepresentations temporal final projection seed"))
         )
     }
     
@@ -1447,12 +1464,18 @@ class CLIPImageFeatureExtractor(nn.Module):
   } else {
     repWidth <- baseRepWidth
   }
+  representation_shape_text <- function(x){
+    dx <- dim(x)
+    if(is.null(dx)){ return(sprintf("length %d", length(x))) }
+    sprintf("[%s]", paste(dx, collapse = ","))
+  }
   Representations <- matrix(NA, nrow = length(unique(imageKeysOfUnits)), ncol = repWidth)
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
       batch_indices <- (last_i+1):(last_i+batchSize)
       batch_indices <- batch_indices[batch_indices <= length(unique(imageKeysOfUnits))]
+      original_batch_indices <- batch_indices
       last_i <- batch_indices[ length(batch_indices) ]
 
       # checks for last / batch size corrections
@@ -1469,7 +1492,12 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]] ),T); setwd(new_wd)
-      if('try-error' %in% class(batch_inference)){print(batch_inference); browser()}
+      if('try-error' %in% class(batch_inference)){
+        stop(sprintf(
+          "Stopping due to try-error in batch_inference within GetImageRepresentations(): %s",
+          conditionMessage(attr(batch_inference, "condition"))
+        ))
+      }
       if(batchSizeOneCorrection){
           batch_indices <- c(batch_indices,batch_indices)
           batch_inference[[1]][[1]] <- cienv$tf$concat(list(cienv$tf$expand_dims(batch_inference[[1]][[1]],0L),
@@ -1498,16 +1526,21 @@ class CLIPImageFeatureExtractor(nn.Module):
       representation_ <-  try(cienv$np$array( ImageRepArm_batch(
                                                       ModelList,
                                                       InitImageProcess(cienv$jnp$array(batch_inference[[1]]),
-                                                                       cienv$jax$random$key(ai(2L+ok_counter + seed)), inference = T, batch_indices = batch_indices),
+                                                                       image_seed_key(offset = 2L + ok_counter, label = "GetImageRepresentations batch init seed"), inference = T, batch_indices = batch_indices),
                                                       X_batch,
                                                       
                                                       StateList,
-                                                      cienv$jax$random$split(cienv$jax$random$key(ai(last_i + seed)), 
+                                                      cienv$jax$random$split(image_seed_key(offset = last_i, label = "GetImageRepresentations batch split seed"), 
                                                                              cienv$jnp$array(batch_inference[[1]]$shape)[0]),
                                                       MPList, 
                                                       TRUE # inference for testing 
                                                       )[[1]]  ),T)
-      if('try-error' %in% class(representation_)){print(representation_);browser()}
+      if('try-error' %in% class(representation_)){
+        stop(sprintf(
+          "Stopping due to try-error in representation_ within GetImageRepresentations(): %s",
+          conditionMessage(attr(representation_, "condition"))
+        ))
+      }
       
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 
@@ -1524,7 +1557,27 @@ class CLIPImageFeatureExtractor(nn.Module):
         stop("Stopping due to try-error in *intermediary* version of representation_ [Code reference: ImageModelBackbone.R]") 
       }
       
-      if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
+      if(batchSizeOneCorrection){
+        batch_indices <- original_batch_indices
+        representation_ <- representation_[1, , drop = FALSE]
+      }
+      if(length(dim(representation_)) != 2L){
+        stop(sprintf(
+          "Expected representation_ to be 2D before assignment in GetImageRepresentations() for pretrainedModel '%s'; got %s.",
+          ifelse(is.null(pretrainedModel), "NULL", pretrainedModel),
+          representation_shape_text(representation_)
+        ))
+      }
+      if(nrow(representation_) != length(batch_indices) || ncol(representation_) != ncol(Representations)){
+        stop(sprintf(
+          "representation_ shape mismatch in GetImageRepresentations() for pretrainedModel '%s': got %s, expected [%d,%d] for batch length %d.",
+          ifelse(is.null(pretrainedModel), "NULL", pretrainedModel),
+          representation_shape_text(representation_),
+          length(batch_indices),
+          ncol(Representations),
+          length(batch_indices)
+        ))
+      }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
       if(last_i %% 100 == 0 | last_i < 10){ 
@@ -1567,4 +1620,3 @@ class CLIPImageFeatureExtractor(nn.Module):
   }
   suppressWarnings(rm(ModelList, StateList, MPList)); gc()
 }
-

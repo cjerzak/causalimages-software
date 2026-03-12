@@ -5,9 +5,6 @@ AnalyzeImageHeterogeneity
                         Decompose treatment effect heterogeneity by
                         image or image sequence
 BuildBackend            Build the environment for CausalImages models.
-                        Builds a conda environment in which jax,
-                        tensorflow, tensorflow-probability optax,
-                        equinox, and jmp are installed.
 CausalImagesTutorialData
                         CausalImages Tutorial Data
 CheckDataQuality        Check data quality for causalimages analyses
@@ -32,6 +29,9 @@ TrainDefine             Defines an internal training routine (internal
                         function)
 TrainDo                 Runs a training routine (internal function)
 WriteTfRecord           Write an image corpus as a .tfrecord file
+ci_supported_backend_versions
+                        Supported backend package versions for
+                        'causalimages'.
 image2                  Visualizing matrices as heatmaps with correct
                         north-south-east-west orientation
 message2                message2 message() with timestamps
