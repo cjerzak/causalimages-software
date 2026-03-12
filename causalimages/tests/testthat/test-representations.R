@@ -65,19 +65,19 @@ MyImageEmbeddings <- causalimages::GetImageRepresentations(
   file  = TfRecord_name,
   imageModelClass = "VisionTransformer",
   pretrainedModel = "clip-rsicd",
+  batchSize = 16L,
   #pretrainedModel = "vit-base",
   imageKeysOfUnits = KeysOfObservations[ take_indices ] 
 )
 
 # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
 # each column represents an embedding dimension associated with the imagery for that location
-dim(  MyImageEmbeddings$ImageRepresentations )
-plot( MyImageEmbeddings$ImageRepresentations  )
-
-# other output quantities include the image model functions and model parameters
-names(  MyImageEmbeddings  )[-1]
+expect_true(is.matrix(MyImageEmbeddings$ImageRepresentations))
+expect_equal(
+  dim(MyImageEmbeddings$ImageRepresentations),
+  c(length(KeysOfObservations[take_indices]), 512L)
+)
+expect_false(anyNA(MyImageEmbeddings$ImageRepresentations))
 
 print("Done with image representations test!")
-
-expect_true(TRUE)
 })

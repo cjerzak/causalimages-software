@@ -125,7 +125,7 @@ GetImageRepresentations <- function(
     }
   }
 
-  if(!"jax" %in% ls(envir = cienv)) {
+  if(!ci_backend_ready()) {
     initialize_jax(conda_env = conda_env,
                    conda_env_required = conda_env_required,
                    Sys.setenv_text = Sys.setenv_text)
@@ -564,7 +564,11 @@ GetImageRepresentations <- function(
         }
         if( pretrainedModel == "clip-rsicd" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
-          if(!"JAX_Model" %in% ls(envir = cienv)){
+          clip_model_objects <- c(
+            "JAX_CLIP_Feature_Weights",
+            "JAX_CLIP_Feature_Model"
+          )
+          if(!all(clip_model_objects %in% ls(envir = cienv))){
             message2("Loading clip-rsicd model via torchax compilation...")
 
             # 1. Initialize TorchAx and Transformers if needed
@@ -576,8 +580,10 @@ GetImageRepresentations <- function(
             pt_model <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)
             pt_model$eval()
 
-            # 3. Create a wrapper module that calls get_image_features directly
-            # This avoids the BaseModelOutputWithPooling issue - get_image_features returns a simple tensor
+            # 3. Compile a wrapper that explicitly performs the CLIP image path:
+            # vision_model -> pooler_output -> visual_projection.
+            # This keeps the historical 512-d contract even when
+            # transformers changes get_image_features() return types.
             reticulate::py_run_string("
 import torch
 import torch.nn as nn
@@ -585,27 +591,26 @@ import torch.nn as nn
 class CLIPImageFeatureExtractor(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
-        self.clip_model = clip_model
+        self.vision_model = clip_model.vision_model
+        self.visual_projection = clip_model.visual_projection
 
     def forward(self, pixel_values):
-        # get_image_features returns (batch, 512) tensor directly
-        return self.clip_model.get_image_features(pixel_values)
+        vision_out = self.vision_model(pixel_values=pixel_values)
+        pooled_output = vision_out.pooler_output if hasattr(vision_out, 'pooler_output') else vision_out[1]
+        return self.visual_projection(pooled_output)
 ")
             feature_extractor <- reticulate::py$CLIPImageFeatureExtractor(pt_model)
             feature_extractor$eval()
 
-            # 4. Compile the wrapper to JAX using torchax
-            # Note: Don't use JIT - the non-JIT version returns proper JAX arrays directly
-            # JIT would return torchax.tensor.Tensor which requires .jax() conversion
             JaxModelPackage <- cienv$torchax$extract_jax(feature_extractor)
-            cienv$JAX_Weights <- JaxModelPackage[[1]]
-            cienv$JAX_Model   <- JaxModelPackage[[2]]
+            cienv$JAX_CLIP_Feature_Weights <- JaxModelPackage[[1]]
+            cienv$JAX_CLIP_Feature_Model   <- JaxModelPackage[[2]]
 
-            # 5. Set Metadata
+            # 4. Set Metadata
             cienv$nParameters_Pretrained <- pt_model$num_parameters()
             cienv$nWidth_ImageRep <- 512L  # CLIP embedding dimension
 
-            # 6. Define Preprocessing Constants (JAX Arrays)
+            # 5. Define Preprocessing Constants (JAX Arrays)
             # CLIP uses specific normalization values (OpenAI CLIP standard)
             cienv$MEAN_RESCALER <- cienv$jnp$reshape(cienv$jnp$array(c(0.48145466, 0.4578275, 0.40821073)), list(1L, 3L, 1L, 1L))
             cienv$SD_RESCALER   <- cienv$jnp$reshape(cienv$jnp$array(c(0.26862954, 0.26130258, 0.27577711)), list(1L, 3L, 1L, 1L))
@@ -645,15 +650,13 @@ class CLIPImageFeatureExtractor(nn.Module):
           # 4. Apply CLIP normalization: (x - mean) / std
           m <- (m - cienv$MEAN_RESCALER) / cienv$SD_RESCALER
 
-          # 5. Execute the compiled JAX model
-          # The wrapper calls get_image_features which returns (batch, 512) directly
-          m <- cienv$JAX_Model(
-            cienv$JAX_Weights,
+          # 5. Execute the compiled CLIP image-feature wrapper.
+          m <- cienv$JAX_CLIP_Feature_Model(
+            cienv$JAX_CLIP_Feature_Weights,
             tuple(m),          # positional: (pixel_values,)
             dict()             # kwargs empty
           )
 
-          # Handle output format (may be tuple, extract first element if so)
           if(inherits(m, "python.builtin.tuple") || is.list(m)){
             m <- m[[1]]
           }
@@ -1461,12 +1464,18 @@ class CLIPImageFeatureExtractor(nn.Module):
   } else {
     repWidth <- baseRepWidth
   }
+  representation_shape_text <- function(x){
+    dx <- dim(x)
+    if(is.null(dx)){ return(sprintf("length %d", length(x))) }
+    sprintf("[%s]", paste(dx, collapse = ","))
+  }
   Representations <- matrix(NA, nrow = length(unique(imageKeysOfUnits)), ncol = repWidth)
   usedImageKeys <- c(); last_i <- 0; ok_counter <- 0; ok<-F; while(!ok){
       ok_counter <- ok_counter + 1
 
       batch_indices <- (last_i+1):(last_i+batchSize)
       batch_indices <- batch_indices[batch_indices <= length(unique(imageKeysOfUnits))]
+      original_batch_indices <- batch_indices
       last_i <- batch_indices[ length(batch_indices) ]
 
       # checks for last / batch size corrections
@@ -1483,7 +1492,12 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                             iterator = ifelse(ok_counter > 1,
                                                                               yes = list(saved_iterator),
                                                                               no = list(NULL))[[1]] ),T); setwd(new_wd)
-      if('try-error' %in% class(batch_inference)){print(batch_inference); browser()}
+      if('try-error' %in% class(batch_inference)){
+        stop(sprintf(
+          "Stopping due to try-error in batch_inference within GetImageRepresentations(): %s",
+          conditionMessage(attr(batch_inference, "condition"))
+        ))
+      }
       if(batchSizeOneCorrection){
           batch_indices <- c(batch_indices,batch_indices)
           batch_inference[[1]][[1]] <- cienv$tf$concat(list(cienv$tf$expand_dims(batch_inference[[1]][[1]],0L),
@@ -1521,7 +1535,12 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                       MPList, 
                                                       TRUE # inference for testing 
                                                       )[[1]]  ),T)
-      if('try-error' %in% class(representation_)){print(representation_);browser()}
+      if('try-error' %in% class(representation_)){
+        stop(sprintf(
+          "Stopping due to try-error in representation_ within GetImageRepresentations(): %s",
+          conditionMessage(attr(representation_, "condition"))
+        ))
+      }
       
       # plot(representation_[,sample(1:20)]); hist(as.matrix(representation_)); apply(as.matrix(representation_),2,sd)
       if(T == F){ 
@@ -1538,7 +1557,27 @@ class CLIPImageFeatureExtractor(nn.Module):
         stop("Stopping due to try-error in *intermediary* version of representation_ [Code reference: ImageModelBackbone.R]") 
       }
       
-      if(batchSizeOneCorrection){ representation_ <- representation_[1,] }
+      if(batchSizeOneCorrection){
+        batch_indices <- original_batch_indices
+        representation_ <- representation_[1, , drop = FALSE]
+      }
+      if(length(dim(representation_)) != 2L){
+        stop(sprintf(
+          "Expected representation_ to be 2D before assignment in GetImageRepresentations() for pretrainedModel '%s'; got %s.",
+          ifelse(is.null(pretrainedModel), "NULL", pretrainedModel),
+          representation_shape_text(representation_)
+        ))
+      }
+      if(nrow(representation_) != length(batch_indices) || ncol(representation_) != ncol(Representations)){
+        stop(sprintf(
+          "representation_ shape mismatch in GetImageRepresentations() for pretrainedModel '%s': got %s, expected [%d,%d] for batch length %d.",
+          ifelse(is.null(pretrainedModel), "NULL", pretrainedModel),
+          representation_shape_text(representation_),
+          length(batch_indices),
+          ncol(Representations),
+          length(batch_indices)
+        ))
+      }
       usedImageKeys <- c(usedImageKeys, batch_keys)
       Representations[batch_indices,] <- representation_
       if(last_i %% 100 == 0 | last_i < 10){ 

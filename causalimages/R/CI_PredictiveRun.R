@@ -124,7 +124,7 @@ PredictiveRun <- function(
       }
     }
 
-    if(!"jax" %in% ls(envir = cienv)) {
+    if(!ci_backend_ready()) {
       initialize_jax(conda_env = conda_env,
                      conda_env_required = conda_env_required,
                      Sys.setenv_text = Sys.setenv_text)

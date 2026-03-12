@@ -16,6 +16,7 @@
 
   # Add data list if package has data
   tools::add_datalist(package_path, force = TRUE, small.size = 1L)
+  tools::resaveRdaFiles(file.path(package_path, "data"), compress = "auto")
 
   # Build vignettes
   devtools::build_vignettes(package_path)

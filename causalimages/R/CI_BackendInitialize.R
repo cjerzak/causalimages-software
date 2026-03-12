@@ -8,6 +8,87 @@ ci_python_distribution_version <- function(dist_name) {
   })
 }
 
+ci_required_backend_modules <- function() {
+  c("jax", "jnp", "tf", "np", "jmp", "optax", "eq", "py_gc")
+}
+
+ci_backend_ready <- function(required_modules = ci_required_backend_modules()) {
+  all(vapply(
+    required_modules,
+    exists,
+    logical(1),
+    envir = cienv,
+    inherits = FALSE
+  ))
+}
+
+ci_clear_backend_modules <- function(required_modules = ci_required_backend_modules()) {
+  loaded_modules <- required_modules[vapply(
+    required_modules,
+    exists,
+    logical(1),
+    envir = cienv,
+    inherits = FALSE
+  )]
+
+  if (length(loaded_modules) > 0L) {
+    rm(list = loaded_modules, envir = cienv)
+  }
+
+  invisible(loaded_modules)
+}
+
+ci_configure_python_backend <- function(conda_env, conda_env_required) {
+  target_python <- tryCatch(
+    reticulate::conda_python(envname = conda_env),
+    error = function(e) ""
+  )
+
+  if (isTRUE(reticulate::py_available(initialize = FALSE))) {
+    current_python <- normalizePath(
+      reticulate::py_config()$python,
+      winslash = "/",
+      mustWork = FALSE
+    )
+    target_python <- normalizePath(
+      target_python,
+      winslash = "/",
+      mustWork = FALSE
+    )
+
+    if (nzchar(target_python) &&
+        file.exists(target_python) &&
+        !identical(current_python, target_python)) {
+      stop(
+        paste(
+          sprintf(
+            "Python was already initialized at '%s', not the requested conda env '%s'.",
+            current_python,
+            conda_env
+          ),
+          sprintf("Requested backend python: %s", target_python),
+          sprintf(
+            "Restart the R session or set RETICULATE_PYTHON=%s before loading Python.",
+            shQuote(target_python)
+          ),
+          sep = "\n"
+        ),
+        call. = FALSE
+      )
+    }
+
+    return(invisible(current_python))
+  }
+
+  if (nzchar(target_python) && file.exists(target_python)) {
+    reticulate::use_python(target_python, required = conda_env_required)
+    return(invisible(target_python))
+  }
+
+  reticulate::use_condaenv(condaenv = conda_env, required = conda_env_required)
+  invisible(target_python)
+}
+
 ci_stop_backend_incompatibility <- function(conda_env, original_error,
                                             dist_names = c("torch", "transformers",
                                                            "huggingface-hub",
@@ -45,25 +126,35 @@ initialize_jax <- function(conda_env = "cienv",
   if (!requireNamespace("reticulate", quietly = TRUE)) stop("Package 'reticulate' required")
   
   # Load reticulate (Declared in Imports: in DESCRIPTION)
-  reticulate::use_condaenv(condaenv = conda_env, required = conda_env_required)
+  ci_configure_python_backend(
+    conda_env = conda_env,
+    conda_env_required = conda_env_required
+  )
   
   if(!is.null(Sys.setenv_text)){ 
     eval(parse(text = Sys.setenv_text), envir = .GlobalEnv)
   }
   
   # Import Python packages once, storing them in cienv
-  required_modules <- c("jax", "jnp", "tf", "np", "jmp", "optax", "eq", "py_gc")
-  if (!all(required_modules %in% ls(envir = cienv))) {
-    cienv$jax <- reticulate::import("jax")
-    cienv$jnp <- reticulate::import("jax.numpy")
-    cienv$flash_mha <- try(import("flash_attn_jax.flash_mha"),TRUE)
-    cienv$tf <- reticulate::import("tensorflow")
-    cienv$np  <- reticulate::import("numpy")
-    cienv$jmp  <- reticulate::import("jmp")
-    cienv$optax  <- reticulate::import("optax")
-    #cienv$oryx  <- reticulate::import("tensorflow_probability.substrates.jax")
-    cienv$eq  <- reticulate::import("equinox")
-    cienv$py_gc  <- reticulate::import("gc")
+  required_modules <- ci_required_backend_modules()
+  if (!ci_backend_ready(required_modules)) {
+    ci_clear_backend_modules(required_modules)
+
+    tryCatch({
+      cienv$jax <- reticulate::import("jax")
+      cienv$jnp <- reticulate::import("jax.numpy")
+      cienv$flash_mha <- try(reticulate::import("flash_attn_jax.flash_mha"), TRUE)
+      cienv$tf <- reticulate::import("tensorflow")
+      cienv$np  <- reticulate::import("numpy")
+      cienv$jmp  <- reticulate::import("jmp")
+      cienv$optax  <- reticulate::import("optax")
+      #cienv$oryx  <- reticulate::import("tensorflow_probability.substrates.jax")
+      cienv$eq  <- reticulate::import("equinox")
+      cienv$py_gc  <- reticulate::import("gc")
+    }, error = function(e) {
+      ci_clear_backend_modules(required_modules)
+      stop(e)
+    })
   }
   
   # set memory growth for tensorflow 
