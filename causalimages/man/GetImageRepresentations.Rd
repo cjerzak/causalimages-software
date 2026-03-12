@@ -74,6 +74,7 @@ GetImageRepresentations(
 Built-in options include:
 \itemize{
 \item \code{"vit-base"} - Google's Vision Transformer (ViT-Base, 768-dim embeddings)
+\item \code{"swin"} - Microsoft's Swin Transformer (Swin-Tiny, 768-dim embeddings)
 \item \code{"clip-rsicd"} - CLIP fine-tuned on remote sensing data (512-dim embeddings)
 \item \code{"clip-rsicd-v0"} - Legacy CLIP-RSICD implementation
 }

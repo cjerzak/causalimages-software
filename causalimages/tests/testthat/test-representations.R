@@ -17,6 +17,30 @@ test_that("GetImageRepresentations works", {
 # load in package
 library( causalimages  ); options(error = NULL)
 
+clear_cached_pretrained_state <- function() {
+  cached_names <- c(
+    "EXPECTED_IMAGE_SIZE",
+    "FeatureExtractor",
+    "GENERIC_TRANSFORMERS_MODEL",
+    "JAX_CLIP_Feature_Model",
+    "JAX_CLIP_Feature_Weights",
+    "JAX_Model",
+    "JAX_Weights",
+    "MEAN_RESCALER",
+    "NORM_MEAN_array_inner",
+    "NORM_SD_array_inner",
+    "SD_RESCALER",
+    "TRANSFORMERS_MODEL_NAME",
+    "TransformersModel",
+    "TransformersProcessor",
+    "nParameters_Pretrained"
+  )
+  rm(
+    list = intersect(cached_names, ls(envir = causalimages:::cienv, all.names = TRUE)),
+    envir = causalimages:::cienv
+  )
+}
+
 # load in tutorial data
 data(  CausalImagesTutorialData )
 
@@ -47,37 +71,56 @@ X <- apply(X,2,function(zer){
 })
 
 # select observation subset to make tutorial analyses run faster
-take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 50) }) )
+set.seed(4321L)
+take_indices <- unlist( tapply(1:length(obsW),obsW,function(zer){ sample(zer, 3) }) )
 
 # write tf record
 # Use TEST_DATA_DIR if set by test suite, otherwise default to ~/Downloads
 TfRecord_name <- if (exists("TEST_DATA_DIR")) {
   file.path(TEST_DATA_DIR, "CausalImagesTutorialDat.tfrecord")
 } else {
-  "~/Downloads/CausalImagesTutorialDat.tfrecord"
+  file.path(tempdir(), "CausalImagesTutorialDat.tfrecord")
 }
+on.exit(unlink(TfRecord_name), add = TRUE)
 causalimages::WriteTfRecord(  file =  TfRecord_name,
                 uniqueImageKeys = unique( KeysOfObservations[ take_indices ] ),
                 acquireImageFxn = acquireImageFromMemory  )
 
-# obtain image representation
-MyImageEmbeddings <- causalimages::GetImageRepresentations(
-  file  = TfRecord_name,
-  imageModelClass = "VisionTransformer",
-  pretrainedModel = "clip-rsicd",
-  batchSize = 16L,
-  #pretrainedModel = "vit-base",
-  imageKeysOfUnits = KeysOfObservations[ take_indices ] 
+model_cases <- list(
+  list(name = "clip-rsicd", expected_width = 512L),
+  list(name = "vit-base", expected_width = 768L),
+  list(name = "swin", expected_width = 768L)
 )
 
-# each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
-# each column represents an embedding dimension associated with the imagery for that location
-expect_true(is.matrix(MyImageEmbeddings$ImageRepresentations))
-expect_equal(
-  dim(MyImageEmbeddings$ImageRepresentations),
-  c(length(KeysOfObservations[take_indices]), 512L)
-)
-expect_false(anyNA(MyImageEmbeddings$ImageRepresentations))
+for(model_case in model_cases){
+  clear_cached_pretrained_state()
+
+  # obtain image representation
+  MyImageEmbeddings <- NULL
+  expect_error(
+    MyImageEmbeddings <- causalimages::GetImageRepresentations(
+      file  = TfRecord_name,
+      imageModelClass = "VisionTransformer",
+      pretrainedModel = model_case$name,
+      batchSize = 2L,
+      imageKeysOfUnits = KeysOfObservations[ take_indices ]
+    ),
+    NA,
+    info = model_case$name
+  )
+
+  # each row in MyImageEmbeddings$ImageRepresentations corresponds to an observation
+  # each column represents an embedding dimension associated with the imagery for that location
+  expect_true(is.matrix(MyImageEmbeddings$ImageRepresentations), info = model_case$name)
+  expect_equal(
+    dim(MyImageEmbeddings$ImageRepresentations),
+    c(length(KeysOfObservations[take_indices]), model_case$expected_width),
+    info = model_case$name
+  )
+  expect_false(anyNA(MyImageEmbeddings$ImageRepresentations), info = model_case$name)
+}
+
+clear_cached_pretrained_state()
 
 print("Done with image representations test!")
 })

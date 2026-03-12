@@ -18,6 +18,7 @@
 #'   Built-in options include:
 #'   \itemize{
 #'     \item `"vit-base"` - Google's Vision Transformer (ViT-Base, 768-dim embeddings)
+#'     \item `"swin"` - Microsoft's Swin Transformer (Swin-Tiny, 768-dim embeddings)
 #'     \item `"clip-rsicd"` - CLIP fine-tuned on remote sensing data (512-dim embeddings)
 #'     \item `"clip-rsicd-v0"` - Legacy CLIP-RSICD implementation
 #'   }
@@ -219,7 +220,12 @@ GetImageRepresentations <- function(
   }
   
   message2("Setting input types in GetImageRepresentations()...") 
-  if(!is.null(pretrainedModel)){ pretrainedModel <- as.character(pretrainedModel) } 
+  if(!is.null(pretrainedModel)){
+    pretrainedModel <- as.character(pretrainedModel)
+    if(length(pretrainedModel) == 1L && identical(tolower(pretrainedModel), "swin")){
+      pretrainedModel <- "transformers-microsoft/swin-tiny-patch4-window7-224"
+    }
+  }
   if(!is.null(optimizeImageRep)){ optimizeImageRep <- as.logical(optimizeImageRep) }
   if(!is.null(imageModelClass)){ imageModelClass <- as.character(imageModelClass) }
   if(!is.null(nWidth_ImageRep)){ nWidth_ImageRep <- as.integer(f2n(nWidth_ImageRep)) }
@@ -447,8 +453,11 @@ GetImageRepresentations <- function(
             # 4. Compile the PyTorch model to JAX using torchax
             JaxModelPackage <- cienv$torchax$extract_jax(pt_model)
             cienv$JAX_Weights <- JaxModelPackage[[1]]
+            # Keep the extracted function unwrapped here. The downstream
+            # representation pipeline already executes inside JAX-jitted code,
+            # and adding a second torchax jax_jit wrapper causes pytree
+            # metadata equality failures for some pretrained models.
             cienv$JAX_Model   <- JaxModelPackage[[2]]
-            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model )
 
             # 5. Detect model output dimension from config
             # Different model architectures use different attribute names
@@ -685,8 +694,11 @@ class CLIPImageFeatureExtractor(nn.Module):
             # This returns a JIT-compatible function that accepts JAX arrays
             JaxModelPackage <- cienv$torchax$extract_jax(pt_model)
             cienv$JAX_Weights <- JaxModelPackage[[1]]
+            # Keep the extracted function unwrapped here. The downstream
+            # representation pipeline already executes inside JAX-jitted code,
+            # and adding a second torchax jax_jit wrapper causes pytree
+            # metadata equality failures for some pretrained models.
             cienv$JAX_Model   <- JaxModelPackage[[2]]
-            cienv$JAX_Model   <- cienv$torchax$interop$jax_jit( cienv$JAX_Model ) 
             
             # 4. Set Metadata
             cienv$nParameters_Pretrained <- pt_model$num_parameters()
