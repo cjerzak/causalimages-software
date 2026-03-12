@@ -8,9 +8,11 @@
 #' @param X An optional numeric matrix containing tabular information. `X` is normalized internally.
 #' @param figuresTag A string specifying an identifier that is appended to all figure names.
 #' @param figuresPath A string specifying file path for saved figures made in the analysis.
-#' @param plotBands An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
+#' @param plotBands Reserved for compatibility with older predictive plotting code.
+#'   `PredictiveRun()` currently does not use this argument.
 #' @param nSGD Number of stochastic gradient descent (SGD) iterations. Default = `400L`
-#' @param nBoot Number of bootstrap iterations for uncertainty estimation.
+#' @param nBoot Reserved for compatibility. `PredictiveRun()` currently does not
+#'   bootstrap predictive uncertainty.
 #' @param batchSize Batch size used in SGD optimization. Default = `50L`.
 #' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
@@ -18,7 +20,8 @@
 #' @param droppathRate Droppath rate used in training to prevent overfitting (`droppathRate = 0` corresponds to no droppath).
 #' @param testFrac Default = `0.1`. Fraction of observations held out as a test set to evaluate out-of-sample loss values.
 #' @param strides (default = `2L`) Integer specifying the strides used in the convolutional layers.
-#' @param plotResults (default = `T`) Should analysis results be plotted?
+#' @param plotResults Reserved for compatibility with older predictive plotting
+#'   code. `PredictiveRun()` currently does not plot results.
 #' @param dataType (default = `"image"`) String specifying whether to assume `"image"` or `"video"` data types.
 #' @param temporalAggregation String specifying how to aggregate embeddings across time periods for video/image sequence data. Options are `"transformer"` (default) which uses a temporal transformer with attention pooling, or `"concatenate"` which simply concatenates the frame-level embeddings.
 #' @param nWidth_ImageRep Integer specifying width of image model representation.
@@ -27,10 +30,15 @@
 #' @param nDepth_Dense Integer specifying depth of dense model representation.
 #' @param kernelSize Dimensions used in spatial convolutions.
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
-#' @param modelPath Path to save the trained model. Default = `"./trained_model.eqx"`.
+#' @param modelPath Path to save the trained model artifact. A metadata sidecar is
+#'   also written to `paste0(modelPath, ".meta.rds")`. Default = `"./trained_model.eqx"`.
 #' @param metricsPath Path to save the evaluation metrics as a RDS file. Default = `"./evaluation_metrics.rds"`.
-#' @param fileTransport Path to a tfrecord file for transportability analysis (out-of-sample prediction).
-#' @param imageKeysOfUnitsTransport A vector of image keys for transportability analysis units.
+#' @param fileTransport Path to a tfrecord file for out-of-sample scoring with the
+#'   trained predictive artifact.
+#' @param imageKeysOfUnitsTransport A vector of image keys for the requested
+#'   transport observations.
+#' @param XTransport Optional numeric matrix of transport covariates. Required when
+#'   `X` is supplied during model training and `fileTransport` is used.
 #' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
 #' @param useScalePertubations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
 #' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
@@ -50,6 +58,8 @@
 #' @return Returns a list consisting of
 #' \itemize{
 #'   \item `predictedY` Predicted values for all units.
+#'   \item `predictedY_transport` Predicted values for the requested transport
+#'   units, or `NULL` when `fileTransport` is not supplied.
 #'   \item `ModelEvaluationMetrics` Rigorous evaluation metrics (e.g., MSE, R2 for continuous; AUC, accuracy for binary).
 #' }
 #'
@@ -71,6 +81,7 @@ PredictiveRun <- function(
     file = NULL,
     fileTransport = NULL,
     imageKeysOfUnitsTransport = NULL,
+    XTransport = NULL,
     nBoot = 10L,
     inputAvePoolingSize = 1L,
     useTrainingPertubations = T,
@@ -132,8 +143,10 @@ PredictiveRun <- function(
     message2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
 
     # set float type
-    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
-    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; ComputeDtype <- image_dtype <- cienv$jnp$bfloat16 }
+    image_dtype_char <- as.character(image_dtype)
+    dtype_info <- ci_predictive_dtype_info(image_dtype_char)
+    image_dtype_tf <- dtype_info$image_dtype_tf
+    ComputeDtype <- image_dtype <- dtype_info$ComputeDtype
     if(is.null(seed)){ seed <- as.integer(stats::runif(1,1,10000)) }
     seed <- ci_int32_scalar(seed, "PredictiveRun seed")
     obsY <- f2n(obsY)
@@ -164,7 +177,7 @@ PredictiveRun <- function(
   figuresTag <- ifelse(is.null(figuresTag), yes = "", no = figuresTag)
   
   # make all directory logic explicit
-  ImageRepresentations_df_transport <- ImageRepresentations_df <- myGlmnet_coefs <- loss_vec <- NULL
+  myGlmnet_coefs <- loss_vec <- NULL
   orig_wd <- getwd()
   if( (cond1 <- substr(figuresPath, start = 0, stop = 1) == ".")  ){
     figuresPath <- gsub(figuresPath, pattern = '\\.', replacement = orig_wd)
@@ -180,8 +193,12 @@ PredictiveRun <- function(
   
   if( !XisNull ){ if(is.na(sum(X))){ stop("Error: is.na(sum(X)) is TRUE; check for NAs or that all variables are numeric.") }}
   if( !XisNull ){ if(any(apply(X,2,stats::sd) == 0)){ stop("Error: any(apply(X,2,sd) == 0) is TRUE; a column in X seems to have no variance; drop column!") }}
-  if( XisNull ){ X <- matrix( stats::rnorm(length(obsY)*2, sd = 0.01 ), ncol = 2) }
-  X <- t( (t(X) - (X_mean <- colMeans(X)) ) / (0.001+(X_sd <- apply(X,2,stats::sd))) )
+  prepared_X <- ci_predictive_prepare_x(X = X, n_obs = length(obsY))
+  X <- prepared_X$X
+  X_mean <- prepared_X$X_mean
+  X_sd <- prepared_X$X_sd
+  x_ncol <- prepared_X$x_ncol
+  training_has_X <- !prepared_X$XisNull
 
   if(is.null(file)){stop("No file specified for tfrecord!")}
   changed_wd <- F; if(  !is.null(  file  )  ){
@@ -363,13 +380,15 @@ PredictiveRun <- function(
     batchSize = batchSize,
     imageModelClass = imageModelClass,
     pretrainedModel = pretrainedModel,
+    image_dtype = image_dtype,
+    image_dtype_tf = image_dtype_tf,
     optimizeImageRep = optimizeImageRep,
     kernelSize = kernelSize,
     inputAvePoolingSize = inputAvePoolingSize,
     TfRecords_BufferScaler = 3L,
     XCrossModal = XCrossModal,
     XForceModal = XForceModal,
-    imageKeysOfUnits = (UsedKeys <- sample(unique(imageKeysOfUnits),min(c(length(unique(imageKeysOfUnits)),2*batchSize)))), getRepresentations = T,
+    imageKeysOfUnits = (UsedKeys <- unique(imageKeysOfUnits)[seq_len(min(length(unique(imageKeysOfUnits)), max(2L, 2L * batchSize)))]), getRepresentations = T,
     returnContents = T,
     initializingFxns = T,
     bn_momentum = 0.99,
@@ -501,247 +520,99 @@ PredictiveRun <- function(
   LocalFxnSource(TrainDefine, evaluation_environment = environment())
   
   message2("Starting training...")
+  earlyStopThreshold <- NULL
   justCheckIterators <- FALSE
   LocalFxnSource(TrainDo, evaluation_environment = environment())
   
   message2("Getting predicted quantities...")
-  GetPredict_OneObs <- cienv$eq$filter_jit( function(ModelList, ModelList_fixed,
-                                                     m, x, seed,
-                                                     StateList, MPList){
-    # image representation model
-    m <- ImageRepArm_batch_R(ModelList, m, x, 
-                             StateList, seed, MPList, T)
-    StateList <- m[[2]] ; m <- m[[1]]
-    
-    m <- GetDense_batch(ModelList, ModelList_fixed, m, x, seed, StateList, MPList, T)
-    StateList <- m[[2]] ; m <- m[[1]]
-    
-    if(is_binary){
-      m <- cienv$jax$nn$sigmoid( m )
+  predictive_config <- list(
+    imageModelClass = imageModelClass,
+    pretrainedModel = pretrainedModel,
+    optimizeImageRep = optimizeImageRep,
+    nWidth_ImageRep = nWidth_ImageRep,
+    nDepth_ImageRep = nDepth_ImageRep,
+    nWidth_Dense = nWidth_Dense,
+    nDepth_Dense = nDepth_Dense,
+    XCrossModal = XCrossModal,
+    XForceModal = XForceModal,
+    strides = strides,
+    nonLinearScaler = nonLinearScaler,
+    nDepth_TemporalRep = nDepth_TemporalRep,
+    patchEmbedDim = patchEmbedDim,
+    dropoutRate = dropoutRate,
+    droppathRate = droppathRate,
+    batchSize = batchSize,
+    dataType = dataType,
+    temporalAggregation = temporalAggregation,
+    inputAvePoolingSize = inputAvePoolingSize,
+    useTrainingPertubations = useTrainingPertubations,
+    useScalePertubations = useScalePertubations,
+    kernelSize = kernelSize,
+    image_dtype = image_dtype_char,
+    is_binary = is_binary,
+    seed_template = seed
+  )
+
+  score_out <- ci_predictive_score_existing_model(
+    config = predictive_config,
+    ModelList = ModelList,
+    StateList = StateList,
+    ModelList_fixed = ModelList_fixed,
+    MPList = MPList,
+    ImageRepArm_batch_R = ImageRepArm_batch_R,
+    InitImageProcessFn = InitImageProcessFn,
+    X = X,
+    XisNull = !training_has_X,
+    imageKeysOfUnits = imageKeysOfUnits,
+    file = file
+  )
+  predictedY <- score_out$predictedY
+
+  trainIndices <- which(imageKeysOfUnits %in% keysUsedInTraining)
+  testIndices <- which(!imageKeysOfUnits %in% keysUsedInTraining)
+
+  safe_auc <- function(y_true, y_pred) {
+    if (length(unique(y_true)) < 2L) {
+      return(NA_real_)
     }
-    
-    return( m )
-  })
-  
-  if(FALSE){ 
-  inference_counter <- 0; nUniqueKeys <- length( unique(imageKeysOfUnits) )
-  KeyQuantCuts <- 1L:nUniqueKeys
-  passedIterator <- NULL; Results_by_keys <- replicate(length(unique(KeyQuantCuts)),list());
-  ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
-  pb <- txtProgressBar(min = 0, max = nUniqueKeys, style = 3)  
-  usedKeys <- c(); for(cut_ in unique(KeyQuantCuts)){ 
-    inference_counter <- inference_counter + 1
-    zer <- which(cut_  ==  KeyQuantCuts)
-    atP <- max(zer)/nUniqueKeys
-    if( any(zer %% 10 == 0) | 1 %in% zer ){ setTxtProgressBar(pb, max(zer)) }
-    {
-      setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-        uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[zer]),
-        filename = file,
-        iterator = passedIterator,
-        readVideo = useVideoIndicator,
-        image_dtype = image_dtype_tf,
-        nObs = length(unique(imageKeysOfUnits)),
-        return_iterator = T ); setwd(new_wd)
-      passedIterator <- ds_next_in[[2]]
-      key_ <- unlist(  lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-      ds_next_in <-  cienv$jnp$array( ds_next_in[[1]][[1]] )
-      
-      if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-      if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
+    as.numeric(pROC::roc(y_true, y_pred)$auc)
+  }
+  safe_auprc <- function(y_true, y_pred) {
+    if (length(unique(y_true)) < 2L) {
+      return(NA_real_)
     }
-    
-    usedKeys <- c(usedKeys, key_)
-    obs_with_key <- which(imageKeysOfUnits %in% key_)
-    x <- cienv$jnp$expand_dims(cienv$jnp$array(  ifelse(length(obs_with_key) == 1, 
-                                                        yes = list(t(X[obs_with_key,])),
-                                                        no = list(X[obs_with_key,]))[[1]],
-                                                 dtype = cienv$jnp$float16), 0L)$transpose( c(1L, 0L, 2L) )
-    m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                        InitImageProcessFn(cienv$jnp$array(ds_next_in), ci_jax_key(seed = cut_, offset = 600L, label = "PredictiveRun per-key init seed"), inference = T), # m 
-                                        cienv$jnp$expand_dims(cienv$jnp$squeeze(x,1L)$take(0L,0L),0L), # x
-                                        StateList, ci_jax_key(seed = cut_, offset = 900L, label = "PredictiveRun per-key representation seed"), MPList, T)[[1]]
-    GottenSummaries <- sapply(1L:ifelse(XisNull, yes = 1L, no = x$shape[[1]]), function(r_){
-      m <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                              m_ImageRep,
-                              x[r_-1L,],
-                              cienv$jax$random$split(cienv$jax$random$key(as.integer(stats::runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                              StateList,
-                              cienv$jax$random$key(as.integer(stats::runif(1,0,100000))),
-                              MPList, T)[[1]]
-      if(is_binary){
-        m <- cienv$jax$nn$sigmoid( m )
-      }
-      if(XisNull){m <- list(replicate(m, n = x$shape[[1]]))}
-      return( m )
-    })
-    GottenSummaries <- as.matrix(cienv$np$array(cienv$jnp$concatenate(unlist(GottenSummaries),0L)))
-    ret_list <- list("PredY" = GottenSummaries,
-                     "obsIndex" = as.matrix(obs_with_key),
-                     "key" = as.matrix( rep(key_, length(obs_with_key)) ))
-    Results_by_keys[[inference_counter]] <- ret_list
+    PRROC::pr.curve(
+      scores.class0 = y_pred[y_true == 1],
+      scores.class1 = y_pred[y_true == 0],
+      curve = FALSE
+    )$auc.integral
   }
-  close(pb)  
-  Results_by_keys <- as.data.frame(
-      apply(do.call(rbind, Results_by_keys),2,function(zer){(do.call(rbind,zer))}))
-  }
-  if(TRUE){
-      t0_inference <- Sys.time()
-      inf_counter <- 0
-      nUniqueKeys <- length( unique(imageKeysOfUnits) )
-      batchSize <- ai(2L*batchSize)
-      batchStarts <- seq(1L, nUniqueKeys, by = batchSize)
-      passedIterator <- NULL; Results_by_keys <- list()
-      ImageRepArm_batch_jit <- cienv$eq$filter_jit( ImageRepArm_batch_R )
-      pb <- txtProgressBar(min = 0, max = length(batchStarts), style = 3)
-      usedKeys <- c(); for (b in seq_along(batchStarts)) {
-        idx_start <- batchStarts[b]
-        idx_end <- min(idx_start + batchSize - 1L, nUniqueKeys)
-        m_indices1 <- idx_start:idx_end
-        
-        gc(); cienv$py_gc$collect()
-        if( any(m_indices1 %% 10 == 0) | 1 %in% m_indices1 ){ setTxtProgressBar(pb, b) }
-        setwd(orig_wd); ds_next_in <- GetElementFromTfRecordAtIndices(
-          uniqueKeyIndices = which(unique(imageKeysOfUnits) %in% unique(imageKeysOfUnits)[m_indices1]),
-          filename = file,
-          iterator = passedIterator,
-          readVideo = useVideoIndicator,
-          image_dtype = image_dtype_tf,
-          nObs = length(unique(imageKeysOfUnits)),
-          return_iterator = T ); setwd(new_wd)
-        tmp_updated_iterator <- ds_next_in[[2]]
-        outerBatchKeys <- unlist( lapply( p2l(ds_next_in[[1]][[3]]$numpy() ), as.character) )
-        ds_next_in <- cienv$jnp$array( ds_next_in[[1]][[1]] )
-        
-        if(length(ds_next_in$shape) == 3 & dataType == "image"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-        if(length(ds_next_in$shape) == 4 & dataType == "video"){ ds_next_in <- cienv$jnp$expand_dims(ds_next_in, 0L) }
-        
-        if( !all(outerBatchKeys==unique(imageKeysOfUnits)[m_indices1]) ){
-          stop("Key pairing mismatch in inference mode; check data! [Code ref. 134z]")
-        }
-        
-        usedKeys <- c(usedKeys, outerBatchKeys)
-        keyNames_xIndicesValues <- do.call(rbind,
-                                           sapply(outerBatchKeys, function(key__){
-                                             val__ <- which(imageKeysOfUnits %in% key__)
-                                             list(cbind("key"=rep(key__,times=length(val__)),"value"=val__))
-                                           }))
-        keyNames_xIndicesValues_names <- keyNames_xIndicesValues[,1]
-        keyNames_xIndicesValues <- f2n(keyNames_xIndicesValues[,2])
-        names(keyNames_xIndicesValues) <- keyNames_xIndicesValues_names
-        
-        batchStarts_inner <- seq(1, length(keyNames_xIndicesValues), by = batchSize)
-        for(bi_ in seq_along(batchStarts_inner)){
-          inf_counter <- inf_counter + 1
-          idx_start_inner <- batchStarts_inner[bi_]
-          idx_end_inner <- idx_start_inner + batchSize - 1L
-          
-          in_xbatch_indices <- idx_start_inner:idx_end_inner
-          x_indices <- keyNames_xIndicesValues[in_xbatch_indices]
-          in_xbatch_indices <- in_xbatch_indices[!is.na(x_indices)]
-          x_indices <- x_indices[!is.na(x_indices)]
-          
-          realSize_inner <- length(in_xbatch_indices)
-          
-          position_indices <- 1L:realSize_inner
-          position_indices <- c(position_indices, rep(realSize_inner, batchSize - realSize_inner))
-          
-          m_indices <- match(names(x_indices), outerBatchKeys)
-          
-          image_batch <- cienv$jnp$take(cienv$jnp$array(ds_next_in), cienv$jnp$array(ai(m_indices-1L)), axis = 0L)
-          m <- InitImageProcessFn(image_batch, ci_jax_key(seed = inf_counter, offset = 600L, label = "PredictiveRun inference init seed"), inference = TRUE)
-          
-          if(batchSize != realSize_inner){
-            m <- cienv$jnp$take(m, cienv$jnp$array(position_indices - 1L), axis=0L)
-          }
-          
-          x_indices_padded <- c(x_indices, rep(x_indices[realSize_inner], batchSize - realSize_inner))
-          x <- cienv$jnp$array(X[x_indices_padded,], dtype = cienv$jnp$float16)
-          
-          if(batchSize != m$shape[[1]]){stop("batchSize != m$shape[[1]] don't align in CI_Confounding.R")}
-          
-          m_ImageRep <- ImageRepArm_batch_jit(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed) )[[1]],
-                                              m,
-                                              x,
-                                              StateList,
-                                              cienv$jax$random$split(ci_jax_key(seed = inf_counter, offset = 900L, label = "PredictiveRun inference representation seed"),batchSize),
-                                              MPList, TRUE)[[1]]
-          
-          GottenSummaries <- GetDense_batch_jit(ModelList, ModelList_fixed,
-                                                m_ImageRep,
-                                                x,
-                                                cienv$jax$random$split(cienv$jax$random$key(as.integer(stats::runif(1,0, 10000))), batchSize),
-                                                StateList,
-                                                MPList, TRUE)[[1]]
-          if(is_binary){
-            GottenSummaries <- cienv$jax$nn$sigmoid( GottenSummaries )
-          }
-          GottenSummaries <- as.matrix(cienv$np$array(GottenSummaries))[1:realSize_inner,]
-          ret_list <- list("PredY" = GottenSummaries,
-                           "obsIndex" = as.matrix(x_indices[1:realSize_inner]),
-                           "key" = as.matrix( names(x_indices[1:realSize_inner]) ))
-          Results_by_keys <- append(Results_by_keys, list(ret_list))
-        }
-        passedIterator <- tmp_updated_iterator
-      }; close(pb)
-      Results_by_keys <- do.call(rbind.data.frame, Results_by_keys)
-      Results_by_keys <- Results_by_keys[order(f2n(Results_by_keys$obsIndex)),]
-      message2(sprintf("Inference time: %.3f min", difftime(Sys.time(),t0_inference,units="min")))
-  }
-  
-  predictedY <-  Results_by_keys$PredY <-  f2n(  Results_by_keys$PredY ) 
-  if(any(is.na(predictedY))){
-    warning("NAs in predictions...Imputing them with average value")
-    predictedY[is.na(predictedY)] <- mean(predictedY, na.rm = T)
-  }
-  
-  trainIndices <- which( imageKeysOfUnits %in% keysUsedInTraining )
-  testIndices <- which( !imageKeysOfUnits %in% keysUsedInTraining )
-  
-  # Compute evaluation metrics
+
   ModelEvaluationMetrics <- list()
   if(is_binary){
-    pred_baseline <- rep(mean(obsY[trainIndices]), length(testIndices))
-    lossCE_OUT_baseline <- -mean( obsY[testIndices]*log(pred_baseline) + (1-obsY[testIndices])*log(1-pred_baseline) )
-    lossCE_IN_baseline <- -mean( obsY[trainIndices]*log(pred_baseline) + (1-obsY[trainIndices])*log(1-pred_baseline) )
-    lossCE_OUT <- -mean( obsY[testIndices]*log(predictedY[testIndices]) + (1-obsY[testIndices])*log(1-predictedY[testIndices]) )
-    lossCE_IN <- -mean( obsY[trainIndices]*log(predictedY[trainIndices]) + (1-obsY[trainIndices])*log(1-predictedY[trainIndices]) )
-    
-    acc_OUT <- mean( (predictedY[testIndices] > 0.5) == obsY[testIndices] )
-    acc_IN <- mean( (predictedY[trainIndices] > 0.5) == obsY[trainIndices] )
-    auc_OUT <- as.numeric(roc(obsY[testIndices], predictedY[testIndices])$auc)
-    auc_IN <- as.numeric(roc(obsY[trainIndices], predictedY[trainIndices])$auc)
-    
-    # AUPRC calculations 
-    auprc_OUT <- PRROC::pr.curve(scores.class0 = predictedY[testIndices][obsY[testIndices] == 1],
-                              scores.class1 = predictedY[testIndices][obsY[testIndices] == 0], 
-                              curve = FALSE)$auc.integral
-    auprc_IN  <- PRROC::pr.curve(scores.class0 = predictedY[trainIndices][obsY[trainIndices] == 1],
-                              scores.class1 = predictedY[trainIndices][obsY[trainIndices] == 0],
-                              curve = FALSE)$auc.integral
-    
-    # AOC calculations
-    roc_obj_IN <- roc_obj_OUT(pROC::roc(obsW[trainIndices], prW_est[trainIndices], levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
-    roc_obj_OUT <- roc_obj_OUT(pROC::roc(obsW[testIndices], prW_est[testIndices], levels = c(0, 1), direction = "<"))  # Assuming 1 is positive class
-    
+    pred_baseline_out <- rep(mean(obsY[trainIndices]), length(testIndices))
+    pred_baseline_in <- rep(mean(obsY[trainIndices]), length(trainIndices))
+    lossCE_OUT <- -mean(obsY[testIndices] * log(predictedY[testIndices]) + (1 - obsY[testIndices]) * log(1 - predictedY[testIndices]))
+    lossCE_IN <- -mean(obsY[trainIndices] * log(predictedY[trainIndices]) + (1 - obsY[trainIndices]) * log(1 - predictedY[trainIndices]))
+
     ModelEvaluationMetrics <- list(
-      "AUC_out" = roc_obj_OUT, 
-      "AUC_in" = roc_obj_IN, 
       "CELoss_out" = lossCE_OUT,
       "CELoss_in" = lossCE_IN,
-      "Accuracy_out" = acc_OUT,
-      "Accuracy_in" = acc_IN,
-      "AUC_out" = auc_OUT,
-      "AUC_in" = auc_IN,
-      "AUPRC_out" = auprc_OUT,
-      "AUPRC_in" = auprc_IN
+      "CELoss_out_baseline" = -mean(obsY[testIndices] * log(pred_baseline_out) + (1 - obsY[testIndices]) * log(1 - pred_baseline_out)),
+      "CELoss_in_baseline" = -mean(obsY[trainIndices] * log(pred_baseline_in) + (1 - obsY[trainIndices]) * log(1 - pred_baseline_in)),
+      "Accuracy_out" = mean((predictedY[testIndices] > 0.5) == obsY[testIndices]),
+      "Accuracy_in" = mean((predictedY[trainIndices] > 0.5) == obsY[trainIndices]),
+      "AUC_out" = safe_auc(obsY[testIndices], predictedY[testIndices]),
+      "AUC_in" = safe_auc(obsY[trainIndices], predictedY[trainIndices]),
+      "AUPRC_out" = safe_auprc(obsY[testIndices], predictedY[testIndices]),
+      "AUPRC_in" = safe_auprc(obsY[trainIndices], predictedY[trainIndices])
     )
   } else {
-    mse_OUT <- mean( (obsY[testIndices] - predictedY[testIndices])^2 )
-    mse_IN <- mean( (obsY[trainIndices] - predictedY[trainIndices])^2 )
-    r2_OUT <- 1 - mse_OUT / var(obsY[testIndices])
-    r2_IN <- 1 - mse_IN / var(obsY[trainIndices])
-    
+    mse_OUT <- mean((obsY[testIndices] - predictedY[testIndices])^2)
+    mse_IN <- mean((obsY[trainIndices] - predictedY[trainIndices])^2)
+    r2_OUT <- 1 - mse_OUT / stats::var(obsY[testIndices])
+    r2_IN <- 1 - mse_IN / stats::var(obsY[trainIndices])
+
     ModelEvaluationMetrics <- list(
       "MSE_out" = mse_OUT,
       "MSE_in" = mse_IN,
@@ -749,22 +620,60 @@ PredictiveRun <- function(
       "R2_in" = r2_IN
     )
   }
-  
-  # Save evaluation metrics
-  saveRDS(ModelEvaluationMetrics, file = metricsPath)
-  
-  # Save model using Equinox serialization - need work 
-  # Save ModelList and StateList together as a tuple
-  #model_to_save <- list(ModelList, StateList, ModelList_fixed, MPList)
-  #cienv$eq$tree_serialise_leaves(modelPath, model_to_save)
-  #message2(sprintf("Model saved to %s", modelPath))
-  
-  # Handle transport if provided
+
+  if (!is.null(metricsPath)) {
+    ci_predictive_ensure_parent_dir(metricsPath)
+    saveRDS(ModelEvaluationMetrics, file = metricsPath)
+  }
+
+  manifest <- ci_predictive_make_manifest(
+    config = predictive_config,
+    NORM_MEAN = NORM_MEAN,
+    NORM_SD = NORM_SD,
+    X_mean = X_mean,
+    X_sd = X_sd,
+    x_ncol = x_ncol,
+    training_has_X = training_has_X
+  )
+  if (!is.null(modelPath)) {
+    ci_predictive_ensure_parent_dir(modelPath)
+    cienv$eq$tree_serialise_leaves(path.expand(modelPath), list(ModelList, StateList))
+    saveRDS(manifest, file = ci_predictive_meta_path(modelPath))
+  }
+
+  if (xor(is.null(fileTransport), is.null(imageKeysOfUnitsTransport))) {
+    stop("fileTransport and imageKeysOfUnitsTransport must either both be NULL or both be supplied.", call. = FALSE)
+  }
+  if (is.null(fileTransport) && !is.null(XTransport)) {
+    stop("XTransport was supplied without fileTransport.", call. = FALSE)
+  }
+
   predictedY_transport <- NULL
   if(!is.null(fileTransport) && !is.null(imageKeysOfUnitsTransport)){
-    # Similar logic to get predictions for transport data
-    # ... (adapt the inference loop for transport data)
-    # For brevity, assuming similar code to populate predictedY_transport
+    ci_predictive_validate_transport_x(
+      training_has_X = training_has_X,
+      XTransport = XTransport,
+      context = "PredictiveRun transport scoring"
+    )
+    prepared_X_transport <- ci_predictive_prepare_x(
+      X = XTransport,
+      n_obs = length(imageKeysOfUnitsTransport),
+      x_stats = list(X_mean = X_mean, X_sd = X_sd),
+      x_ncol = x_ncol
+    )
+    predictedY_transport <- ci_predictive_score_existing_model(
+      config = manifest,
+      ModelList = ModelList,
+      StateList = StateList,
+      ModelList_fixed = ModelList_fixed,
+      MPList = MPList,
+      ImageRepArm_batch_R = ImageRepArm_batch_R,
+      InitImageProcessFn = InitImageProcessFn,
+      X = prepared_X_transport$X,
+      XisNull = !training_has_X,
+      imageKeysOfUnits = imageKeysOfUnitsTransport,
+      file = fileTransport
+    )$predictedY
   }
   
   if( changed_wd ){ setwd(  orig_wd  ) }
