@@ -1,5 +1,5 @@
 Package: causalimages
-Title: Causal Inference with Earth Observation, Bio-medical,
+Title: Causal Inference with Earth Observation, Bio-Medical,
     and Social Science Images
 Version: 0.1
 Authors@R: 
@@ -47,7 +47,6 @@ Suggests:
     tensorflow,
     testthat (>= 3.0.0),
     viridis
-VignetteBuilder: knitr
 RoxygenNote: 7.3.3
 RemoteType: local
 RemotePkgRef: local::~/Documents/causalimages-software/causalimages
