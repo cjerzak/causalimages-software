@@ -2,6 +2,12 @@
 
 test_that("AnalyzeImageConfounding works", {
   skip_on_cran()
+  old_training_arg <- paste0("useTrainingPert", "ubations")
+  old_scale_arg <- paste0("useScalePert", "ubations")
+  expect_true("useTrainingPerturbations" %in% names(formals(causalimages::AnalyzeImageConfounding)))
+  expect_true("useScalePerturbations" %in% names(formals(causalimages::AnalyzeImageConfounding)))
+  expect_false(old_training_arg %in% names(formals(causalimages::AnalyzeImageConfounding)))
+  expect_false(old_scale_arg %in% names(formals(causalimages::AnalyzeImageConfounding)))
 
   ################################
   # Image confounding tutorial using causalimages
@@ -93,6 +99,8 @@ test_that("AnalyzeImageConfounding works", {
       nWidth_ImageRep = as.integer(2L^6),
       learningRateMax  = 0.001, nSGD = 10L, #
       dropoutRate = NULL, # 0.1,
+      useTrainingPerturbations = FALSE,
+      useScalePerturbations = FALSE,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImTutorial",
       figuresPath = "./ImageTutorial"
@@ -174,6 +182,8 @@ test_that("AnalyzeImageConfounding works", {
       nSGD = 50L, #
       nWidth_ImageRep = as.integer(2L^7),
       nBoot = 5L,
+      useTrainingPerturbations = FALSE,
+      useScalePerturbations = FALSE,
       plotBands = c(1,2,3),
       plotResults = T, figuresTag = "ConfoundingImSeqTutorial",
       figuresPath = "./ImageTutorial") # figures saved here

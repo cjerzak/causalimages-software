@@ -48,6 +48,3 @@ Suggests:
     testthat (>= 3.0.0),
     viridis
 RoxygenNote: 7.3.3
-RemoteType: local
-RemotePkgRef: local::~/Documents/causalimages-software/causalimages
-RemoteUrl: /Users/cjerzak/Documents/causalimages-software/causalimages

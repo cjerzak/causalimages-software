@@ -13,8 +13,8 @@ PredictiveRun(
   XTransport = NULL,
   nBoot = 10L,
   inputAvePoolingSize = 1L,
-  useTrainingPertubations = T,
-  useScalePertubations = F,
+  useTrainingPerturbations = T,
+  useScalePerturbations = F,
   X = NULL,
   conda_env = "CausalImagesEnv",
   conda_env_required = T,
@@ -75,9 +75,9 @@ bootstrap predictive uncertainty.}
 
 \item{inputAvePoolingSize}{Integer specifying average pooling size for downshifting image resolution. Default = \code{1L} (no downshift).}
 
-\item{useTrainingPertubations}{Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.}
+\item{useTrainingPerturbations}{Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.}
 
-\item{useScalePertubations}{Boolean specifying whether to use scale perturbations during training. Default = \code{FALSE}.}
+\item{useScalePerturbations}{Boolean specifying whether to use scale perturbations during training. Default = \code{FALSE}.}
 
 \item{X}{An optional numeric matrix containing tabular information. \code{X} is normalized internally.}
 

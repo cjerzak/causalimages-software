@@ -33,13 +33,10 @@ Imports: reticulate, geosphere, raster, rrapply, glmnet, sf,
 Suggests: abind, animation, gtools, knitr, PRROC, rmarkdown,
         tensorflow, testthat (>= 3.0.0), viridis
 RoxygenNote: 7.3.3
-RemoteType: local
-RemotePkgRef: local::~/Documents/causalimages-software/causalimages
-RemoteUrl: /Users/cjerzak/Documents/causalimages-software/causalimages
 NeedsCompilation: no
-Packaged: 2026-03-13 00:31:17 UTC; cjerzak
+Packaged: 2026-03-13 02:12:06 UTC; cjerzak
 Author: Connor Jerzak [aut, cre] (ORCID:
     <https://orcid.org/0000-0003-1914-8905>),
   Adel Daoud [aut] (ORCID: <https://orcid.org/0000-0001-7478-8345>)
 Maintainer: Connor Jerzak <connor.jerzak@gmail.com>
-Built: R 4.5.2; ; 2026-03-13 00:31:38 UTC; unix
+Built: R 4.5.2; ; 2026-03-13 02:12:23 UTC; unix

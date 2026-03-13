@@ -1,5 +1,11 @@
 test_that("PredictiveRun persists artifacts and scores transport data", {
   skip_on_cran()
+  old_training_arg <- paste0("useTrainingPert", "ubations")
+  old_scale_arg <- paste0("useScalePert", "ubations")
+  expect_true("useTrainingPerturbations" %in% names(formals(causalimages::PredictiveRun)))
+  expect_true("useScalePerturbations" %in% names(formals(causalimages::PredictiveRun)))
+  expect_false(old_training_arg %in% names(formals(causalimages::PredictiveRun)))
+  expect_false(old_scale_arg %in% names(formals(causalimages::PredictiveRun)))
 
   library(causalimages)
   data(CausalImagesTutorialData)
@@ -73,6 +79,8 @@ test_that("PredictiveRun persists artifacts and scores transport data", {
     nDepth_Dense = 1L,
     learningRateMax = 0.001,
     plotResults = FALSE,
+    useTrainingPerturbations = FALSE,
+    useScalePerturbations = FALSE,
     modelPath = model_path,
     metricsPath = metrics_path,
     seed = 1234L

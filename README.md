@@ -212,7 +212,7 @@ dim( ImageSample )
 
 # plot image: it's always a good idea 
 # to check the images through extensive sanity checks
-# such as your comparing satellite image representation
+# such as comparing satellite image representations
 # against those from OpenStreetMaps or Google Earth. 
 causalimages::image2( ImageSample[3,,,1] )
 ```
@@ -229,7 +229,7 @@ causalimages::WriteTfRecord(  file = tfrecord_path,
 ```
 
 ### When Reading in Images from Disk 
-For most applications of large-scale causal image analysis, we won't be able to read whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your hard drive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
+For most applications of large-scale causal image analysis, we won't be able to read the whole set of images into `R`'s memory. Instead, we will specify a function that will read images from somewhere on your hard drive. You can also experiment with other methods---as long as you can specify a function that returns an image when given the appropriate `imageKeysOfUnits` value, you should be fine. See [`tutorials/AnalyzeImageHeterogeneity_Tutorial.R`](https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R) for a full example. 
 
 ## Analyzing the Sample Data 
 Now that we've established some understanding of the data and written the `acquireImageFxn`, we are ready to proceed with the initial use of the causal image decomposition. 
@@ -282,7 +282,7 @@ ImageHeterogeneityResults$clusterProbs_sd
 
 ## Pointers 
 Here are a few tips for using the `AnalyzeImageHeterogeneity` function: 
-- If the cluster probabilities are very extreme (all 0 or 1), try increasing `nSGD`, simplifying the model structure (e.g., making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller), or increasing the number of Monte Carlo interations in the Variational Inference training (increase `nMonte_variational`).
+- If the cluster probabilities are very extreme (all 0 or 1), try increasing `nSGD`, simplifying the model structure (e.g., making `nFilters`, `nDepthHidden_conv`, or `nDepthHidden_dense` smaller), or increasing the number of Monte Carlo iterations in the Variational Inference training (increase `nMonte_variational`).
 - For satellite data, images that show up as pure dark blue are centered around a body of water.
 
 # Acknowledgements

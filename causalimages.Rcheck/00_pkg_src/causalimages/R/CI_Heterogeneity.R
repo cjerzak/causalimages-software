@@ -41,7 +41,7 @@
 #' @param TfRecords_BufferScaler The buffer size used in `tfrecords` mode is `batchSize*TfRecords_BufferScaler`. Lower `TfRecords_BufferScaler` towards 1 if out-of-memory problems.
 #' @param heterogeneityModelType String specifying the heterogeneity model type. Options include `"variational_minimal"` (default).
 #' @param nDepth_TemporalRep Integer specifying depth of temporal representation model for video data. Default = `1L`.
-#' @param useTrainingPertubations Boolean specifying whether to use image perturbations during training. Default = `TRUE`.
+#' @param useTrainingPerturbations Boolean specifying whether to use image perturbations during training. Default = `TRUE`.
 #' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
 #' @param pretrainedModel Optional string specifying a pretrained model to use. Options include `"vit-base"`, `"clip-rsicd"`, or HuggingFace model names with `"transformers-"` prefix.
 #' @param testFrac Fraction of observations held out as a test set. Default = `0.1`.
@@ -100,7 +100,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       nWidth_ImageRep = 64L, nDepth_ImageRep = 1L,
                                       nWidth_Dense = 64L, nDepth_Dense = 1L,
                                       nDepth_TemporalRep = 1L,
-                                      useTrainingPertubations = T,
+                                      useTrainingPerturbations = T,
                                       strides = 2L,
                                       nonLinearScaler = NULL, 
                                       pretrainedModel = NULL, 
@@ -257,8 +257,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # clear memory 
   rm(  tmp  ) 
 
-  if(useTrainingPertubations){
-    trainingPertubations_OneObs <- function(im_, key){
+  if(useTrainingPerturbations){
+    trainingPerturbations_OneObs <- function(im_, key){
       # key <- cienv$jax$random$key(c(sample(1:100,1)))
       AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
       which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
@@ -301,7 +301,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 false_fun = function(){ im_ })
       return( im_ ) 
     }
-    trainingPertubations <- cienv$jax$vmap(function(im_, key){return( trainingPertubations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
+    trainingPerturbations <- cienv$jax$vmap(function(im_, key){return( trainingPerturbations_OneObs(im_,key) )  }, in_axes = list(0L,0L))
   }
   InitImageProcessFn <- cienv$jax$jit(function(im, key, inference){
       # expand dims if needed
@@ -310,18 +310,18 @@ AnalyzeImageHeterogeneity <- function(obsW,
       # normalize
       im <- (im - NORM_MEAN) / NORM_SD
 
-      # training pertubations
-      if(useTrainingPertubations){
+      # training perturbations
+      if(useTrainingPerturbations){
         im <- cienv$jax$lax$cond(inference, 
                            true_fun = function(){ im }, 
-                           false_fun = function(){ trainingPertubations(im, 
+                           false_fun = function(){ trainingPerturbations(im, 
                                                         cienv$jax$random$split(key,im$shape[[1]])) } )
       }
 
       # downshift resolution if desired
       if(inputAvePoolingSize > 1){ im <- cienv$jax$vmap(function(im){ AvePoolingDownshift(im)}, 0L) }
 
-      # return normalized (& pertubed if inference = F) image/image seq
+      # return normalized (& perturbed if inference = F) image/image seq
       return( im  )
   })
 

@@ -159,10 +159,10 @@ ci_predictive_init_image_process <- function(
     NORM_SD_array,
     inputAvePoolingSize,
     dataType,
-    useTrainingPertubations,
-    useScalePertubations,
-    trainingPertubations = ci_predictive_noop_perturbation,
-    scalePertubations = ci_predictive_noop_perturbation) {
+    useTrainingPerturbations,
+    useScalePerturbations,
+    trainingPerturbations = ci_predictive_noop_perturbation,
+    scalePerturbations = ci_predictive_noop_perturbation) {
   cienv$jax$jit(function(im, key, inference) {
     if (dataType == "image" && length(im$shape) == 3L) {
       im <- cienv$jnp$expand_dims(im, 0L)
@@ -185,22 +185,22 @@ ci_predictive_init_image_process <- function(
       }, 0L)(im)
     }
 
-    if (useTrainingPertubations) {
+    if (useTrainingPerturbations) {
       im <- cienv$jax$lax$cond(
         inference,
         true_fun = function() { im },
         false_fun = function() {
-          trainingPertubations(im, cienv$jax$random$split(key, im$shape[[1]]))
+          trainingPerturbations(im, cienv$jax$random$split(key, im$shape[[1]]))
         }
       )
     }
 
-    if (useScalePertubations) {
+    if (useScalePerturbations) {
       im <- cienv$jax$lax$cond(
         inference,
         true_fun = function() { im },
         false_fun = function() {
-          scalePertubations(im, cienv$jax$random$split(key, im$shape[[1]]))
+          scalePerturbations(im, cienv$jax$random$split(key, im$shape[[1]]))
         }
       )
     }
@@ -264,8 +264,8 @@ ci_predictive_build_template_bundle <- function(
     NORM_SD_array = cienv$jnp$array(config$NORM_SD, dtype = ComputeDtype),
     inputAvePoolingSize = config$inputAvePoolingSize,
     dataType = config$dataType,
-    useTrainingPertubations = config$useTrainingPertubations,
-    useScalePertubations = config$useScalePertubations
+    useTrainingPerturbations = config$useTrainingPerturbations,
+    useScalePerturbations = config$useScalePerturbations
   )
 
   unique_keys <- unique(as.character(imageKeysOfUnits))

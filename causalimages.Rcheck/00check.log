@@ -6,21 +6,9 @@
     GNU Fortran (GCC) 14.2.0
 * running under: macOS Tahoe 26.3.1
 * using session charset: UTF-8
-* using options ‘--no-tests --as-cran’
 * checking for file ‘causalimages/DESCRIPTION’ ... OK
 * this is package ‘causalimages’ version ‘0.1’
 * package encoding: UTF-8
-* checking CRAN incoming feasibility ... [3s/12s] NOTE
-Maintainer: ‘Connor Jerzak <connor.jerzak@gmail.com>’
-
-New submission
-
-Unknown, possibly misspelled, fields in DESCRIPTION:
-  ‘RemoteType’ ‘RemotePkgRef’ ‘RemoteUrl’
-
-The Description field contains
-  Jerzak and Daoud (2023) <arXiv:2310.00233>.
-Please refer to arXiv e-prints via their arXiv DOI <doi:10.48550/arXiv.YYMM.NNNNN>.
 * checking package namespace information ... OK
 * checking package dependencies ... OK
 * checking if this is a source package ... OK
@@ -29,11 +17,9 @@ Please refer to arXiv e-prints via their arXiv DOI <doi:10.48550/arXiv.YYMM.NNNN
 * checking for hidden files and directories ... OK
 * checking for portable file names ... OK
 * checking for sufficient/correct file permissions ... OK
-* checking whether package ‘causalimages’ can be installed ... [10s/11s] OK
+* checking whether package ‘causalimages’ can be installed ... OK
 * checking installed package size ... OK
 * checking package directory ... OK
-* checking for future file timestamps ... NOTE
-unable to verify current time
 * checking DESCRIPTION meta-information ... OK
 * checking top-level files ... OK
 * checking for left-over files ... OK
@@ -46,14 +32,11 @@ unable to verify current time
 * checking whether the package can be unloaded cleanly ... OK
 * checking whether the namespace can be loaded with stated dependencies ... OK
 * checking whether the namespace can be unloaded cleanly ... OK
-* checking use of S3 registration ... OK
 * checking dependencies in R code ... OK
 * checking S3 generic/method consistency ... OK
 * checking replacement functions ... OK
 * checking foreign function calls ... OK
-* checking R code for possible problems ... [17s/17s] NOTE
-AnalyzeImageConfounding : <anonymous> : <anonymous>: no visible global
-  function definition for ‘scalePertubations’
+* checking R code for possible problems ... NOTE
 AnalyzeImageConfounding: no visible binding for global variable
   ‘new_wd’
 AnalyzeImageConfounding: no visible binding for global variable
@@ -321,14 +304,15 @@ GetImageRepresentations: no visible binding for global variable
   ‘TransformersModel’
 GetMoments: no visible binding for global variable ‘sd’
 GetMoments: no visible binding for global variable ‘var’
-PredictiveRun : <anonymous> : <anonymous>: no visible global function
-  definition for ‘scalePertubations’
+image2: no visible global function definition for ‘axis’
 PredictiveRun : GetDense_OneObs: no visible binding for global variable
   ‘DenseList_d’
 PredictiveRun : GetDense_OneObs: no visible binding for global variable
   ‘StateDenseList_d’
 PredictiveRun: no visible binding for global variable
   ‘keysUsedInTraining’
+se: no visible global function definition for ‘na.omit’
+se: no visible global function definition for ‘var’
 TFRecordManagement : getParsed_tf_dataset_inference : <anonymous>: no
   visible binding for global variable ‘image_dtype_tf’
 TFRecordManagement : getParsed_tf_dataset_inference: no visible binding
@@ -389,42 +373,39 @@ TrainDo: no visible global function definition for ‘points’
 TrainDo: no visible global function definition for ‘smooth.spline’
 TrainDo: no visible binding for global variable ‘earlyStopThreshold’
 TrainDo: no visible global function definition for ‘var’
-image2: no visible global function definition for ‘axis’
-se: no visible global function definition for ‘na.omit’
-se: no visible global function definition for ‘var’
 Undefined global functions or variables:
-  AvePoolingDownshift BNInfo ClayModel ClusterProbs ClusterProbs_est
-  ClusterProbs_est_full ClusterProbs_lower_conf ClusterProbs_std
-  ComputeDtype DenseList_d FeatureExtractor GetEY0_batch GetLoss GetTau
-  GetTau_batch GradAndLossAndAux ImageRepArm_batch_R InitImageProcessFn
-  MEAN_RESCALER ModelList ModelList_d ModelList_fixed
-  NORM_MEAN_array_inner NORM_SD_array_inner PretrainedImageModelName
-  SD_RESCALER SharedImageRepresentation StateDenseList_d StateList
-  TFRecordControl Tau_mean_vec Tau_sd_vec TfRecords_BufferScaler
-  TransformersModel X abline as.matrix2 as.numeric2 axis batchSize
-  changed_wd coef cor dev.off earlyStopThreshold figuresPath figuresTag
+  abline as.matrix2 as.numeric2 AvePoolingDownshift axis batchSize
+  BNInfo changed_wd ClayModel ClusterProbs ClusterProbs_est
+  ClusterProbs_est_full ClusterProbs_lower_conf ClusterProbs_std coef
+  ComputeDtype cor DenseList_d dev.off earlyStopThreshold
+  FeatureExtractor figuresPath figuresTag GetEY0_batch GetLoss
   getParsed_tf_dataset_train_BatchAndShuffle
   getParsed_tf_dataset_train_Select getParsed_tf_dataset_train_Shuffle
-  hcl.colors heterogeneityModelType i imageKeysOfUnits image_dtype_char
-  image_dtype_tf jit_apply_updates jit_get_update justCheckIterators
-  kClust_est keysUsedInTraining klContrib lat layout learningRateMax
-  legend lm long mtext nMonte_salience nSGD na.omit new_wd np obsY
-  optimizeImageRep orig_wd orthogonalize oryx par pdf plotBands points
-  py_gc resid scalePertubations sd setTxtProgressBar smooth.spline
-  testFrac tf_dataset_train tf_dataset_train_control
-  tf_dataset_train_treated tf_record_name tfd tmp txtProgressBar
-  useVideoIndicator var
+  GetTau GetTau_batch GradAndLossAndAux hcl.colors
+  heterogeneityModelType i image_dtype_char image_dtype_tf
+  imageKeysOfUnits ImageRepArm_batch_R InitImageProcessFn
+  jit_apply_updates jit_get_update justCheckIterators kClust_est
+  keysUsedInTraining klContrib lat layout learningRateMax legend lm
+  long MEAN_RESCALER ModelList ModelList_d ModelList_fixed mtext
+  na.omit new_wd nMonte_salience NORM_MEAN_array_inner
+  NORM_SD_array_inner np nSGD obsY optimizeImageRep orig_wd
+  orthogonalize oryx par pdf plotBands points PretrainedImageModelName
+  py_gc resid sd SD_RESCALER setTxtProgressBar
+  SharedImageRepresentation smooth.spline StateDenseList_d StateList
+  Tau_mean_vec Tau_sd_vec testFrac tf_dataset_train
+  tf_dataset_train_control tf_dataset_train_treated tf_record_name tfd
+  TFRecordControl TfRecords_BufferScaler tmp TransformersModel
+  txtProgressBar useVideoIndicator var X
 Consider adding
-  importFrom("grDevices", "dev.off", "hcl.colors", "pdf")
   importFrom("graphics", "abline", "axis", "layout", "legend", "mtext",
              "par", "points")
+  importFrom("grDevices", "dev.off", "hcl.colors", "pdf")
   importFrom("stats", "coef", "cor", "lm", "na.omit", "resid", "sd",
              "smooth.spline", "var")
   importFrom("utils", "setTxtProgressBar", "txtProgressBar")
 to your NAMESPACE file.
 * checking Rd files ... OK
 * checking Rd metadata ... OK
-* checking Rd line widths ... OK
 * checking Rd cross-references ... OK
 * checking for missing documentation entries ... OK
 * checking for code/documentation mismatches ... OK
@@ -436,10 +417,8 @@ to your NAMESPACE file.
 * checking data for ASCII and uncompressed saves ... OK
 * checking examples ... OK
 * checking for unstated dependencies in ‘tests’ ... OK
-* checking tests ... SKIPPED
+* checking tests ... OK
+  Running ‘testthat.R’
 * checking PDF version of manual ... OK
-* checking HTML version of manual ... OK
-* checking for non-standard things in the check directory ... OK
-* checking for detritus in the temp directory ... OK
 * DONE
-Status: 3 NOTEs
+Status: 1 NOTE

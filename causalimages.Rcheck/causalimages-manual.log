@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.4.5)  12 MAR 2026 19:33
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.4.5)  12 MAR 2026 21:13
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -347,8 +347,8 @@ File: l3backend-pdftex.def 2024-02-20 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count294
 \l__pdf_internal_box=\box58
 )
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.aux)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.aux)
 \openout1 = `Rd2.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 8.
@@ -386,10 +386,10 @@ LaTeX Font Info:    ... okay on input line 8.
 )
 Package hyperref Info: Link coloring ON on input line 8.
 
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.out)
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.out)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.out)
 \@outlinefile=\write4
 \openout4 = `Rd2.out'.
 
@@ -425,8 +425,8 @@ LaTeX Font Info:    Trying to load font information for U+rsfs on input line 31
 (/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd
 File: ursfs.fd 1998/03/24 rsfs font definition file (jk)
 )
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.toc [1
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.toc [1
 
 
 {/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
@@ -437,38 +437,38 @@ al/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr/local/texlive/2024
 
 
 [2]
-Overfull \hbox (9.47821pt too wide) in paragraph at lines 125--126
+Overfull \hbox (9.47821pt too wide) in paragraph at lines 122--123
 []\T1/ptm/m/n/10 An op-tional nu-meric ma-trix con-tain-ing tab-u-lar in-for-ma
 -tion used if []\T1/zi4/m/n/10 orthogonalize
  []
 
 [3] [4]
-Overfull \hbox (31.82806pt too wide) in paragraph at lines 189--190
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 186--187
 []\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
 s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
  []
 
 
-Overfull \hbox (8.68805pt too wide) in paragraph at lines 191--192
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 188--189
 []\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
 ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
  []
 
 
-Overfull \hbox (14.82986pt too wide) in paragraph at lines 211--212
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 208--209
 []\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
 /n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
  .
  []
 
 
-Overfull \hbox (12.21773pt too wide) in paragraph at lines 219--220
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 216--217
 []\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
 me pe-ri-ods for video/image
  []
 
 
-Overfull \hbox (5.40855pt too wide) in paragraph at lines 221--222
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 218--219
 []\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
 m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
 ptm/m/n/10 ,
@@ -476,158 +476,158 @@ ptm/m/n/10 ,
 
 [5]
 LaTeX Font Info:    Font shape `T1/zi4/m/n' will be
-(Font)              scaled to size 9.0pt on input line 252.
+(Font)              scaled to size 9.0pt on input line 249.
  [6] [7]
-Overfull \hbox (41.83833pt too wide) in paragraph at lines 350--351
+Overfull \hbox (41.83833pt too wide) in paragraph at lines 347--348
 []\T1/ptm/m/n/10 String spec-i-fy-ing the het-ero-gene-ity model type. Op-tions
  in-clude []\T1/zi4/m/n/10 "variational_minimal"
  []
 
 
-Overfull \hbox (8.68805pt too wide) in paragraph at lines 372--373
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 369--370
 []\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
 ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
  []
 
 [8]
-Overfull \hbox (31.82806pt too wide) in paragraph at lines 392--393
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 389--390
 []\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
 s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
  []
 
 
-Overfull \hbox (14.82986pt too wide) in paragraph at lines 403--404
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 400--401
 []\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
 /n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
  .
  []
 
 
-Overfull \hbox (12.21773pt too wide) in paragraph at lines 411--412
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 408--409
 []\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
 me pe-ri-ods for video/image
  []
 
 [9] [10] [11]
-Overfull \hbox (6.17735pt too wide) in paragraph at lines 613--614
+Overfull \hbox (6.17735pt too wide) in paragraph at lines 610--611
 []\T1/ptm/m/n/10 String: "pre_write" for WriteT-fRecord checks, "pre_analysis" 
 for anal-y-sis checks.
  []
 
 [12] [13]
-Overfull \hbox (34.34856pt too wide) in paragraph at lines 707--708
+Overfull \hbox (34.34856pt too wide) in paragraph at lines 704--705
 []\T1/ptm/m/n/10 (default = []\T1/zi4/m/n/10 "."[]\T1/ptm/m/n/10 ) What folder 
 should be used to save the out-put? Ex-am-ple: []\T1/zi4/m/n/10 "~/Downloads" 
  []
 
 [14]
-Overfull \hbox (4.11911pt too wide) in paragraph at lines 740--741
+Overfull \hbox (4.11911pt too wide) in paragraph at lines 737--738
 []\T1/ptm/m/n/10 Reads unique key in-dices from a []\T1/zi4/m/n/10 .tfrecord []
 \T1/ptm/m/n/10 file saved via a call to []\T1/zi4/m/n/10 causalimages::WriteTfR
 ecord[]\T1/ptm/m/n/10 . 
  []
 
 [15] [16]
-Overfull \hbox (2.68779pt too wide) in paragraph at lines 858--859
+Overfull \hbox (2.68779pt too wide) in paragraph at lines 855--856
 []\T1/ptm/m/n/10 Boolean spec-i-fy-ing whether to re-turn in-ter-nal model con-
 tents. De-fault = `TRUE`. 
  []
 
 
-Overfull \hbox (0.4377pt too wide) in paragraph at lines 864--865
+Overfull \hbox (0.4377pt too wide) in paragraph at lines 861--862
 []\T1/ptm/m/n/10 Numeric vec-tor of length 1-3 spec-i-fy-ing dataset mean(s) fo
 r nor-mal-iza-tion. Used
  []
 
 
-Overfull \hbox (0.51822pt too wide) in paragraph at lines 877--878
+Overfull \hbox (0.51822pt too wide) in paragraph at lines 874--875
 []\T1/ptm/m/n/10 `"swin"` - Mi-crosoft's Swin Trans-former (Swin-Tiny, 768-dim 
 em-bed-dings) 
  []
 
 [17]
-Overfull \hbox (0.61765pt too wide) in paragraph at lines 924--925
+Overfull \hbox (0.61765pt too wide) in paragraph at lines 921--922
 []\T1/ptm/m/n/10 The buffer size used in `tfrecords` mode is `batch-Size*TfReco
 rds_BufferScaler`.
  []
 
 
-Overfull \hbox (12.21773pt too wide) in paragraph at lines 932--933
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 929--930
 []\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
 me pe-ri-ods for video/image
  []
 
 [18] [19] [20]
-Overfull \hbox (6.71034pt too wide) in paragraph at lines 1110--1110
+Overfull \hbox (6.71034pt too wide) in paragraph at lines 1107--1107
  []\T1/zi4/m/n/9 #                 CRS_ref = sf::st_crs("+proj=lcc +lat_1=48 +l
 at_2=33 +lon_0=-100 +ellps=WGS84"))[] 
  []
 
 [21] [22] [23]
+Overfull \hbox (5.72832pt too wide) in paragraph at lines 1238--1240
+[]\T1/ptm/m/n/10 Reserved for com-pat-i-bil-ity with older pre-dic-tive plot-ti
+ng code. []\T1/zi4/m/n/10 PredictiveRun()
+ []
+
+
 Overfull \hbox (5.72832pt too wide) in paragraph at lines 1241--1243
 []\T1/ptm/m/n/10 Reserved for com-pat-i-bil-ity with older pre-dic-tive plot-ti
 ng code. []\T1/zi4/m/n/10 PredictiveRun()
  []
 
 
-Overfull \hbox (5.72832pt too wide) in paragraph at lines 1244--1246
-[]\T1/ptm/m/n/10 Reserved for com-pat-i-bil-ity with older pre-dic-tive plot-ti
-ng code. []\T1/zi4/m/n/10 PredictiveRun()
- []
-
-
-Overfull \hbox (31.82806pt too wide) in paragraph at lines 1263--1264
+Overfull \hbox (31.82806pt too wide) in paragraph at lines 1260--1261
 []\T1/ptm/m/n/10 String spec-i-fy-ing the im-age model ar-chi-tec-ture. Op-tion
 s in-clude []\T1/zi4/m/n/10 "VisionTransformer"
  []
 
 
-Overfull \hbox (8.68805pt too wide) in paragraph at lines 1265--1266
+Overfull \hbox (8.68805pt too wide) in paragraph at lines 1262--1263
 []\T1/ptm/m/n/10 Optional string spec-i-fy-ing a pre-trained model to use. Op-t
 ions in-clude []\T1/zi4/m/n/10 "vit-base"[]\T1/ptm/m/n/10 ,
  []
 
 [24]
-Overfull \hbox (14.82986pt too wide) in paragraph at lines 1285--1286
+Overfull \hbox (14.82986pt too wide) in paragraph at lines 1282--1283
 []\T1/ptm/m/n/10 The buffer size used in []\T1/zi4/m/n/10 tfrecords []\T1/ptm/m
 /n/10 mode is []\T1/zi4/m/n/10 batchSize*TfRecords_BufferScaler[]\T1/ptm/m/n/10
  .
  []
 
 
-Overfull \hbox (12.21773pt too wide) in paragraph at lines 1293--1294
+Overfull \hbox (12.21773pt too wide) in paragraph at lines 1290--1291
 []\T1/ptm/m/n/10 String spec-i-fy-ing how to ag-gre-gate em-bed-dings across ti
 me pe-ri-ods for video/image
  []
 
 
-Overfull \hbox (5.40855pt too wide) in paragraph at lines 1295--1296
+Overfull \hbox (5.40855pt too wide) in paragraph at lines 1292--1293
 []\T1/ptm/m/n/10 String spec-i-fy-ing im-age data type. Op-tions are []\T1/zi4/
 m/n/10 "float16" []\T1/ptm/m/n/10 (de-fault), []\T1/zi4/m/n/10 "bfloat16"[]\T1/
 ptm/m/n/10 ,
  []
 
 
-Overfull \hbox (47.02783pt too wide) in paragraph at lines 1304--1305
+Overfull \hbox (47.02783pt too wide) in paragraph at lines 1301--1302
 []\T1/ptm/m/n/10 Path to save the eval-u-a-tion met-rics as a RDS file. De-faul
 t = []\T1/zi4/m/n/10 "./evaluation_metrics.rds"[]\T1/ptm/m/n/10 . 
  []
 
 [25] [26] [27]
-Overfull \hbox (122.28847pt too wide) in paragraph at lines 1495--1498
+Overfull \hbox (122.28847pt too wide) in paragraph at lines 1492--1495
 \T1/ptm/m/n/10 turns the cor-re-spond-ing im-age or video as an ar-ray of di-me
 n-sions \T1/zi4/m/n/10 (length(keys), nSpatialDim1, nSpatialDim2, nChannels)
  []
 
 [28]
-Overfull \hbox (60.50006pt too wide) in paragraph at lines 1522--1523
+Overfull \hbox (60.50006pt too wide) in paragraph at lines 1519--1520
 \T1/ptm/m/n/10 for im-ages and \T1/zi4/m/n/10 (length(keys), nTimeSteps, nSpati
 alDim1, nSpatialDim2, nChannels)
  []
 
 [29]
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.ind [30]
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.ind [30]
 
 LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
 (Font)              using `T1/zi4/m/n' instead on input line 25.
@@ -638,8 +638,8 @@ LaTeX Font Info:    Font shape `T1/zi4/m/it' will be
 
 
 ])
-(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/RtmpXWGU1g/Rd2pdf1303
-2c944a1d/Rd2.aux)
+(/private/var/folders/gv/l5wlstr55gl_g0pgx6k47z9m0000gn/T/Rtmpqs6p8l/Rd2pdf49a8
+6d3e4511/Rd2.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-02-20>
@@ -654,7 +654,7 @@ Package rerunfilecheck Info: File `Rd2.out' has not changed.
 Here is how much of TeX's memory you used:
  10704 strings out of 474116
  162090 string characters out of 5743683
- 1940187 words of memory out of 5000000
+ 1941187 words of memory out of 5000000
  32708 multiletter control sequences out of 15000+600000
  591936 words of font info for 79 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -665,7 +665,7 @@ msy10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb>
 </usr/local/texlive/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/loca
 l/texlive/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/
 2024/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on Rd2.pdf (31 pages, 153606 bytes).
+Output written on Rd2.pdf (31 pages, 153429 bytes).
 PDF statistics:
  482 PDF objects out of 1000 (max. 8388607)
  432 compressed objects within 5 object streams

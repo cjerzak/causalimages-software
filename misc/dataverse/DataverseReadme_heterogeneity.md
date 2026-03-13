@@ -12,4 +12,4 @@ Unzip `Uganda2000_processed.zip` so the `Uganda2000_processed` directory
 containing the band CSVs sits alongside `UgandaDataProcessed.csv` before running
 the tutorial scripts.
 
-For more information, see: https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R 
+For more information, see: https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R 

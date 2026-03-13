@@ -15,7 +15,7 @@
 #' @param nSGD Number of stochastic gradient descent (SGD) iterations. Default = `400L`
 #' @param nBoot Number of bootstrap iterations for uncertainty estimation.
 #' @param batchSize Batch size used in SGD optimization. Default = `50L`.
-#' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
+#' @param useTrainingPerturbations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param droppathRate Droppath rate used in training to prevent overfitting (`droppathRate = 0` corresponds to no droppath).
@@ -33,7 +33,7 @@
 #' @param fileTransport Path to a tfrecord file for transportability analysis (out-of-sample prediction).
 #' @param imageKeysOfUnitsTransport A vector of image keys for transportability analysis units.
 #' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
-#' @param useScalePertubations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
+#' @param useScalePerturbations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
 #' @param kFolds Integer specifying the number of cross-validation folds. Default = `2L`.
 #' @param augmented Boolean specifying whether to use augmented inverse probability weighting. Default = `FALSE`.
 #' @param orthogonalize Boolean specifying whether to orthogonalize outcomes with respect to tabular covariates `X`. Default = `FALSE`.
@@ -83,8 +83,8 @@ AnalyzeImageConfounding <- function(
                                    imageKeysOfUnitsTransport = NULL,
                                    nBoot = 10L,
                                    inputAvePoolingSize = 1L,
-                                   useTrainingPertubations = T,
-                                   useScalePertubations = F,
+                                   useTrainingPerturbations = T,
+                                   useScalePerturbations = F,
                                    
                                    kFolds = 2L, 
                                    augmented = FALSE,
@@ -222,9 +222,12 @@ AnalyzeImageConfounding <- function(
     message2("TfRecord management...")
     LocalFxnSource(TFRecordManagement, evaluation_environment = environment())
 
-    if(useTrainingPertubations){
-      trainingPertubations <- cienv$jax$vmap( 
-        trainingPertubations_OneObs <- function(im_, key){
+    scalePerturbations <- function(im_, key) {
+      im_
+    }
+    if(useTrainingPerturbations){
+      trainingPerturbations <- cienv$jax$vmap( 
+        trainingPerturbations_OneObs <- function(im_, key){
          # key <- cienv$jax$random$key(c(sample(1:100,1)))
          AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
          which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, 
@@ -282,15 +285,15 @@ AnalyzeImageConfounding <- function(
                           cienv$jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
         }
         
-        # training pertubations
-        if(useTrainingPertubations){
+        # training perturbations
+        if(useTrainingPerturbations){
           im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                                              false_fun = function(){  trainingPertubations(im, 
+                                              false_fun = function(){  trainingPerturbations(im, 
                                                               cienv$jax$random$split(key,im$shape[[1]])) } )
         }
-        if(useScalePertubations){
+        if(useScalePerturbations){
           im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                                              false_fun = function(){  scalePertubations(im, 
+                                              false_fun = function(){  scalePerturbations(im, 
                                                                            cienv$jax$random$split(key,im$shape[[1]])) } )
         }
         return( im  )

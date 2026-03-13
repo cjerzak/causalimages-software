@@ -4,6 +4,9 @@ test_that("AnalyzeImageHeterogeneity works", {
   skip_on_cran()
   skip_if_not(file.exists(path.expand("~/Downloads/UgandaAnalysis/UgandaDataProcessed.csv")),
               "Uganda data not available - download from Harvard Dataverse")
+  old_training_arg <- paste0("useTrainingPert", "ubations")
+  expect_true("useTrainingPerturbations" %in% names(formals(causalimages::AnalyzeImageHeterogeneity)))
+  expect_false(old_training_arg %in% names(formals(causalimages::AnalyzeImageHeterogeneity)))
 
 ################################
 # Image heterogeneity tutorial using causalimages
@@ -182,6 +185,7 @@ for(ImageModelClass in c("VisionTransformer","CNN")){
       nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
       nWidth_ImageRep = as.integer(2L^6),
       optimizeImageRep = optimizeImageRep,
+      useTrainingPerturbations = FALSE,
       batchSize = 8L, # make this larger for real application (e.g., 50L)
       kClust_est = 1 # vary depending on problem. Usually < 5
       )
@@ -248,6 +252,7 @@ for(ImageModelClass in c("VisionTransformer","CNN")){
     nDepth_ImageRep = ifelse(optimizeImageRep, yes = 1L, no = 1L),
     nWidth_ImageRep = as.integer(2L^5),
     optimizeImageRep = optimizeImageRep,
+    useTrainingPerturbations = FALSE,
     kClust_est = 2, # vary depending on problem. Usually < 5
     batchSize = 8L, # make this larger for real application (e.g., 50L)
     strides = 2L )

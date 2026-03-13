@@ -28,7 +28,7 @@ AnalyzeImageHeterogeneity(
   nWidth_Dense = 64L,
   nDepth_Dense = 1L,
   nDepth_TemporalRep = 1L,
-  useTrainingPertubations = T,
+  useTrainingPerturbations = T,
   strides = 2L,
   nonLinearScaler = NULL,
   pretrainedModel = NULL,
@@ -97,7 +97,7 @@ AnalyzeImageHeterogeneity(
 
 \item{nDepth_TemporalRep}{Integer specifying depth of temporal representation model for video data. Default = \code{1L}.}
 
-\item{useTrainingPertubations}{Boolean specifying whether to use image perturbations during training. Default = \code{TRUE}.}
+\item{useTrainingPerturbations}{Boolean specifying whether to use image perturbations during training. Default = \code{TRUE}.}
 
 \item{strides}{Integer specifying the strides used in the convolutional layers.}
 

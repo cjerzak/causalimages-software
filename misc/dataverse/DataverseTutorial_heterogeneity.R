@@ -2,7 +2,7 @@
 
 ################################
 # For an up-to-date version of this tutorial, see
-# https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R
+# https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R
 ################################
 
 # set new wd
@@ -45,5 +45,5 @@ tail( UgandaGeoKeyMat )
 # "./Uganda2000_processed/GeoKey%s_BAND%s.csv",
 # where GeoKey%s denotes the image key associated with each observation and
 # BAND%s refers to one of 3 bands in the satellite imagery.
-# See https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_FullTutorial.R
-# for up-to-date useage information.
+# See https://github.com/cjerzak/causalimages-software/blob/main/tutorials/AnalyzeImageHeterogeneity_Tutorial.R
+# for up-to-date usage information.

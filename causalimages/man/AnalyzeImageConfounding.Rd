@@ -14,8 +14,8 @@ AnalyzeImageConfounding(
   imageKeysOfUnitsTransport = NULL,
   nBoot = 10L,
   inputAvePoolingSize = 1L,
-  useTrainingPertubations = T,
-  useScalePertubations = F,
+  useTrainingPerturbations = T,
+  useScalePerturbations = F,
   kFolds = 2L,
   augmented = FALSE,
   orthogonalize = F,
@@ -80,9 +80,9 @@ AnalyzeImageConfounding(
 
 \item{inputAvePoolingSize}{Integer specifying average pooling size for downshifting image resolution. Default = \code{1L} (no downshift).}
 
-\item{useTrainingPertubations}{Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.}
+\item{useTrainingPerturbations}{Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.}
 
-\item{useScalePertubations}{Boolean specifying whether to use scale perturbations during training. Default = \code{FALSE}.}
+\item{useScalePerturbations}{Boolean specifying whether to use scale perturbations during training. Default = \code{FALSE}.}
 
 \item{kFolds}{Integer specifying the number of cross-validation folds. Default = \code{2L}.}
 

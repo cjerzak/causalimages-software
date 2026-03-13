@@ -14,7 +14,7 @@
 #' @param nBoot Reserved for compatibility. `PredictiveRun()` currently does not
 #'   bootstrap predictive uncertainty.
 #' @param batchSize Batch size used in SGD optimization. Default = `50L`.
-#' @param useTrainingPertubations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
+#' @param useTrainingPerturbations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
 #' @param droppathRate Droppath rate used in training to prevent overfitting (`droppathRate = 0` corresponds to no droppath).
@@ -40,7 +40,7 @@
 #' @param XTransport Optional numeric matrix of transport covariates. Required when
 #'   `X` is supplied during model training and `fileTransport` is used.
 #' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
-#' @param useScalePertubations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
+#' @param useScalePerturbations Boolean specifying whether to use scale perturbations during training. Default = `FALSE`.
 #' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
 #' @param XCrossModal Boolean specifying whether to use cross-modal learning with tabular data. Default = `TRUE`.
 #' @param XForceModal Boolean specifying whether to force modal learning. Default = `FALSE`.
@@ -84,8 +84,8 @@ PredictiveRun <- function(
     XTransport = NULL,
     nBoot = 10L,
     inputAvePoolingSize = 1L,
-    useTrainingPertubations = T,
-    useScalePertubations = F,
+    useTrainingPerturbations = T,
+    useScalePerturbations = F,
     X = NULL,
     conda_env = "CausalImagesEnv",
     conda_env_required = T,
@@ -272,9 +272,12 @@ PredictiveRun <- function(
     ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
   }
   
-  if(useTrainingPertubations){
-    trainingPertubations <- cienv$jax$vmap( 
-      trainingPertubations_OneObs <- function(im_, key){
+  scalePerturbations <- function(im_, key) {
+    im_
+  }
+  if(useTrainingPerturbations){
+    trainingPerturbations <- cienv$jax$vmap( 
+      trainingPerturbations_OneObs <- function(im_, key){
         # key <- cienv$jax$random$key(c(sample(1:100,1)))
         AB <- ifelse(dataType == "video", yes = 1L, no = 0L)
         which_path <- cienv$jnp$squeeze(cienv$jax$random$categorical(key = key, logits = cienv$jnp$array(t(rep(0, times = 4)))),0L)# generates random # from 0L to 3L
@@ -334,15 +337,15 @@ PredictiveRun <- function(
                                                       cienv$jnp$transpose(imm,c(2L,0L,1L)  )), c(1L,2L, 0L)) }, 0L)(im)
     }
     
-    # training pertubations
-    if(useTrainingPertubations){
+    # training perturbations
+    if(useTrainingPerturbations){
       im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                               false_fun = function(){  trainingPertubations(im, 
+                               false_fun = function(){  trainingPerturbations(im, 
                                                                              cienv$jax$random$split(key,im$shape[[1]])) } )
     }
-    if(useScalePertubations){
+    if(useScalePerturbations){
       im <- cienv$jax$lax$cond(inference, true_fun = function(){ im }, 
-                               false_fun = function(){  scalePertubations(im, 
+                               false_fun = function(){  scalePerturbations(im, 
                                                                           cienv$jax$random$split(key,im$shape[[1]])) } )
     }
     return( im  )
@@ -545,8 +548,8 @@ PredictiveRun <- function(
     dataType = dataType,
     temporalAggregation = temporalAggregation,
     inputAvePoolingSize = inputAvePoolingSize,
-    useTrainingPertubations = useTrainingPertubations,
-    useScalePertubations = useScalePertubations,
+    useTrainingPerturbations = useTrainingPerturbations,
+    useScalePerturbations = useScalePerturbations,
     kernelSize = kernelSize,
     image_dtype = image_dtype_char,
     is_binary = is_binary,
