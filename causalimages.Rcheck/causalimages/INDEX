@@ -8,9 +8,6 @@ BuildBackend            Build the environment for CausalImages models.
 CausalImagesTutorialData
                         CausalImages Tutorial Data
 CheckDataQuality        Check data quality for causalimages analyses
-ci_supported_backend_versions
-                        Supported backend package versions for
-                        'causalimages'.
 GetAndSaveGeolocatedImages
                         Getting and saving geo-located images from a
                         pool of .tif's
@@ -23,17 +20,20 @@ GetImageRepresentations
                         inference.
 GetMoments              Get moments for normalization (internal
                         function)
-image2                  Visualizing matrices as heatmaps with correct
-                        north-south-east-west orientation
 LongLat2CRS             Get the spatial point of long/lat coordinates
-message2                message2 message() with timestamps
 PredictiveRun           Perform predictive modeling using images or
                         videos
 PredictiveScore         Score a saved predictive model on a tfrecord
-print2                  print2 print() with timestamps
 TFRecordManagement      Defines an internal TFRecord management routine
                         (internal function)
 TrainDefine             Defines an internal training routine (internal
                         function)
 TrainDo                 Runs a training routine (internal function)
 WriteTfRecord           Write an image corpus as a .tfrecord file
+ci_supported_backend_versions
+                        Supported backend package versions for
+                        'causalimages'.
+image2                  Visualizing matrices as heatmaps with correct
+                        north-south-east-west orientation
+message2                message2 message() with timestamps
+print2                  print2 print() with timestamps
