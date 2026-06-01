@@ -1,15 +1,45 @@
+# OS/editor artifacts
+.DS_Store
+*/.DS_Store
+.history
+
+# R/RStudio local state
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# R package build/check outputs
+*.Rcheck/
+*.Rout
+*.Rout.save
+Rplots.pdf
+/*.tar.gz
+
+# Python/reticulate caches and local envs
 __pycache__
 .ipynb_checkpoints
-.DS_Store
-.history
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build and coverage outputs
 default.profraw
 build
 dist
+
+# Local assistant/tool config
+CLAUDE.md
+AGENTS.md
+.claude/settings.local.json
+
+# Project-local generated artifacts
+/bin/micromamba
 /misc/docker/binaries/
 /misc/docker/binaries/bin/
 /misc/docker/binaries/src/
-*/.DS_Store
-CLAUDE.md
 /reports/
 /tmp/
-AGENTS.md
