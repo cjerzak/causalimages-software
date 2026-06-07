@@ -7,8 +7,7 @@
 #' @return Internal function performing model training. 
 #'
 #' @import reticulate rrapply
-#' @export
-#' @md
+#' @noRd
 TrainDo <- function(){
   par(mfrow=c(1,2))
   keys2indices_list <- tapply(1:length(imageKeysOfUnits), imageKeysOfUnits, c)
@@ -304,4 +303,3 @@ TrainDo <- function(){
   } # end for(i in i_:nSGD){
   par(mfrow=c(1,1))
 }
-

@@ -7,8 +7,7 @@
 #' @return Internal function defining a tfrecord management sequence. 
 #'
 #' @import reticulate rrapply
-#' @export
-#' @md
+#' @noRd
 TFRecordManagement <- function(){
   
   if(is.null(file)){stop("No file specified for tfrecord!")}
@@ -22,6 +21,10 @@ TFRecordManagement <- function(){
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
     message2(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
+    if (exists("orig_wd", inherits = TRUE)) {
+      restore_wd <- get("orig_wd", inherits = TRUE)
+      on.exit(try(setwd(restore_wd), silent = TRUE), add = TRUE)
+    }
     
     # define video indicator 
     useVideoIndicator <- dataType == "video"

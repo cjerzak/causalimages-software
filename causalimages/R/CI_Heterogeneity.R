@@ -50,6 +50,7 @@
 #' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
 #' @param seed Optional integer for reproducibility.
 #' @param Sys.setenv_text Optional string for setting environment variables before Python initialization.
+#' @param image_dtype String specifying image data type. Options are `"float16"` (default), `"bfloat16"`, or `"float32"`.
 #' @param imageModelClass String specifying the image model architecture. Options include `"VisionTransformer"` (default) or `"CNN"`.
 #' @param temperature Temperature parameter for the relaxed categorical distribution in variational inference. Default = `1`.
 #' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L` (no downshift).
@@ -113,6 +114,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       batchSize = 16L,
                                       seed = NULL,
                                       Sys.setenv_text = NULL,
+                                      image_dtype = "float16",
 
                                       imageModelClass = "VisionTransformer",
                                       nMonte_predictive = 10L,
@@ -146,13 +148,12 @@ AnalyzeImageHeterogeneity <- function(obsW,
   {
     # image dtype management
     c2f <- cienv$jmp$cast_to_full
-    image_dtype <- "float16" 
-    if((image_dtype_char <- image_dtype) == "float32"){  image_dtype_tf <- cienv$tf$float16; image_dtype <- cienv$jnp$float32 }
-    if(image_dtype_char == "float16"){  image_dtype_tf <- cienv$tf$float16; image_dtype <- cienv$jnp$float16 }
-    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; image_dtype <- cienv$jnp$bfloat16 }
+    image_dtype_char <- as.character(image_dtype)
+    dtype_info <- ci_image_dtype_info(image_dtype_char)
+    image_dtype_tf <- dtype_info$image_dtype_tf
+    image_dtype <- dtype_info$ComputeDtype
     ComputeDtype <- cienv$jnp$float32; 
     variable_dtype <- cienv$jnp$float32; 
-    image_dtype_tf <- cienv$tf$float16; 
 
     cnst <- function( ar ){ cienv$jnp$array(ar, ComputeDtype) }
     rzip <- function( l1,l2 ){  fl<-list(); for(aia in 1:length(l1)){ fl[[aia]] <- list(l1[[aia]], l2[[aia]]) }; return( fl  ) }
@@ -196,6 +197,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
     message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
+    on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
     tf_dataset_master <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions

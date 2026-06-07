@@ -16,6 +16,17 @@ ci_resolve_tfrecord_path <- function(filename) {
   )
 }
 
+ci_tfrecord_key_index_cache_key <- function(filename) {
+  normalized_path <- normalizePath(path.expand(filename), winslash = "/", mustWork = FALSE)
+  info <- file.info(normalized_path)
+  paste(
+    normalized_path,
+    ifelse(is.na(info$size), "<missing>", as.character(info$size)),
+    ifelse(is.na(info$mtime), "<missing>", format(info$mtime, "%Y-%m-%d %H:%M:%OS6", tz = "UTC")),
+    sep = "|"
+  )
+}
+
 parse_tfr_key_element <- function(element) {
   dict_init_val <- list()
   key_feature_description <- dict(
@@ -33,7 +44,7 @@ ci_tfrecord_key_index_map <- function(filename) {
     cienv$tfrecord_key_index_cache <- new.env(parent = emptyenv())
   }
 
-  cache_key <- normalizePath(path.expand(filename), winslash = "/", mustWork = FALSE)
+  cache_key <- ci_tfrecord_key_index_cache_key(filename)
   cache_env <- cienv$tfrecord_key_index_cache
   if (exists(cache_key, envir = cache_env, inherits = FALSE)) {
     return(get(cache_key, envir = cache_env, inherits = FALSE))
@@ -134,20 +145,7 @@ ci_predictive_prepare_x <- function(X, n_obs, x_stats = NULL, x_ncol = NULL) {
 }
 
 ci_predictive_dtype_info <- function(image_dtype_char) {
-  if (image_dtype_char == "float16") {
-    return(list(image_dtype_tf = cienv$tf$float16, ComputeDtype = cienv$jnp$float16))
-  }
-  if (image_dtype_char == "bfloat16") {
-    return(list(image_dtype_tf = cienv$tf$bfloat16, ComputeDtype = cienv$jnp$bfloat16))
-  }
-  if (image_dtype_char == "float32") {
-    return(list(image_dtype_tf = cienv$tf$float32, ComputeDtype = cienv$jnp$float32))
-  }
-
-  stop(
-    sprintf("Unsupported image_dtype '%s'.", image_dtype_char),
-    call. = FALSE
-  )
+  ci_image_dtype_info(image_dtype_char)
 }
 
 ci_predictive_noop_perturbation <- function(im_, key) {

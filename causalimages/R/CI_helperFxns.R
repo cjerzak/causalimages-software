@@ -10,6 +10,11 @@
 #' @return Numeric vector of length two giving the coordinates of the supplied
 #'   location in the CRS defined by `CRS_ref`.
 #'
+#' @importFrom grDevices dev.off hcl.colors pdf
+#' @importFrom graphics abline axis layout legend mtext par points
+#' @importFrom stats coef cor lm na.omit resid sd smooth.spline var
+#' @importFrom utils capture.output setTxtProgressBar str txtProgressBar
+#'
 #' @examples
 #' # (Not run)
 #' #spatialPt <- LongLat2CRS(long = 49.932,
@@ -307,12 +312,131 @@ ci_jax_key <- function(seed, offset = 0L, label = "seed") {
   cienv$jax$random$key(ci_seed_int32(seed = seed, offset = offset, label = label))
 }
 
+ci_image_dtype_info <- function(image_dtype_char) {
+  image_dtype_char <- as.character(image_dtype_char)
+  if (image_dtype_char == "float16") {
+    return(list(image_dtype_tf = cienv$tf$float16, ComputeDtype = cienv$jnp$float16))
+  }
+  if (image_dtype_char == "bfloat16") {
+    return(list(image_dtype_tf = cienv$tf$bfloat16, ComputeDtype = cienv$jnp$bfloat16))
+  }
+  if (image_dtype_char == "float32") {
+    return(list(image_dtype_tf = cienv$tf$float32, ComputeDtype = cienv$jnp$float32))
+  }
+
+  stop(
+    sprintf("Unsupported image_dtype '%s'.", image_dtype_char),
+    call. = FALSE
+  )
+}
+
+ci_with_wd <- function(path, expr) {
+  old_wd <- getwd()
+  on.exit(try(setwd(old_wd), silent = TRUE), add = TRUE)
+  setwd(path.expand(as.character(path)))
+  force(expr)
+}
+
+ci_cache_value_text <- function(x) {
+  if (is.null(x)) {
+    return("<NULL>")
+  }
+
+  numeric_value <- suppressWarnings(try(as.numeric(x), silent = TRUE))
+  if (!inherits(numeric_value, "try-error") && length(numeric_value) > 0L &&
+      all(is.finite(numeric_value) | is.na(numeric_value))) {
+    return(paste(format(signif(numeric_value, 12L), scientific = TRUE), collapse = ","))
+  }
+
+  if (exists("np", envir = cienv, inherits = FALSE)) {
+    numeric_value <- suppressWarnings(try(as.numeric(cienv$np$array(x)), silent = TRUE))
+    if (!inherits(numeric_value, "try-error") && length(numeric_value) > 0L) {
+      return(paste(format(signif(numeric_value, 12L), scientific = TRUE), collapse = ","))
+    }
+  }
+
+  paste(capture.output(str(x, max.level = 1L)), collapse = " ")
+}
+
+ci_pretrained_cache_names <- function() {
+  c(
+    "EXPECTED_IMAGE_SIZE",
+    "FeatureExtractor",
+    "GENERIC_TRANSFORMERS_MODEL",
+    "JAX_CLIP_Feature_Model",
+    "JAX_CLIP_Feature_Weights",
+    "JAX_Model",
+    "JAX_Weights",
+    "MEAN_RESCALER",
+    "NORM_MEAN_array_inner",
+    "NORM_SD_array_inner",
+    "RunDtype",
+    "RunOnDevice",
+    "SD_RESCALER",
+    "ScaleResizeTranspose",
+    "TRANSFORMERS_MODEL_NAME",
+    "TransformersModel",
+    "TransformersProcessor",
+    "ClayModel",
+    "nParameters_Pretrained",
+    "nWidth_ImageRep"
+  )
+}
+
+ci_pretrained_cache_env <- function() {
+  if (!exists("pretrained_model_cache", envir = cienv, inherits = FALSE)) {
+    cienv$pretrained_model_cache <- new.env(parent = emptyenv())
+  }
+  cienv$pretrained_model_cache
+}
+
+ci_pretrained_cache_key <- function(pretrainedModel, dataType, NORM_MEAN, NORM_SD,
+                                    rawShape = NULL) {
+  paste(
+    "pretrained",
+    as.character(pretrainedModel),
+    as.character(dataType),
+    ci_cache_value_text(rawShape),
+    ci_cache_value_text(NORM_MEAN),
+    ci_cache_value_text(NORM_SD),
+    sep = "|"
+  )
+}
+
+ci_pretrained_cache_activate <- function(cache_key,
+                                         names = ci_pretrained_cache_names()) {
+  loaded_names <- intersect(names, ls(envir = cienv, all.names = TRUE))
+  if (length(loaded_names) > 0L) {
+    rm(list = loaded_names, envir = cienv)
+  }
+
+  cienv$active_pretrained_cache_key <- cache_key
+  cache_env <- ci_pretrained_cache_env()
+  if (!exists(cache_key, envir = cache_env, inherits = FALSE)) {
+    return(invisible(FALSE))
+  }
+
+  entry <- get(cache_key, envir = cache_env, inherits = FALSE)
+  for (nm in names(entry)) {
+    assign(nm, entry[[nm]], envir = cienv)
+  }
+
+  invisible(TRUE)
+}
+
+ci_pretrained_cache_save <- function(cache_key,
+                                     names = ci_pretrained_cache_names()) {
+  loaded_names <- intersect(names, ls(envir = cienv, all.names = TRUE))
+  entry <- lapply(loaded_names, function(nm) get(nm, envir = cienv, inherits = FALSE))
+  names(entry) <- loaded_names
+  assign(cache_key, entry, envir = ci_pretrained_cache_env())
+  invisible(entry)
+}
+
 se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
 
 LocalFxnSource <- function(fxn, evaluation_environment){
-  fxn_text <- paste(deparse(fxn), collapse="\n")
-  fxn_text <- gsub(fxn_text, pattern="function \\(\\)", replacement="")
-  eval( parse( text = fxn_text ), envir = evaluation_environment )
+  eval(body(fxn), envir = evaluation_environment)
 }
 
 FilterBN <- function(l_){ cienv$eq$partition(l_, function(l__){"first_time_index" %in% names(l__)}) }

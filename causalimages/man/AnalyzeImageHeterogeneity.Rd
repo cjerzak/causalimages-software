@@ -41,6 +41,7 @@ AnalyzeImageHeterogeneity(
   batchSize = 16L,
   seed = NULL,
   Sys.setenv_text = NULL,
+  image_dtype = "float16",
   imageModelClass = "VisionTransformer",
   nMonte_predictive = 10L,
   nMonte_salience = 10L,
@@ -122,6 +123,8 @@ AnalyzeImageHeterogeneity(
 \item{seed}{Optional integer for reproducibility.}
 
 \item{Sys.setenv_text}{Optional string for setting environment variables before Python initialization.}
+
+\item{image_dtype}{String specifying image data type. Options are \code{"float16"} (default), \code{"bfloat16"}, or \code{"float32"}.}
 
 \item{imageModelClass}{String specifying the image model architecture. Options include \code{"VisionTransformer"} (default) or \code{"CNN"}.}
 

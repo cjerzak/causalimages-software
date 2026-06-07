@@ -12,6 +12,9 @@ Authors@R:
              family = "Daoud",
              role = "aut",
              comment = c(ORCID = "0000-0001-7478-8345")))
+Author: Connor Jerzak [aut, cre] (<https://orcid.org/0000-0003-1914-8905>),
+    Adel Daoud [aut] (<https://orcid.org/0000-0001-7478-8345>)
+Maintainer: Connor Jerzak <connor.jerzak@gmail.com>
 Description: Provides a system for performing causal inference with earth observation,
     bio-medical, and social science images and image sequences (videos). The package
     uses a 'JAX' backend for GPU/TPU acceleration. Key functionalities include building
@@ -36,13 +39,13 @@ Imports:
     glmnet,
     sf,
     data.table,
-    pROC
+    pROC,
+    PRROC,
+    gtools
 Suggests:
     abind,
     animation,
-    gtools,
     knitr,
-    PRROC,
     rmarkdown,
     tensorflow,
     testthat (>= 3.0.0),

@@ -243,6 +243,7 @@ GetImageRepresentations <- function(
     }
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     setwd( new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/") )
+    on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
     tf_dataset = cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
 
     # helper functions
@@ -374,7 +375,7 @@ GetImageRepresentations <- function(
         }
         if( pretrainedModel == "clip-rsicd-v0" ){
           # https://huggingface.co/flax-community/clip-rsicd-v2
-          if(!"FeatureExtractor" %in% ls(.GlobalEnv)){
+          if(!"FeatureExtractor" %in% ls(envir = cienv)){
             message2("Loading a pre-trained model (clip-rsicd)...")
             initialize_torch(conda_env = conda_env,
                              conda_env_required = conda_env_required,
@@ -382,13 +383,13 @@ GetImageRepresentations <- function(
             
             PretrainedImageModelName <- "flax-community/clip-rsicd-v2"
             cienv$FeatureExtractor <- cienv$transformers$CLIPProcessor$from_pretrained(PretrainedImageModelName)
-            cienv$torch$set_default_device(
-              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
-                                     yes = list(cienv$torch$device("cuda")), 
-                                     no = list(cienv$torch$device("cpu")))[[1]] 
-            )
-            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
-            cienv$TransformersModel <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)$to(RunOnDevice)#$half()
+            cienv$RunOnDevice <- ifelse(cienv$torch$cuda$is_available(),
+                                         yes = list(cienv$torch$device("cuda")),
+                                         no = list(cienv$torch$device("cpu")))[[1]]
+            cienv$torch$set_default_device(cienv$RunOnDevice)
+            cienv$RunDtype <- cienv$torch$float32
+            cienv$torch$set_default_dtype(cienv$RunDtype)
+            cienv$TransformersModel <- cienv$transformers$CLIPModel$from_pretrained(PretrainedImageModelName)$to(cienv$RunOnDevice)#$half()
             cienv$TransformersProcessor <- cienv$transformers$CLIPImageProcessor$from_pretrained(PretrainedImageModelName)
             cienv$nParameters_Pretrained <- cienv$TransformersModel$num_parameters()
 
@@ -783,7 +784,7 @@ class CLIPImageFeatureExtractor(nn.Module):
         if( grepl(pretrainedModel, pattern = "clay") ){ 
           # https://clay-foundation.github.io/model/tutorials/clay-v1-wall-to-wall.html
           #Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
-          if(!"ClayModel" %in% ls(.GlobalEnv)){
+          if(!"ClayModel" %in% ls(envir = cienv)){
             message2("Loading a pre-trained model (Clay)...")
             initialize_torch(conda_env = conda_env, 
                            conda_env_required = conda_env_required,
@@ -807,14 +808,14 @@ class CLIPImageFeatureExtractor(nn.Module):
             }
             #})
           }
-          if(!"RunOnDevice" %in% ls(.GlobalEnv)){
-            cienv$torch$set_default_device(
-              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
-                                     yes = list(cienv$torch$device("cuda")), 
-                                     no = list(cienv$torch$device("cpu")))[[1]] 
-            )
-            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
-            cienv$ClayModel <- cienv$ClayModel$to(RunOnDevice)
+          if(!"RunOnDevice" %in% ls(envir = cienv)){
+            cienv$RunOnDevice <- ifelse(cienv$torch$cuda$is_available(),
+                                         yes = list(cienv$torch$device("cuda")),
+                                         no = list(cienv$torch$device("cpu")))[[1]]
+            cienv$torch$set_default_device(cienv$RunOnDevice)
+            cienv$RunDtype <- cienv$torch$float32
+            cienv$torch$set_default_dtype(cienv$RunDtype)
+            cienv$ClayModel <- cienv$ClayModel$to(cienv$RunOnDevice)
             
             cienv$nParameters_Pretrained <- reticulate::as_iterator(  cienv$ClayModel$model$encoder$parameters() )
             nParameters_Pretrained_ <- 0; 
@@ -856,13 +857,13 @@ class CLIPImageFeatureExtractor(nn.Module):
           
           m <- cienv$ClayModel$model$encoder(
             dict("platform" = "landsat-c2l1",  # platform
-                 "time" = cienv$torch$tensor( time_embed, dtype = RunDtype)$to(RunOnDevice), # temporal embedding 
-                 "latlon" = cienv$torch$tensor( latlong_embed, dtype = RunDtype )$to(RunOnDevice), # lat long embedding 
+                 "time" = cienv$torch$tensor( time_embed, dtype = cienv$RunDtype)$to(cienv$RunOnDevice), # temporal embedding
+                 "latlon" = cienv$torch$tensor( latlong_embed, dtype = cienv$RunDtype )$to(cienv$RunOnDevice), # lat long embedding
                  #"pixels" = cienv$torch$tensor( reticulate::np_array(m$transpose(c(0L,3L,1L,2L))), dtype = RunDtype )$to(RunOnDevice), # normalized image 
                  #"pixels" = cienv$torch$tensor( reticulate::np_array(cienv$tf$constant(m$transpose(c(0L,3L,1L,2L)))), dtype = cienv$torch$float32),
                  "pixels" = cienv$torch$tensor( m$transpose(c(0L,3L,1L,2L)), dtype = cienv$torch$float32),
-                 "gsd" = cienv$torch$tensor(30, dtype = RunDtype)$to(RunOnDevice),  # resolution 
-                 'waves' = cienv$torch$tensor(c(0.65, 0.56, 0.48), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes RGB
+                 "gsd" = cienv$torch$tensor(30, dtype = cienv$RunDtype)$to(cienv$RunOnDevice),  # resolution
+                 'waves' = cienv$torch$tensor(c(0.65, 0.56, 0.48), dtype = cienv$RunDtype)$to(cienv$RunOnDevice)  # wavelength in micrometers?, this assumes RGB
                  # 'waves' = cienv$torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
             )
           )[[1]]  
@@ -875,7 +876,7 @@ class CLIPImageFeatureExtractor(nn.Module):
           m <- cienv$jnp$reshape(cienv$jnp$array(m), list(m_shape_orig[[1]], m_shape_orig[[2]], -1L) ) 
          } 
         if(grepl(pretrainedModel,pattern="videomae")){ 
-          if(!"FeatureExtractor" %in% ls(.GlobalEnv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
+          if(!"FeatureExtractor" %in% ls(envir = cienv) ){  # https://huggingface.co/docs/transformers/en/model_doc/videomae
             message2("Loading a pre-trained model (videomae)...")
             PretrainedVideoModelName <- "MCG-NJU/videomae-base"
             #videoModelName <- "MCG-NJU/videomae-base-finetuned-kinetics"
@@ -885,12 +886,12 @@ class CLIPImageFeatureExtractor(nn.Module):
                              Sys.setenv_text = Sys.setenv_text)
             
             # set device and dtypes
-            cienv$torch$set_default_device(
-              RunOnDevice <- ifelse(cienv$torch$cuda$is_available(), 
-                                     yes = list(cienv$torch$device("cuda")), 
-                                     no = list(cienv$torch$device("cpu")))[[1]] 
-            )
-            cienv$torch$set_default_dtype( RunDtype <- cienv$torch$float32 ); 
+            cienv$RunOnDevice <- ifelse(cienv$torch$cuda$is_available(),
+                                         yes = list(cienv$torch$device("cuda")),
+                                         no = list(cienv$torch$device("cpu")))[[1]]
+            cienv$torch$set_default_device(cienv$RunOnDevice)
+            cienv$RunDtype <- cienv$torch$float32
+            cienv$torch$set_default_dtype(cienv$RunDtype)
             
             # load models
             cienv$py_gc$collect()
@@ -913,13 +914,13 @@ class CLIPImageFeatureExtractor(nn.Module):
           }
           #m <- reticulate::np_array( cienv$tf$constant(m), dtype = cienv$np$uint8)
           
-          m <- (m - NORM_MEAN_array_inner) / NORM_SD_array_inner
+          m <- (m - cienv$NORM_MEAN_array_inner) / cienv$NORM_SD_array_inner
           m <- cienv$jax$image$resize(
             image=m,
             shape=c(m$shape[[1]], m$shape[[2]],  224L, 224L, 3L),
             method="bilinear")
           #m <- FeatureExtractor(images = m, return_tensors="pt",do_resize = T, do_rescale = F, do_normalize = F)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
-          m <- (m*SD_RESCALER)+MEAN_RESCALER
+          m <- (m*cienv$SD_RESCALER)+cienv$MEAN_RESCALER
           # cienv$jnp$mean(cienv$jnp$array(m), axis = c(0L,2L:3L)); cienv$jnp$std(cienv$jnp$array(m), axis =  c(0L,2L:3L)) 
           
           #m <- cienv$jnp$array(m, dtype = cienv$np$uint8)
@@ -933,12 +934,15 @@ class CLIPImageFeatureExtractor(nn.Module):
             
             # run model
             # output of extractor is T by C by W by H
-            m_ <- TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
+            m_ <- cienv$TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
             
             # save final data 
             m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
           }
           m <- cienv$jnp$array( m_rep )
+        }
+        if (!is.null(pretrained_cache_key)) {
+          ci_pretrained_cache_save(pretrained_cache_key)
         }
         return( m ) 
       }
@@ -948,6 +952,17 @@ class CLIPImageFeatureExtractor(nn.Module):
     if(is.null(NORM_MEAN)){ 
       NORM_MEAN <- GetMoments(ds_iterator_train, dataType = dataType, image_dtype = image_dtype, momentCalIters = 34)
       NORM_SD <- NORM_MEAN$NORM_SD_array; NORM_MEAN <- NORM_MEAN$NORM_MEAN
+    }
+    pretrained_cache_key <- NULL
+    if(!is.null(pretrainedModel)){
+      pretrained_cache_key <- ci_pretrained_cache_key(
+        pretrainedModel = pretrainedModel,
+        dataType = dataType,
+        NORM_MEAN = NORM_MEAN,
+        NORM_SD = NORM_SD,
+        rawShape = rawShape
+      )
+      ci_pretrained_cache_activate(pretrained_cache_key)
     }
     
     # define a transformer backbone - background fxns 
@@ -1617,7 +1632,13 @@ class CLIPImageFeatureExtractor(nn.Module):
   }
   
   if(CleanupEnv){
-    suppressWarnings( try(rm(PretrainedImageModelName, FeatureExtractor, ClayModel, TransformersModel, cienv$nParameters_Pretrained, pos = .GlobalEnv),T) ) 
+    cleanup_names <- intersect(
+      c(ci_pretrained_cache_names(), "active_pretrained_cache_key"),
+      ls(envir = cienv, all.names = TRUE)
+    )
+    if (length(cleanup_names) > 0L) {
+      suppressWarnings(try(rm(list = cleanup_names, envir = cienv), T))
+    }
   }
   if(returnContents){
    print("Returning contents in GetImageRepresentations()!")

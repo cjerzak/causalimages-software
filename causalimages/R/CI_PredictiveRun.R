@@ -211,6 +211,7 @@ PredictiveRun <- function(
     new_wd <- paste(tf_record_name[-length(tf_record_name)], collapse = "/")
     message2(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
+    on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
     
     # define video indicator 
     useVideoIndicator <- dataType == "video"

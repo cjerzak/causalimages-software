@@ -35,7 +35,8 @@ test_that("AnalyzeImageHeterogeneity scores transportability keys from tfrecord"
   causalimages::WriteTfRecord(
     file = tfrecord_path,
     uniqueImageKeys = c(unique(train_keys), unique(transport_keys)),
-    acquireImageFxn = acquireImageFromMemory
+    acquireImageFxn = acquireImageFromMemory,
+    image_dtype = "float32"
   )
 
   transportabilityMat <- data.frame(
@@ -62,6 +63,7 @@ test_that("AnalyzeImageHeterogeneity scores transportability keys from tfrecord"
     nMonte_salience = 1L,
     nMonte_variational = 1L,
     transportabilityMat = transportabilityMat,
+    image_dtype = "float32",
     seed = 1234L
   )
 

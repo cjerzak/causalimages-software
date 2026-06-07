@@ -104,12 +104,12 @@ WriteTfRecord <- function(file,
     tf_record_name <- paste("./",tf_record_name, sep = "")
   }
 
-  orig_wd <- getwd()
   tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
   new_wd <- paste(tf_record_name[- length(tf_record_name) ],collapse = "/")
-  setwd( new_wd )
-  tf_record_writer = cienv$tf$io$TFRecordWriter( tf_record_name[  length(tf_record_name)  ] ) #create a writer that'll store our data to disk
-  setwd(  orig_wd )
+  tf_record_writer <- ci_with_wd(
+    new_wd,
+    cienv$tf$io$TFRecordWriter(tf_record_name[length(tf_record_name)])
+  ) #create a writer that'll store our data to disk
   for(irz in 1:length(uniqueImageKeys)){
     if(irz %% 10 == 0 | irz == 1){ print( sprintf("[%s] At index %s of %s [%.3f%%]",
                                                   format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
@@ -171,6 +171,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/")
     setwd( new_wd )
+    on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
 
     # Load the TFRecord file
     dataset = cienv$tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )

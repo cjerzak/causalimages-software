@@ -7,8 +7,7 @@
 #' @return Internal function defining a training sequence. 
 #'
 #' @import reticulate rrapply
-#' @export
-#' @md
+#' @noRd
 TrainDefine <- function(){
   message2("Define optimizer and training step...") 
   {
@@ -37,4 +36,3 @@ TrainDefine <- function(){
     jit_get_update <- cienv$eq$filter_jit( optax_optimizer$update )
   }
 }
-

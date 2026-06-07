@@ -149,8 +149,10 @@ AnalyzeImageConfounding <- function(
     message2(sprintf("Default device: %s",cienv$jnp$array(0.)$devices()))
 
     # set float type
-    if((image_dtype_char <- image_dtype) == "float16"){  image_dtype_tf <- cienv$tf$float16; ComputeDtype <- image_dtype <- cienv$jnp$float16 }
-    if(image_dtype_char == "bfloat16"){  image_dtype_tf <- cienv$tf$bfloat16; ComputeDtype <- image_dtype <- cienv$jnp$bfloat16 }
+    image_dtype_char <- as.character(image_dtype)
+    dtype_info <- ci_image_dtype_info(image_dtype_char)
+    image_dtype_tf <- dtype_info$image_dtype_tf
+    ComputeDtype <- image_dtype <- dtype_info$ComputeDtype
     if(is.null(seed)){ seed <- ai(stats::runif(1,1,10000)) }
     seed <- ci_int32_scalar(seed, "AnalyzeImageConfounding seed")
     obsW <- f2n(obsW); obsY <- f2n(obsY)
