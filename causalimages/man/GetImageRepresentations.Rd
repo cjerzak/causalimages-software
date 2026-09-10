@@ -42,7 +42,8 @@ GetImageRepresentations(
   inputAvePoolingSize = 1L,
   CleanupEnv = FALSE,
   initializingFxns = FALSE,
-  seed = NULL
+  seed = NULL,
+  modelStructureVersion = 2L
 )
 }
 \arguments{
@@ -135,6 +136,9 @@ input sizes, and handles various output formats. Default is `NULL` (uses custom 
 \item{initializingFxns}{Boolean specifying whether to only initialize functions without computing representations. Default = `FALSE`.}
 
 \item{seed}{Optional integer for reproducibility.}
+
+\item{modelStructureVersion}{Internal artifact structure version. New models use
+`2L`; `1L` is reserved for loading older predictive artifacts.}
 }
 \value{
 A list containing two items:

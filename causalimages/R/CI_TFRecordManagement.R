@@ -30,7 +30,8 @@ TFRecordManagement <- function(){
     useVideoIndicator <- dataType == "video"
     
     # define tf record 
-    tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    tfrecord_path <- normalizePath(tf_record_name[length(tf_record_name)], mustWork = TRUE)
+    tf_dataset <- cienv$tf$data$TFRecordDataset(tfrecord_path)
     
     # helper functions
     getParsed_tf_dataset_inference <- function(tf_dataset){
@@ -45,14 +46,12 @@ TFRecordManagement <- function(){
       return( tf_dataset$map( function(x){ parse_tfr_element(x, 
                                                              readVideo = useVideoIndicator, 
                                                              image_dtype = image_dtype_tf)},
-                              num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
+                              num_parallel_calls = as.integer(ci_memory_option("input_threads", 2L))) )
     }
     getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-      tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                       dtype=cienv$tf$int64),
-                                       reshuffle_each_iteration = T) 
+      tf_dataset <- ci_bounded_shuffle(tf_dataset, ai(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = T)
       tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
-      tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+      tf_dataset <- ci_bounded_prefetch(tf_dataset)
       return( tf_dataset )
     }
     if(!is.null(TFRecordControl)){
@@ -74,18 +73,15 @@ TFRecordManagement <- function(){
     if(is.null(TFRecordControl)){
       getParsed_tf_dataset_train <- function( tf_dataset ){
         dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                   num_parallel_calls = cienv$tf$data$AUTOTUNE)
-        dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
-                                   reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
+                                   num_parallel_calls = as.integer(ci_memory_option("input_threads", 2L)))
+        dataset <- ci_bounded_shuffle(dataset, ai(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
         dataset <- dataset$batch(  ai(batchSize)   )
-        dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        dataset <- ci_bounded_prefetch(dataset)
         return( dataset  )
       }
       
       # shuffle (generating different train/test splits)
-      tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
-                                                    buffer_size = cienv$tf$constant(ai(10L*TfRecords_BufferScaler*batchSize),
-                                                                                    dtype=cienv$tf$int64), reshuffle_each_iteration = F )
+      tf_dataset <- ci_bounded_shuffle(tf_dataset, ai(10L*TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = F)
       tf_dataset_train <- getParsed_tf_dataset_train( 
         tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
       ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
@@ -97,9 +93,7 @@ TFRecordManagement <- function(){
     
     # Other helper functions
     getParsed_tf_dataset_train_Shuffle <- function( tf_dataset ){
-      tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                       dtype=cienv$tf$int64),
-                                       reshuffle_each_iteration = FALSE )
+      tf_dataset <- ci_bounded_shuffle(tf_dataset, ai(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = FALSE)
       return(tf_dataset)
     }
   }

@@ -412,6 +412,11 @@ ci_pretrained_cache_activate <- function(cache_key,
 
   cienv$active_pretrained_cache_key <- cache_key
   cache_env <- ci_pretrained_cache_env()
+  victims <- ci_pretrained_cache_trim(keep = cache_key, reserve = TRUE)
+  if (length(victims)) {
+    gc()
+    if (exists("py_gc", envir = cienv, inherits = FALSE)) cienv$py_gc$collect()
+  }
   if (!exists(cache_key, envir = cache_env, inherits = FALSE)) {
     return(invisible(FALSE))
   }
@@ -420,6 +425,7 @@ ci_pretrained_cache_activate <- function(cache_key,
   for (nm in names(entry)) {
     assign(nm, entry[[nm]], envir = cienv)
   }
+  attr(cache_env, "lru") <- c(setdiff(attr(cache_env, "lru"), cache_key), cache_key)
 
   invisible(TRUE)
 }
@@ -430,7 +436,36 @@ ci_pretrained_cache_save <- function(cache_key,
   entry <- lapply(loaded_names, function(nm) get(nm, envir = cienv, inherits = FALSE))
   names(entry) <- loaded_names
   assign(cache_key, entry, envir = ci_pretrained_cache_env())
+  cache_env <- ci_pretrained_cache_env()
+  attr(cache_env, "lru") <- c(setdiff(attr(cache_env, "lru"), cache_key), cache_key)
+  ci_pretrained_cache_trim(keep = cache_key)
   invisible(entry)
+}
+
+ci_pretrained_cache_trim <- function(keep, reserve = FALSE) {
+  cache <- ci_pretrained_cache_env()
+  keys <- ls(cache, all.names = TRUE)
+  limit <- ci_memory_option("pretrained_cache_size", 1L)
+  remaining <- limit - as.integer(reserve && !keep %in% keys)
+  lru <- unique(c(attr(cache, "lru"), keys))
+  victims <- head(setdiff(lru[lru %in% keys], keep), max(0, length(keys) - remaining))
+  if (length(victims)) rm(list = victims, envir = cache)
+  attr(cache, "lru") <- setdiff(lru, victims)
+  invisible(victims)
+}
+
+ci_pretrained_cache_clear <- function() {
+  active <- intersect(c(ci_pretrained_cache_names(), "active_pretrained_cache_key"),
+                      ls(cienv, all.names = TRUE))
+  if (length(active)) rm(list = active, envir = cienv)
+  if (exists("pretrained_model_cache", envir = cienv, inherits = FALSE)) {
+    cache <- cienv$pretrained_model_cache
+    rm(list = ls(cache, all.names = TRUE), envir = cache)
+    attr(cache, "lru") <- character()
+  }
+  gc()
+  if (exists("py_gc", envir = cienv, inherits = FALSE)) cienv$py_gc$collect()
+  invisible(NULL)
 }
 
 se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}

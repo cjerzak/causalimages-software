@@ -39,6 +39,8 @@ test_that("LocalFxnSource evaluates function bodies without parse/deparse", {
 })
 
 test_that("pretrained cache keys and activation isolate entries", {
+  old_options <- options(causalimages.pretrained_cache_size = 2L)
+  on.exit(options(old_options), add = TRUE)
   ci_ns <- asNamespace("causalimages")
   ci_env <- get("cienv", envir = ci_ns)
   cache_key <- get("ci_pretrained_cache_key", envir = ci_ns)

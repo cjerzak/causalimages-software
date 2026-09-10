@@ -22,18 +22,13 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
     ds_next_ <- try(iterator$get_next(),T) 
     
     if(!"try-error" %in% class(ds_next_)){
-      # setup normalizations
-      ApplyAxis <- ifelse(dataType == "video", yes = 5, no = 4)
-      
-      # sanity check 
-      # causalimages::image2( cienv$np$array((ds_next_train[[1]])[2,,,1] ) 
-      
-      # update normalizations
-      NORM_SD <- rbind(NORM_SD, apply(cienv$np$array(ds_next_[[1]]),ApplyAxis,sd))
-      NORM_MEAN <- rbind(NORM_MEAN, apply(cienv$np$array(ds_next_[[1]]),ApplyAxis,mean))
+      moments <- ci_runtime()$channel_moments(ds_next_[[1]])
+      NORM_MEAN <- rbind(NORM_MEAN, as.numeric(moments[[1]]))
+      NORM_SD <- rbind(NORM_SD, as.numeric(moments[[2]]))
     }
   }
 
+  if (is.null(NORM_MEAN)) stop("No batches available for normalization", call. = FALSE)
   # mean calc 
   NORM_MEAN_mat <- NORM_MEAN      # same shape
   NORM_MEAN <- apply(NORM_MEAN,2,mean) # overall mean across all batches
@@ -45,7 +40,7 @@ GetMoments <- function(iterator, dataType, image_dtype, momentCalIters = 34L){
   #combine information to get 
   m <- nrow(NORM_SD_mat)
   W <- colMeans(NORM_SD_mat^2)        # average within‐batch variance
-  B <- apply(NORM_MEAN_mat,2,var)     # variance of the batch means
+  B <- if (m > 1L) apply(NORM_MEAN_mat,2,var) else rep(0, ncol(NORM_MEAN_mat))
   T_var <- W + (1 + 1/m) * B          # total variance
   NORM_SD <- sqrt(T_var)              # combined SD
   # plot(apply(NORM_SD_mat,2,median),NORM_SD);abline(a=0,b=1)

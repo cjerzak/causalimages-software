@@ -45,40 +45,46 @@ test_that("AnalyzeImageHeterogeneity scores transportability keys from tfrecord"
     stringsAsFactors = FALSE
   )
 
-  hetero_fit <- causalimages::AnalyzeImageHeterogeneity(
-    obsW = obsW[train_indices],
-    obsY = obsY[train_indices],
-    imageKeysOfUnits = train_keys,
-    file = tfrecord_path,
-    kClust_est = 1L,
-    plotResults = FALSE,
-    optimizeImageRep = FALSE,
-    imageModelClass = "VisionTransformer",
-    nDepth_ImageRep = 1L,
-    nWidth_ImageRep = 16L,
-    nWidth_Dense = 16L,
-    batchSize = 4L,
-    nSGD = 2L,
-    nMonte_predictive = 2L,
-    nMonte_salience = 1L,
-    nMonte_variational = 1L,
-    transportabilityMat = transportabilityMat,
-    image_dtype = "float32",
-    seed = 1234L
-  )
+  for (clusters in c(1L, 2L)) {
+    expect_warning(hetero_fit <- causalimages::AnalyzeImageHeterogeneity(
+      obsW = obsW[train_indices],
+      obsY = obsY[train_indices],
+      imageKeysOfUnits = train_keys,
+      file = tfrecord_path,
+      kClust_est = clusters,
+      plotResults = FALSE,
+      optimizeImageRep = clusters > 1L,
+      imageModelClass = "VisionTransformer",
+      nDepth_ImageRep = 1L,
+      nWidth_ImageRep = 16L,
+      nWidth_Dense = 16L,
+      batchSize = 4L,
+      nSGD = 2L,
+      nMonte_predictive = 2L,
+      nMonte_salience = 1L,
+      nMonte_variational = if (clusters == 1L) 1L else 3L,
+      transportabilityMat = transportabilityMat,
+      image_dtype = "float32",
+      seed = 1234L
+    ), "nSGD = 2 is low")
 
-  expect_equal(nrow(hetero_fit$transportabilityMat), nrow(transportabilityMat))
-  expect_true(all(c("mean_k1", "var_k1") %in% colnames(hetero_fit$transportabilityMat)))
-  expect_false(anyNA(hetero_fit$transportabilityMat$mean_k1))
-  expect_false(anyNA(hetero_fit$transportabilityMat$var_k1))
-  expect_equal(
-    hetero_fit$transportabilityMat$mean_k1[1],
-    hetero_fit$transportabilityMat$mean_k1[nrow(hetero_fit$transportabilityMat)],
-    tolerance = 1e-6
-  )
-  expect_equal(
-    hetero_fit$transportabilityMat$var_k1[1],
-    hetero_fit$transportabilityMat$var_k1[nrow(hetero_fit$transportabilityMat)],
-    tolerance = 1e-6
-  )
+    expect_true(all(is.finite(hetero_fit$loss_vec)))
+    expect_equal(dim(hetero_fit$clusterProbs_mean), c(length(train_keys), clusters))
+    expect_equal(rowSums(hetero_fit$clusterProbs_mean), rep(1, length(train_keys)), tolerance = 1e-6)
+
+    expect_equal(nrow(hetero_fit$transportabilityMat), nrow(transportabilityMat))
+    expect_true(all(c("mean_k1", "var_k1") %in% colnames(hetero_fit$transportabilityMat)))
+    expect_false(anyNA(hetero_fit$transportabilityMat$mean_k1))
+    expect_false(anyNA(hetero_fit$transportabilityMat$var_k1))
+    expect_equal(
+      hetero_fit$transportabilityMat$mean_k1[1],
+      hetero_fit$transportabilityMat$mean_k1[nrow(hetero_fit$transportabilityMat)],
+      tolerance = 1e-6
+    )
+    expect_equal(
+      hetero_fit$transportabilityMat$var_k1[1],
+      hetero_fit$transportabilityMat$var_k1[nrow(hetero_fit$transportabilityMat)],
+      tolerance = 1e-6
+    )
+  }
 })

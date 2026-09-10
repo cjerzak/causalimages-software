@@ -143,7 +143,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                    conda_env_required = conda_env_required,
                    Sys.setenv_text = Sys.setenv_text)
   }
-  ci_ensure_oryx()
+  oryx <- ci_ensure_oryx()
+  tfd <- oryx$distributions
   
   {
     # image dtype management
@@ -198,7 +199,10 @@ AnalyzeImageHeterogeneity <- function(obsW,
     message(sprintf("Temporarily re-setting the wd to %s", new_wd ) )
     changed_wd <- T; setwd( new_wd )
     on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
-    tf_dataset_master <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    tf_dataset_master <- cienv$tf$data$TFRecordDataset(normalizePath(tf_record_name[length(tf_record_name)], mustWork = TRUE))
+    tf_dataset_master <- ci_runtime()$restrict_tfrecord_keys(
+      tf_dataset_master, as.list(unique(as.character(imageKeysOfUnits)))
+    )
 
     # helper functions
     useVideoIndicator <- (dataType == "video")
@@ -216,21 +220,17 @@ AnalyzeImageHeterogeneity <- function(obsW,
         tf_dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, 
                                                                      readVideo = useVideoIndicator, 
                                                                      image_dtype = image_dtype_tf)},
-                        num_parallel_calls = cienv$tf$data$AUTOTUNE) 
+                        num_parallel_calls = as.integer(ci_memory_option("input_threads", 2L)))
         return(  tf_dataset ) 
       }
       getParsed_tf_dataset_train_Shuffle <- function( tf_dataset ){
-        tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                            dtype=cienv$tf$int64),
-                                         reshuffle_each_iteration = FALSE )
+        tf_dataset <- ci_bounded_shuffle(tf_dataset, ai(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = FALSE)
         return(tf_dataset)
       }
       getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-        tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(ai(TfRecords_BufferScaler*batchSize),
-                                                                            dtype=cienv$tf$int64),
-                                         reshuffle_each_iteration = TRUE ) 
+        tf_dataset <- ci_bounded_shuffle(tf_dataset, ai(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = TRUE)
         tf_dataset <- tf_dataset$batch(  ai(batchSize)   )
-        tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        tf_dataset <- ci_bounded_prefetch(tf_dataset)
         return( tf_dataset )
       }
     }
@@ -256,9 +256,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
   # reset inference iterator 
   ds_iterator_inference <- reticulate::as_iterator( tf_dataset_inference )
   
-  # clear memory 
-  rm(  tmp  ) 
-
   if(useTrainingPerturbations){
     trainingPerturbations_OneObs <- function(im_, key){
       # key <- cienv$jax$random$key(c(sample(1:100,1)))
@@ -391,7 +388,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             pretrainedModel = pretrainedModel,
             kernelSize = kernelSize,
             TfRecords_BufferScaler = 3L,
-            imageKeysOfUnits = imageKeysOfUnits[tmp_i <- sample(1:length(imageKeysOfUnits),2*batchSize)],
+            imageKeysOfUnits = imageKeysOfUnits[tmp_i <- sample(seq_along(imageKeysOfUnits), min(length(imageKeysOfUnits), 2*batchSize))],
             lat = lat[tmp_i],
             long = long[tmp_i],
             image_dtype = image_dtype,
@@ -401,6 +398,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
             bn_momentum = bn_momentum,
             seed = seed + ai(trainCounter) # seed
             ); setwd(new_wd)
+            representation_stochastic <- isTRUE(ImageRepresentations$stochasticRepresentation)
+            representation_width <- ncol(ImageRepresentations$ImageRepresentations)
             ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
             ImageRepArm_OneObs <- ImageRepresentations[["ImageRepArm_OneObs"]]
             ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
@@ -543,7 +542,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
           for(arm_ in c("Tau","EY0")){
             for(dense_ in 1L:nDepth_Dense){
                   # arm_ <- "Tau"; dense_ <- 1L
-                  InputDim <- ai( ifelse(dense_==1, yes = nWidth_ImageRep, no = nWidth_Dense) )
+                  InputDim <- ai( ifelse(dense_==1, yes = representation_width, no = nWidth_Dense) )
                   HiddenDim <- ai( ifelse(dense_ < nDepth_Dense, 
                                           yes = ai( nWidth_Dense*(HiddenWidthDense <- 3.) ), 
                                           no = nWidth_ImageRep) )
@@ -566,7 +565,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                                       'FFWide2Bias' = cienv$jnp$array(matrix(stats::rnorm(HiddenDim,sd=0, mean = 0), nrow = HiddenDim)),
 
                                                       'FFNarrow'=cienv$jnp$array(matrix(stats::rnorm(LeftNarrowProjDim*OutputDim)*sqrt(2/InputDim), nrow = LeftNarrowProjDim)), # output proj wts
-                                                      'FFNarrowBias'=cienv$jnp$array(matrix(stats::rnorm(OutputDim,sd=0, mean = 0), ncol = OutputDim))
+                                                      'FFNarrowBias'=cienv$jnp$array(matrix(stats::rnorm(OutputDim,sd=0, mean = 0), nrow = 1L, ncol = OutputDim))
                                                        ),
                                           'ResidProj' = cienv$jnp$array(matrix(stats::rnorm(InputDim*OutputDim)*sqrt(2/InputDim), nrow = InputDim)), # resid proj wts
                                           'ResidBias' = cienv$jnp$array(matrix(stats::rnorm(InputDim*OutputDim,sd=0, mean = 0), ncol = OutputDim)),
@@ -608,11 +607,15 @@ AnalyzeImageHeterogeneity <- function(obsW,
             SDDist_Y1[k_,"Prior"][[1]] <- list( oryx$distributions$Normal(cnst(Y1_sd_priorMean),cnst(2*stats::sd(Y1_sd_vec))))
           }
         }
-        MeanDist_tau <- unlist(  MeanDist_tau  )
-        SDDist_Y1 <- unlist(  SDDist_Y1  )  ;  SDDist_Y0 <- unlist(  SDDist_Y0  )
-        names(MeanDist_tau) <- paste("Tau_", names(MeanDist_tau), sep = "")
-        names(SDDist_Y0) <- paste("Y0_", names(SDDist_Y0),sep = "")
-        names(SDDist_Y1) <- paste("Y1_", names(SDDist_Y1),sep = "")
+        flatten_causal_params <- function(x, prefix) {
+          out <- unlist(x)
+          names(out) <- paste0(prefix, "_", rep(names(x), each = nrow(x)),
+                               rep(seq_len(nrow(x)), times = ncol(x)))
+          out
+        }
+        MeanDist_tau <- flatten_causal_params(MeanDist_tau, "Tau")
+        SDDist_Y0 <- flatten_causal_params(SDDist_Y0, "Y0")
+        SDDist_Y1 <- flatten_causal_params(SDDist_Y1, "Y1")
         CausalList <- c(MeanDist_tau, SDDist_Y0, SDDist_Y1)
         PriorCausalList <- CausalList[ grepl(names(CausalList),pattern = "Prior") ]
         CausalList <- CausalList[ !grepl(names(CausalList),pattern = "Prior") ]
@@ -665,7 +668,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
             return( oryx$distributions$RelaxedOneHotCategorical(
                       temperature = c2f(temperature),
                       logits =  logits_ 
-                      )$sample(seed = cienv$jnp$add(452L, seed_)) )
+                      )$sample(seed = ci_fold_keys(seed_, 452L)) )
           }
           if(grepl(heterogeneityModelType, pattern = "variational_minimal")){
             GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
@@ -676,17 +679,16 @@ AnalyzeImageHeterogeneity <- function(obsW,
               clustT <- getClusterSamp_logitInput(Clust_logits, seed)
               ETau_draw <-  oryx$distributions$Normal(
                               c2f(getTau_means(ModelList)),
-                        cienv$jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = cienv$jnp$add(10L,seed))
+                        cienv$jax$nn$softplus(c2f(getTau_sds(ModelList))))$sample(seed = ci_fold_keys(seed, 10L))
               Etau_ <- cienv$jnp$sum( ETau_draw*clustT, axis = 1L, keepdims=T)
               return( EY0 + Etau_ )
             }
           }
-          getTau_means <- function(ModelList){ return(  cienv$jnp$stack(list(ModelList$Tau_Mean1, ModelList$Tau_Mean2 )) )  }
-          getTau_sds <- function(ModelList){ return(  cienv$jnp$stack(list( ModelList$Tau_SD1, ModelList$Tau_SD2 )) )  }
+          getTau_means <- function(ModelList) cienv$jnp$stack(lapply(seq_len(kClust_est), function(k) ModelList[[paste0("Tau_Mean", k)]]))
+          getTau_sds <- function(ModelList) cienv$jnp$stack(lapply(seq_len(kClust_est), function(k) ModelList[[paste0("Tau_SD", k)]]))
         }
         getSDY_params <- function(ModelList, qname, pname){ return(
-          cienv$jnp$stack(list(LE(ModelList, sprintf("%s_%s1", qname, pname)),
-                         LE(ModelList, sprintf("%s_%s2", qname, pname)) )) ) }
+          cienv$jnp$stack(lapply(seq_len(kClust_est), function(k) LE(ModelList, sprintf("%s_%s%s", qname, pname, k)))) ) }
         if(grepl(heterogeneityModelType, pattern = "tarnet")){
           GetEY1_batch <-  function(ModelList, ModelList_fixed, m, vseed, StateList, seed, MPList, inference){
             EY0 <- GetEY0_batch(ModelList, ModelList_fixed,
@@ -697,14 +699,21 @@ AnalyzeImageHeterogeneity <- function(obsW,
           }
         }
     
+        GetImageBatch <- function(ModelList, ModelList_fixed, m, vseed, StateList, MPList, inference) {
+          ImageRepArm_batch_R(
+            if (optimizeImageRep) ModelList else ModelList_fixed,
+            m, cienv$jnp$zeros(list(m$shape[[1]], 1L), dtype = m$dtype),
+            StateList, vseed, MPList, inference
+          )
+        }
+
         GetLikelihoodDraw_batch <- function(
                                             ModelList, ModelList_fixed,
                                             m, treat, y, vseed,
-                                            StateList, seed, MPList, inference){
-          if(SharedImageRepresentation){
+                                            StateList, seed, MPList, inference, representation_prepared = FALSE){
+          if(SharedImageRepresentation && !representation_prepared){
             message("Getting image representation in GetLikelihoodDraw_batch()...")
-            m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                    m, StateList, seed, MPList, inference)
+            m <- GetImageBatch(ModelList, ModelList_fixed, m, vseed, StateList, MPList, inference)
             StateList <- m[[2]]; m <- m[[1]]
           }
           
@@ -727,24 +736,24 @@ AnalyzeImageHeterogeneity <- function(obsW,
             # note: use vseed if vmapping and seed if pre-batched
             ETau_draw <- oryx$distributions$Normal(
               c2f(getTau_means( ModelList )),
-              cienv$jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = cienv$jnp$add(seed,111L) )
+              cienv$jax$nn$softplus( c2f(getTau_sds( ModelList ) )))$sample( seed = ci_fold_keys(seed, 111L) )
             ETau_draw <- MPList[[1]]$cast_to_compute( ETau_draw )
       
             # get SD draws
             EY0Uncert_draw <- oryx$distributions$Normal(
                             c2f( getSDY_params(ModelList,"Y0", "Mean") ),
-                           cienv$jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = cienv$jnp$add(seed,324L) )
+                           cienv$jax$nn$softplus( c2f(getSDY_params(ModelList, "Y0","SD") ) ))$sample(  seed = ci_fold_keys(seed, 324L) )
             EY0Uncert_draw <- MPList[[1]]$cast_to_compute( cienv$jax$nn$softplus( EY0Uncert_draw ) )
       
             EY1Uncert_draw <- oryx$distributions$Normal(
                             c2f( getSDY_params(ModelList, "Y1", "Mean")) ,
-              cienv$jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = cienv$jnp$add(seed,3234L))
+              cienv$jax$nn$softplus( c2f(getSDY_params(ModelList, "Y1", "SD"))) )$sample(seed = ci_fold_keys(seed, 3234L))
             EY1Uncert_draw <- MPList[[1]]$cast_to_compute( cienv$jax$nn$softplus( EY1Uncert_draw ) )
       
             # setup likelihood
-            Etau_ <- cienv$jnp$sum( cienv$jnp$multiply(ETau_draw, clustT), keepdims=F)
-            EY0Uncert_draw <- cienv$jnp$sum(cienv$jnp$multiply( EY0Uncert_draw, clustT),keepdims=F)
-            EY1Uncert_draw <- cienv$jnp$sum(cienv$jnp$multiply( EY1Uncert_draw, clustT),keepdims=F)
+            Etau_ <- cienv$jnp$sum(cienv$jnp$multiply(ETau_draw, clustT), axis = -1L, keepdims = TRUE)
+            EY0Uncert_draw <- cienv$jnp$sum(cienv$jnp$multiply(EY0Uncert_draw, clustT), axis = -1L, keepdims = TRUE)
+            EY1Uncert_draw <- cienv$jnp$sum(cienv$jnp$multiply(EY1Uncert_draw, clustT), axis = -1L, keepdims = TRUE)
           } 
           
           #Y_Sigma <- ( cnst(1) - treat) * EY0Uncert_draw  + treat * EY1Uncert_draw 
@@ -796,20 +805,23 @@ AnalyzeImageHeterogeneity <- function(obsW,
         GetExpectedLikelihood <-  function(ModelList, ModelList_fixed,
                                             m, treat, y, vseed,
                                             StateList, seed, MPList, inference){
-          Elik <- cienv$jnp$zeros(list(), dtype = ComputeDtype)
-          for(mi_ in 1L:nMonte_variational){ # this should be vmapped 
-            LikContrib <-  GetLikelihoodDraw_batch(ModelList, ModelList_fixed,
-                                                    m, treat, y, cienv$jnp$add(vseed, mi_),
-                                                    StateList, cienv$jnp$add(seed, mi_), MPList, inference)
-            StateList <- LikContrib[[2]]; LikContrib <- LikContrib[[1]]
-            Elik <- Elik + LikContrib / cienv$jnp$array(f2n(nMonte_variational), ComputeDtype)
+          prepared <- SharedImageRepresentation && !representation_stochastic
+          if (prepared) {
+            represented <- GetImageBatch(ModelList, ModelList_fixed, m, ci_fold_keys(vseed, 1L), StateList, MPList, inference)
+            m <- represented[[1]]; StateList <- represented[[2]]
           }
-          return( list(Elik, StateList) )
+          draw <- function(state_in, index) {
+            GetLikelihoodDraw_batch(ModelList, ModelList_fixed, m, treat, y,
+              ci_fold_keys(vseed, index), state_in, ci_fold_keys(seed, index), MPList,
+              inference, representation_prepared = prepared)
+          }
+          ci_runtime()$expected_draws(draw, as.integer(nMonte_variational), StateList)
         }
-    
+
         GetLoss <- function(ModelList, ModelList_fixed,
                             m, x, treat, y, vseed,
-                            StateList, seed, MPList, inference){
+                            StateList, MPList, inference){
+            seed <- cienv$jnp$take(vseed, 0L, axis = 0L)
             ModelList <- MPList[[1]]$cast_to_compute( ModelList )
             ModelList_fixed <- MPList[[1]]$cast_to_compute( ModelList_fixed )
             m <- MPList[[1]]$cast_to_compute( m )
@@ -844,7 +856,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
     
         # set state and model lists
         gc(); cienv$py_gc$collect()
-        GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         if(!optimizeImageRep){
           ModelList <- c(DenseList, CausalList)
           ModelList_fixed <- ImageModel_And_State_And_MPPolicy_List[[1]]
@@ -898,38 +909,27 @@ AnalyzeImageHeterogeneity <- function(obsW,
           m <- MPList[[1]]$cast_to_compute( m )
           StateList <- MPList[[1]]$cast_to_compute( StateList )
         
-          # image representation model
-          if(SharedImageRepresentation){
-            m <- ImageRepArm_batch_R(ifelse(optimizeImageRep, yes = list(ModelList), no = list(ModelList_fixed))[[1]],
-                                              m, StateList, seed, MPList, T)
-            StateList <- m[[2]] ; m <- m[[1]]
+          if (SharedImageRepresentation) {
+            represented <- GetImageBatch(ModelList, ModelList_fixed, m, vseed, StateList, MPList, TRUE)
+            m <- represented[[1]]; StateList <- represented[[2]]
           }
-          y0_ <- sapply(1L:nMonte_predictive, function(iter){ list(cienv$jnp$expand_dims(
-                           GetEY0_batch(ModelList, ModelList_fixed,
-                                        m,  cienv$jnp$add(vseed,iter), StateList, cienv$jnp$add(seed,iter), MPList, T)[[1]], 0L)) })
-          y1_ <- sapply(1L:nMonte_predictive, function(iter){ list(cienv$jnp$expand_dims(
-                          GetEY1_batch(ModelList, ModelList_fixed,
-                                        m, cienv$jnp$add(vseed,iter), StateList, cienv$jnp$add(seed,iter), MPList, T), 0L)) })
-          y0_ <- cienv$jnp$concatenate(y0_,0L); y0_ <- cienv$jnp$mean(y0_,0L)
-          y1_ <- cienv$jnp$concatenate(y1_,0L); y1_ <- cienv$jnp$mean(y1_,0L)
-    
-          # get predictions
-          ClusterProbs_est_ <- cienv$jnp$concatenate(sapply(1L:nMonte_predictive,function(iter){
-                              cienv$jnp$expand_dims(cienv$jax$nn$softmax(
-                                      GetTau_batch(ModelList, ModelList_fixed,
-                                                   m, cienv$jnp$add(vseed,iter),
-                                                   StateList, cienv$jnp$add(seed,iter), MPList, T)[[1]]), 0L) } ),0L)
-          ClusterProbs_std_ <- cienv$jnp$std(ClusterProbs_est_,0L)
-          ClusterProbs_est_ <- cienv$jnp$mean(ClusterProbs_est_,0L)
-          ClusterProbs_lower_conf_ <- ClusterProbs_est_ - ClusterProbs_std_
-    
-          return( list("y0_"=y0_, 
-                       "y1_"=y1_,
-                      "ClusterProbs_est_"=ClusterProbs_est_,
-                      "ClusterProbs_lower_conf_"=ClusterProbs_lower_conf_,
-                      "ClusterProbs_std_"=ClusterProbs_std_) )
+          draw <- function(index) {
+            keys <- ci_fold_keys(vseed, index)
+            draw_seed <- ci_fold_keys(seed, index)
+            list(
+              y0 = GetEY0_batch(ModelList, ModelList_fixed, m, keys, StateList, draw_seed, MPList, TRUE)[[1]],
+              y1 = GetEY1_batch(ModelList, ModelList_fixed, m, keys, StateList, draw_seed, MPList, TRUE),
+              probs = cienv$jax$nn$softmax(GetTau_batch(ModelList, ModelList_fixed, m, keys, StateList, draw_seed, MPList, TRUE)[[1]])
+            )
+          }
+          moments <- ci_runtime()$streaming_moments(draw, as.integer(nMonte_predictive))
+          means <- moments[[1]]; variances <- moments[[2]]
+          probs_sd <- cienv$jnp$sqrt(variances$probs)
+          list(y0_ = means$y0, y1_ = means$y1, ClusterProbs_est_ = means$probs,
+               ClusterProbs_lower_conf_ = means$probs - probs_sd,
+               ClusterProbs_std_ = probs_sd, ClusterProbs_var_ = variances$probs)
         })
-    
+
         inference_counter <- 0; nUniqueKeys <- length(unique(imageKeysOfUnits))
         KeyQuantCuts <- gtools::quantcut(1:nUniqueKeys, q = ceiling( nUniqueKeys / (batchSize*0.5) ))
         #passedIterator <- NULL; Results_by_keys <- replicate(nUniqueKeys,list());for(zer in 1:nUniqueKeys){ # use when incorporating X's
@@ -955,14 +955,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
               # deal with batch 1 case here
               if(length(ds_next_in[[1]]$shape) == 3 & dataType == "image"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
               if(length(ds_next_in[[1]]$shape) == 4 & dataType == "video"){ ds_next_in[[1]] <- cienv$tf$expand_dims(ds_next_in[[1]], 0L) }
-              ds_next_in <- ds_next_in[[1]]
+              ds_next_in <- cienv$jnp$array(ds_next_in[[1]])
           }
     
           # get summaries and save
           GottenSummaries <- GetSummaries(ModelList, ModelList_fixed,
-                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$random(ai(stats::runif(1,0, 10000))), inference = T),
-                                          cienv$jax$random$split(cienv$jax$random$random(ai(stats::runif(1,0, 10000))), ds_next_in$shape[[1]]),
-                                          StateList, cienv$jax$random$random(ai(stats::runif(1,0,100000))), MPList)
+                                          InitImageProcessFn(cienv$jnp$array(ds_next_in),  cienv$jax$random$key(ai(stats::runif(1,0, 10000))), inference = T),
+                                          cienv$jax$random$split(cienv$jax$random$key(ai(stats::runif(1,0, 10000))), ds_next_in$shape[[1]]),
+                                          StateList, cienv$jax$random$key(ai(stats::runif(1,0,100000))), MPList)
 
           ret_list <- list("y0_" = as.matrix2(GottenSummaries$y0_),
                            "y1_" = as.matrix2(GottenSummaries$y1_),
@@ -1050,7 +1050,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
     ClusterProbs_std <- Results_by_keys$ClusterProbs_std_
     
     ClusterProbs_est_full <-  as.matrix(Results_by_keys$ClusterProbs_est_)
-    ClusterProbs_est <- ClusterProbs_est_full[,2]
+    ClusterProbs_est <- ClusterProbs_est_full[, min(2L, ncol(ClusterProbs_est_full))]
     Clust_probs_marginal_final <- colMeans( ClusterProbs_est_full )
     gc(); cienv$py_gc$collect()
 
@@ -1061,8 +1061,8 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                 cienv$jax$nn$softplus(getSDY_params(ModelList, "Y1", "SD")))
     SDDist_Y0_post <- oryx$distributions$Normal(getSDY_params(ModelList, "Y0", "Mean"),
                                  cienv$jax$nn$softplus(getSDY_params(ModelList, "Y0", "SD")))
-    Sigma1_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y1_post$sample(100L, seed = cienv$jax$random$random(4L))),0L))
-    Sigma0_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y0_post$sample(100L, seed = cienv$jax$random$random(4L))),0L))
+    Sigma1_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y1_post$sample(100L, seed = cienv$jax$random$key(4L))),0L))
+    Sigma0_sd_vec <- as.numeric2(cienv$jnp$mean(cienv$jax$nn$softplus(SDDist_Y0_post$sample(100L, seed = cienv$jax$random$key(4L))),0L))
 
     # get uncertainties
     if(  grepl(heterogeneityModelType, pattern="variational_minimal")  ){
@@ -1072,7 +1072,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       doMean = F)
       MeanDist_Tau_post = (oryx$distributions$Normal(Tau_mean_vec, Tau_sd_vec <- cienv$jax$nn$softplus(getTau_sds(ModelList))))
       Tau_sd_vec_ <- as.numeric2(cienv$tf$sqrt(cienv$tf$math$reduce_variance(MeanDist_Tau_post$sample(
-                              100L, seed = cienv$jax$random$random(45L)),0L)))
+                              100L, seed = cienv$jax$random$key(45L)),0L)))
       Tau_sd_vec <- Y_sd*sqrt(   Sigma1_sd_vec^2 + Sigma0_sd_vec^2 + Tau_sd_vec_^2 )
     }
   }
@@ -1085,8 +1085,6 @@ AnalyzeImageHeterogeneity <- function(obsW,
       if(!"key" %in% names(transportabilityMat)){
         stop("transportabilityMat must contain a column named 'key'.", call. = FALSE)
       }
-      if(grepl(heterogeneityModelType, pattern = "variational")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( cienv$jax$nn$softmax(GetTau(m,inference = T)),0L) }}
-      if(grepl(heterogeneityModelType, pattern = "tarnet")){ GetProbAndExpand <- function(m){cienv$jnp$expand_dims( GetTau(m,inference = T),0L) }}
       transport_keys <- as.character(transportabilityMat$key)
       unique_transport_keys <- unique(transport_keys)
       tfrecord_key_info <- ci_tfrecord_key_index_map(file)
@@ -1134,13 +1132,14 @@ AnalyzeImageHeterogeneity <- function(obsW,
         if(!identical(as.character(batch_keys), as.character(batch_lookup$key))){
           stop("Key pairing mismatch in transportability analysis; check tfrecord key ordering.", call. = FALSE)
         }
-        im_keys <-  InitImageProcessFn( cienv$jnp$array(ds_next_in),  cienv$jax$random$random(600L), inference = T)
-        pred_ <- replicate(nMonte_predictive,cienv$np$array(GetProbAndExpand(im_keys) ))
-        list(
-          "key" = batch_lookup$key,
-          "mean" = apply(pred_[1,,,],1:2,mean),
-          "var" = apply(pred_[1,,,],1:2,var)
-        )
+        prediction_seed <- ci_jax_key(seed, offset = 600L + start_idx)
+        im_keys <- InitImageProcessFn(cienv$jnp$array(ds_next_in), prediction_seed, inference = TRUE)
+        summaries <- GetSummaries(ModelList, ModelList_fixed, im_keys,
+          cienv$jax$random$split(prediction_seed, length(batch_keys)), StateList, prediction_seed, MPList)
+        variance_scale <- if (nMonte_predictive > 1L) nMonte_predictive / (nMonte_predictive - 1L) else 0
+        list(key = batch_lookup$key,
+             mean = cienv$np$array(summaries$ClusterProbs_est_),
+             var = cienv$np$array(summaries$ClusterProbs_var_) * variance_scale)
       })
       cluster_prob_transport_means <- do.call(rbind, lapply(cluster_prob_transport_info, function(x){ x$mean }))
       cluster_prob_transport_var <- do.call(rbind, lapply(cluster_prob_transport_info, function(x){ x$var }))

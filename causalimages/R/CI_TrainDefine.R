@@ -9,6 +9,7 @@
 #' @import reticulate rrapply
 #' @noRd
 TrainDefine <- function(){
+  if (!exists("earlyStopThreshold", inherits = FALSE)) earlyStopThreshold <- NULL
   message2("Define optimizer and training step...") 
   {
     LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(
@@ -25,14 +26,16 @@ TrainDefine <- function(){
     plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))), xlab = "Iteration", ylab = "Learning rate")
     
     # model partition, setup state, perform parameter count
-    opt_state <- optax_optimizer$init(   cienv$eq$partition(ModelList, cienv$eq$is_array)[[1]] )
     message2(sprintf("Total trainable parameter count: %s", 
                     nParamsRep <- nTrainable <- 
                       sum(unlist(lapply(cienv$jax$tree$leaves(cienv$eq$partition(ModelList, 
                                          cienv$eq$is_array)[[1]]), function(zer){zer$size})))))
     
-    # jit update fxns
-    jit_apply_updates <- cienv$eq$filter_jit( cienv$optax$apply_updates )
-    jit_get_update <- cienv$eq$filter_jit( optax_optimizer$update )
+    TrainStep <- ci_runtime()$TrainingStep(
+      GetLoss, optax_optimizer, loss_scaling = identical(image_dtype_char, "float16")
+    )
+    training_state <- TrainStep$init(ModelList, StateList, MPList[[2]])
+    # The compiled step owns these buffers from here until training completes.
+    ModelList <- StateList <- NULL
   }
 }

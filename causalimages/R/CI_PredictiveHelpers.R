@@ -55,7 +55,7 @@ ci_tfrecord_key_index_map <- function(filename) {
   on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
   setwd(tf_path$workdir)
 
-  dataset <- cienv$tf$data$TFRecordDataset(tf_path$basename)
+  dataset <- cienv$tf$data$TFRecordDataset(normalizePath(tf_path$basename, mustWork = TRUE))
   dataset <- dataset$map(function(x) {
     parse_tfr_key_element(x)
   })
@@ -212,7 +212,7 @@ ci_predictive_build_dense_modules <- function(config, x_ncol, XisNull, seed_base
   for (d_ in seq_len(config$nDepth_Dense)) {
     in_features <- ifelse(
       d_ == 1L,
-      yes = config$nWidth_ImageRep + ifelse(XisNull, yes = 0L, no = x_ncol * (!config$XCrossModal)),
+      yes = (if (is.null(config$representation_width)) config$nWidth_ImageRep else config$representation_width) + ifelse(XisNull, yes = 0L, no = x_ncol * (!config$XCrossModal)),
       no = config$nWidth_Dense
     )
     out_features <- ifelse(d_ == config$nDepth_Dense, yes = 1L, no = config$nWidth_Dense)
@@ -304,7 +304,8 @@ ci_predictive_build_template_bundle <- function(
     conda_env = conda_env,
     conda_env_required = conda_env_required,
     Sys.setenv_text = Sys.setenv_text,
-    seed = ci_seed_int32(config$seed_template, label = "Predictive template seed")
+    seed = ci_seed_int32(config$seed_template, label = "Predictive template seed"),
+    modelStructureVersion = if (is.null(config$model_structure_version)) 1L else config$model_structure_version
   )
 
   dense_modules <- ci_predictive_build_dense_modules(
@@ -581,7 +582,8 @@ ci_predictive_make_manifest <- function(
       x_ncol = as.integer(x_ncol),
       training_has_X = isTRUE(training_has_X),
       package_version = as.character(utils::packageVersion("causalimages")),
-      artifact_version = "predictive-v1"
+      artifact_version = "predictive-v2",
+      model_structure_version = 2L
     )
   )
 }

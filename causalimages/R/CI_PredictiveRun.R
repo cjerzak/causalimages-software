@@ -217,7 +217,7 @@ PredictiveRun <- function(
     useVideoIndicator <- dataType == "video"
     
     # define tf record 
-    tf_dataset <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    tf_dataset <- cienv$tf$data$TFRecordDataset(normalizePath(tf_record_name[length(tf_record_name)], mustWork = TRUE))
     
     # helper functions
     getParsed_tf_dataset_inference <- function(tf_dataset){
@@ -233,14 +233,12 @@ PredictiveRun <- function(
         return( tf_dataset$map( function(x){ parse_tfr_element(x, 
                                                                readVideo = useVideoIndicator, 
                                                                image_dtype = image_dtype_tf)},
-                                num_parallel_calls = cienv$tf$data$AUTOTUNE) ) 
+                                num_parallel_calls = as.integer(ci_memory_option("input_threads", 2L))) )
       }
       getParsed_tf_dataset_train_BatchAndShuffle <- function( tf_dataset ){
-        tf_dataset <- tf_dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize),
-                                                                         dtype=cienv$tf$int64),
-                                         reshuffle_each_iteration = T) 
+        tf_dataset <- ci_bounded_shuffle(tf_dataset, as.integer(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = T)
         tf_dataset <- tf_dataset$batch(  as.integer(batchSize)   )
-        tf_dataset <- tf_dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        tf_dataset <- ci_bounded_prefetch(tf_dataset)
         return( tf_dataset )
       }
       tf_dataset_train <- getParsed_tf_dataset_train_Select(
@@ -252,18 +250,15 @@ PredictiveRun <- function(
     if(is.null(TFRecordControl)){
       getParsed_tf_dataset_train <- function( tf_dataset ){
         dataset <- tf_dataset$map( function(x){ parse_tfr_element(x, readVideo = useVideoIndicator, image_dtype = image_dtype_tf)},
-                                   num_parallel_calls = cienv$tf$data$AUTOTUNE)
-        dataset <- dataset$shuffle(buffer_size = cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
-                                   reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
+                                   num_parallel_calls = as.integer(ci_memory_option("input_threads", 2L)))
+        dataset <- ci_bounded_shuffle(dataset, as.integer(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = FALSE) # set FALSE so same train/test split each re-initialization
         dataset <- dataset$batch(  as.integer(batchSize)   )
-        dataset <- dataset$prefetch( cienv$tf$data$AUTOTUNE ) 
+        dataset <- ci_bounded_prefetch(dataset)
         return( dataset  )
       }
       
       # shuffle (generating different train/test splits)
-      tf_dataset <- cienv$tf$data$Dataset$shuffle(  tf_dataset, 
-                                                    buffer_size = cienv$tf$constant(as.integer(10L*TfRecords_BufferScaler*batchSize),
-                                                                                    dtype=cienv$tf$int64), reshuffle_each_iteration = F )
+      tf_dataset <- ci_bounded_shuffle(tf_dataset, as.integer(10L*TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = F)
       tf_dataset_train <- getParsed_tf_dataset_train( 
         tf_dataset$skip(test_size <-  as.integer(round(testFrac * length(unique(imageKeysOfUnits)) )) ) )$`repeat`(  -1L )
       ds_iterator_train <- reticulate::as_iterator( tf_dataset_train )
@@ -400,6 +395,7 @@ PredictiveRun <- function(
     conda_env_required = conda_env_required,
     Sys.setenv_text = Sys.setenv_text,
     seed = predictive_seed_value(offset = 4003L, label = "PredictiveRun optimized representation seed")  ); setwd(new_wd)
+  representation_width <- ncol(ImageRepresentations$ImageRepresentations)
   ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
   ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
   InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
@@ -409,7 +405,7 @@ PredictiveRun <- function(
   DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
   for(d_ in 1L:nDepth_Dense){
     DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
-                                                                   yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
+                                                                   yes = (representation_width + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
                                                                    no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                                      yes = 1L,  no = nWidth_Dense),
@@ -506,7 +502,6 @@ PredictiveRun <- function(
   }
   
   gc(); cienv$py_gc$collect()
-  GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
   ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
   StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
   ModelList_fixed <- cienv$jnp$array(0.)
@@ -534,6 +529,7 @@ PredictiveRun <- function(
     pretrainedModel = pretrainedModel,
     optimizeImageRep = optimizeImageRep,
     nWidth_ImageRep = nWidth_ImageRep,
+    representation_width = representation_width,
     nDepth_ImageRep = nDepth_ImageRep,
     nWidth_Dense = nWidth_Dense,
     nDepth_Dense = nDepth_Dense,

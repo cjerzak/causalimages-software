@@ -350,6 +350,8 @@ AnalyzeImageConfounding <- function(
             X = X,
             file = file,
             dataType = dataType,
+            image_dtype = image_dtype,
+            image_dtype_tf = image_dtype_tf,
             temporalAggregation = temporalAggregation,
             InitImageProcess = InitImageProcessFn,
             NORM_MEAN = NORM_MEAN,
@@ -454,6 +456,8 @@ AnalyzeImageConfounding <- function(
               X = X,
               file = fileTransport,
               dataType = dataType,
+              image_dtype = image_dtype,
+              image_dtype_tf = image_dtype_tf,
               temporalAggregation = temporalAggregation,
               InitImageProcess = InitImageProcessFn,
               NORM_MEAN = NORM_MEAN,
@@ -506,18 +510,18 @@ AnalyzeImageConfounding <- function(
         
         # shuffle for outer CF iteration 
         if( is.null(TFRecordControl)){
-          tf_dataset_master <- cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+          tf_dataset_master <- cienv$tf$data$TFRecordDataset(tfrecord_path)
           tf_dataset_master_ <- getParsed_tf_dataset_train_Shuffle( tf_dataset_master )
         }
         
         # Define master datasets and fold splits outside the loop (after tf_dataset_master_ definition in if(crossFit))
         if( !is.null(TFRecordControl) ){
-          tf_dataset_master_control <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
+          tf_dataset_master_control <- cienv$tf$data$TFRecordDataset(tfrecord_path)$skip(
                                                         ai(TFRecordControl$nTest) )$take(
                                                                 ai(TFRecordControl$nControlTrain))
           tf_dataset_master_control_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_control)
           
-          tf_dataset_master_treated <- cienv$tf$data$TFRecordDataset(tf_record_name[length(tf_record_name)])$skip(
+          tf_dataset_master_treated <- cienv$tf$data$TFRecordDataset(tfrecord_path)$skip(
                                                   ai(TFRecordControl$nTest + TFRecordControl$nControlTrain ))$take(
                                                           ai(TFRecordControl$nTreatmentTrain))
           tf_dataset_master_treated_ <- getParsed_tf_dataset_train_Shuffle(tf_dataset_master_treated)
@@ -620,6 +624,8 @@ AnalyzeImageConfounding <- function(
         X = X,
         file = file,
         dataType = dataType,
+        image_dtype = image_dtype,
+        image_dtype_tf = image_dtype_tf,
         temporalAggregation = temporalAggregation,
         InitImageProcess = InitImageProcessFn,
         NORM_MEAN = NORM_MEAN,
@@ -649,6 +655,7 @@ AnalyzeImageConfounding <- function(
         conda_env_required = conda_env_required,
         Sys.setenv_text = Sys.setenv_text,
         seed = confounding_seed_value(offset = 4003L, label = "AnalyzeImageConfounding optimized representation seed")  ); setwd(new_wd)
+        representation_width <- ncol(ImageRepresentations$ImageRepresentations)
         ImageModel_And_State_And_MPPolicy_List <- ImageRepresentations[["ImageModel_And_State_And_MPPolicy_List"]]
         ImageRepArm_batch_R <- ImageRepresentations[["ImageRepArm_batch_R"]]
         InitImageProcessFn <-  ImageRepresentations[["InitImageProcess"]]
@@ -658,7 +665,7 @@ AnalyzeImageConfounding <- function(
         DenseList <- DenseStateList <- replicate(nDepth_Dense, list())
         for(d_ in 1L:nDepth_Dense){
           DenseProj_d <- cienv$eq$nn$Linear(in_features = ind_ <- ifelse(d_ == 1, 
-                                                          yes = (nWidth_ImageRep + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
+                                                          yes = (representation_width + ifelse(XisNull, no = ncol(X)*(!XCrossModal), yes = 0L)),
                                                           no =  nWidth_Dense),
                                       out_features = outd_ <- ifelse(d_ == nDepth_Dense,
                                                       yes = 1L,  no = nWidth_Dense),
@@ -766,7 +773,6 @@ AnalyzeImageConfounding <- function(
 
         gc(); cienv$py_gc$collect()
         message2("Set state and model lists..." ) 
-        GradAndLossAndAux <-  cienv$eq$filter_jit( cienv$eq$filter_value_and_grad( GetLoss, has_aux = T) )
         ModelList <- c(ImageModel_And_State_And_MPPolicy_List[[1]], "DenseList" = list(DenseList))
         StateList <- c(ImageModel_And_State_And_MPPolicy_List[[2]], "DenseStateList" = list(DenseStateList))
         ModelList_fixed <- cienv$jnp$array(0.)

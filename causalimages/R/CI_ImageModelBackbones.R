@@ -53,6 +53,8 @@
 #' @param bn_momentum Batch normalization momentum. Default = `0.99`.
 #' @param inputAvePoolingSize Integer specifying average pooling size for downshifting image resolution. Default = `1L`.
 #' @param CleanupEnv Boolean specifying whether to clean up environment after processing. Default = `FALSE`.
+#' @param modelStructureVersion Internal artifact structure version. New models use
+#'   `2L`; `1L` is reserved for loading older predictive artifacts.
 #' @param initializingFxns Boolean specifying whether to only initialize functions without computing representations. Default = `FALSE`.
 #' @param seed Optional integer for reproducibility.
 #'
@@ -112,7 +114,10 @@ GetImageRepresentations <- function(
     inputAvePoolingSize = 1L, # set > 1L if seeking to downshift the image resolution
     CleanupEnv = FALSE, 
     initializingFxns = FALSE, 
-    seed = NULL){
+    seed = NULL,
+    modelStructureVersion = 2L){
+  if (!modelStructureVersion %in% c(1L, 2L)) stop("Unknown model structure version")
+  legacy_structure <- identical(as.integer(modelStructureVersion), 1L)
   
   # IMPORTANT: If using a pretrained model that requires torch/transformers,
 
@@ -211,6 +216,11 @@ GetImageRepresentations <- function(
     image_dtype <- cienv$jnp$float16
     image_dtype_tf <- cienv$tf$float16
   }
+  if (is.character(image_dtype)) {
+    dtype_info <- ci_image_dtype_info(image_dtype)
+    image_dtype <- dtype_info$ComputeDtype
+    if (is.null(image_dtype_tf)) image_dtype_tf <- dtype_info$image_dtype_tf
+  }
   nScalePatches <- ai(3L^2)
   if(is.null(seed)){ seed <- as.integer(stats::runif(1,1,10^8)) }
   seed <- ci_int32_scalar(seed, "GetImageRepresentations seed")
@@ -244,7 +254,7 @@ GetImageRepresentations <- function(
     tf_record_name <- strsplit(tf_record_name,split="/")[[1]]
     setwd( new_wd <- paste(tf_record_name[-length(tf_record_name)],collapse = "/") )
     on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
-    tf_dataset = cienv$tf$data$TFRecordDataset(  tf_record_name[length(tf_record_name)] )
+    tf_dataset <- cienv$tf$data$TFRecordDataset(normalizePath(tf_record_name[length(tf_record_name)], mustWork = TRUE))
 
     # helper functions
     useVideo <- (dataType == "video")
@@ -255,8 +265,7 @@ GetImageRepresentations <- function(
 
     getParsed_tf_dataset_train <- function(tf_dataset){
       dataset <- tf_dataset$map( function(x){parse_tfr_element(x, readVideo = useVideo, image_dtype = image_dtype_tf)} ) # return
-      dataset <- dataset$shuffle(cienv$tf$constant(as.integer(TfRecords_BufferScaler*batchSize), dtype=cienv$tf$int64),
-                                 reshuffle_each_iteration = T)
+      dataset <- ci_bounded_shuffle(dataset, as.integer(TfRecords_BufferScaler*batchSize), reshuffle_each_iteration = T)
       dataset <- dataset$batch(as.integer(batchSize))
     }
 
@@ -293,7 +302,7 @@ GetImageRepresentations <- function(
   # setup jax model
   {
     message2("Setting up image representation model...")
-    MPList <- list(cienv$jmp$Policy(compute_dtype="float16",  param_dtype="float32", output_dtype="float32"),
+    MPList <- list(cienv$jmp$Policy(compute_dtype=if (legacy_structure) "float16" else image_dtype,  param_dtype="float32", output_dtype="float32"),
                    cienv$jmp$DynamicLossScale(cienv$jnp$array(2^15), period = 1000L))
 
     # coerce to integer for safety
@@ -331,7 +340,7 @@ GetImageRepresentations <- function(
     
     # define projection for cross modal attention 
     XProj <- cienv$jnp$array(1.)
-    if (!is.null(X)) { # project each feature‐vector into embedding space
+    if (!is.null(X) && (legacy_structure || is.null(pretrainedModel))) { # project each feature‐vector into embedding space
        XProj <- cienv$eq$nn$Linear(
                    in_features  = ai(ncol(X)),
                    out_features = ai(nWidth_ImageRep),
@@ -359,6 +368,10 @@ GetImageRepresentations <- function(
     if( !is.null(pretrainedModel) ){
       InitImageProcess_orig <- InitImageProcess
       InitImageProcess <- function(m, seed, inference, batch_indices = NULL){ 
+        if (!is.null(pretrained_cache_key) &&
+            !identical(cienv$active_pretrained_cache_key, pretrained_cache_key)) {
+          ci_pretrained_cache_activate(pretrained_cache_key)
+        }
         # normalize for this/these models
         if( grepl(pretrainedModel,pattern="clay")  ){ 
           m <- InitImageProcess_orig(m, cienv$jax$random$key(1L), T) 
@@ -421,7 +434,7 @@ GetImageRepresentations <- function(
           m <- cienv$TransformersProcessor(m, do_rescale = F, return_tensors="pt")['pixel_values']
           # m <- reticulate::np_array( cienv$tf$constant(m, cienv$tf$float32), dtype = cienv$np$float32)
           # m <- FeatureExtractor(images = m, return_tensors="pt", do_resize = T)["pixel_values"]$type(RunDtype)$to(RunOnDevice)
-          m <- cienv$TransformersModel$get_image_features(pixel_values = m)$cpu()$detach()$numpy() 
+          m <- ci_torch_inference(cienv$TransformersModel$get_image_features(pixel_values = m)$detach()$cpu()$numpy())
           # plot(m[,1:10])
           cienv$py_gc$collect()
         }
@@ -816,6 +829,7 @@ class CLIPImageFeatureExtractor(nn.Module):
             cienv$RunDtype <- cienv$torch$float32
             cienv$torch$set_default_dtype(cienv$RunDtype)
             cienv$ClayModel <- cienv$ClayModel$to(cienv$RunOnDevice)
+            cienv$ClayModel$eval()
             
             cienv$nParameters_Pretrained <- reticulate::as_iterator(  cienv$ClayModel$model$encoder$parameters() )
             nParameters_Pretrained_ <- 0; 
@@ -855,7 +869,7 @@ class CLIPImageFeatureExtractor(nn.Module):
               #method="bilinear")
           #}
           
-          m <- cienv$ClayModel$model$encoder(
+          m <- ci_torch_inference(cienv$ClayModel$model$encoder(
             dict("platform" = "landsat-c2l1",  # platform
                  "time" = cienv$torch$tensor( time_embed, dtype = cienv$RunDtype)$to(cienv$RunOnDevice), # temporal embedding
                  "latlon" = cienv$torch$tensor( latlong_embed, dtype = cienv$RunDtype )$to(cienv$RunOnDevice), # lat long embedding
@@ -866,9 +880,9 @@ class CLIPImageFeatureExtractor(nn.Module):
                  'waves' = cienv$torch$tensor(c(0.65, 0.56, 0.48), dtype = cienv$RunDtype)$to(cienv$RunOnDevice)  # wavelength in micrometers?, this assumes RGB
                  # 'waves' = cienv$torch$tensor(c(0.493, 0.560, 0.665), dtype = RunDtype)$to(RunOnDevice)  # wavelength in micrometers?, this assumes BGR
             )
-          )[[1]]  
+          )[[1]])
           # The first embedding is the [CLS], which is a global embedding
-          m = cienv$jnp$array(  m$cpu()$detach()$numpy()[,1,] ) 
+          m = cienv$jnp$array(  m$detach()$cpu()$numpy()[,1,] )
           # plot(cienv$np$array(m)[,sample(1:10,2)])
         }
         if( !grepl(pretrainedModel,pattern="video") & dataType == "video" ){ 
@@ -930,11 +944,11 @@ class CLIPImageFeatureExtractor(nn.Module):
             if(m_$shape[[4]] > 3L){ m_ <- cienv$jnp$take(m,0L:2L,axis=3L) }
             m_ <- cienv$jnp$transpose(  m_, c(0L,3L,1L,2L))
             #m_ <- cienv$torch$tensor( reticulate::np_array( cienv$tf$constant(m_, cienv$tf$float32), dtype = cienv$np$float32), dtype = cienv$torch$float32)
-            m_ <- cienv$torch$tensor( m, dtype = cienv$torch$float32)
+            m_ <- cienv$torch$tensor(m_, dtype = cienv$RunDtype)
             
             # run model
             # output of extractor is T by C by W by H
-            m_ <- cienv$TransformersModel(m_)$pooler_output$cpu()$detach()$numpy()
+            m_ <- ci_torch_inference(cienv$TransformersModel(m_)$pooler_output$detach()$cpu()$numpy())
             
             # save final data 
             m_rep <- rbind( m_rep, c(colMeans(m_), apply(m_, 2,sd) ))
@@ -963,6 +977,13 @@ class CLIPImageFeatureExtractor(nn.Module):
         rawShape = rawShape
       )
       ci_pretrained_cache_activate(pretrained_cache_key)
+    }
+    if (!legacy_structure && !is.null(pretrainedModel) && !grepl("-ft", pretrainedModel)) {
+      probe <- InitImageProcess(cienv$jnp$array(test_), image_seed_key(offset = 2000L),
+                                inference = TRUE, batch_indices = 1L)
+      nWidth_ImageRep <- nWidth_VideoRep <- as.integer(tail(unlist(probe$shape), 1L))
+      RotaryPositionalEmbeddings_temporal <- cienv$eq$nn$RotaryPositionalEmbedding(nWidth_VideoRep)
+      rm(probe)
     }
     
     # define a transformer backbone - background fxns 
@@ -1006,9 +1027,18 @@ class CLIPImageFeatureExtractor(nn.Module):
       return( mtm1 + m*scale_factor ) }
     }
     
+    if (isTRUE(getOption("causalimages.activation_checkpointing", TRUE))) {
+      compute_branch_attention <- cienv$eq$filter_checkpoint(compute_branch_attention)
+      compute_branch_mlp <- cienv$eq$filter_checkpoint(compute_branch_mlp)
+    }
+
     # define a transformer backbone 
     TransformerBackbone <- function(ModelList, m, x,
                                     StateList, seed, MPList, inference, type){
+      supp <- ModelList[[paste0(type, "TransformerSupp")]]
+      attention_supp <- if (legacy_structure) ModelList$SpatialTransformerSupp else supp
+      rotary <- if (type == "Spatial" || legacy_structure) RotaryPositionalEmbeddings_spatial else RotaryPositionalEmbeddings_temporal
+      layers <- ModelList[[if (legacy_structure) "SpatialTransformer" else paste0(type, "Transformer")]]
       if(type == "Spatial"){ # patch embed
           m <- ModelList$SpatialTransformerSupp$PatchEmbedder(cienv$jnp$transpose(m, c(2L, 0L, 1L)))
           m <- cienv$jnp$transpose(cienv$jnp$reshape(m, list(m$shape[[1]],-1L)))
@@ -1041,7 +1071,7 @@ class CLIPImageFeatureExtractor(nn.Module):
             if( inference || droppathRate == 0 ){
               print("Not using droppath here...")
                m <- compute_branch_attention(ModelList_d, m, 
-                                        RotaryPositionalEmbeddings_spatial, seed, 
+                                        rotary, seed,
                                         cienv$jnp$array(FALSE),  # is droppath indicator 
                                         inference)
                seed   <- cienv$jax$random$split(seed)[[1L]]
@@ -1057,7 +1087,7 @@ class CLIPImageFeatureExtractor(nn.Module):
                 do_path_indicator   <- cienv$jax$random$bernoulli(seed, p = keeppathRate, shape = list()); seed   <- cienv$jax$random$split(seed)[[1L]]
                 mm_ <- compute_branch_attention(ModelList_d , 
                                                 m,
-                                                RotaryPositionalEmbeddings_spatial, seed,
+                                                rotary, seed,
                                                 cienv$jnp$array(TRUE), # is droppath
                                                 inference)
                 m <- m + do_path_indicator$astype(m$dtype) * (mm_ - m)
@@ -1092,7 +1122,7 @@ class CLIPImageFeatureExtractor(nn.Module):
                                           },  
                                         false_fun = function(operands){return(operands[[2]])}, # false fun
                                         operand = list(ModelList_d, m, 
-                                                       RotaryPositionalEmbeddings_spatial, seed))  # operands
+                                                       rotary, seed))  # operands
               }
             }
             seed  <- cienv$jax$random$split(seed)[[1L]]
@@ -1100,7 +1130,7 @@ class CLIPImageFeatureExtractor(nn.Module):
                               "seed"=seed), NULL) ) }
           m <- cienv$jax$lax$scan(f = layer_fn, 
                                   init = list(m = m, seed = seed), 
-                                  xs = ModelList$SpatialTransformer)[[1]]$m
+                                  xs = layers)[[1]]$m
       }
 
       # take CLS embedding from position 0 [Start]
@@ -1120,20 +1150,20 @@ class CLIPImageFeatureExtractor(nn.Module):
       {
           pooled <- FlashMultiheadAttention(
             query = cienv$jnp$expand_dims(cienv$jnp$take(m, 0L, axis = 0L), 0L),  # CLS
-            key_ = RotaryPositionalEmbeddings_spatial(m), 
+            key_ = rotary(m),
             value = m, 
             mask = NULL,
-            W_q = ModelList$SpatialTransformerSupp$PoolMultihead$W_q,
-            W_k = ModelList$SpatialTransformerSupp$PoolMultihead$W_k,
-            W_v = ModelList$SpatialTransformerSupp$PoolMultihead$W_v,
-            W_o = ModelList$SpatialTransformerSupp$PoolMultihead$W_o,
+            W_q = attention_supp$PoolMultihead$W_q,
+            W_k = attention_supp$PoolMultihead$W_k,
+            W_v = attention_supp$PoolMultihead$W_v,
+            W_o = attention_supp$PoolMultihead$W_o,
             num_heads = 8L,
             is_causal = FALSE
           )
           m <- cienv$jnp$squeeze(pooled, 0L)  
           
           # keep your projection + norm (optional, but preserves interface)
-          m <- ffmap(ModelList$SpatialTransformerSupp$PoolProject, cienv$jnp$expand_dims(m,0L))
+          m <- ffmap(attention_supp$PoolProject, cienv$jnp$expand_dims(m,0L))
           m <- cienv$jnp$squeeze(m,0L)
       }
 
@@ -1169,12 +1199,13 @@ class CLIPImageFeatureExtractor(nn.Module):
       );rm(batch_inference_)
       
       ModelList <- c("FTParams"= list(cienv$FeatureExtractor$params),
-                     "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))),
-                     "FTParams_Proj"= cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
+                     "FTParams_NormRescaler"= cienv$jnp$array(t(rep(1,times = nWidth_ImageRep))))
+      if (legacy_structure) {
+        ModelList$FTParams_Proj <- cienv$eq$nn$Linear(in_features = ai(nWidth_ImageRep),
                                                    out_features = ai(nWidth_ImageRep),
                                                    use_bias = F, # hidden bias
                                                    key = cienv$jax$random$key(ai(33440L)))
-                     )
+      }
       StateList <- list("None"=cienv$jnp$array(.0)) # initialize with 0's
       FTBackbone <- function(ModelList, m, StateList, seed, MPList, inference, type){
         #m <- FeatureExtractor(
@@ -1192,7 +1223,7 @@ class CLIPImageFeatureExtractor(nn.Module):
       }
     }
     
-    if(!DoFineTuning){
+    if(legacy_structure && !DoFineTuning){
     # Transformer backbone 
     if(imageModelClass == "VisionTransformer"){
       StateList <- ModelList <- replicate(nDepth_ImageRep, cienv$jnp$array(0.)) # initialize with 0's
@@ -1306,8 +1337,8 @@ class CLIPImageFeatureExtractor(nn.Module):
     }
     }
     
-    # Temporal backbone
-    if(dataType == "video"){
+    # Legacy structure is retained only for deserializing v1 artifacts.
+    if(legacy_structure && dataType == "video"){
       message2("Setting up temporal backbone...")
       key <- image_seed_key(offset = 10000L, label = "GetImageRepresentations temporal backbone seed")
       for(dt_ in 1L:nDepth_TemporalRep){
@@ -1364,6 +1395,27 @@ class CLIPImageFeatureExtractor(nn.Module):
         )
     }
     
+    if (!legacy_structure) {
+      if (!DoFineTuning) {
+        ModelList <- list()
+        StateList <- cienv$jnp$array(0.)
+        if (is.null(pretrainedModel) && imageModelClass == "VisionTransformer") {
+          ModelList <- ci_transformer_parameters(
+            "Spatial", nWidth_ImageRep, nDepth_ImageRep, image_seed_key, nonLinearScaler,
+            nDepth_ImageRep + nDepth_TemporalRep, dataType == "video", patchEmbedDim,
+            rawChannelDims, if (!is.null(X) && (XCrossModal || XForceModal)) XProj else NULL
+          )
+        }
+      }
+      if (dataType == "video" && temporalAggregation == "transformer" &&
+          (is.null(pretrainedModel) || !grepl("video", pretrainedModel))) {
+        ModelList <- c(ModelList, ci_transformer_parameters(
+          "Temporal", nWidth_VideoRep, nDepth_TemporalRep, image_seed_key, nonLinearScaler,
+          nDepth_ImageRep + nDepth_TemporalRep, TRUE, patchEmbedDim, rawChannelDims
+        ))
+      }
+    }
+
     # Combine all entities
     # m <- InitImageProcess( cienv$jnp$array( batch_inference[[1]]),T)[0,0,,,];  d__ <- 1L; inference <- F
     # m <- InitImageProcess( cienv$jnp$array( batch_inference[[1]]), T);  d__ <- 1L; inference <- F
@@ -1389,11 +1441,18 @@ class CLIPImageFeatureExtractor(nn.Module):
                                                                              StateList, seed, MPList, inference){
       ModelList <- MPList[[1]]$cast_to_compute( ModelList )
       StateList <- MPList[[1]]$cast_to_compute( StateList )
+      m <- MPList[[1]]$cast_to_compute(m)
+      x <- MPList[[1]]$cast_to_compute(x)
 
       # squeeze temporal dim if needed
       thisPath <- T; if(!is.null(pretrainedModel)){ thisPath <- !grepl(pretrainedModel, pattern="video") }
       if(thisPath){
-        if(dataType == "video" & is.null(pretrainedModel)){ m <- cienv$jnp$reshape(m, c(-1L, (orig_shape_m <- cienv$jnp$shape(m))[3:5])) }
+        spatial_x <- x; spatial_seed <- seed
+        if(dataType == "video" && is.null(pretrainedModel)) {
+          orig_shape_m <- cienv$jnp$shape(m)
+          frames <- ci_runtime()$flatten_video_inputs(m, x, seed)
+          m <- frames[[1]]; spatial_x <- frames[[2]]; spatial_seed <- frames[[3]]
+        }
   
         message2(sprintf("Image stack dims: [%s]", paste(unlist(m$shape),collapse=",")))
   
@@ -1406,8 +1465,8 @@ class CLIPImageFeatureExtractor(nn.Module):
                    in_axes = list(NULL, 0L, 0L, 
                                   NULL, 0L, NULL, NULL),
                    axis_name = batch_axis_name,
-                   out_axes = list(0L,NULL))(ModelList, m, x,
-                                             StateList, seed, MPList, inference)
+                   out_axes = list(0L,NULL))(ModelList, m, spatial_x,
+                                             StateList, spatial_seed, MPList, inference)
           StateList <- m[[2]]; m <- m[[1]]
         }
   
@@ -1631,22 +1690,22 @@ class CLIPImageFeatureExtractor(nn.Module):
     stop("Stopping due to missingness in *output* version of Representations [Code reference: ImageModelBackbone.R]")
   }
   
-  if(CleanupEnv){
-    cleanup_names <- intersect(
-      c(ci_pretrained_cache_names(), "active_pretrained_cache_key"),
-      ls(envir = cienv, all.names = TRUE)
-    )
-    if (length(cleanup_names) > 0L) {
-      suppressWarnings(try(rm(list = cleanup_names, envir = cienv), T))
-    }
-  }
+  if(CleanupEnv) ci_pretrained_cache_clear()
   if(returnContents){
+   # Returned functions take model/state explicitly. Do not retain a second
+   # initializer tree (or input pipelines) through their enclosing environment.
+   on.exit(rm(list = intersect(c("ModelList", "StateList", "MPList", "test_", "XProj",
+                                "saved_iterator", "batch_inference", "X_batch",
+                                "ds_iterator_train", "ds_iterator_inference",
+                                "tf_dataset_train", "tf_dataset_inference"), ls()),
+              envir = environment()), add = TRUE)
    print("Returning contents in GetImageRepresentations()!")
    return( list( "ImageRepresentations"= Representations,
                  "ImageRepArm_batch_R" = ImageRepArm_batch_R,
                  "ImageRepArm_batch" = ImageRepArm_batch,
                  "ImageModel_And_State_And_MPPolicy_List" = list(ModelList, StateList, MPList), 
                  "InitImageProcess" = InitImageProcess,
+                 "stochasticRepresentation" = dropoutRate > 0 || droppathRate > 0 || DoFineTuning,
                  "nParamsRep" = cienv$nParamsRep
                  ) )
   }

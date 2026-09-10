@@ -174,7 +174,7 @@ GetElementFromTfRecordAtIndices <- function(uniqueKeyIndices, filename, nObs, re
     on.exit(try(setwd(orig_wd), silent = TRUE), add = TRUE)
 
     # Load the TFRecord file
-    dataset = cienv$tf$data$TFRecordDataset( tf_record_name[length(tf_record_name)]  )
+    dataset <- cienv$tf$data$TFRecordDataset(normalizePath(tf_record_name[length(tf_record_name)], mustWork = TRUE))
 
     # Parse the tf.Example messages
     dataset <- dataset$map( function(x){ parse_tfr_element(x, 
