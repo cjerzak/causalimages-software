@@ -35,6 +35,7 @@ AnalyzeImageHeterogeneity(
   testFrac = 0.1,
   kernelSize = 5L,
   learningRateMax = 0.001,
+  learningRateBatchScaling = TRUE,
   TFRecordControl = NULL,
   patchEmbedDim = 16L,
   nSGD = 500L,
@@ -110,7 +111,9 @@ AnalyzeImageHeterogeneity(
 
 \item{kernelSize}{Dimensions used in spatial convolutions.}
 
-\item{learningRateMax}{Maximum learning rate for the optimizer. Default = \code{0.001}.}
+\item{learningRateMax}{Maximum (peak) learning rate for the optimizer at the reference batch size of \code{16}; see \code{learningRateBatchScaling}. Default = \code{0.001}.}
+
+\item{learningRateBatchScaling}{Logical. If \code{TRUE} (default), the peak learning rate is scaled by \code{sqrt(B / 16)}, where \code{B} is the per-step batch size (\code{2*batchSize} when \code{TFRecordControl} is used), following the square-root scaling rule for adaptive optimizers. \code{learningRateMax} is then the peak learning rate at batch size \code{16}. Set to \code{FALSE} to use \code{learningRateMax} as-is.}
 
 \item{TFRecordControl}{Optional list for advanced TFRecord configuration.}
 

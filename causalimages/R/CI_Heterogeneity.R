@@ -45,7 +45,8 @@
 #' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
 #' @param pretrainedModel Optional string specifying a pretrained model to use. Options include `"vit-base"`, `"clip-rsicd"`, or HuggingFace model names with `"transformers-"` prefix.
 #' @param testFrac Fraction of observations held out as a test set. Default = `0.1`.
-#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param learningRateMax Maximum (peak) learning rate for the optimizer at the reference batch size of `16`; see `learningRateBatchScaling`. Default = `0.001`.
+#' @param learningRateBatchScaling Logical. If `TRUE` (default), the peak learning rate is scaled by `sqrt(B / 16)`, where `B` is the per-step batch size (`2*batchSize` when `TFRecordControl` is used), following the square-root scaling rule for adaptive optimizers. `learningRateMax` is then the peak learning rate at batch size `16`. Set to `FALSE` to use `learningRateMax` as-is.
 #' @param TFRecordControl Optional list for advanced TFRecord configuration.
 #' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
 #' @param seed Optional integer for reproducibility.
@@ -108,6 +109,7 @@ AnalyzeImageHeterogeneity <- function(obsW,
                                       testFrac = 0.1,
                                       kernelSize = 5L,
                                       learningRateMax = 0.001,
+                                      learningRateBatchScaling = TRUE,
                                       TFRecordControl = NULL, 
                                       patchEmbedDim = 16L,
                                       nSGD  = 500L,

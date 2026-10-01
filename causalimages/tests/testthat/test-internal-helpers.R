@@ -101,3 +101,17 @@ test_that("pretrained cache keys and activation isolate entries", {
   expect_true(cache_activate(key_b, names = "CI_TEST_MODEL"))
   expect_identical(ci_env$CI_TEST_MODEL, "model-b")
 })
+
+test_that("learning rate follows square-root batch-size scaling", {
+  expect_equal(causalimages:::ci_sqrt_batch_lr(1e-3, 16L), 1e-3)
+  expect_equal(causalimages:::ci_sqrt_batch_lr(1e-3, 64L), 2e-3)
+  expect_equal(causalimages:::ci_sqrt_batch_lr(1e-3, 4L), 5e-4)
+  expect_equal(causalimages:::ci_sqrt_batch_lr(1e-3, 4L, scale = FALSE), 1e-3)
+  expect_equal(causalimages:::ci_sqrt_batch_lr(1e-3, 64L, referenceBatchSize = 64L), 1e-3)
+
+  for (fxn in list(causalimages::AnalyzeImageConfounding,
+                   causalimages::AnalyzeImageHeterogeneity,
+                   causalimages::PredictiveRun)) {
+    expect_true(isTRUE(formals(fxn)$learningRateBatchScaling))
+  }
+})

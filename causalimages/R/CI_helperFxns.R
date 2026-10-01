@@ -470,6 +470,13 @@ ci_pretrained_cache_clear <- function() {
 
 se <- function(x){ x <- c(na.omit(x)); return(sqrt(var(x)/length(x)))}
 
+# Square-root batch-size learning-rate scaling for adaptive optimizers
+# (Malladi et al., 2022): lr = learningRateMax * sqrt(batchSize / referenceBatchSize)
+ci_sqrt_batch_lr <- function(learningRateMax, batchSize, scale = TRUE, referenceBatchSize = 16L){
+  if(!isTRUE(scale)){ return(learningRateMax) }
+  learningRateMax * sqrt(batchSize / referenceBatchSize)
+}
+
 LocalFxnSource <- function(fxn, evaluation_environment){
   eval(body(fxn), envir = evaluation_environment)
 }

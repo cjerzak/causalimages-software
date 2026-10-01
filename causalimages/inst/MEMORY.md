@@ -14,6 +14,11 @@ optimizer, and model state unchanged while adjusting the loss scale. Optimizer
 slots are released before final inference. A failed donated update is terminal
 and must not be retried with its consumed input state.
 
+The peak learning rate follows the square-root batch-size rule for adaptive
+optimizers: `learningRateMax * sqrt(B / 16)`, where `B` is the per-step batch
+(`2*batchSize` under `TFRecordControl`). Default batch sizes keep the old rate;
+`learningRateBatchScaling = FALSE` disables the scaling.
+
 Attention and SwiGLU sublayers use activation checkpointing. This trades extra
 backward computation for fewer saved activations. Toggle it when building a
 model for a comparison with `options(causalimages.activation_checkpointing = FALSE)`.

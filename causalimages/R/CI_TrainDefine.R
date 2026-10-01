@@ -10,14 +10,21 @@
 #' @noRd
 TrainDefine <- function(){
   if (!exists("earlyStopThreshold", inherits = FALSE)) earlyStopThreshold <- NULL
-  message2("Define optimizer and training step...") 
+  if (!exists("learningRateBatchScaling", inherits = FALSE)) learningRateBatchScaling <- TRUE
+  message2("Define optimizer and training step...")
   {
+    # sqrt(batch size) LR scaling; TrainDo concatenates control + treated batches under TFRecordControl
+    nEffectiveBatch <- batchSize * if (is.null(TFRecordControl)) 1L else 2L
+    learningRatePeak <- ci_sqrt_batch_lr(learningRateMax, nEffectiveBatch, scale = learningRateBatchScaling)
+    message2(sprintf("Peak learning rate: %.3g (learningRateMax = %.3g%s)",
+                     learningRatePeak, learningRateMax,
+                     if (isTRUE(learningRateBatchScaling)) sprintf(" x sqrt(%s/16)", nEffectiveBatch) else ", no batch scaling"))
     LR_schedule <- cienv$optax$warmup_cosine_decay_schedule(
                                                       warmup_steps = (nWarmup <- (0.05*nSGD)),
                                                       decay_steps = nSGD-nWarmup,
-                                                      init_value = learningRateMax/100, 
-                                                      peak_value = learningRateMax, 
-                                                      end_value =  learningRateMax/100)
+                                                      init_value = learningRatePeak/100,
+                                                      peak_value = learningRatePeak,
+                                                      end_value =  learningRatePeak/100)
     plot(cienv$np$array(LR_schedule(cienv$jnp$array(1:nSGD))),xlab = "Iteration", ylab="Learning rate schedule")
     optax_optimizer <-  cienv$optax$chain(
       cienv$optax$adaptive_grad_clip(clipping = 0.25, eps = 0.001),

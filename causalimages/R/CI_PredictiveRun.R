@@ -13,7 +13,7 @@
 #' @param nSGD Number of stochastic gradient descent (SGD) iterations. Default = `400L`
 #' @param nBoot Reserved for compatibility. `PredictiveRun()` currently does not
 #'   bootstrap predictive uncertainty.
-#' @param batchSize Batch size used in SGD optimization. Default = `50L`.
+#' @param batchSize Batch size used in SGD optimization. Default = `16L`.
 #' @param useTrainingPerturbations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
@@ -49,7 +49,8 @@
 #' @param nonLinearScaler Optional string specifying non-linear scaling function for outputs.
 #' @param nDepth_TemporalRep Integer specifying depth of temporal representation model. Default = `3L`.
 #' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
-#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param learningRateMax Maximum (peak) learning rate for the optimizer at the reference batch size of `16`; see `learningRateBatchScaling`. Default = `0.001`.
+#' @param learningRateBatchScaling Logical. If `TRUE` (default), the peak learning rate is scaled by `sqrt(B / 16)`, where `B` is the per-step batch size (`2*batchSize` when `TFRecordControl` is used), following the square-root scaling rule for adaptive optimizers. `learningRateMax` is then the peak learning rate at batch size `16`. Set to `FALSE` to use `learningRateMax` as-is.
 #' @param TFRecordControl Optional list for advanced TFRecord configuration.
 #' @param image_dtype String specifying image data type. Options are `"float16"` (default), `"bfloat16"`, or `"float32"`.
 #' @param atError String specifying behavior on error. Options are `"stop"` (default) or `"debug"`.
@@ -115,6 +116,7 @@ PredictiveRun <- function(
     testFrac = 0.05,
     TfRecords_BufferScaler = 4L,
     learningRateMax = 0.001,
+    learningRateBatchScaling = TRUE,
     TFRecordControl = NULL,
     dataType = "image",
     temporalAggregation = "transformer",

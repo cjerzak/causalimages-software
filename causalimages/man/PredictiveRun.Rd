@@ -44,6 +44,7 @@ PredictiveRun(
   testFrac = 0.05,
   TfRecords_BufferScaler = 4L,
   learningRateMax = 0.001,
+  learningRateBatchScaling = TRUE,
   TFRecordControl = NULL,
   dataType = "image",
   temporalAggregation = "transformer",
@@ -129,7 +130,7 @@ code. \code{PredictiveRun()} currently does not plot results.}
 
 \item{droppathRate}{Droppath rate used in training to prevent overfitting (\code{droppathRate = 0} corresponds to no droppath).}
 
-\item{batchSize}{Batch size used in SGD optimization. Default = \code{50L}.}
+\item{batchSize}{Batch size used in SGD optimization. Default = \code{16L}.}
 
 \item{nSGD}{Number of stochastic gradient descent (SGD) iterations. Default = \code{400L}}
 
@@ -137,7 +138,9 @@ code. \code{PredictiveRun()} currently does not plot results.}
 
 \item{TfRecords_BufferScaler}{The buffer size used in \code{tfrecords} mode is \code{batchSize*TfRecords_BufferScaler}. Lower \code{TfRecords_BufferScaler} towards 1 if out-of-memory problems.}
 
-\item{learningRateMax}{Maximum learning rate for the optimizer. Default = \code{0.001}.}
+\item{learningRateMax}{Maximum (peak) learning rate for the optimizer at the reference batch size of \code{16}; see \code{learningRateBatchScaling}. Default = \code{0.001}.}
+
+\item{learningRateBatchScaling}{Logical. If \code{TRUE} (default), the peak learning rate is scaled by \code{sqrt(B / 16)}, where \code{B} is the per-step batch size (\code{2*batchSize} when \code{TFRecordControl} is used), following the square-root scaling rule for adaptive optimizers. \code{learningRateMax} is then the peak learning rate at batch size \code{16}. Set to \code{FALSE} to use \code{learningRateMax} as-is.}
 
 \item{TFRecordControl}{Optional list for advanced TFRecord configuration.}
 

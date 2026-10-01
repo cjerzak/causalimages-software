@@ -14,7 +14,7 @@
 #' @param plotBands An integer or vector specifying which band position (from the image representation) should be plotted in the visual results. If a vector, `plotBands` should have 3 (and only 3) dimensions (corresponding to the 3 dimensions to be used in RGB plotting).
 #' @param nSGD Number of stochastic gradient descent (SGD) iterations. Default = `400L`
 #' @param nBoot Number of bootstrap iterations for uncertainty estimation.
-#' @param batchSize Batch size used in SGD optimization. Default = `50L`.
+#' @param batchSize Batch size used in SGD optimization. Default = `16L`.
 #' @param useTrainingPerturbations Boolean specifying whether to randomly perturb the image axes during training to reduce overfitting.
 #' @param optimizeImageRep Boolean specifying whether to optimize over the image model representation (or only over downstream parameters).
 #' @param dropoutRate Dropout rate used in training to prevent overfitting (`dropoutRate = 0` corresponds to no dropout).
@@ -48,7 +48,8 @@
 #' @param nDepth_TemporalRep Integer specifying depth of temporal representation model. Default = `3L`.
 #' @param patchEmbedDim Integer specifying patch embedding dimension for Vision Transformer. Default = `16L`.
 #' @param earlyStopThreshold Optional numeric threshold for early stopping based on validation loss.
-#' @param learningRateMax Maximum learning rate for the optimizer. Default = `0.001`.
+#' @param learningRateMax Maximum (peak) learning rate for the optimizer at the reference batch size of `16`; see `learningRateBatchScaling`. Default = `0.001`.
+#' @param learningRateBatchScaling Logical. If `TRUE` (default), the peak learning rate is scaled by `sqrt(B / 16)`, where `B` is the per-step batch size (`2*batchSize` when `TFRecordControl` is used), following the square-root scaling rule for adaptive optimizers. `learningRateMax` is then the peak learning rate at batch size `16`. Set to `FALSE` to use `learningRateMax` as-is.
 #' @param TFRecordControl Optional list for advanced TFRecord configuration.
 #' @param image_dtype String specifying image data type. Options are `"float16"` (default), `"bfloat16"`, or `"float32"`.
 #' @param atError String specifying behavior on error. Options are `"stop"` (default) or `"debug"`.
@@ -124,6 +125,7 @@ AnalyzeImageConfounding <- function(
                                    testFrac = 0.05,
                                    TfRecords_BufferScaler = 4L,
                                    learningRateMax = 0.001,
+                                   learningRateBatchScaling = TRUE,
                                    TFRecordControl = NULL,
                                    dataType = "image",
                                    temporalAggregation = "transformer",
@@ -206,6 +208,7 @@ AnalyzeImageConfounding <- function(
   if(!dir.exists(figuresPath)){ dir.create(figuresPath) }
   figuresPath <- paste(strsplit(figuresPath,split="/")[[1]],collapse = "/")
   if(batchSize > length(obsW)){ batchSize <- round(length(obsW) * 0.90) }
+  batchSize_train <- batchSize # inference below doubles batchSize; restored at each fold
 
   XisNull <- is.null( X  )
   if(!XisNull){ if(!"matrix" %in% class(X)){
@@ -539,6 +542,7 @@ AnalyzeImageConfounding <- function(
       tauHat_propensityHajek_vec <- rep(NA,times=kFolds)
       trainIndices_list <- testIndices_list <- list() 
       for( kf_ in 1:kFolds ){
+        batchSize <- batchSize_train
         # Drop TF iterators & datasets
         for (nm in c("ds_iterator_train","ds_iterator_train_control","ds_iterator_train_treated",
                      "tf_dataset_train","tf_dataset_train_control","tf_dataset_train_treated")) {
